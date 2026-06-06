@@ -1,6 +1,6 @@
 # FM Genie 26 Java Rebuild
 
-Spring Boot 3.5 Maven port of the live Linux RAM exporter.
+Spring Boot 4.0 Maven port of the live Linux RAM exporter.
 
 ## Build
 
