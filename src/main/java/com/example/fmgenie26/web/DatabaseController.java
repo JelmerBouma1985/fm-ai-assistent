@@ -2,6 +2,7 @@ package com.example.fmgenie26.web;
 
 import com.example.fmgenie26.db.ClubDatabaseService;
 import com.example.fmgenie26.db.CompetitionDatabaseService;
+import com.example.fmgenie26.db.DatabaseLoadAllService;
 import com.example.fmgenie26.db.PlayerDatabaseService;
 import com.example.fmgenie26.fm.FmOffsets;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,11 +19,33 @@ public class DatabaseController {
     private final PlayerDatabaseService players;
     private final ClubDatabaseService clubs;
     private final CompetitionDatabaseService competitions;
+    private final DatabaseLoadAllService loadAll;
 
-    public DatabaseController(PlayerDatabaseService players, ClubDatabaseService clubs, CompetitionDatabaseService competitions) {
+    public DatabaseController(
+            PlayerDatabaseService players,
+            ClubDatabaseService clubs,
+            CompetitionDatabaseService competitions,
+            DatabaseLoadAllService loadAll) {
         this.players = players;
         this.clubs = clubs;
         this.competitions = competitions;
+        this.loadAll = loadAll;
+    }
+
+    @PostMapping("/api/db/load-all")
+    public Map<String, Object> loadAllPost(
+            @RequestParam(required = false) Integer pid,
+            @RequestParam(defaultValue = "0x235144") String build,
+            @RequestParam(required = false, name = "gamePluginBase") String gamePluginBase) throws IOException {
+        return loadAll(pid, build, gamePluginBase);
+    }
+
+    @GetMapping("/api/db/load-all")
+    public Map<String, Object> loadAllGet(
+            @RequestParam(required = false) Integer pid,
+            @RequestParam(defaultValue = "0x235144") String build,
+            @RequestParam(required = false, name = "gamePluginBase") String gamePluginBase) throws IOException {
+        return loadAll(pid, build, gamePluginBase);
     }
 
     @PostMapping("/api/db/players/load")
@@ -134,6 +157,16 @@ public class DatabaseController {
     private Map<String, Object> loadCompetitions(int pid, String build, String gamePluginBase) throws IOException {
         CompetitionDatabaseService.LoadResult result = competitions.loadAllCompetitions(pid, parseInt(build), gamePluginBase == null ? null : parseLong(gamePluginBase));
         return Map.of("count", result.count(), "table", "competitions");
+    }
+
+    private Map<String, Object> loadAll(Integer pid, String build, String gamePluginBase) throws IOException {
+        DatabaseLoadAllService.LoadAllResult result = loadAll.loadAll(pid, parseInt(build), gamePluginBase == null ? null : parseLong(gamePluginBase));
+        return Map.of(
+                "pid", result.pid(),
+                "game_date", result.gameDate(),
+                "players", result.players(),
+                "clubs", result.clubs(),
+                "competitions", result.competitions());
     }
 
     private static int parseInt(String value) {

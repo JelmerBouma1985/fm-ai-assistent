@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -97,6 +98,50 @@ public class PlayerDatabaseService {
     }
 
     @Transactional(readOnly = true)
+    public List<Map<String, Object>> findAllPlayers() {
+        return players.findAll(Sort.by(Sort.Direction.ASC, "name"))
+                .stream()
+                .map(PlayerEntity::toApiMap)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> findPlayers(PlayerFilterCriteria filter) {
+        PlayerFilterCriteria safeFilter = filter == null ? PlayerFilterCriteria.empty() : filter;
+        return players.findAll(Sort.by(Sort.Direction.ASC, "name"))
+                .stream()
+                .map(PlayerEntity::toApiMap)
+                .filter(row -> matchesPlayerFilter(row, safeFilter))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> findPlayingNations() {
+        return players.findAll()
+                .stream()
+                .map(PlayerEntity::toApiMap)
+                .map(row -> row.get("PLAYING_NATION"))
+                .filter(value -> value != null && !String.valueOf(value).isBlank())
+                .map(String::valueOf)
+                .distinct()
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> findPlayingCompetitions() {
+        return players.findAll()
+                .stream()
+                .map(PlayerEntity::toApiMap)
+                .map(row -> row.get("PLAYING_COMPETITION"))
+                .filter(value -> value != null && !String.valueOf(value).isBlank())
+                .map(String::valueOf)
+                .distinct()
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public Map<String, Object> metadata() {
         Map<String, Object> out = new LinkedHashMap<>();
         metadata.findAll(Sort.by("key")).forEach(row -> out.put(row.getKey(), row.getValue()));
@@ -119,6 +164,94 @@ public class PlayerDatabaseService {
             }
             return cb.and(predicates.toArray(Predicate[]::new));
         };
+    }
+
+    private static boolean matchesPlayerFilter(Map<String, Object> row, PlayerFilterCriteria filter) {
+        return contains(row.get("NAME"), filter.name())
+                && equalsIgnoreCase(row.get("GENDER"), filter.gender())
+                && equalsIgnoreCase(row.get("PLAYING_NATION"), filter.playingNation())
+                && equalsIgnoreCase(row.get("PLAYING_COMPETITION"), filter.playingCompetition())
+                && contains(row.get("NATIONALITY"), filter.nationality())
+                && inRange(asInt(row.get("AGE")), filter.ageMin(), filter.ageMax())
+                && inRange(asInt(row.get("CURRENT_REPUTATION")), filter.currentReputationMin(), filter.currentReputationMax())
+                && inRange(asInt(row.get("HOME_REPUTATION")), filter.homeReputationMin(), filter.homeReputationMax())
+                && inRange(asInt(row.get("WORLD_REPUTATION")), filter.worldReputationMin(), filter.worldReputationMax())
+                && inRange(asInt(row.get("CA")), filter.caMin(), filter.caMax())
+                && inRange(asInt(row.get("PA")), filter.paMin(), filter.paMax())
+                && inRange(asLong(row.get("ASKING_PRICE")), filter.askingPriceMin(), filter.askingPriceMax())
+                && dateInRange(row.get("CONTRACT_END_DATE"), filter.contractEndDateFrom(), filter.contractEndDateTo())
+                && minimumsMatch(row, filter.positionMinimums())
+                && minimumsMatch(row, filter.attributeMinimums());
+    }
+
+    private static boolean contains(Object value, String term) {
+        return term == null || term.isBlank()
+                || String.valueOf(value == null ? "" : value).toLowerCase(Locale.ROOT)
+                .contains(term.toLowerCase(Locale.ROOT).trim());
+    }
+
+    private static boolean equalsIgnoreCase(Object value, String term) {
+        return term == null || term.isBlank()
+                || String.valueOf(value == null ? "" : value).equalsIgnoreCase(term.trim());
+    }
+
+    private static boolean minimumsMatch(Map<String, Object> row, Map<String, Integer> minimums) {
+        for (Map.Entry<String, Integer> minimum : minimums.entrySet()) {
+            Integer value = asInt(row.get(minimum.getKey()));
+            if (value == null || value < minimum.getValue()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean inRange(Integer value, Integer min, Integer max) {
+        if (min == null && max == null) {
+            return true;
+        }
+        if (value == null) {
+            return false;
+        }
+        return (min == null || value >= min) && (max == null || value <= max);
+    }
+
+    private static boolean inRange(Long value, Long min, Long max) {
+        if (min == null && max == null) {
+            return true;
+        }
+        if (value == null) {
+            return false;
+        }
+        return (min == null || value >= min) && (max == null || value <= max);
+    }
+
+    private static boolean dateInRange(Object value, LocalDate from, LocalDate to) {
+        if (from == null && to == null) {
+            return true;
+        }
+        if (value == null || String.valueOf(value).isBlank()) {
+            return false;
+        }
+        try {
+            LocalDate date = LocalDate.parse(String.valueOf(value));
+            return (from == null || !date.isBefore(from)) && (to == null || !date.isAfter(to));
+        } catch (RuntimeException ex) {
+            return false;
+        }
+    }
+
+    private static Integer asInt(Object value) {
+        if (value == null || String.valueOf(value).isBlank()) {
+            return null;
+        }
+        return Integer.valueOf(String.valueOf(value));
+    }
+
+    private static Long asLong(Object value) {
+        if (value == null || String.valueOf(value).isBlank()) {
+            return null;
+        }
+        return Long.valueOf(String.valueOf(value));
     }
 
     public record LoadResult(String gameDate, int count) {

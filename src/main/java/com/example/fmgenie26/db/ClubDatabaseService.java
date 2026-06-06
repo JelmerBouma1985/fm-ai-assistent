@@ -83,6 +83,14 @@ public class ClubDatabaseService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> findAllClubs() {
+        return clubs.findAll(Sort.by(Sort.Direction.ASC, "name"))
+                .stream()
+                .map(ClubEntity::toApiMap)
+                .toList();
+    }
+
     private static Specification<ClubEntity> clubFilters(String name, String gender, String nation, String competition) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();

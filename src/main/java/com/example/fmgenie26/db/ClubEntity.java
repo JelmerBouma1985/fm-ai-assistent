@@ -91,6 +91,14 @@ public class ClubEntity {
         return reputation;
     }
 
+    public String getCompetition() {
+        return competition;
+    }
+
+    public String getNation() {
+        return nation;
+    }
+
     private void setField(String fieldName, Object value) {
         try {
             Field field = ClubEntity.class.getDeclaredField(fieldName);

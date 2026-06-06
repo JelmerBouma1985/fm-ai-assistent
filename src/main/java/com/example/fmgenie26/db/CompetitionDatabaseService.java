@@ -51,6 +51,14 @@ public class CompetitionDatabaseService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> findAllCompetitions() {
+        return competitions.findAll(Sort.by(Sort.Direction.ASC, "name"))
+                .stream()
+                .map(CompetitionEntity::toApiMap)
+                .toList();
+    }
+
     private static Specification<CompetitionEntity> competitionFilters(String name, String nation, String gender) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
