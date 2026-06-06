@@ -1,0 +1,13 @@
+.agents/
+.codex/
+.idea/
+analysis/
+data/
+exports/
+extracted_resources/
+installed/
+ram_dumps/
+rebuild/
+target/
+
+/genie26_setup_26.3.1_b1530.exe
