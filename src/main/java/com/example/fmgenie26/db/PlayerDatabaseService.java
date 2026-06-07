@@ -1,40 +1,45 @@
 package com.example.fmgenie26.db;
 
 import com.example.fmgenie26.player.PlayerExporter;
+import com.example.fmgenie26.web.mapper.PlayerMapper;
 import jakarta.persistence.criteria.Predicate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StopWatch;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class PlayerDatabaseService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(PlayerDatabaseService.class);
+
     private final PlayerRepository players;
     private final ClubRepository clubs;
     private final ClubDatabaseService clubDatabaseService;
     private final LoadMetadataRepository metadata;
     private final PlayerExporter exporter = new PlayerExporter();
+    private final PlayerMapper playerMapper;
 
     public PlayerDatabaseService(
             PlayerRepository players,
             ClubRepository clubs,
             ClubDatabaseService clubDatabaseService,
-            LoadMetadataRepository metadata) {
+            LoadMetadataRepository metadata, PlayerMapper playerMapper) {
         this.players = players;
         this.clubs = clubs;
         this.clubDatabaseService = clubDatabaseService;
         this.metadata = metadata;
+        this.playerMapper = playerMapper;
     }
 
     @Transactional
@@ -93,52 +98,55 @@ public class PlayerDatabaseService {
                         playerFilters(name, gender, nationality),
                         PageRequest.of(0, safeLimit, Sort.by(Sort.Direction.ASC, "name")))
                 .stream()
-                .map(PlayerEntity::toApiMap)
+                .map(playerMapper)
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> findAllPlayers() {
-        return players.findAll(Sort.by(Sort.Direction.ASC, "name"))
+        StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
+        List<Map<String, Object>> p = players.findAll()
                 .stream()
-                .map(PlayerEntity::toApiMap)
+                .map(playerMapper)
                 .toList();
+
+        stopWatch.stop();
+        LOGGER.info("Time to get players: {}", stopWatch.getTotalTime(TimeUnit.MILLISECONDS));
+        return p;
     }
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> findPlayers(PlayerFilterCriteria filter) {
         PlayerFilterCriteria safeFilter = filter == null ? PlayerFilterCriteria.empty() : filter;
-        return players.findAll(Sort.by(Sort.Direction.ASC, "name"))
+
+        StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
+        List<PlayerEntity> p = players.findAll();
+        stopWatch.stop();
+        LOGGER.info("Time to get players: {}", stopWatch.getTotalTime(TimeUnit.MILLISECONDS));
+
+        StopWatch st = new StopWatch();
+        st.start();
+        List<Map<String, Object>> o = p
                 .stream()
-                .map(PlayerEntity::toApiMap)
+                .map(playerMapper)
                 .filter(row -> matchesPlayerFilter(row, safeFilter))
                 .toList();
+        st.stop();
+        LOGGER.info("Mapping and filtering players: {}", st.getTotalTime(TimeUnit.MILLISECONDS));
+
+        return o;
     }
 
     @Transactional(readOnly = true)
     public List<String> findPlayingNations() {
-        return players.findAll()
-                .stream()
-                .map(PlayerEntity::toApiMap)
-                .map(row -> row.get("PLAYING_NATION"))
-                .filter(value -> value != null && !String.valueOf(value).isBlank())
-                .map(String::valueOf)
-                .distinct()
-                .sorted(String.CASE_INSENSITIVE_ORDER)
-                .toList();
+        return players.findDistinctPlayingNations();
     }
 
     @Transactional(readOnly = true)
     public List<String> findPlayingCompetitions() {
-        return players.findAll()
-                .stream()
-                .map(PlayerEntity::toApiMap)
-                .map(row -> row.get("PLAYING_COMPETITION"))
-                .filter(value -> value != null && !String.valueOf(value).isBlank())
-                .map(String::valueOf)
-                .distinct()
-                .sorted(String.CASE_INSENSITIVE_ORDER)
-                .toList();
+        return players.findDistinctPlayingCompetitions();
     }
 
     @Transactional(readOnly = true)

@@ -214,6 +214,7 @@ public class MainView extends VerticalLayout {
     }
 
     private void openPlayerFilterDialog() {
+        
         Dialog dialog = new Dialog();
         dialog.setHeaderTitle("Player filter");
         dialog.setWidth("980px");
@@ -298,12 +299,6 @@ public class MainView extends VerticalLayout {
         attributeLayout.setResponsiveSteps(
                 new FormLayout.ResponsiveStep("0", 2),
                 new FormLayout.ResponsiveStep("720px", 4));
-        for (FieldDef field : AttributeDefinitions.VISIBLE_FIELDS) {
-            String column = PlayerColumnNames.toColumnName(field.name()).toUpperCase();
-            IntegerField attribute = intField(displayName(field.name()), playerFilter.attributeMinimums().getOrDefault(column, 1), 1, 20);
-            attributeFields.put(column, attribute);
-            attributeLayout.add(attribute);
-        }
 
         Tab filtersTab = new Tab("Filters");
         Tab attributesTab = new Tab("Attributes");
@@ -313,10 +308,16 @@ public class MainView extends VerticalLayout {
         dialogContent.getStyle().set("max-height", "70vh").set("overflow", "auto");
         dialogTabs.addSelectedChangeListener(event -> {
             dialogContent.removeAll();
-            dialogContent.add(event.getSelectedTab() == filtersTab ? playerTab : attributeLayout);
+            if (event.getSelectedTab() == filtersTab) {
+                dialogContent.add(playerTab);
+            } else {
+                createAttributeFields(attributeFields, attributeLayout);
+                dialogContent.add(attributeLayout);
+            }
         });
 
         Button apply = new Button("Apply", event -> {
+            createAttributeFields(attributeFields, attributeLayout);
             if (!validPlayerFilter(
                     currentRepMin, currentRepMax,
                     homeRepMin, homeRepMax,
@@ -449,6 +450,18 @@ public class MainView extends VerticalLayout {
             comboBox.setValue(value);
         }
         return comboBox;
+    }
+
+    private void createAttributeFields(Map<String, IntegerField> attributeFields, FormLayout attributeLayout) {
+        if (!attributeFields.isEmpty()) {
+            return;
+        }
+        for (FieldDef field : AttributeDefinitions.VISIBLE_FIELDS) {
+            String column = PlayerColumnNames.toColumnName(field.name()).toUpperCase();
+            IntegerField attribute = intField(displayName(field.name()), playerFilter.attributeMinimums().getOrDefault(column, 1), 1, 20);
+            attributeFields.put(column, attribute);
+            attributeLayout.add(attribute);
+        }
     }
 
     private static boolean validPlayerFilter(

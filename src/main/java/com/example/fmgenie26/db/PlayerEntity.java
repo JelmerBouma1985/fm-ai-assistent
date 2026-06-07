@@ -225,6 +225,18 @@ public class PlayerEntity {
         return id;
     }
 
+    public String getName() {
+        return name;
+    }
+
+    public ClubEntity getClubEntity() {
+        return clubEntity;
+    }
+
+    public ClubEntity getPlayingClubEntity() {
+        return playingClubEntity;
+    }
+
     public Map<String, Object> toApiMap() {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("ID", id);
@@ -244,6 +256,362 @@ public class PlayerEntity {
 
     public void setPlayingClubEntity(ClubEntity playingClubEntity) {
         this.playingClubEntity = playingClubEntity;
+    }
+
+    public String getPlayerIndex() {
+        return playerIndex;
+    }
+
+    public String getRecordAddress() {
+        return recordAddress;
+    }
+
+    public String getGender() {
+        return gender;
+    }
+
+    public String getNationality() {
+        return nationality;
+    }
+
+    public String getClub() {
+        return club;
+    }
+
+    public String getPlayingClub() {
+        return playingClub;
+    }
+
+    public String getLoanClub() {
+        return loanClub;
+    }
+
+    public String getIsLoanedOut() {
+        return isLoanedOut;
+    }
+
+    public Integer getCurrentReputation() {
+        return currentReputation;
+    }
+
+    public Integer getHomeReputation() {
+        return homeReputation;
+    }
+
+    public Integer getWorldReputation() {
+        return worldReputation;
+    }
+
+    public Integer getCa() {
+        return ca;
+    }
+
+    public Integer getPa() {
+        return pa;
+    }
+
+    public Long getAskingPrice() {
+        return askingPrice;
+    }
+
+    public Long getAskingPriceRaw() {
+        return askingPriceRaw;
+    }
+
+    public String getContractEndDate() {
+        return contractEndDate;
+    }
+
+    public Integer getSalaryPa() {
+        return salaryPa;
+    }
+
+    public Integer getSalaryWeeklyRaw() {
+        return salaryWeeklyRaw;
+    }
+
+    public String getDateOfBirth() {
+        return dateOfBirth;
+    }
+
+    public String getAge() {
+        return age;
+    }
+
+    public String getAgeAsOf() {
+        return ageAsOf;
+    }
+
+    public Integer getGoalkeeper() {
+        return goalkeeper;
+    }
+
+    public Integer getDefenderLeft() {
+        return defenderLeft;
+    }
+
+    public Integer getDefenderCentral() {
+        return defenderCentral;
+    }
+
+    public Integer getDefenderRight() {
+        return defenderRight;
+    }
+
+    public Integer getWingBackLeft() {
+        return wingBackLeft;
+    }
+
+    public Integer getDefensiveMidfielder() {
+        return defensiveMidfielder;
+    }
+
+    public Integer getWingBackRight() {
+        return wingBackRight;
+    }
+
+    public Integer getMidfielderLeft() {
+        return midfielderLeft;
+    }
+
+    public Integer getMidfielderCentral() {
+        return midfielderCentral;
+    }
+
+    public Integer getMidfielderRight() {
+        return midfielderRight;
+    }
+
+    public Integer getAttackingMidfielderLeft() {
+        return attackingMidfielderLeft;
+    }
+
+    public Integer getAttackingMidfielderCentral() {
+        return attackingMidfielderCentral;
+    }
+
+    public Integer getAttackingMidfielderRight() {
+        return attackingMidfielderRight;
+    }
+
+    public Integer getStriker() {
+        return striker;
+    }
+
+    public Integer getCrossing() {
+        return crossing;
+    }
+
+    public Integer getDribbling() {
+        return dribbling;
+    }
+
+    public Integer getFinishing() {
+        return finishing;
+    }
+
+    public Integer getHeading() {
+        return heading;
+    }
+
+    public Integer getLongShots() {
+        return longShots;
+    }
+
+    public Integer getMarking() {
+        return marking;
+    }
+
+    public Integer getOffTheBall() {
+        return offTheBall;
+    }
+
+    public Integer getPassing() {
+        return passing;
+    }
+
+    public Integer getPenalties() {
+        return penalties;
+    }
+
+    public Integer getTackling() {
+        return tackling;
+    }
+
+    public Integer getVision() {
+        return vision;
+    }
+
+    public Integer getHandling() {
+        return handling;
+    }
+
+    public Integer getAerialAbility() {
+        return aerialAbility;
+    }
+
+    public Integer getCommandOfArea() {
+        return commandOfArea;
+    }
+
+    public Integer getCommunication() {
+        return communication;
+    }
+
+    public Integer getKicking() {
+        return kicking;
+    }
+
+    public Integer getThrowing() {
+        return throwing;
+    }
+
+    public Integer getAnticipation() {
+        return anticipation;
+    }
+
+    public Integer getDecisions() {
+        return decisions;
+    }
+
+    public Integer getOneOnOnes() {
+        return oneOnOnes;
+    }
+
+    public Integer getPositioning() {
+        return positioning;
+    }
+
+    public Integer getReflexes() {
+        return reflexes;
+    }
+
+    public Integer getFirstTouch() {
+        return firstTouch;
+    }
+
+    public Integer getTechnique() {
+        return technique;
+    }
+
+    public Integer getLeftFoot() {
+        return leftFoot;
+    }
+
+    public Integer getRightFoot() {
+        return rightFoot;
+    }
+
+    public Integer getFlair() {
+        return flair;
+    }
+
+    public Integer getCorners() {
+        return corners;
+    }
+
+    public Integer getTeamwork() {
+        return teamwork;
+    }
+
+    public Integer getWorkRate() {
+        return workRate;
+    }
+
+    public Integer getLongThrows() {
+        return longThrows;
+    }
+
+    public Integer getEccentricity() {
+        return eccentricity;
+    }
+
+    public Integer getRushingOut() {
+        return rushingOut;
+    }
+
+    public Integer getTendencyToPunch() {
+        return tendencyToPunch;
+    }
+
+    public Integer getAcceleration() {
+        return acceleration;
+    }
+
+    public Integer getFreeKicks() {
+        return freeKicks;
+    }
+
+    public Integer getStrength() {
+        return strength;
+    }
+
+    public Integer getStamina() {
+        return stamina;
+    }
+
+    public Integer getPace() {
+        return pace;
+    }
+
+    public Integer getJumpingReach() {
+        return jumpingReach;
+    }
+
+    public Integer getLeadership() {
+        return leadership;
+    }
+
+    public Integer getDirtiness() {
+        return dirtiness;
+    }
+
+    public Integer getBalance() {
+        return balance;
+    }
+
+    public Integer getBravery() {
+        return bravery;
+    }
+
+    public Integer getConsistency() {
+        return consistency;
+    }
+
+    public Integer getAggression() {
+        return aggression;
+    }
+
+    public Integer getAgility() {
+        return agility;
+    }
+
+    public Integer getImportantMatches() {
+        return importantMatches;
+    }
+
+    public Integer getInjuryProneness() {
+        return injuryProneness;
+    }
+
+    public Integer getVersatility() {
+        return versatility;
+    }
+
+    public Integer getNaturalFitness() {
+        return naturalFitness;
+    }
+
+    public Integer getDetermination() {
+        return determination;
+    }
+
+    public Integer getComposure() {
+        return composure;
+    }
+
+    public Integer getConcentration() {
+        return concentration;
     }
 
     private void setExportField(String exportField, Object value) {
