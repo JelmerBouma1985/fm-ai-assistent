@@ -1,10 +1,13 @@
 package com.example.fmgenie26.db;
 
+import com.example.fmgenie26.config.JCacheConfiguration;
 import com.example.fmgenie26.player.PlayerExporter;
 import com.example.fmgenie26.web.mapper.PlayerMapper;
 import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -43,6 +46,13 @@ public class PlayerDatabaseService {
     }
 
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(cacheNames = JCacheConfiguration.PLAYERS_CACHE, allEntries = true),
+            @CacheEvict(cacheNames = JCacheConfiguration.PLAYERS_WITH_CLUBS_CACHE, allEntries = true),
+            @CacheEvict(cacheNames = JCacheConfiguration.NATIONS_CACHE, allEntries = true),
+            @CacheEvict(cacheNames = JCacheConfiguration.COMPETITIONS_CACHE, allEntries = true),
+            @CacheEvict(cacheNames = JCacheConfiguration.PLAYER_MAPPING_CACHE, allEntries = true)
+    })
     public LoadResult loadAllPlayers(int pid, int build, Long gamePluginBase) throws IOException {
         players.deleteAllInBatch();
         clubDatabaseService.loadAllClubs(pid, build, gamePluginBase);
@@ -114,6 +124,30 @@ public class PlayerDatabaseService {
         stopWatch.stop();
         LOGGER.info("Time to get players: {}", stopWatch.getTotalTime(TimeUnit.MILLISECONDS));
         return p;
+    }
+
+    @Transactional(readOnly = true)
+    public List<PlayerEntity> findAllPlayerEntities() {
+        StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
+        List<PlayerEntity> out = players.findAllWithClubs();
+        stopWatch.stop();
+        LOGGER.info("Time to get player entities: {}", stopWatch.getTotalTime(TimeUnit.MILLISECONDS));
+        return out;
+    }
+
+    @Transactional(readOnly = true)
+    public List<PlayerEntity> findPlayerEntities(PlayerFilterCriteria filter) {
+        PlayerFilterCriteria safeFilter = filter == null ? PlayerFilterCriteria.empty() : filter;
+        StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
+        List<PlayerEntity> out = players.findAllWithClubs()
+                .stream()
+                .filter(player -> matchesPlayerFilter(player, safeFilter))
+                .toList();
+        stopWatch.stop();
+        LOGGER.info("Time to get filtered player entities: {}", stopWatch.getTotalTime(TimeUnit.MILLISECONDS));
+        return out;
     }
 
     @Transactional(readOnly = true)
@@ -192,6 +226,24 @@ public class PlayerDatabaseService {
                 && minimumsMatch(row, filter.attributeMinimums());
     }
 
+    private static boolean matchesPlayerFilter(PlayerEntity player, PlayerFilterCriteria filter) {
+        return contains(player.getName(), filter.name())
+                && equalsIgnoreCase(player.getGender(), filter.gender())
+                && equalsIgnoreCase(player.getColumnValue("PLAYING_NATION"), filter.playingNation())
+                && equalsIgnoreCase(player.getColumnValue("PLAYING_COMPETITION"), filter.playingCompetition())
+                && contains(player.getNationality(), filter.nationality())
+                && inRange(asInt(player.getAge()), filter.ageMin(), filter.ageMax())
+                && inRange(player.getCurrentReputation(), filter.currentReputationMin(), filter.currentReputationMax())
+                && inRange(player.getHomeReputation(), filter.homeReputationMin(), filter.homeReputationMax())
+                && inRange(player.getWorldReputation(), filter.worldReputationMin(), filter.worldReputationMax())
+                && inRange(player.getCa(), filter.caMin(), filter.caMax())
+                && inRange(player.getPa(), filter.paMin(), filter.paMax())
+                && inRange(player.getAskingPrice(), filter.askingPriceMin(), filter.askingPriceMax())
+                && dateInRange(player.getContractEndDate(), filter.contractEndDateFrom(), filter.contractEndDateTo())
+                && minimumsMatch(player, filter.positionMinimums())
+                && minimumsMatch(player, filter.attributeMinimums());
+    }
+
     private static boolean contains(Object value, String term) {
         return term == null || term.isBlank()
                 || String.valueOf(value == null ? "" : value).toLowerCase(Locale.ROOT)
@@ -206,6 +258,16 @@ public class PlayerDatabaseService {
     private static boolean minimumsMatch(Map<String, Object> row, Map<String, Integer> minimums) {
         for (Map.Entry<String, Integer> minimum : minimums.entrySet()) {
             Integer value = asInt(row.get(minimum.getKey()));
+            if (value == null || value < minimum.getValue()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean minimumsMatch(PlayerEntity player, Map<String, Integer> minimums) {
+        for (Map.Entry<String, Integer> minimum : minimums.entrySet()) {
+            Integer value = asInt(player.getColumnValue(minimum.getKey()));
             if (value == null || value < minimum.getValue()) {
                 return false;
             }

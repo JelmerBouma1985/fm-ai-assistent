@@ -14,6 +14,7 @@ import jakarta.persistence.Table;
 
 import java.lang.reflect.Field;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 
 @Entity
@@ -235,6 +236,17 @@ public class PlayerEntity {
 
     public ClubEntity getPlayingClubEntity() {
         return playingClubEntity;
+    }
+
+    public Object getColumnValue(String columnName) {
+        return switch (columnName) {
+            case "ID" -> id;
+            case "CLUB_ID" -> clubEntity == null ? null : clubEntity.getId();
+            case "PLAYING_CLUB_ID" -> playingClubEntity == null ? null : playingClubEntity.getId();
+            case "PLAYING_NATION" -> playingClubEntity == null ? null : playingClubEntity.getNation();
+            case "PLAYING_COMPETITION" -> playingClubEntity == null ? null : playingClubEntity.getCompetition();
+            default -> getEntityField(PlayerColumnNames.toEntityFieldName(columnName.toLowerCase(Locale.ROOT)));
+        };
     }
 
     public Map<String, Object> toApiMap() {
@@ -645,12 +657,16 @@ public class PlayerEntity {
     }
 
     private Object getExportField(String exportField) {
+        return getEntityField(PlayerColumnNames.toEntityFieldName(exportField));
+    }
+
+    private Object getEntityField(String entityField) {
         try {
-            Field field = PlayerEntity.class.getDeclaredField(PlayerColumnNames.toEntityFieldName(exportField));
+            Field field = PlayerEntity.class.getDeclaredField(entityField);
             field.setAccessible(true);
             return field.get(this);
         } catch (NoSuchFieldException | IllegalAccessException ex) {
-            throw new IllegalArgumentException("unmapped player export field: " + exportField, ex);
+            throw new IllegalArgumentException("unmapped player entity field: " + entityField, ex);
         }
     }
 }

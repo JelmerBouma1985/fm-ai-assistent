@@ -13,6 +13,7 @@ import javax.cache.expiry.EternalExpiryPolicy;
 public class JCacheConfiguration {
 
     public static final String PLAYERS_CACHE = "players";
+    public static final String PLAYERS_WITH_CLUBS_CACHE = "players_with_clubs";
     public static final String NATIONS_CACHE = "nations";
     public static final String COMPETITIONS_CACHE = "competitions";
     public static final String PLAYER_MAPPING_CACHE = "player_mapping_cache";
@@ -23,6 +24,16 @@ public class JCacheConfiguration {
             if (cacheManager.getCache(PLAYERS_CACHE) == null) {
                 cacheManager.createCache(
                         PLAYERS_CACHE,
+                        new MutableConfiguration<>()
+                                .setStoreByValue(false)
+                                .setStatisticsEnabled(true)
+                                .setExpiryPolicyFactory(EternalExpiryPolicy.factoryOf())
+                );
+            }
+
+            if (cacheManager.getCache(PLAYERS_WITH_CLUBS_CACHE) == null) {
+                cacheManager.createCache(
+                        PLAYERS_WITH_CLUBS_CACHE,
                         new MutableConfiguration<>()
                                 .setStoreByValue(false)
                                 .setStatisticsEnabled(true)

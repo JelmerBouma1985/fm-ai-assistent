@@ -5,14 +5,15 @@ import com.example.fmgenie26.competition.CompetitionExporter;
 import com.example.fmgenie26.db.ClubDatabaseService;
 import com.example.fmgenie26.db.CompetitionDatabaseService;
 import com.example.fmgenie26.db.DatabaseLoadAllService;
+import com.example.fmgenie26.db.PlayerEntity;
 import com.example.fmgenie26.db.PlayerFilterCriteria;
 import com.example.fmgenie26.db.PlayerColumnNames;
 import com.example.fmgenie26.db.PlayerDatabaseService;
 import com.example.fmgenie26.player.AttributeDefinitions;
 import com.example.fmgenie26.player.FieldDef;
-import com.example.fmgenie26.player.PlayerExporter;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.dialog.Dialog;
@@ -39,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 @Route("")
 @PageTitle("FM Genie 26")
@@ -70,7 +72,7 @@ public class MainView extends VerticalLayout {
     private final Span status = new Span();
     private final Tabs tabs = new Tabs();
     private final Div content = new Div();
-    private final Grid<Map<String, Object>> playersGrid = new Grid<>();
+    private final Grid<PlayerEntity> playersGrid = new Grid<>();
     private final Grid<Map<String, Object>> clubsGrid = new Grid<>();
     private final Grid<Map<String, Object>> competitionsGrid = new Grid<>();
 
@@ -98,8 +100,9 @@ public class MainView extends VerticalLayout {
         configureGrid(playersGrid);
         configureGrid(clubsGrid);
         configureGrid(competitionsGrid);
-        showPlayers();
+        playersGrid.addItemClickListener(event -> openPlayerDetailsDialog(event.getItem()));
         updateStatus(null);
+        showPlayers();
     }
 
     private HorizontalLayout header() {
@@ -132,7 +135,7 @@ public class MainView extends VerticalLayout {
         });
     }
 
-    private void configureGrid(Grid<Map<String, Object>> grid) {
+    private void configureGrid(Grid<?> grid) {
         grid.setSizeFull();
         grid.setColumnReorderingAllowed(true);
         grid.getStyle().set("border", "0");
@@ -165,13 +168,21 @@ public class MainView extends VerticalLayout {
     }
 
     private void showPlayers() {
-        List<String> columns = new ArrayList<>(List.of("ID", "CLUB_ID", "PLAYING_CLUB_ID", "PLAYING_NATION", "PLAYING_COMPETITION"));
-        PlayerExporter.FIELD_NAMES.stream()
-                .map(PlayerColumnNames::toColumnName)
-                .map(String::toUpperCase)
-                .forEach(columns::add);
-        List<Map<String, Object>> rows = playerFilter.isEmpty() ? players.findAllPlayers() : players.findPlayers(playerFilter);
-        setGrid(playersGrid, columns, rows);
+        List<PlayerColumn> columns = List.of(
+                new PlayerColumn("NAME", "Name", PlayerEntity::getName),
+                new PlayerColumn("AGE", "Age", PlayerEntity::getAge),
+                new PlayerColumn("NATIONALITY", "Nationality", PlayerEntity::getNationality),
+                new PlayerColumn("CLUB", "Club", PlayerEntity::getClub),
+                new PlayerColumn("PLAYING_CLUB", "Playing Club", PlayerEntity::getPlayingClub),
+                new PlayerColumn("POSITION", "Position", PositionTextFormatter::format),
+                new PlayerColumn("SALARY_WEEKLY_RAW", "Salary Weekly", PlayerEntity::getSalaryWeeklyRaw),
+                new PlayerColumn("ASKING_PRICE", "Asking Price", PlayerEntity::getAskingPrice),
+                new PlayerColumn("CONTRACT_END_DATE", "Contract End Date", PlayerEntity::getContractEndDate),
+                new PlayerColumn("CURRENT_REPUTATION", "Current Reputation", PlayerEntity::getCurrentReputation),
+                new PlayerColumn("HOME_REPUTATION", "Home Reputation", PlayerEntity::getHomeReputation),
+                new PlayerColumn("WORLD_REPUTATION", "World Reputation", PlayerEntity::getWorldReputation));
+        List<PlayerEntity> rows = playerFilter.isEmpty() ? players.findAllPlayerEntities() : players.findPlayerEntities(playerFilter);
+        setPlayerGrid(columns, rows);
         if (!playerFilter.isEmpty()) {
             status.setText("Filtered players " + rows.size() + " | Total players " + players.countPlayers());
         }
@@ -211,6 +222,112 @@ public class MainView extends VerticalLayout {
         content.setSizeFull();
         content.add(grid);
         content.getStyle().set("height", "calc(100vh - 120px)");
+    }
+
+    private void setPlayerGrid(List<PlayerColumn> columns, List<PlayerEntity> rows) {
+        playersGrid.removeAllColumns();
+        for (PlayerColumn column : columns) {
+            playersGrid.addColumn(player -> display(column.value(player)))
+                    .setKey(column.key())
+                    .setHeader(column.header())
+                    .setAutoWidth(true)
+                    .setResizable(true)
+                    .setComparator((left, right) -> comparePlayerColumn(left, right, column))
+                    .setSortable(true);
+        }
+        playersGrid.setItems(rows);
+        content.removeAll();
+        content.setSizeFull();
+        content.add(playersGrid);
+        content.getStyle().set("height", "calc(100vh - 120px)");
+    }
+
+    private void openPlayerDetailsDialog(PlayerEntity player) {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle(display(player.getName()));
+        dialog.setWidth("980px");
+        dialog.setMaxWidth("calc(100vw - 32px)");
+
+        VerticalLayout info = new VerticalLayout(detailLayout(List.of(
+                new DetailField("Name", player.getName()),
+                new DetailField("Age", player.getAge()),
+                new DetailField("Nationality", player.getNationality()),
+                new DetailField("Club", player.getClub()),
+                new DetailField("Playing Club", player.getPlayingClub()),
+                new DetailField("Position", PositionTextFormatter.format(player)),
+                new DetailField("Salary Weekly", player.getSalaryWeeklyRaw()),
+                new DetailField("Asking Price", player.getAskingPrice()),
+                new DetailField("Contract End Date", player.getContractEndDate()),
+                new DetailField("Current Reputation", player.getCurrentReputation()),
+                new DetailField("Home Reputation", player.getHomeReputation()),
+                new DetailField("World Reputation", player.getWorldReputation()))));
+        info.setPadding(false);
+
+        Checkbox showGoalkeeping = new Checkbox("Show goalkeeping attributes");
+        showGoalkeeping.setValue(isGoalkeeper(player));
+        ComboBox<String> inPossessionRole = roleComboBox("In possession role", PlayerRoleAttributeCatalog.IN_POSSESSION);
+        ComboBox<String> outOfPossessionRole = roleComboBox("Out of possession role", PlayerRoleAttributeCatalog.OUT_OF_POSSESSION);
+        Div attributes = new Div();
+        attributes.setWidthFull();
+        renderAttributeColumns(attributes, player, showGoalkeeping.getValue(), Map.of());
+        showGoalkeeping.addValueChangeListener(event -> renderAttributeColumns(
+                attributes,
+                player,
+                event.getValue(),
+                selectedRolePriorities(inPossessionRole, outOfPossessionRole)));
+        inPossessionRole.addValueChangeListener(event -> {
+            if (event.getValue() != null && !event.getValue().isBlank()) {
+                outOfPossessionRole.clear();
+            }
+            renderAttributeColumns(attributes, player, showGoalkeeping.getValue(), selectedRolePriorities(inPossessionRole, outOfPossessionRole));
+        });
+        outOfPossessionRole.addValueChangeListener(event -> {
+            if (event.getValue() != null && !event.getValue().isBlank()) {
+                inPossessionRole.clear();
+            }
+            renderAttributeColumns(attributes, player, showGoalkeeping.getValue(), selectedRolePriorities(inPossessionRole, outOfPossessionRole));
+        });
+        HorizontalLayout attributeToolbar = new HorizontalLayout(showGoalkeeping, inPossessionRole, outOfPossessionRole);
+        attributeToolbar.setWidthFull();
+        attributeToolbar.setAlignItems(Alignment.END);
+        attributeToolbar.expand(showGoalkeeping);
+        VerticalLayout attributesView = new VerticalLayout(attributeToolbar, attributes);
+        attributesView.setPadding(false);
+        attributesView.setSpacing(true);
+
+        FormLayout positions = new FormLayout();
+        positions.setResponsiveSteps(
+                new FormLayout.ResponsiveStep("0", 1),
+                new FormLayout.ResponsiveStep("720px", 2));
+        for (FieldDef field : AttributeDefinitions.POSITION_FIELDS) {
+            String column = PlayerColumnNames.toColumnName(field.name()).toUpperCase();
+            Object value = player.getColumnValue(column);
+            positions.add(detailField(displayName(field.name()), display(value) + " - " + PositionTextFormatter.positionLevelText(value)));
+        }
+
+        Tab infoTab = new Tab("Info");
+        Tab attributesTab = new Tab("Attributes");
+        Tab positionsTab = new Tab("Positions");
+        Tabs detailTabs = new Tabs(infoTab, attributesTab, positionsTab);
+        Div detailContent = new Div(info);
+        detailContent.setWidthFull();
+        detailContent.getStyle().set("max-height", "70vh").set("overflow", "auto");
+        detailTabs.addSelectedChangeListener(event -> {
+            detailContent.removeAll();
+            if (event.getSelectedTab() == infoTab) {
+                detailContent.add(info);
+            } else if (event.getSelectedTab() == attributesTab) {
+                detailContent.add(attributesView);
+            } else {
+                detailContent.add(positions);
+            }
+        });
+
+        Button close = new Button("Close", event -> dialog.close());
+        close.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        dialog.add(detailTabs, detailContent);
+        dialog.getFooter().add(close);
+        dialog.open();
     }
 
     private void openPlayerFilterDialog() {
@@ -342,7 +459,7 @@ public class MainView extends VerticalLayout {
                     contractFrom.getValue(), contractTo.getValue(),
                     askingMin.value(), askingMax.value(),
                     selectedPositionMinimums(selectedPositions),
-            selectedAttributeMinimums(attributeFields));
+                    selectedAttributeMinimums(attributeFields));
             showPlayers();
             dialog.close();
         });
@@ -379,11 +496,157 @@ public class MainView extends VerticalLayout {
         return value == null ? "" : Objects.toString(value);
     }
 
+    private static FormLayout detailLayout(List<DetailField> fields) {
+        FormLayout layout = new FormLayout();
+        layout.setResponsiveSteps(
+                new FormLayout.ResponsiveStep("0", 1),
+                new FormLayout.ResponsiveStep("720px", 2));
+        fields.stream()
+                .map(field -> detailField(field.label(), field.value()))
+                .forEach(layout::add);
+        return layout;
+    }
+
+    private static Div detailField(String label, Object value) {
+        Span labelText = new Span(label);
+        labelText.getStyle()
+                .set("font-size", "var(--lumo-font-size-xs)")
+                .set("color", "var(--lumo-secondary-text-color)");
+        Span valueText = new Span(display(value));
+        valueText.getStyle()
+                .set("font-weight", "600")
+                .set("line-height", "1.2");
+        Div field = new Div(labelText, valueText);
+        field.getStyle()
+                .set("display", "flex")
+                .set("flex-direction", "column")
+                .set("gap", "2px")
+                .set("padding", "6px 0");
+        return field;
+    }
+
+    private static void renderAttributeColumns(
+            Div container,
+            PlayerEntity player,
+            boolean showGoalkeeping,
+            Map<String, String> rolePriorities) {
+        container.removeAll();
+        Div columns = new Div();
+        columns.getStyle()
+                .set("display", "grid")
+                .set("grid-template-columns", "repeat(auto-fit, minmax(170px, 1fr))")
+                .set("gap", "16px")
+                .set("align-items", "start");
+        PlayerAttributeCatalog.categories(showGoalkeeping).forEach(category -> columns.add(attributeCategory(player, category, rolePriorities)));
+        container.add(columns);
+    }
+
+    private static Div attributeCategory(
+            PlayerEntity player,
+            PlayerAttributeCatalog.AttributeCategory category,
+            Map<String, String> rolePriorities) {
+        Span title = new Span(category.name());
+        title.getStyle()
+                .set("font-weight", "700")
+                .set("padding-bottom", "6px")
+                .set("border-bottom", "1px solid var(--lumo-contrast-20pct)");
+        Div column = new Div(title);
+        column.getStyle()
+                .set("display", "flex")
+                .set("flex-direction", "column")
+                .set("gap", "4px");
+        for (PlayerAttributeCatalog.AttributeDefinition attribute : category.attributes()) {
+            Object value = attributeValue(player, attribute.columnName());
+            column.add(attributeRow(attribute.displayName(), value, rolePriority(rolePriorities, attribute.columnName())));
+        }
+        return column;
+    }
+
+    private static Div attributeRow(String label, Object value, String rolePriority) {
+        Span labelText = new Span(label);
+        labelText.getStyle().set("color", "var(--lumo-secondary-text-color)");
+        Span valueText = new Span(display(value));
+        valueText.getStyle()
+                .set("font-weight", "600")
+                .set("text-align", "right")
+                .set("color", scoreColor(value));
+        Div row = new Div(labelText, valueText);
+        row.getStyle()
+                .set("display", "grid")
+                .set("grid-template-columns", "1fr auto")
+                .set("gap", "8px")
+                .set("font-size", "var(--lumo-font-size-s)")
+                .set("line-height", "1.3")
+                .set("padding", "2px 4px")
+                .set("border-radius", "4px");
+        if ("primary".equals(rolePriority)) {
+            row.getStyle().set("background", "#dcfce7");
+        } else if ("secondary".equals(rolePriority)) {
+            row.getStyle().set("background", "#dbeafe");
+        }
+        return row;
+    }
+
+    private static Object attributeValue(PlayerEntity player, String columnName) {
+        return columnName == null ? null : player.getColumnValue(columnName);
+    }
+
+    private static String rolePriority(Map<String, String> rolePriorities, String columnName) {
+        return columnName == null ? null : rolePriorities.get(columnName.toLowerCase());
+    }
+
+    private static String scoreColor(Object value) {
+        Long score = sortableLong(value);
+        if (score == null) {
+            return "var(--lumo-secondary-text-color)";
+        }
+        if (score <= 5) {
+            return "#dc2626";
+        }
+        if (score <= 10) {
+            return "#ea580c";
+        }
+        if (score <= 15) {
+            return "#ca8a04";
+        }
+        return "#16a34a";
+    }
+
+    private static ComboBox<String> roleComboBox(String label, String phase) {
+        ComboBox<String> comboBox = new ComboBox<>(label);
+        comboBox.setItems(PlayerRoleAttributeCatalog.roles(phase));
+        comboBox.setClearButtonVisible(true);
+        comboBox.setWidth("260px");
+        return comboBox;
+    }
+
+    private static Map<String, String> selectedRolePriorities(ComboBox<String> inPossessionRole, ComboBox<String> outOfPossessionRole) {
+        if (inPossessionRole.getValue() != null && !inPossessionRole.getValue().isBlank()) {
+            return PlayerRoleAttributeCatalog.priorities(PlayerRoleAttributeCatalog.IN_POSSESSION, inPossessionRole.getValue());
+        }
+        if (outOfPossessionRole.getValue() != null && !outOfPossessionRole.getValue().isBlank()) {
+            return PlayerRoleAttributeCatalog.priorities(PlayerRoleAttributeCatalog.OUT_OF_POSSESSION, outOfPossessionRole.getValue());
+        }
+        return Map.of();
+    }
+
+    private static boolean isGoalkeeper(PlayerEntity player) {
+        Integer goalkeeper = player.getGoalkeeper();
+        return goalkeeper != null && goalkeeper >= 15;
+    }
+
     private static int compareColumn(Map<String, Object> left, Map<String, Object> right, String column) {
         if (NUMERIC_SORT_COLUMNS.contains(column)) {
             return compareLongs(sortableLong(left.get(column)), sortableLong(right.get(column)));
         }
         return display(left.get(column)).compareToIgnoreCase(display(right.get(column)));
+    }
+
+    private static int comparePlayerColumn(PlayerEntity left, PlayerEntity right, PlayerColumn column) {
+        if (NUMERIC_SORT_COLUMNS.contains(column.key())) {
+            return compareLongs(sortableLong(column.value(left)), sortableLong(column.value(right)));
+        }
+        return display(column.value(left)).compareToIgnoreCase(display(column.value(right)));
     }
 
     private static int compareLongs(Long left, Long right) {
@@ -556,6 +819,15 @@ public class MainView extends VerticalLayout {
                 .set("background", level.color)
                 .set("color", level.textColor)
                 .set("border", "1px solid var(--lumo-contrast-20pct)");
+    }
+
+    private record PlayerColumn(String key, String header, Function<PlayerEntity, Object> valueProvider) {
+        private Object value(PlayerEntity player) {
+            return valueProvider.apply(player);
+        }
+    }
+
+    private record DetailField(String label, Object value) {
     }
 
     private enum PositionLevel {

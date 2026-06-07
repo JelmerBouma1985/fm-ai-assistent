@@ -14,6 +14,15 @@ public interface PlayerRepository extends JpaRepository<PlayerEntity, Long>, Jpa
     @Override
     List<PlayerEntity> findAll();
 
+    @Cacheable(cacheNames = JCacheConfiguration.PLAYERS_WITH_CLUBS_CACHE)
+    @Query("""
+            select player
+            from PlayerEntity player
+            left join fetch player.clubEntity
+            left join fetch player.playingClubEntity
+            """)
+    List<PlayerEntity> findAllWithClubs();
+
     @Cacheable(cacheNames = JCacheConfiguration.NATIONS_CACHE)
     @Query("""
             select distinct club.nation
