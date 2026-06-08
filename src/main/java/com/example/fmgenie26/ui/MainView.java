@@ -175,6 +175,8 @@ public class MainView extends VerticalLayout {
                 new PlayerColumn("CLUB", "Club", PlayerEntity::getClub),
                 new PlayerColumn("PLAYING_CLUB", "Playing Club", PlayerEntity::getPlayingClub),
                 new PlayerColumn("POSITION", "Position", PositionTextFormatter::format),
+                new PlayerColumn("CA", "Current Ability", PlayerEntity::getCa),
+                new PlayerColumn("PA", "Potential Ability", PlayerEntity::getPa),
                 new PlayerColumn("SALARY_WEEKLY_RAW", "Salary Weekly", PlayerEntity::getSalaryWeeklyRaw),
                 new PlayerColumn("ASKING_PRICE", "Asking Price", PlayerEntity::getAskingPrice),
                 new PlayerColumn("CONTRACT_END_DATE", "Contract End Date", PlayerEntity::getContractEndDate),
@@ -346,6 +348,8 @@ public class MainView extends VerticalLayout {
         gender.setValue(nullSafeValue(playerFilter.gender()));
         ComboBox<String> playingNation = comboBox("Playing nation", players.findPlayingNations(), playerFilter.playingNation());
         ComboBox<String> playingCompetition = comboBox("Playing competition", players.findPlayingCompetitions(), playerFilter.playingCompetition());
+        ComboBox<String> club = comboBox("Club", players.findClubs(), playerFilter.club());
+        ComboBox<String> playingClub = comboBox("Playing Club", players.findPlayingClubs(), playerFilter.playingClub());
         TextField nationality = new TextField("Nationality contains");
         nationality.setValue(nullSafeValue(playerFilter.nationality()));
 
@@ -371,6 +375,7 @@ public class MainView extends VerticalLayout {
         FormLayout basicFilters = new FormLayout(
                 name, gender,
                 playingNation, playingCompetition,
+                club, playingClub,
                 nationality,
                 ageMin, ageMax,
                 currentRepMin, currentRepMax,
@@ -449,6 +454,8 @@ public class MainView extends VerticalLayout {
                     gender.getValue(),
                     playingNation.getValue(),
                     playingCompetition.getValue(),
+                    club.getValue(),
+                    playingClub.getValue(),
                     ageMin.getValue(), ageMax.getValue(),
                     nationality.getValue(),
                     defaultInt(currentRepMin.getValue(), 1), currentRepMax.getValue(),

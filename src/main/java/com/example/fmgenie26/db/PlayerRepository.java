@@ -42,4 +42,22 @@ public interface PlayerRepository extends JpaRepository<PlayerEntity, Long>, Jpa
             order by club.competition
             """)
     List<String> findDistinctPlayingCompetitions();
+
+    @Cacheable(cacheNames = JCacheConfiguration.CLUB_NAMES_CACHE)
+    @Query("""
+            select distinct player.club
+            from PlayerEntity player
+            where player.club is not null and player.club <> ''
+            order by player.club
+            """)
+    List<String> findDistinctClubs();
+
+    @Cacheable(cacheNames = JCacheConfiguration.PLAYING_CLUB_NAMES_CACHE)
+    @Query("""
+            select distinct player.playingClub
+            from PlayerEntity player
+            where player.playingClub is not null and player.playingClub <> ''
+            order by player.playingClub
+            """)
+    List<String> findDistinctPlayingClubs();
 }

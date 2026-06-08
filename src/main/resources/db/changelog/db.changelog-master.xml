@@ -622,4 +622,25 @@
             );
         </sql>
     </changeSet>
+
+    <changeSet id="021-add-missing-hidden-player-attributes" author="codex">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="players"/>
+                <not>
+                    <columnExists tableName="players" columnName="adaptability"/>
+                </not>
+            </and>
+        </preConditions>
+        <addColumn tableName="players">
+            <column name="adaptability" type="INT"/>
+            <column name="ambition" type="INT"/>
+            <column name="loyalty" type="INT"/>
+            <column name="pressure" type="INT"/>
+            <column name="professionalism" type="INT"/>
+            <column name="sportsmanship" type="INT"/>
+            <column name="temperament" type="INT"/>
+            <column name="controversy" type="INT"/>
+        </addColumn>
+    </changeSet>
 </databaseChangeLog>

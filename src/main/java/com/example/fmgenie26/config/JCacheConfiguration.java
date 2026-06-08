@@ -16,6 +16,8 @@ public class JCacheConfiguration {
     public static final String PLAYERS_WITH_CLUBS_CACHE = "players_with_clubs";
     public static final String NATIONS_CACHE = "nations";
     public static final String COMPETITIONS_CACHE = "competitions";
+    public static final String CLUB_NAMES_CACHE = "club_names";
+    public static final String PLAYING_CLUB_NAMES_CACHE = "playing_club_names";
     public static final String PLAYER_MAPPING_CACHE = "player_mapping_cache";
 
     @Bean
@@ -54,6 +56,26 @@ public class JCacheConfiguration {
             if (cacheManager.getCache(COMPETITIONS_CACHE) == null) {
                 cacheManager.createCache(
                         COMPETITIONS_CACHE,
+                        new MutableConfiguration<>()
+                                .setStoreByValue(false)
+                                .setStatisticsEnabled(true)
+                                .setExpiryPolicyFactory(EternalExpiryPolicy.factoryOf())
+                );
+            }
+
+            if (cacheManager.getCache(CLUB_NAMES_CACHE) == null) {
+                cacheManager.createCache(
+                        CLUB_NAMES_CACHE,
+                        new MutableConfiguration<>()
+                                .setStoreByValue(false)
+                                .setStatisticsEnabled(true)
+                                .setExpiryPolicyFactory(EternalExpiryPolicy.factoryOf())
+                );
+            }
+
+            if (cacheManager.getCache(PLAYING_CLUB_NAMES_CACHE) == null) {
+                cacheManager.createCache(
+                        PLAYING_CLUB_NAMES_CACHE,
                         new MutableConfiguration<>()
                                 .setStoreByValue(false)
                                 .setStatisticsEnabled(true)

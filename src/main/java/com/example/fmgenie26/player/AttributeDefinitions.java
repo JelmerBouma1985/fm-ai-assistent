@@ -52,6 +52,17 @@ public final class AttributeDefinitions {
             new FieldDef(0x6D, "Composure"), new FieldDef(0x6E, "Concentration")
     );
 
+    public static final List<FieldDef> HIDDEN_DIRECT_FIELDS = List.of(
+            new FieldDef(0x70, "Adaptability"),
+            new FieldDef(0x71, "Ambition"),
+            new FieldDef(0x72, "Loyalty"),
+            new FieldDef(0x73, "Pressure"),
+            new FieldDef(0x74, "Professionalism"),
+            new FieldDef(0x75, "Sportsmanship"),
+            new FieldDef(0x76, "Temperament"),
+            new FieldDef(0x77, "Controversy")
+    );
+
     private AttributeDefinitions() {
     }
 

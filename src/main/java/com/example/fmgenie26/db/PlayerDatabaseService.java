@@ -184,6 +184,16 @@ public class PlayerDatabaseService {
     }
 
     @Transactional(readOnly = true)
+    public List<String> findClubs() {
+        return players.findDistinctClubs();
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> findPlayingClubs() {
+        return players.findDistinctPlayingClubs();
+    }
+
+    @Transactional(readOnly = true)
     public Map<String, Object> metadata() {
         Map<String, Object> out = new LinkedHashMap<>();
         metadata.findAll(Sort.by("key")).forEach(row -> out.put(row.getKey(), row.getValue()));
@@ -213,6 +223,8 @@ public class PlayerDatabaseService {
                 && equalsIgnoreCase(row.get("GENDER"), filter.gender())
                 && equalsIgnoreCase(row.get("PLAYING_NATION"), filter.playingNation())
                 && equalsIgnoreCase(row.get("PLAYING_COMPETITION"), filter.playingCompetition())
+                && equalsIgnoreCase(row.get("CLUB"), filter.club())
+                && equalsIgnoreCase(row.get("PLAYING_CLUB"), filter.playingClub())
                 && contains(row.get("NATIONALITY"), filter.nationality())
                 && inRange(asInt(row.get("AGE")), filter.ageMin(), filter.ageMax())
                 && inRange(asInt(row.get("CURRENT_REPUTATION")), filter.currentReputationMin(), filter.currentReputationMax())
@@ -231,6 +243,8 @@ public class PlayerDatabaseService {
                 && equalsIgnoreCase(player.getGender(), filter.gender())
                 && equalsIgnoreCase(player.getColumnValue("PLAYING_NATION"), filter.playingNation())
                 && equalsIgnoreCase(player.getColumnValue("PLAYING_COMPETITION"), filter.playingCompetition())
+                && equalsIgnoreCase(player.getClub(), filter.club())
+                && equalsIgnoreCase(player.getPlayingClub(), filter.playingClub())
                 && contains(player.getNationality(), filter.nationality())
                 && inRange(asInt(player.getAge()), filter.ageMin(), filter.ageMax())
                 && inRange(player.getCurrentReputation(), filter.currentReputationMin(), filter.currentReputationMax())

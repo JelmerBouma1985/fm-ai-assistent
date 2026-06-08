@@ -63,18 +63,18 @@ final class PlayerAttributeCatalog {
                     attr("tendency_to_punch", "Tendency to Punch"),
                     attr("throwing", "Throwing"))),
             new AttributeCategory("Hidden Attributes", 60, List.of(
-                    attr(null, "Adaptability"),
-                    attr(null, "Ambition"),
+                    attr("adaptability", "Adaptability"),
+                    attr("ambition", "Ambition"),
                     attr("consistency", "Consistency"),
-                    attr(null, "Controversy"),
+                    attr("controversy", "Controversy"),
                     attr("dirtiness", "Dirtiness"),
                     attr("important_matches", "Important Matches"),
                     attr("injury_proneness", "Injury Proneness"),
-                    attr(null, "Loyalty"),
-                    attr(null, "Pressure"),
-                    attr(null, "Professionalism"),
-                    attr(null, "Sportsmanship"),
-                    attr(null, "Temperament"),
+                    attr("loyalty", "Loyalty"),
+                    attr("pressure", "Pressure"),
+                    attr("professionalism", "Professionalism"),
+                    attr("sportsmanship", "Sportsmanship"),
+                    attr("temperament", "Temperament"),
                     attr("versatility", "Versatility"))));
 
     private PlayerAttributeCatalog() {

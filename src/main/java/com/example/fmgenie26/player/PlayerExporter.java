@@ -15,6 +15,7 @@ import java.util.Map;
 import static com.example.fmgenie26.player.AttributeDefinitions.CURRENT_ABILITY_REL;
 import static com.example.fmgenie26.player.AttributeDefinitions.CURRENT_REPUTATION_REL;
 import static com.example.fmgenie26.player.AttributeDefinitions.DISPLAY_VALUE_REL;
+import static com.example.fmgenie26.player.AttributeDefinitions.HIDDEN_DIRECT_FIELDS;
 import static com.example.fmgenie26.player.AttributeDefinitions.HISTORY_COPY_SOURCE_REL;
 import static com.example.fmgenie26.player.AttributeDefinitions.HOME_REPUTATION_REL;
 import static com.example.fmgenie26.player.AttributeDefinitions.POSITION_FIELDS;
@@ -128,6 +129,9 @@ public class PlayerExporter {
             int raw = data[field.offset() - SOURCE_OBJECT_BASE_OFFSET] & 0xff;
             row.put(field.name(), AttributeDefinitions.norm20(raw));
         }
+        for (FieldDef field : HIDDEN_DIRECT_FIELDS) {
+            row.put(field.name(), reader.readU8(record + field.offset()));
+        }
         return row;
     }
 
@@ -196,6 +200,7 @@ public class PlayerExporter {
                 "salary_weekly_raw", "date_of_birth", "age", "age_as_of"));
         POSITION_FIELDS.stream().map(FieldDef::name).forEach(names::add);
         VISIBLE_FIELDS.stream().map(FieldDef::name).forEach(names::add);
+        HIDDEN_DIRECT_FIELDS.stream().map(FieldDef::name).forEach(names::add);
         return List.copyOf(names);
     }
 

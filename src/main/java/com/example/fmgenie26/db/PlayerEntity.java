@@ -210,6 +210,22 @@ public class PlayerEntity {
     private Integer composure;
     @Column
     private Integer concentration;
+    @Column
+    private Integer adaptability;
+    @Column
+    private Integer ambition;
+    @Column
+    private Integer loyalty;
+    @Column
+    private Integer pressure;
+    @Column
+    private Integer professionalism;
+    @Column
+    private Integer sportsmanship;
+    @Column
+    private Integer temperament;
+    @Column
+    private Integer controversy;
 
     protected PlayerEntity() {
     }
@@ -624,6 +640,38 @@ public class PlayerEntity {
 
     public Integer getConcentration() {
         return concentration;
+    }
+
+    public Integer getAdaptability() {
+        return adaptability;
+    }
+
+    public Integer getAmbition() {
+        return ambition;
+    }
+
+    public Integer getLoyalty() {
+        return loyalty;
+    }
+
+    public Integer getPressure() {
+        return pressure;
+    }
+
+    public Integer getProfessionalism() {
+        return professionalism;
+    }
+
+    public Integer getSportsmanship() {
+        return sportsmanship;
+    }
+
+    public Integer getTemperament() {
+        return temperament;
+    }
+
+    public Integer getControversy() {
+        return controversy;
     }
 
     private void setExportField(String exportField, Object value) {
