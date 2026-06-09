@@ -18,8 +18,9 @@ public interface PlayerRepository extends JpaRepository<PlayerEntity, Long>, Jpa
     @Query("""
             select player
             from PlayerEntity player
-            left join fetch player.clubEntity
+            left join fetch player.clubEntity c
             left join fetch player.playingClubEntity
+            left join fetch c.competitionEntity
             """)
     List<PlayerEntity> findAllWithClubs();
 

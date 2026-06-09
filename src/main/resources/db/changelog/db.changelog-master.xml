@@ -5,11 +5,6 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
 
     <changeSet id="001-create-players" author="codex">
-        <preConditions onFail="MARK_RAN">
-            <not>
-                <tableExists tableName="players"/>
-            </not>
-        </preConditions>
         <createTable tableName="players">
             <column name="id" type="BIGINT" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
@@ -108,11 +103,6 @@
     </changeSet>
 
     <changeSet id="002-create-load-metadata" author="codex">
-        <preConditions onFail="MARK_RAN">
-            <not>
-                <tableExists tableName="load_metadata"/>
-            </not>
-        </preConditions>
         <createTable tableName="load_metadata">
             <column name="meta_key" type="VARCHAR(100)">
                 <constraints primaryKey="true" nullable="false"/>
@@ -122,55 +112,31 @@
     </changeSet>
 
     <changeSet id="003-index-players-name" author="codex">
-        <preConditions onFail="MARK_RAN">
-            <not>
-                <indexExists indexName="idx_players_name" tableName="players"/>
-            </not>
-        </preConditions>
         <createIndex indexName="idx_players_name" tableName="players">
             <column name="name"/>
         </createIndex>
     </changeSet>
 
     <changeSet id="004-index-players-gender" author="codex">
-        <preConditions onFail="MARK_RAN">
-            <not>
-                <indexExists indexName="idx_players_gender" tableName="players"/>
-            </not>
-        </preConditions>
         <createIndex indexName="idx_players_gender" tableName="players">
             <column name="gender"/>
         </createIndex>
     </changeSet>
 
     <changeSet id="005-index-players-nationality" author="codex">
-        <preConditions onFail="MARK_RAN">
-            <not>
-                <indexExists indexName="idx_players_nationality" tableName="players"/>
-            </not>
-        </preConditions>
+
         <createIndex indexName="idx_players_nationality" tableName="players">
             <column name="nationality"/>
         </createIndex>
     </changeSet>
 
     <changeSet id="006-index-players-club" author="codex">
-        <preConditions onFail="MARK_RAN">
-            <not>
-                <indexExists indexName="idx_players_club" tableName="players"/>
-            </not>
-        </preConditions>
         <createIndex indexName="idx_players_club" tableName="players">
             <column name="club"/>
         </createIndex>
     </changeSet>
 
     <changeSet id="007-index-players-playing-club" author="codex">
-        <preConditions onFail="MARK_RAN">
-            <not>
-                <indexExists indexName="idx_players_playing_club" tableName="players"/>
-            </not>
-        </preConditions>
         <createIndex indexName="idx_players_playing_club" tableName="players">
             <column name="playing_club"/>
         </createIndex>
@@ -257,11 +223,6 @@
     </changeSet>
 
     <changeSet id="009-create-clubs" author="codex">
-        <preConditions onFail="MARK_RAN">
-            <not>
-                <tableExists tableName="clubs"/>
-            </not>
-        </preConditions>
         <createTable tableName="clubs">
             <column name="id" type="BIGINT" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
@@ -284,14 +245,6 @@
     </changeSet>
 
     <changeSet id="010-add-club-budgets" author="codex">
-        <preConditions onFail="MARK_RAN">
-            <and>
-                <tableExists tableName="clubs"/>
-                <not>
-                    <columnExists tableName="clubs" columnName="transfer_budget"/>
-                </not>
-            </and>
-        </preConditions>
         <addColumn tableName="clubs">
             <column name="transfer_budget" type="BIGINT"/>
             <column name="payroll_budget" type="BIGINT"/>
@@ -299,40 +252,18 @@
     </changeSet>
 
     <changeSet id="011-add-club-gender" author="codex">
-        <preConditions onFail="MARK_RAN">
-            <and>
-                <tableExists tableName="clubs"/>
-                <not>
-                    <columnExists tableName="clubs" columnName="gender"/>
-                </not>
-            </and>
-        </preConditions>
         <addColumn tableName="clubs">
             <column name="gender" type="VARCHAR(1024)"/>
         </addColumn>
     </changeSet>
 
     <changeSet id="012-index-club-gender" author="codex">
-        <preConditions onFail="MARK_RAN">
-            <and>
-                <tableExists tableName="clubs"/>
-                <columnExists tableName="clubs" columnName="gender"/>
-                <not>
-                    <indexExists indexName="idx_clubs_gender" tableName="clubs"/>
-                </not>
-            </and>
-        </preConditions>
         <createIndex indexName="idx_clubs_gender" tableName="clubs">
             <column name="gender"/>
         </createIndex>
     </changeSet>
 
     <changeSet id="013-create-competitions" author="codex">
-        <preConditions onFail="MARK_RAN">
-            <not>
-                <tableExists tableName="competitions"/>
-            </not>
-        </preConditions>
         <createTable tableName="competitions">
             <column name="id" type="BIGINT" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
@@ -354,14 +285,6 @@
     </changeSet>
 
     <changeSet id="014-add-competition-source-address" author="codex">
-        <preConditions onFail="MARK_RAN">
-            <and>
-                <tableExists tableName="competitions"/>
-                <not>
-                    <columnExists tableName="competitions" columnName="source_address"/>
-                </not>
-            </and>
-        </preConditions>
         <addColumn tableName="competitions">
             <column name="source_address" type="BIGINT"/>
         </addColumn>
@@ -371,15 +294,6 @@
     </changeSet>
 
     <changeSet id="015-add-club-competition-fk" author="codex">
-        <preConditions onFail="MARK_RAN">
-            <and>
-                <tableExists tableName="clubs"/>
-                <tableExists tableName="competitions"/>
-                <not>
-                    <columnExists tableName="clubs" columnName="competition_id"/>
-                </not>
-            </and>
-        </preConditions>
         <addColumn tableName="clubs">
             <column name="competition_id" type="BIGINT"/>
         </addColumn>
@@ -395,41 +309,7 @@
                 onDelete="SET NULL"/>
     </changeSet>
 
-    <changeSet id="016-empty-strings-to-null" author="codex">
-        <sql>
-            UPDATE players SET player_index = NULL WHERE player_index = '';
-            UPDATE players SET record_address = NULL WHERE record_address = '';
-            UPDATE players SET name = NULL WHERE name = '';
-            UPDATE players SET gender = NULL WHERE gender = '';
-            UPDATE players SET nationality = NULL WHERE nationality = '';
-            UPDATE players SET club = NULL WHERE club = '';
-            UPDATE players SET playing_club = NULL WHERE playing_club = '';
-            UPDATE players SET loan_club = NULL WHERE loan_club = '';
-            UPDATE players SET is_loaned_out = NULL WHERE is_loaned_out = '';
-            UPDATE players SET contract_end_date = NULL WHERE contract_end_date = '';
-            UPDATE players SET date_of_birth = NULL WHERE date_of_birth = '';
-            UPDATE players SET age = NULL WHERE age = '';
-            UPDATE players SET age_as_of = NULL WHERE age_as_of = '';
-            UPDATE clubs SET name = NULL WHERE name = '';
-            UPDATE clubs SET gender = NULL WHERE gender = '';
-            UPDATE clubs SET competition = NULL WHERE competition = '';
-            UPDATE clubs SET nation = NULL WHERE nation = '';
-            UPDATE competitions SET name = NULL WHERE name = '';
-            UPDATE competitions SET nation = NULL WHERE nation = '';
-            UPDATE competitions SET gender = NULL WHERE gender = '';
-            UPDATE load_metadata SET meta_value = NULL WHERE meta_value = '';
-        </sql>
-    </changeSet>
-
     <changeSet id="017-add-club-source-address" author="codex">
-        <preConditions onFail="MARK_RAN">
-            <and>
-                <tableExists tableName="clubs"/>
-                <not>
-                    <columnExists tableName="clubs" columnName="source_address"/>
-                </not>
-            </and>
-        </preConditions>
         <addColumn tableName="clubs">
             <column name="source_address" type="BIGINT"/>
         </addColumn>
@@ -439,15 +319,6 @@
     </changeSet>
 
     <changeSet id="018-add-player-club-fks" author="codex">
-        <preConditions onFail="MARK_RAN">
-            <and>
-                <tableExists tableName="players"/>
-                <tableExists tableName="clubs"/>
-                <not>
-                    <columnExists tableName="players" columnName="club_id"/>
-                </not>
-            </and>
-        </preConditions>
         <addColumn tableName="players">
             <column name="club_id" type="BIGINT"/>
             <column name="playing_club_id" type="BIGINT"/>
@@ -475,11 +346,6 @@
     </changeSet>
 
     <changeSet id="019-create-fm-role-attribute-tables" author="codex">
-        <preConditions onFail="MARK_RAN">
-            <not>
-                <tableExists tableName="fm_role"/>
-            </not>
-        </preConditions>
         <createTable tableName="fm_role">
             <column name="id" type="BIGINT" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
@@ -561,15 +427,6 @@
     </changeSet>
 
     <changeSet id="020-load-fm-role-attribute-data" author="codex">
-        <preConditions onFail="MARK_RAN">
-            <and>
-                <tableExists tableName="fm_role"/>
-                <tableExists tableName="fm_attribute"/>
-                <tableExists tableName="fm_role_attribute"/>
-                <tableExists tableName="fm_role_attribute_import"/>
-            </and>
-        </preConditions>
-        <delete tableName="fm_role_attribute_import"/>
         <loadData
                 tableName="fm_role_attribute_import"
                 file="db/data/fm26_positional_roles_attributes_flat.csv"
@@ -624,14 +481,6 @@
     </changeSet>
 
     <changeSet id="021-add-missing-hidden-player-attributes" author="codex">
-        <preConditions onFail="MARK_RAN">
-            <and>
-                <tableExists tableName="players"/>
-                <not>
-                    <columnExists tableName="players" columnName="adaptability"/>
-                </not>
-            </and>
-        </preConditions>
         <addColumn tableName="players">
             <column name="adaptability" type="INT"/>
             <column name="ambition" type="INT"/>

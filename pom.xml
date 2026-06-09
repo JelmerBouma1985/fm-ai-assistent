@@ -38,7 +38,6 @@
         <dependency>
             <groupId>org.junit.platform</groupId>
             <artifactId>junit-platform-launcher</artifactId>
-            <version>6.0.1</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -59,7 +58,7 @@
         </dependency>
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>
-            <artifactId>jcache</artifactId>
+            <artifactId>caffeine</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -111,6 +110,10 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.graalvm.buildtools</groupId>
+                <artifactId>native-maven-plugin</artifactId>
             </plugin>
         </plugins>
     </build>

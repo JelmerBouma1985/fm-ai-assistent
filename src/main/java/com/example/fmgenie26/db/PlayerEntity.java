@@ -36,12 +36,12 @@ public class PlayerEntity {
     private String nationality;
     @Column(length = 1024)
     private String club;
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne
     @JoinColumn(name = "club_id", foreignKey = @ForeignKey(name = "fk_players_club"))
     private ClubEntity clubEntity;
     @Column(name = "playing_club", length = 1024)
     private String playingClub;
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne
     @JoinColumn(name = "playing_club_id", foreignKey = @ForeignKey(name = "fk_players_playing_club"))
     private ClubEntity playingClubEntity;
     @Column(name = "loan_club", length = 1024)

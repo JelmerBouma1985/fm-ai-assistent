@@ -1,14 +1,23 @@
 package com.example.fmgenie26.fm;
 
 import com.example.fmgenie26.linux.LinuxProcessReader;
+import com.example.fmgenie26.linux.MemoryRegion;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class FmOffsets {
     public static final int DEFAULT_BUILD = 0x235144;
     public static final String PEOPLE_SLOT = "PeopleOffset";
+    private static final long MAX_SCAN_REGION_SIZE = 80_000_000L;
+    private static final long GAME_PLUGIN_SCAN_RANGE = 0x0520_0000L;
+    private static final int MIN_VALID_TABLE_SCORE = 35;
 
     private static final Map<Integer, Long> BUILD_TO_TABLE_RVA = Map.ofEntries(
             Map.entry(0x21eecd, 0x4df03b0L), Map.entry(0x21f273, 0x4df13b0L),
@@ -37,6 +46,7 @@ public final class FmOffsets {
     );
 
     private static final Map<String, Long> SLOTS = new LinkedHashMap<>();
+    private static final Map<String, Long> DETECTED_TABLE_BASES = new ConcurrentHashMap<>();
 
     static {
         SLOTS.put("CityOffset", 0x0F0L);
@@ -69,14 +79,153 @@ public final class FmOffsets {
 
     public static Bounds tableBounds(LinuxProcessReader reader, int build, Long gamePluginBase, String slotName) throws IOException {
         long base = gamePluginBase == null ? findGamePluginBase(reader) : gamePluginBase;
-        long tableRva = tableRva(build);
         Long slot = SLOTS.get(slotName);
         if (slot == null) {
             throw new IllegalArgumentException("unknown table slot: " + slotName);
         }
-        long slotPtr = reader.readU64(base + tableRva + slot);
+        long tableBase = findOffsetTableBase(reader, build, base);
+        long slotPtr = reader.readU64(tableBase + slot);
         long offsetValue = reader.readU64(slotPtr + 0x80);
         return new Bounds(reader.readU64(offsetValue), reader.readU64(offsetValue + 8));
+    }
+
+    private static long findOffsetTableBase(LinuxProcessReader reader, int build, long gamePluginBase) throws IOException {
+        String cacheKey = reader.pid() + ":0x" + Long.toHexString(gamePluginBase);
+        Long cached = DETECTED_TABLE_BASES.get(cacheKey);
+        if (cached != null && tableScore(reader, cached) >= MIN_VALID_TABLE_SCORE) {
+            return cached;
+        }
+
+        Long knownRva = BUILD_TO_TABLE_RVA.get(build);
+        if (knownRva != null) {
+            long candidate = gamePluginBase + knownRva;
+            if (tableScore(reader, candidate) >= MIN_VALID_TABLE_SCORE) {
+                DETECTED_TABLE_BASES.put(cacheKey, candidate);
+                return candidate;
+            }
+        }
+
+        long detected = scanOffsetTableBase(reader, gamePluginBase);
+        DETECTED_TABLE_BASES.put(cacheKey, detected);
+        return detected;
+    }
+
+    private static long scanOffsetTableBase(LinuxProcessReader reader, long gamePluginBase) throws IOException {
+        List<MemoryRegion> maps = reader.maps().stream()
+                .filter(MemoryRegion::readable)
+                .sorted(Comparator.comparingLong(MemoryRegion::start))
+                .toList();
+        List<MemoryRegion> pluginRegions = maps.stream()
+                .filter(region -> region.start() >= gamePluginBase)
+                .filter(region -> region.start() < gamePluginBase + GAME_PLUGIN_SCAN_RANGE)
+                .filter(region -> region.size() <= MAX_SCAN_REGION_SIZE)
+                .sorted(Comparator
+                        .comparing(MemoryRegion::writable).reversed()
+                        .thenComparingLong(MemoryRegion::size))
+                .toList();
+
+        long bestTable = 0;
+        int bestScore = 0;
+        long maxSlot = SLOTS.values().stream().mapToLong(Long::longValue).max().orElseThrow();
+        for (MemoryRegion region : pluginRegions) {
+            byte[] data;
+            try {
+                data = reader.readBytes(region.start(), Math.toIntExact(region.size()));
+            } catch (IOException | ArithmeticException ex) {
+                continue;
+            }
+            ByteBuffer buffer = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN);
+            int maxOffset = Math.toIntExact(data.length - maxSlot - Long.BYTES);
+            for (int offset = 0; offset < maxOffset; offset += Long.BYTES) {
+                long continentPtr = buffer.getLong(Math.toIntExact(offset + SLOTS.get("ContinentOffset")));
+                long regionPtr = buffer.getLong(Math.toIntExact(offset + SLOTS.get("RegionOffset")));
+                long peoplePtr = buffer.getLong(Math.toIntExact(offset + SLOTS.get("PeopleOffset")));
+                if (!isReadable(maps, continentPtr + 0x88)
+                        || !isReadable(maps, regionPtr + 0x88)
+                        || !isReadable(maps, peoplePtr + 0x88)) {
+                    continue;
+                }
+                long table = region.start() + offset;
+                int score = tableScore(reader, table);
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestTable = table;
+                }
+            }
+        }
+        if (bestScore < MIN_VALID_TABLE_SCORE) {
+            throw new IllegalStateException("FM offset table not found for game_plugin.dll base 0x"
+                    + Long.toHexString(gamePluginBase));
+        }
+        return bestTable;
+    }
+
+    private static int tableScore(LinuxProcessReader reader, long tableBase) {
+        Map<String, Long> counts = tableCounts(reader, tableBase);
+        if (counts.isEmpty()) {
+            return 0;
+        }
+        int score = 0;
+        score += scoreExact(counts.get("ContinentOffset"), 7, 10);
+        score += scoreExact(counts.get("RegionOffset"), 28, 10);
+        score += scoreRange(counts.get("PeopleOffset"), 30_000, 120_000, 5);
+        score += scoreRange(counts.get("TeamOffset"), 30_000, 90_000, 4);
+        score += scoreRange(counts.get("ClubOffset"), 10_000, 50_000, 4);
+        score += scoreRange(counts.get("CompetitionOffset"), 1_000, 20_000, 3);
+        score += scoreRange(counts.get("NationOffset"), 150, 400, 3);
+        score += scoreRange(counts.get("CurrencyOffset"), 50, 300, 2);
+        score += scoreRange(counts.get("CityOffset"), 30_000, 120_000, 3);
+        score += scoreRange(counts.get("StadiumOffset"), 5_000, 50_000, 2);
+        score += scoreRange(counts.get("AgreementOffset"), 0, 1_000, 1);
+        return score;
+    }
+
+    private static Map<String, Long> tableCounts(LinuxProcessReader reader, long tableBase) {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        try {
+            for (Map.Entry<String, Long> slot : SLOTS.entrySet()) {
+                long slotPtr = reader.readU64(tableBase + slot.getValue());
+                long offsetValue = reader.readU64(slotPtr + 0x80);
+                long start = reader.readU64(offsetValue);
+                long end = reader.readU64(offsetValue + 8);
+                if (end < start || (end - start) % 8 != 0) {
+                    return Map.of();
+                }
+                long count = (end - start) / 8;
+                if (count < 0 || count > 200_000) {
+                    return Map.of();
+                }
+                counts.put(slot.getKey(), count);
+            }
+        } catch (IOException | RuntimeException ex) {
+            return Map.of();
+        }
+        return counts;
+    }
+
+    private static int scoreExact(Long value, long expected, int points) {
+        return value != null && value == expected ? points : 0;
+    }
+
+    private static int scoreRange(Long value, long min, long max, int points) {
+        return value != null && value >= min && value <= max ? points : 0;
+    }
+
+    private static boolean isReadable(List<MemoryRegion> sortedRegions, long address) {
+        int low = 0;
+        int high = sortedRegions.size() - 1;
+        while (low <= high) {
+            int mid = (low + high) >>> 1;
+            MemoryRegion region = sortedRegions.get(mid);
+            if (address < region.start()) {
+                high = mid - 1;
+            } else if (address >= region.end()) {
+                low = mid + 1;
+            } else {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static long tableRva(int build) {

@@ -1,14 +1,12 @@
 package com.example.fmgenie26.config;
 
-import org.springframework.boot.cache.autoconfigure.JCacheManagerCustomizer;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import javax.cache.configuration.MutableConfiguration;
-import javax.cache.expiry.EternalExpiryPolicy;
-
-@Configuration
+@Configuration(proxyBeanMethods = false)
 @EnableCaching
 public class JCacheConfiguration {
 
@@ -21,77 +19,22 @@ public class JCacheConfiguration {
     public static final String PLAYER_MAPPING_CACHE = "player_mapping_cache";
 
     @Bean
-    JCacheManagerCustomizer playersCacheCustomizer() {
-        return cacheManager -> {
-            if (cacheManager.getCache(PLAYERS_CACHE) == null) {
-                cacheManager.createCache(
-                        PLAYERS_CACHE,
-                        new MutableConfiguration<>()
-                                .setStoreByValue(false)
-                                .setStatisticsEnabled(true)
-                                .setExpiryPolicyFactory(EternalExpiryPolicy.factoryOf())
-                );
-            }
+    CaffeineCacheManager cacheManager() {
+        CaffeineCacheManager cacheManager = new CaffeineCacheManager(
+                PLAYERS_CACHE,
+                PLAYERS_WITH_CLUBS_CACHE,
+                NATIONS_CACHE,
+                COMPETITIONS_CACHE,
+                CLUB_NAMES_CACHE,
+                PLAYING_CLUB_NAMES_CACHE,
+                PLAYER_MAPPING_CACHE
+        );
 
-            if (cacheManager.getCache(PLAYERS_WITH_CLUBS_CACHE) == null) {
-                cacheManager.createCache(
-                        PLAYERS_WITH_CLUBS_CACHE,
-                        new MutableConfiguration<>()
-                                .setStoreByValue(false)
-                                .setStatisticsEnabled(true)
-                                .setExpiryPolicyFactory(EternalExpiryPolicy.factoryOf())
-                );
-            }
+        cacheManager.setCaffeine(
+                Caffeine.newBuilder()
+                        .recordStats()
+        );
 
-            if (cacheManager.getCache(NATIONS_CACHE) == null) {
-                cacheManager.createCache(
-                        NATIONS_CACHE,
-                        new MutableConfiguration<>()
-                                .setStoreByValue(false)
-                                .setStatisticsEnabled(true)
-                                .setExpiryPolicyFactory(EternalExpiryPolicy.factoryOf())
-                );
-            }
-
-            if (cacheManager.getCache(COMPETITIONS_CACHE) == null) {
-                cacheManager.createCache(
-                        COMPETITIONS_CACHE,
-                        new MutableConfiguration<>()
-                                .setStoreByValue(false)
-                                .setStatisticsEnabled(true)
-                                .setExpiryPolicyFactory(EternalExpiryPolicy.factoryOf())
-                );
-            }
-
-            if (cacheManager.getCache(CLUB_NAMES_CACHE) == null) {
-                cacheManager.createCache(
-                        CLUB_NAMES_CACHE,
-                        new MutableConfiguration<>()
-                                .setStoreByValue(false)
-                                .setStatisticsEnabled(true)
-                                .setExpiryPolicyFactory(EternalExpiryPolicy.factoryOf())
-                );
-            }
-
-            if (cacheManager.getCache(PLAYING_CLUB_NAMES_CACHE) == null) {
-                cacheManager.createCache(
-                        PLAYING_CLUB_NAMES_CACHE,
-                        new MutableConfiguration<>()
-                                .setStoreByValue(false)
-                                .setStatisticsEnabled(true)
-                                .setExpiryPolicyFactory(EternalExpiryPolicy.factoryOf())
-                );
-            }
-
-            if (cacheManager.getCache(PLAYER_MAPPING_CACHE) == null) {
-                cacheManager.createCache(
-                        PLAYER_MAPPING_CACHE,
-                        new MutableConfiguration<>()
-                                .setStoreByValue(false)
-                                .setStatisticsEnabled(true)
-                                .setExpiryPolicyFactory(EternalExpiryPolicy.factoryOf())
-                );
-            }
-        };
+        return cacheManager;
     }
 }

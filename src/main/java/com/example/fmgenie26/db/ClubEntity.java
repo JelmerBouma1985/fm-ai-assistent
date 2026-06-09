@@ -35,7 +35,7 @@ public class ClubEntity {
     @Column(length = 1024)
     private String competition;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne
     @JoinColumn(name = "competition_id", foreignKey = @ForeignKey(name = "fk_clubs_competition"))
     private CompetitionEntity competitionEntity;
 
