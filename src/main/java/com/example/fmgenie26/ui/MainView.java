@@ -2,15 +2,10 @@ package com.example.fmgenie26.ui;
 
 import com.example.fmgenie26.club.ClubExporter;
 import com.example.fmgenie26.competition.CompetitionExporter;
-import com.example.fmgenie26.db.ClubDatabaseService;
-import com.example.fmgenie26.db.CompetitionDatabaseService;
-import com.example.fmgenie26.db.DatabaseLoadAllService;
-import com.example.fmgenie26.db.PlayerEntity;
-import com.example.fmgenie26.db.PlayerFilterCriteria;
-import com.example.fmgenie26.db.PlayerColumnNames;
-import com.example.fmgenie26.db.PlayerDatabaseService;
+import com.example.fmgenie26.db.*;
 import com.example.fmgenie26.player.AttributeDefinitions;
 import com.example.fmgenie26.player.FieldDef;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.checkbox.Checkbox;
@@ -22,24 +17,21 @@ import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
-import com.vaadin.flow.component.textfield.IntegerField;
-import com.vaadin.flow.component.textfield.TextField;
-import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.progressbar.ProgressBar;
+import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.tabs.Tab;
 import com.vaadin.flow.component.tabs.Tabs;
+import com.vaadin.flow.component.textfield.IntegerField;
+import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 
 import java.io.IOException;
-import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.function.Function;
 
 @Route("")
@@ -67,6 +59,7 @@ public class MainView extends VerticalLayout {
     private final ClubDatabaseService clubs;
     private final CompetitionDatabaseService competitions;
 
+    private final ProgressBar spinner = new ProgressBar();
     private final Button loadButton = new Button("Load from RAM");
     private final Button filterButton = new Button("Filter");
     private final Span status = new Span();
@@ -95,7 +88,9 @@ public class MainView extends VerticalLayout {
         setPadding(false);
         setSpacing(false);
 
-        add(header(), tabs, content);
+        spinner.setIndeterminate(true);
+        spinner.setVisible(false);
+        add(header(), spinner, tabs, content);
         configureTabs();
         configureGrid(playersGrid);
         configureGrid(clubsGrid);
@@ -142,19 +137,53 @@ public class MainView extends VerticalLayout {
     }
 
     private void loadAllData() {
+        UI ui = UI.getCurrent();
         loadButton.setEnabled(false);
         loadButton.setText("Loading...");
-        try {
-            DatabaseLoadAllService.LoadAllResult result = loadAll.loadAll(null, DatabaseLoadAllService.LoadAllResult.defaultBuild(), null);
-            updateStatus(result);
-            refreshSelectedTab();
-            Notification.show("Loaded RAM data", 3000, Notification.Position.TOP_CENTER);
-        } catch (IOException | RuntimeException ex) {
-            Notification.show("Load failed: " + ex.getMessage(), 8000, Notification.Position.TOP_CENTER);
-        } finally {
-            loadButton.setEnabled(true);
-            loadButton.setText("Load from RAM");
-        }
+        spinner.setVisible(true);
+
+        CompletableFuture
+                .supplyAsync(() -> {
+                    try {
+                        return loadAll.loadAll(
+                                null,
+                                DatabaseLoadAllService.LoadAllResult.defaultBuild(),
+                                null
+                        );
+                    } catch (IOException ex) {
+                        throw new CompletionException(ex);
+                    }
+                })
+                .thenAccept(result -> ui.access(() -> {
+                    updateStatus(result);
+                    refreshSelectedTab();
+
+                    Notification.show(
+                            "Loaded RAM data",
+                            3000,
+                            Notification.Position.TOP_CENTER
+                    );
+                }))
+                .exceptionally(ex -> {
+                    ui.access(() -> {
+                        Throwable cause = ex instanceof CompletionException && ex.getCause() != null
+                                ? ex.getCause()
+                                : ex;
+
+                        Notification.show(
+                                "Load failed: " + cause.getMessage(),
+                                8000,
+                                Notification.Position.TOP_CENTER
+                        );
+                    });
+
+                    return null;
+                })
+                .whenComplete((result, ex) -> ui.access(() -> {
+                    spinner.setVisible(false);
+                    loadButton.setEnabled(true);
+                    loadButton.setText("Load from RAM");
+                }));
     }
 
     private void refreshSelectedTab() {
