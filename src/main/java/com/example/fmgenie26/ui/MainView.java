@@ -5,6 +5,7 @@ import com.example.fmgenie26.competition.CompetitionExporter;
 import com.example.fmgenie26.db.*;
 import com.example.fmgenie26.player.AttributeDefinitions;
 import com.example.fmgenie26.player.FieldDef;
+import com.vaadin.flow.component.ModalityMode;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -17,6 +18,7 @@ import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.progressbar.ProgressBar;
@@ -59,6 +61,7 @@ public class MainView extends VerticalLayout {
     private final ClubDatabaseService clubs;
     private final CompetitionDatabaseService competitions;
 
+    private final Dialog loadingDialog = new Dialog();
     private final ProgressBar spinner = new ProgressBar();
     private final Button loadButton = new Button("Load from RAM");
     private final Button filterButton = new Button("Filter");
@@ -88,13 +91,12 @@ public class MainView extends VerticalLayout {
         setPadding(false);
         setSpacing(false);
 
-        spinner.setIndeterminate(true);
-        spinner.setVisible(false);
-        add(header(), spinner, tabs, content);
+        add(header(), tabs, content);
         configureTabs();
         configureGrid(playersGrid);
         configureGrid(clubsGrid);
         configureGrid(competitionsGrid);
+        configureLoadingDialog();
         playersGrid.addItemClickListener(event -> openPlayerDetailsDialog(event.getItem()));
         updateStatus(null);
         showPlayers();
@@ -140,7 +142,7 @@ public class MainView extends VerticalLayout {
         UI ui = UI.getCurrent();
         loadButton.setEnabled(false);
         loadButton.setText("Loading...");
-        spinner.setVisible(true);
+        loadingDialog.open();
 
         CompletableFuture
                 .supplyAsync(() -> {
@@ -180,7 +182,7 @@ public class MainView extends VerticalLayout {
                     return null;
                 })
                 .whenComplete((result, ex) -> ui.access(() -> {
-                    spinner.setVisible(false);
+                    loadingDialog.close();
                     loadButton.setEnabled(true);
                     loadButton.setText("Load from RAM");
                 }));
@@ -271,6 +273,24 @@ public class MainView extends VerticalLayout {
         content.setSizeFull();
         content.add(playersGrid);
         content.getStyle().set("height", "calc(100vh - 120px)");
+    }
+
+    private void configureLoadingDialog() {
+        spinner.setIndeterminate(true);
+        loadingDialog.setModality(ModalityMode.STRICT);
+        loadingDialog.setCloseOnEsc(false);
+        loadingDialog.setCloseOnOutsideClick(false);
+        loadingDialog.setDraggable(false);
+        loadingDialog.setResizable(false);
+
+        VerticalLayout content = new VerticalLayout(
+                spinner,
+                new Span("Loading data...")
+        );
+        content.setAlignItems(FlexComponent.Alignment.CENTER);
+        content.setPadding(true);
+
+        loadingDialog.add(content);
     }
 
     private void openPlayerDetailsDialog(PlayerEntity player) {
@@ -378,7 +398,6 @@ public class MainView extends VerticalLayout {
         ComboBox<String> playingNation = comboBox("Playing nation", players.findPlayingNations(), playerFilter.playingNation());
         ComboBox<String> playingCompetition = comboBox("Playing competition", players.findPlayingCompetitions(), playerFilter.playingCompetition());
         ComboBox<String> club = comboBox("Club", players.findClubs(), playerFilter.club());
-        ComboBox<String> playingClub = comboBox("Playing Club", players.findPlayingClubs(), playerFilter.playingClub());
         TextField nationality = new TextField("Nationality contains");
         nationality.setValue(nullSafeValue(playerFilter.nationality()));
 
@@ -396,6 +415,7 @@ public class MainView extends VerticalLayout {
         IntegerField paMax = intField("PA max", playerFilter.paMax(), 1, 200);
         LongField askingMin = new LongField("Asking price min", playerFilter.askingPriceMin());
         LongField askingMax = new LongField("Asking price max", playerFilter.askingPriceMax());
+        LongField salaryMax = new LongField("Weekly Salary max", playerFilter.salaryMax());
         DatePicker contractFrom = new DatePicker("Contract end from");
         contractFrom.setValue(playerFilter.contractEndDateFrom());
         DatePicker contractTo = new DatePicker("Contract end to");
@@ -404,16 +424,17 @@ public class MainView extends VerticalLayout {
         FormLayout basicFilters = new FormLayout(
                 name, gender,
                 playingNation, playingCompetition,
-                club, playingClub,
-                nationality,
                 ageMin, ageMax,
+                club, salaryMax.field(),
+                askingMin.field(), askingMax.field(),
+                contractFrom, contractTo,
+                caMin, caMax,
+                paMin, paMax,
                 currentRepMin, currentRepMax,
                 homeRepMin, homeRepMax,
                 worldRepMin, worldRepMax,
-                caMin, caMax,
-                paMin, paMax,
-                contractFrom, contractTo,
-                askingMin.field(), askingMax.field());
+                nationality
+                );
         basicFilters.setResponsiveSteps(
                 new FormLayout.ResponsiveStep("0", 1),
                 new FormLayout.ResponsiveStep("720px", 2));
@@ -484,7 +505,6 @@ public class MainView extends VerticalLayout {
                     playingNation.getValue(),
                     playingCompetition.getValue(),
                     club.getValue(),
-                    playingClub.getValue(),
                     ageMin.getValue(), ageMax.getValue(),
                     nationality.getValue(),
                     defaultInt(currentRepMin.getValue(), 1), currentRepMax.getValue(),
@@ -494,6 +514,7 @@ public class MainView extends VerticalLayout {
                     defaultInt(paMin.getValue(), 1), paMax.getValue(),
                     contractFrom.getValue(), contractTo.getValue(),
                     askingMin.value(), askingMax.value(),
+                    salaryMax.value(),
                     selectedPositionMinimums(selectedPositions),
                     selectedAttributeMinimums(attributeFields));
             showPlayers();
