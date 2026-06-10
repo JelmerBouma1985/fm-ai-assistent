@@ -16,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StopWatch;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -27,6 +26,8 @@ public class PlayerDatabaseService {
     private static final Logger LOGGER = LoggerFactory.getLogger(PlayerDatabaseService.class);
 
     private final PlayerRepository players;
+    private final ClubRepository clubRepository;
+    private final CompetitionRepository competitionRepository;
     private final ClubRepository clubs;
     private final ClubDatabaseService clubDatabaseService;
     private final LoadMetadataRepository metadata;
@@ -35,10 +36,15 @@ public class PlayerDatabaseService {
 
     public PlayerDatabaseService(
             PlayerRepository players,
+            ClubRepository clubRepository,
+            CompetitionRepository competitionRepository,
             ClubRepository clubs,
             ClubDatabaseService clubDatabaseService,
-            LoadMetadataRepository metadata, PlayerMapper playerMapper) {
+            LoadMetadataRepository metadata,
+            PlayerMapper playerMapper) {
         this.players = players;
+        this.clubRepository = clubRepository;
+        this.competitionRepository = competitionRepository;
         this.clubs = clubs;
         this.clubDatabaseService = clubDatabaseService;
         this.metadata = metadata;
@@ -113,20 +119,6 @@ public class PlayerDatabaseService {
     }
 
     @Transactional(readOnly = true)
-    public List<Map<String, Object>> findAllPlayers() {
-        StopWatch stopWatch = new StopWatch();
-        stopWatch.start();
-        List<Map<String, Object>> p = players.findAll()
-                .stream()
-                .map(playerMapper)
-                .toList();
-
-        stopWatch.stop();
-        LOGGER.info("Time to get players: {}", stopWatch.getTotalTime(TimeUnit.MILLISECONDS));
-        return p;
-    }
-
-    @Transactional(readOnly = true)
     public List<PlayerEntity> findAllPlayerEntities() {
         StopWatch stopWatch = new StopWatch();
         stopWatch.start();
@@ -151,46 +143,18 @@ public class PlayerDatabaseService {
     }
 
     @Transactional(readOnly = true)
-    public List<Map<String, Object>> findPlayers(PlayerFilterCriteria filter) {
-        PlayerFilterCriteria safeFilter = filter == null ? PlayerFilterCriteria.empty() : filter;
-
-        StopWatch stopWatch = new StopWatch();
-        stopWatch.start();
-        List<PlayerEntity> p = players.findAll();
-        stopWatch.stop();
-        LOGGER.info("Time to get players: {}", stopWatch.getTotalTime(TimeUnit.MILLISECONDS));
-
-        StopWatch st = new StopWatch();
-        st.start();
-        List<Map<String, Object>> o = p
-                .stream()
-                .map(playerMapper)
-                .filter(row -> matchesPlayerFilter(row, safeFilter))
-                .toList();
-        st.stop();
-        LOGGER.info("Mapping and filtering players: {}", st.getTotalTime(TimeUnit.MILLISECONDS));
-
-        return o;
-    }
-
-    @Transactional(readOnly = true)
     public List<String> findPlayingNations() {
-        return players.findDistinctPlayingNations();
+        return competitionRepository.findDistinctNations();
     }
 
     @Transactional(readOnly = true)
     public List<String> findPlayingCompetitions() {
-        return players.findDistinctPlayingCompetitions();
+        return competitionRepository.findDistinctNameByOrderByNameAsc();
     }
 
     @Transactional(readOnly = true)
     public List<String> findClubs() {
-        return players.findDistinctClubs();
-    }
-
-    @Transactional(readOnly = true)
-    public List<String> findPlayingClubs() {
-        return players.findDistinctPlayingClubs();
+        return clubRepository.findDistinctNameByOrderByNameAsc();
     }
 
     @Transactional(readOnly = true)
@@ -218,32 +182,12 @@ public class PlayerDatabaseService {
         };
     }
 
-    private static boolean matchesPlayerFilter(Map<String, Object> row, PlayerFilterCriteria filter) {
-        return contains(row.get("NAME"), filter.name())
-                && equalsIgnoreCase(row.get("GENDER"), filter.gender())
-                && equalsIgnoreCase(row.get("PLAYING_NATION"), filter.playingNation())
-                && equalsIgnoreCase(row.get("PLAYING_COMPETITION"), filter.playingCompetition())
-                && equalsIgnoreCase(row.get("CLUB"), filter.club())
-                && inRange(asLong(row.get("SALARY_WEEKLY_RAW")), 1L, filter.salaryMax())
-                && contains(row.get("NATIONALITY"), filter.nationality())
-                && inRange(asInt(row.get("AGE")), filter.ageMin(), filter.ageMax())
-                && inRange(asInt(row.get("CURRENT_REPUTATION")), filter.currentReputationMin(), filter.currentReputationMax())
-                && inRange(asInt(row.get("HOME_REPUTATION")), filter.homeReputationMin(), filter.homeReputationMax())
-                && inRange(asInt(row.get("WORLD_REPUTATION")), filter.worldReputationMin(), filter.worldReputationMax())
-                && inRange(asInt(row.get("CA")), filter.caMin(), filter.caMax())
-                && inRange(asInt(row.get("PA")), filter.paMin(), filter.paMax())
-                && inRange(asLong(row.get("ASKING_PRICE")), filter.askingPriceMin(), filter.askingPriceMax())
-                && dateInRange(row.get("CONTRACT_END_DATE"), filter.contractEndDateFrom(), filter.contractEndDateTo())
-                && minimumsMatch(row, filter.positionMinimums())
-                && minimumsMatch(row, filter.attributeMinimums());
-    }
-
     private static boolean matchesPlayerFilter(PlayerEntity player, PlayerFilterCriteria filter) {
         return contains(player.getName(), filter.name())
                 && equalsIgnoreCase(player.getGender(), filter.gender())
-                && equalsIgnoreCase(player.getColumnValue("PLAYING_NATION"), filter.playingNation())
-                && equalsIgnoreCase(player.getColumnValue("PLAYING_COMPETITION"), filter.playingCompetition())
-                && equalsIgnoreCase(player.getClub(), filter.club())
+                && equalsIgnoreCase(Optional.ofNullable(player.getPlayingClubEntity()).map(ClubEntity::getCompetitionEntity).map(CompetitionEntity::getNation).orElse(null), filter.playingNation())
+                && equalsIgnoreCase(Optional.ofNullable(player.getPlayingClubEntity()).map(ClubEntity::getCompetitionEntity).map(CompetitionEntity::getName).orElse(null), filter.playingCompetition())
+                && (equalsIgnoreCase(Optional.ofNullable(player.getClubEntity()).map(ClubEntity::getName).orElse(null), filter.club()) || equalsIgnoreCase(Optional.ofNullable(player.getPlayingClubEntity()).map(ClubEntity::getName).orElse(null), filter.club()))
                 && inRange(player.getSalaryWeeklyRaw().longValue(), 1L, filter.salaryMax())
                 && contains(player.getNationality(), filter.nationality())
                 && inRange(asInt(player.getAge()), filter.ageMin(), filter.ageMax())
@@ -329,13 +273,6 @@ public class PlayerDatabaseService {
             return null;
         }
         return Integer.valueOf(String.valueOf(value));
-    }
-
-    private static Long asLong(Object value) {
-        if (value == null || String.valueOf(value).isBlank()) {
-            return null;
-        }
-        return Long.valueOf(String.valueOf(value));
     }
 
     public record LoadResult(String gameDate, int count) {

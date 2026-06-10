@@ -99,6 +99,30 @@ public class ClubEntity {
         return nation;
     }
 
+    public String getName() {
+        return name;
+    }
+
+    public String getGender() {
+        return gender;
+    }
+
+    public CompetitionEntity getCompetitionEntity() {
+        return competitionEntity;
+    }
+
+    public Long getBalance() {
+        return balance;
+    }
+
+    public Long getTransferBudget() {
+        return transferBudget;
+    }
+
+    public Long getPayrollBudget() {
+        return payrollBudget;
+    }
+
     private void setField(String fieldName, Object value) {
         try {
             Field field = ClubEntity.class.getDeclaredField(fieldName);

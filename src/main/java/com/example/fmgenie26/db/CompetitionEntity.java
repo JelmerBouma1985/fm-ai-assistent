@@ -37,6 +37,22 @@ public class CompetitionEntity {
     protected CompetitionEntity() {
     }
 
+    public String getName() {
+        return name;
+    }
+
+    public String getNation() {
+        return nation;
+    }
+
+    public Integer getReputation() {
+        return reputation;
+    }
+
+    public String getGender() {
+        return gender;
+    }
+
     public static CompetitionEntity fromExportRow(Map<String, Object> row) {
         CompetitionEntity entity = new CompetitionEntity();
         for (String field : CompetitionExporter.FIELD_NAMES) {
