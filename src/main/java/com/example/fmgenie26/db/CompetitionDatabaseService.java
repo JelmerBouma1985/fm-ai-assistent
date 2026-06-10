@@ -36,6 +36,11 @@ public class CompetitionDatabaseService {
     }
 
     @Transactional(readOnly = true)
+    public List<String> findNations() {
+        return competitions.findDistinctNations();
+    }
+
+    @Transactional(readOnly = true)
     public long countCompetitions() {
         return competitions.count();
     }

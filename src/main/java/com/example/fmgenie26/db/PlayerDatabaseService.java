@@ -189,7 +189,7 @@ public class PlayerDatabaseService {
                 && equalsIgnoreCase(Optional.ofNullable(player.getPlayingClubEntity()).map(ClubEntity::getCompetitionEntity).map(CompetitionEntity::getName).orElse(null), filter.playingCompetition())
                 && (equalsIgnoreCase(Optional.ofNullable(player.getClubEntity()).map(ClubEntity::getName).orElse(null), filter.club()) || equalsIgnoreCase(Optional.ofNullable(player.getPlayingClubEntity()).map(ClubEntity::getName).orElse(null), filter.club()))
                 && inRange(player.getSalaryWeeklyRaw().longValue(), 1L, filter.salaryMax())
-                && contains(player.getNationality(), filter.nationality())
+                && equalsIgnoreCase(player.getNationality(), filter.nationality())
                 && inRange(asInt(player.getAge()), filter.ageMin(), filter.ageMax())
                 && inRange(player.getCurrentReputation(), filter.currentReputationMin(), filter.currentReputationMax())
                 && inRange(player.getHomeReputation(), filter.homeReputationMin(), filter.homeReputationMax())
@@ -211,16 +211,6 @@ public class PlayerDatabaseService {
     private static boolean equalsIgnoreCase(Object value, String term) {
         return term == null || term.isBlank()
                 || String.valueOf(value == null ? "" : value).equalsIgnoreCase(term.trim());
-    }
-
-    private static boolean minimumsMatch(Map<String, Object> row, Map<String, Integer> minimums) {
-        for (Map.Entry<String, Integer> minimum : minimums.entrySet()) {
-            Integer value = asInt(row.get(minimum.getKey()));
-            if (value == null || value < minimum.getValue()) {
-                return false;
-            }
-        }
-        return true;
     }
 
     private static boolean minimumsMatch(PlayerEntity player, Map<String, Integer> minimums) {

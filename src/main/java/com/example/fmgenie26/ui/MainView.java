@@ -398,7 +398,7 @@ public class MainView extends VerticalLayout {
         ComboBox<String> playingNation = comboBox("Playing nation", players.findPlayingNations(), playerFilter.playingNation());
         ComboBox<String> playingCompetition = comboBox("Playing competition", players.findPlayingCompetitions(), playerFilter.playingCompetition());
         ComboBox<String> club = comboBox("Club", players.findClubs(), playerFilter.club());
-        TextField nationality = new TextField("Nationality contains");
+        ComboBox<String> nationality = comboBox("Nationality", competitions.findNations(), playerFilter.nationality());
         nationality.setValue(nullSafeValue(playerFilter.nationality()));
 
         IntegerField ageMin = intField("Age min", playerFilter.ageMin(), 1, 80);
