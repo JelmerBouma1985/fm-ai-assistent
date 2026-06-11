@@ -20,7 +20,7 @@ public class ClubExporter {
     private static final long TEAM_REPUTATION_REL = 0xA8;
     private static final long COMPETITION_GENDER_FLAG_REL = 0xF9;
     private static final long CLUB_FINANCE_BLOCK_REL = 0x150;
-    private static final int CLUB_FINANCE_MARKER = 0xB318;
+    private static final List<Integer> CLUB_FINANCE_MARKERS = List.of(0xB318, 0xD2E8);
     private static final long CLUB_BALANCE_REL = 0x14;
     private static final long CLUB_TRANSFER_BUDGET_REL = 0x7CC;
     private static final long CLUB_PAYROLL_BUDGET_REL = 0x810;
@@ -114,14 +114,40 @@ public class ClubExporter {
             return new Finance(0L, 0L, 0L);
         }
         long extra = extraOpt.get();
-        if (reader.readU16(extra) != CLUB_FINANCE_MARKER) {
+        if (!CLUB_FINANCE_MARKERS.contains(reader.readU16(extra))) {
             return new Finance(0L, 0L, 0L);
         }
-        long balance = (long) (int) reader.readU32(extra + CLUB_BALANCE_REL);
-        long transferBudget = roundToNearest(reader.readU32(extra + CLUB_TRANSFER_BUDGET_REL), 250_000L);
+        long balanceRaw = (long) (int) reader.readU32(extra + CLUB_BALANCE_REL);
+        long balance = roundToNearest(balanceRaw, balanceRoundingStep(balanceRaw));
+        long transferBudgetRaw = reader.readU32(extra + CLUB_TRANSFER_BUDGET_REL);
+        long transferBudget = roundToNearest(transferBudgetRaw, transferRoundingStep(transferBudgetRaw));
         long payrollRaw = reader.readU32(extra + CLUB_PAYROLL_BUDGET_REL);
-        long payrollBudget = roundToNearest(payrollRaw, payrollRaw >= 1_000_000L ? 100_000L : 25_000L);
+        long payrollBudget = roundToNearest(payrollRaw, payrollRoundingStep(payrollRaw));
         return new Finance(balance, transferBudget, payrollBudget);
+    }
+
+    private static long balanceRoundingStep(long value) {
+        return Math.abs(value) >= 10_000_000L ? 1_000_000L : 100_000L;
+    }
+
+    private static long transferRoundingStep(long value) {
+        if (value >= 50_000_000L) {
+            return 1_000_000L;
+        }
+        if (value >= 1_000_000L) {
+            return 250_000L;
+        }
+        return 50_000L;
+    }
+
+    private static long payrollRoundingStep(long value) {
+        if (value >= 5_000_000L) {
+            return 250_000L;
+        }
+        if (value >= 1_000_000L) {
+            return 100_000L;
+        }
+        return 5_000L;
     }
 
     private static long roundToNearest(long value, long step) {
