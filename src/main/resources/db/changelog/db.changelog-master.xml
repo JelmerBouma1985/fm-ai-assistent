@@ -493,18 +493,4 @@
             <column name="controversy" type="INT"/>
         </addColumn>
     </changeSet>
-
-    <changeSet id="022-add-player-height" author="codex">
-        <preConditions onFail="MARK_RAN">
-            <and>
-                <tableExists tableName="players"/>
-                <not>
-                    <columnExists tableName="players" columnName="height_cm"/>
-                </not>
-            </and>
-        </preConditions>
-        <addColumn tableName="players">
-            <column name="height_cm" type="INT"/>
-        </addColumn>
-    </changeSet>
 </databaseChangeLog>
