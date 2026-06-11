@@ -2,6 +2,8 @@ package com.example.fmgenie26.ui;
 
 import com.example.fmgenie26.club.ClubExporter;
 import com.example.fmgenie26.competition.CompetitionExporter;
+import com.example.fmgenie26.config.AppSettingsService;
+import com.example.fmgenie26.config.MoneyCurrency;
 import com.example.fmgenie26.db.*;
 import com.example.fmgenie26.player.AttributeDefinitions;
 import com.example.fmgenie26.player.FieldDef;
@@ -32,6 +34,9 @@ import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.text.NumberFormat;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -58,15 +63,20 @@ public class MainView extends VerticalLayout {
             "JUMPING_REACH", "LEADERSHIP", "DIRTINESS", "BALANCE", "BRAVERY", "CONSISTENCY",
             "AGGRESSION", "AGILITY", "IMPORTANT_MATCHES", "INJURY_PRONENESS", "VERSATILITY",
             "NATURAL_FITNESS", "DETERMINATION", "COMPOSURE", "CONCENTRATION");
+    private static final Set<String> MONEY_COLUMNS = Set.of(
+            "ASKING_PRICE", "ASKING_PRICE_RAW", "SALARY_PA", "SALARY_WEEKLY_RAW",
+            "BALANCE", "TRANSFER_BUDGET", "PAYROLL_BUDGET");
 
     private final DatabaseLoadAllService loadAll;
     private final PlayerDatabaseService players;
     private final ClubDatabaseService clubs;
     private final CompetitionDatabaseService competitions;
+    private final AppSettingsService settings;
 
     private final Dialog loadingDialog = new Dialog();
     private final ProgressBar spinner = new ProgressBar();
     private final Button loadButton = new Button("Load from RAM");
+    private final Button settingsButton = new Button("Settings");
     private final Button filterButton = new Button("Filter");
     private final Span status = new Span();
     private final Tabs tabs = new Tabs();
@@ -79,16 +89,20 @@ public class MainView extends VerticalLayout {
     private final Tab clubsTab = new Tab("Clubs");
     private final Tab competitionsTab = new Tab("Competitions");
     private PlayerFilterCriteria playerFilter = PlayerFilterCriteria.empty();
+    private MoneyCurrency currency;
 
     public MainView(
             DatabaseLoadAllService loadAll,
             PlayerDatabaseService players,
             ClubDatabaseService clubs,
-            CompetitionDatabaseService competitions) {
+            CompetitionDatabaseService competitions,
+            AppSettingsService settings) {
         this.loadAll = loadAll;
         this.players = players;
         this.clubs = clubs;
         this.competitions = competitions;
+        this.settings = settings;
+        this.currency = settings.currency();
 
         setSizeFull();
         setPadding(false);
@@ -107,11 +121,12 @@ public class MainView extends VerticalLayout {
 
     private HorizontalLayout header() {
         loadButton.addClickListener(event -> loadAllData());
+        settingsButton.addClickListener(event -> openSettingsDialog());
         filterButton.addClickListener(event -> openPlayerFilterDialog());
         status.getStyle().set("font-size", "var(--lumo-font-size-s)");
         status.getStyle().set("color", "var(--lumo-secondary-text-color)");
 
-        HorizontalLayout header = new HorizontalLayout(loadButton, filterButton, status);
+        HorizontalLayout header = new HorizontalLayout(loadButton, settingsButton, filterButton, status);
         header.setWidthFull();
         header.setAlignItems(Alignment.CENTER);
         header.setPadding(true);
@@ -246,7 +261,7 @@ public class MainView extends VerticalLayout {
     private void setGrid(Grid<Map<String, Object>> grid, List<String> columns, List<Map<String, Object>> rows) {
         grid.removeAllColumns();
         for (String column : columns) {
-            grid.addColumn(row -> display(row.get(column)))
+            grid.addColumn(row -> displayColumn(column, row.get(column)))
                     .setKey(column)
                     .setHeader(column)
                     .setAutoWidth(true)
@@ -265,7 +280,7 @@ public class MainView extends VerticalLayout {
         playersGrid.removeAllColumns();
         playersGrid.setPartNameGenerator(this::playerRowPartName);
         for (PlayerColumn column : columns) {
-            playersGrid.addColumn(player -> display(column.value(player)))
+            playersGrid.addColumn(player -> displayColumn(column.key(), column.value(player)))
                     .setKey(column.key())
                     .setHeader(column.header())
                     .setAutoWidth(true)
@@ -328,8 +343,8 @@ public class MainView extends VerticalLayout {
                 new DetailField("Club", player.getClub()),
                 new DetailField("Playing Club", player.getPlayingClub()),
                 new DetailField("Position", PositionTextFormatter.format(player)),
-                new DetailField("Salary Weekly", player.getSalaryWeeklyRaw()),
-                new DetailField("Asking Price", player.getAskingPrice()),
+                new DetailField("Salary Weekly", moneyDisplay(player.getSalaryWeeklyRaw())),
+                new DetailField("Asking Price", moneyDisplay(player.getAskingPrice())),
                 new DetailField("Contract End Date", player.getContractEndDate()),
                 new DetailField("Current Reputation", player.getCurrentReputation()),
                 new DetailField("Home Reputation", player.getHomeReputation()),
@@ -392,6 +407,42 @@ public class MainView extends VerticalLayout {
         close.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         dialog.add(detailTabs, detailContent);
         dialog.getFooter().add(close);
+        dialog.open();
+    }
+
+    private void openSettingsDialog() {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle("Settings");
+        dialog.setWidth("420px");
+        dialog.setMaxWidth("calc(100vw - 32px)");
+
+        Select<MoneyCurrency> currencySelect = new Select<>();
+        currencySelect.setLabel("Currency");
+        currencySelect.setItems(MoneyCurrency.POUND, MoneyCurrency.DOLLAR, MoneyCurrency.EURO);
+        currencySelect.setItemLabelGenerator(MoneyCurrency::label);
+        currencySelect.setValue(currency);
+
+        Span file = new Span("Stored in " + settings.settingsPath());
+        file.getStyle()
+                .set("font-size", "var(--lumo-font-size-xs)")
+                .set("color", "var(--lumo-secondary-text-color)")
+                .set("overflow-wrap", "anywhere");
+
+        VerticalLayout layout = new VerticalLayout(currencySelect, file);
+        layout.setPadding(false);
+        layout.setSpacing(true);
+        dialog.add(layout);
+
+        Button save = new Button("Save", event -> {
+            currency = currencySelect.getValue() == null ? MoneyCurrency.POUND : currencySelect.getValue();
+            settings.saveCurrency(currency);
+            refreshSelectedTab();
+            Notification.show("Settings saved", 2500, Notification.Position.TOP_CENTER);
+            dialog.close();
+        });
+        save.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        Button cancel = new Button("Cancel", event -> dialog.close());
+        dialog.getFooter().add(cancel, save);
         dialog.open();
     }
 
@@ -562,6 +613,23 @@ public class MainView extends VerticalLayout {
 
     private static String display(Object value) {
         return value == null ? "" : Objects.toString(value);
+    }
+
+    private String displayColumn(String column, Object value) {
+        return MONEY_COLUMNS.contains(column) ? moneyDisplay(value) : display(value);
+    }
+
+    private String moneyDisplay(Object value) {
+        Long pounds = sortableLong(value);
+        if (pounds == null) {
+            return "";
+        }
+        MoneyCurrency selected = currency == null ? MoneyCurrency.POUND : currency;
+        long converted = BigDecimal.valueOf(pounds)
+                .multiply(selected.rateFromPounds())
+                .setScale(0, RoundingMode.HALF_UP)
+                .longValue();
+        return selected.symbol() + NumberFormat.getIntegerInstance(Locale.US).format(converted);
     }
 
     private static String heightDisplay(PlayerEntity player) {
