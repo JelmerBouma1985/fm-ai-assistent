@@ -1,0 +1,728 @@
+game,position_group,role,phase,attribute_priority,attribute_name,sort_order
+Football Manager 26,Goalkeeper,Goalkeeper,In Possession,primary,Aerial Reach,1
+Football Manager 26,Goalkeeper,Goalkeeper,In Possession,primary,Command of Area,2
+Football Manager 26,Goalkeeper,Goalkeeper,In Possession,primary,Communication,3
+Football Manager 26,Goalkeeper,Goalkeeper,In Possession,primary,Handling,4
+Football Manager 26,Goalkeeper,Goalkeeper,In Possession,primary,Reflexes,5
+Football Manager 26,Goalkeeper,Goalkeeper,In Possession,primary,Agility,6
+Football Manager 26,Goalkeeper,Goalkeeper,In Possession,primary,Concentration,7
+Football Manager 26,Goalkeeper,Goalkeeper,In Possession,primary,Positioning,8
+Football Manager 26,Goalkeeper,Goalkeeper,In Possession,secondary,Kicking,1
+Football Manager 26,Goalkeeper,Goalkeeper,In Possession,secondary,One on Ones,2
+Football Manager 26,Goalkeeper,Goalkeeper,In Possession,secondary,Throwing,3
+Football Manager 26,Goalkeeper,Goalkeeper,In Possession,secondary,Anticipation,4
+Football Manager 26,Goalkeeper,Goalkeeper,In Possession,secondary,Decisions,5
+Football Manager 26,Goalkeeper,Ball-Playing Goalkeeper,In Possession,primary,Aerial Reach,1
+Football Manager 26,Goalkeeper,Ball-Playing Goalkeeper,In Possession,primary,Command of Area,2
+Football Manager 26,Goalkeeper,Ball-Playing Goalkeeper,In Possession,primary,Communication,3
+Football Manager 26,Goalkeeper,Ball-Playing Goalkeeper,In Possession,primary,Handling,4
+Football Manager 26,Goalkeeper,Ball-Playing Goalkeeper,In Possession,primary,Kicking,5
+Football Manager 26,Goalkeeper,Ball-Playing Goalkeeper,In Possession,primary,Reflexes,6
+Football Manager 26,Goalkeeper,Ball-Playing Goalkeeper,In Possession,primary,Agility,7
+Football Manager 26,Goalkeeper,Ball-Playing Goalkeeper,In Possession,primary,Concentration,8
+Football Manager 26,Goalkeeper,Ball-Playing Goalkeeper,In Possession,primary,Positioning,9
+Football Manager 26,Goalkeeper,Ball-Playing Goalkeeper,In Possession,secondary,Eccentricity,1
+Football Manager 26,Goalkeeper,Ball-Playing Goalkeeper,In Possession,secondary,One on Ones,2
+Football Manager 26,Goalkeeper,Ball-Playing Goalkeeper,In Possession,secondary,Throwing,3
+Football Manager 26,Goalkeeper,Ball-Playing Goalkeeper,In Possession,secondary,Anticipation,4
+Football Manager 26,Goalkeeper,Ball-Playing Goalkeeper,In Possession,secondary,Composure,5
+Football Manager 26,Goalkeeper,Ball-Playing Goalkeeper,In Possession,secondary,Decisions,6
+Football Manager 26,Goalkeeper,Ball-Playing Goalkeeper,In Possession,secondary,Passing,7
+Football Manager 26,Goalkeeper,No-Nonsense Goalkeeper,In Possession,primary,Aerial Reach,1
+Football Manager 26,Goalkeeper,No-Nonsense Goalkeeper,In Possession,primary,Command of Area,2
+Football Manager 26,Goalkeeper,No-Nonsense Goalkeeper,In Possession,primary,Communication,3
+Football Manager 26,Goalkeeper,No-Nonsense Goalkeeper,In Possession,primary,Handling,4
+Football Manager 26,Goalkeeper,No-Nonsense Goalkeeper,In Possession,primary,Reflexes,5
+Football Manager 26,Goalkeeper,No-Nonsense Goalkeeper,In Possession,primary,Agility,6
+Football Manager 26,Goalkeeper,No-Nonsense Goalkeeper,In Possession,primary,Concentration,7
+Football Manager 26,Goalkeeper,No-Nonsense Goalkeeper,In Possession,primary,Positioning,8
+Football Manager 26,Goalkeeper,No-Nonsense Goalkeeper,In Possession,secondary,One on Ones,1
+Football Manager 26,Goalkeeper,No-Nonsense Goalkeeper,In Possession,secondary,Anticipation,2
+Football Manager 26,Goalkeeper,No-Nonsense Goalkeeper,In Possession,secondary,Decisions,3
+Football Manager 26,Goalkeeper,Line-Holding Keeper,Out of Possession,primary,Positioning,1
+Football Manager 26,Goalkeeper,Line-Holding Keeper,Out of Possession,primary,Concentration,2
+Football Manager 26,Goalkeeper,Sweeper Keeper,Out of Possession,primary,Rushing Out,1
+Football Manager 26,Goalkeeper,Sweeper Keeper,Out of Possession,primary,Anticipation,2
+Football Manager 26,Goalkeeper,Sweeper Keeper,Out of Possession,primary,Decisions,3
+Football Manager 26,Centre-Back,Centre-Back,In Possession,primary,Heading,1
+Football Manager 26,Centre-Back,Centre-Back,In Possession,primary,Marking,2
+Football Manager 26,Centre-Back,Centre-Back,In Possession,primary,Tackling,3
+Football Manager 26,Centre-Back,Centre-Back,In Possession,primary,Anticipation,4
+Football Manager 26,Centre-Back,Centre-Back,In Possession,primary,Positioning,5
+Football Manager 26,Centre-Back,Centre-Back,In Possession,primary,Jumping,6
+Football Manager 26,Centre-Back,Centre-Back,In Possession,primary,Strength,7
+Football Manager 26,Centre-Back,Centre-Back,In Possession,secondary,Aggression,1
+Football Manager 26,Centre-Back,Centre-Back,In Possession,secondary,Bravery,2
+Football Manager 26,Centre-Back,Centre-Back,In Possession,secondary,Composure,3
+Football Manager 26,Centre-Back,Centre-Back,In Possession,secondary,Concentration,4
+Football Manager 26,Centre-Back,Centre-Back,In Possession,secondary,Decisions,5
+Football Manager 26,Centre-Back,Centre-Back,In Possession,secondary,Pace,6
+Football Manager 26,Centre-Back,Ball-Playing Centre-Back,In Possession,primary,Heading,1
+Football Manager 26,Centre-Back,Ball-Playing Centre-Back,In Possession,primary,Marking,2
+Football Manager 26,Centre-Back,Ball-Playing Centre-Back,In Possession,primary,Passing,3
+Football Manager 26,Centre-Back,Ball-Playing Centre-Back,In Possession,primary,Tackling,4
+Football Manager 26,Centre-Back,Ball-Playing Centre-Back,In Possession,primary,Anticipation,5
+Football Manager 26,Centre-Back,Ball-Playing Centre-Back,In Possession,primary,Composure,6
+Football Manager 26,Centre-Back,Ball-Playing Centre-Back,In Possession,primary,Positioning,7
+Football Manager 26,Centre-Back,Ball-Playing Centre-Back,In Possession,primary,Jumping,8
+Football Manager 26,Centre-Back,Ball-Playing Centre-Back,In Possession,primary,Strength,9
+Football Manager 26,Centre-Back,Ball-Playing Centre-Back,In Possession,secondary,First Touch,1
+Football Manager 26,Centre-Back,Ball-Playing Centre-Back,In Possession,secondary,Technique,2
+Football Manager 26,Centre-Back,Ball-Playing Centre-Back,In Possession,secondary,Aggression,3
+Football Manager 26,Centre-Back,Ball-Playing Centre-Back,In Possession,secondary,Bravery,4
+Football Manager 26,Centre-Back,Ball-Playing Centre-Back,In Possession,secondary,Concentration,5
+Football Manager 26,Centre-Back,Ball-Playing Centre-Back,In Possession,secondary,Decisions,6
+Football Manager 26,Centre-Back,Ball-Playing Centre-Back,In Possession,secondary,Vision,7
+Football Manager 26,Centre-Back,Ball-Playing Centre-Back,In Possession,secondary,Pace,8
+Football Manager 26,Centre-Back,No-Nonsense Centre-Back,In Possession,primary,Heading,1
+Football Manager 26,Centre-Back,No-Nonsense Centre-Back,In Possession,primary,Marking,2
+Football Manager 26,Centre-Back,No-Nonsense Centre-Back,In Possession,primary,Tackling,3
+Football Manager 26,Centre-Back,No-Nonsense Centre-Back,In Possession,primary,Anticipation,4
+Football Manager 26,Centre-Back,No-Nonsense Centre-Back,In Possession,primary,Positioning,5
+Football Manager 26,Centre-Back,No-Nonsense Centre-Back,In Possession,primary,Jumping,6
+Football Manager 26,Centre-Back,No-Nonsense Centre-Back,In Possession,primary,Strength,7
+Football Manager 26,Centre-Back,No-Nonsense Centre-Back,In Possession,secondary,Aggression,1
+Football Manager 26,Centre-Back,No-Nonsense Centre-Back,In Possession,secondary,Bravery,2
+Football Manager 26,Centre-Back,No-Nonsense Centre-Back,In Possession,secondary,Concentration,3
+Football Manager 26,Centre-Back,No-Nonsense Centre-Back,In Possession,secondary,Pace,4
+Football Manager 26,Centre-Back,Wide Centre-Back,In Possession,primary,Heading,1
+Football Manager 26,Centre-Back,Wide Centre-Back,In Possession,primary,Marking,2
+Football Manager 26,Centre-Back,Wide Centre-Back,In Possession,primary,Tackling,3
+Football Manager 26,Centre-Back,Wide Centre-Back,In Possession,primary,Anticipation,4
+Football Manager 26,Centre-Back,Wide Centre-Back,In Possession,primary,Positioning,5
+Football Manager 26,Centre-Back,Wide Centre-Back,In Possession,primary,Jumping,6
+Football Manager 26,Centre-Back,Wide Centre-Back,In Possession,primary,Strength,7
+Football Manager 26,Centre-Back,Wide Centre-Back,In Possession,secondary,Dribbling,1
+Football Manager 26,Centre-Back,Wide Centre-Back,In Possession,secondary,Aggression,2
+Football Manager 26,Centre-Back,Wide Centre-Back,In Possession,secondary,Bravery,3
+Football Manager 26,Centre-Back,Wide Centre-Back,In Possession,secondary,Composure,4
+Football Manager 26,Centre-Back,Wide Centre-Back,In Possession,secondary,Concentration,5
+Football Manager 26,Centre-Back,Wide Centre-Back,In Possession,secondary,Decisions,6
+Football Manager 26,Centre-Back,Wide Centre-Back,In Possession,secondary,Work Rate,7
+Football Manager 26,Centre-Back,Wide Centre-Back,In Possession,secondary,Acceleration,8
+Football Manager 26,Centre-Back,Wide Centre-Back,In Possession,secondary,Agility,9
+Football Manager 26,Centre-Back,Wide Centre-Back,In Possession,secondary,Pace,10
+Football Manager 26,Centre-Back,Wide Centre-Back,In Possession,secondary,Stamina,11
+Football Manager 26,Centre-Back,Advanced Centre-Back,In Possession,primary,Heading,1
+Football Manager 26,Centre-Back,Advanced Centre-Back,In Possession,primary,Marking,2
+Football Manager 26,Centre-Back,Advanced Centre-Back,In Possession,primary,Passing,3
+Football Manager 26,Centre-Back,Advanced Centre-Back,In Possession,primary,Tackling,4
+Football Manager 26,Centre-Back,Advanced Centre-Back,In Possession,primary,Technique,5
+Football Manager 26,Centre-Back,Advanced Centre-Back,In Possession,primary,Anticipation,6
+Football Manager 26,Centre-Back,Advanced Centre-Back,In Possession,primary,Composure,7
+Football Manager 26,Centre-Back,Advanced Centre-Back,In Possession,primary,Decisions,8
+Football Manager 26,Centre-Back,Advanced Centre-Back,In Possession,primary,Positioning,9
+Football Manager 26,Centre-Back,Advanced Centre-Back,In Possession,primary,Team Work,10
+Football Manager 26,Centre-Back,Advanced Centre-Back,In Possession,primary,Jumping,11
+Football Manager 26,Centre-Back,Advanced Centre-Back,In Possession,primary,Strength,12
+Football Manager 26,Centre-Back,Advanced Centre-Back,In Possession,secondary,Dribbling,1
+Football Manager 26,Centre-Back,Advanced Centre-Back,In Possession,secondary,First Touch,2
+Football Manager 26,Centre-Back,Advanced Centre-Back,In Possession,secondary,Aggression,3
+Football Manager 26,Centre-Back,Advanced Centre-Back,In Possession,secondary,Bravery,4
+Football Manager 26,Centre-Back,Advanced Centre-Back,In Possession,secondary,Concentration,5
+Football Manager 26,Centre-Back,Advanced Centre-Back,In Possession,secondary,Vision,6
+Football Manager 26,Centre-Back,Advanced Centre-Back,In Possession,secondary,Pace,7
+Football Manager 26,Centre-Back,Advanced Centre-Back,In Possession,secondary,Stamina,8
+Football Manager 26,Centre-Back,Overlapping Centre-Back,In Possession,primary,Crossing,1
+Football Manager 26,Centre-Back,Overlapping Centre-Back,In Possession,primary,Heading,2
+Football Manager 26,Centre-Back,Overlapping Centre-Back,In Possession,primary,Marking,3
+Football Manager 26,Centre-Back,Overlapping Centre-Back,In Possession,primary,Tackling,4
+Football Manager 26,Centre-Back,Overlapping Centre-Back,In Possession,primary,Anticipation,5
+Football Manager 26,Centre-Back,Overlapping Centre-Back,In Possession,primary,Work Rate,6
+Football Manager 26,Centre-Back,Overlapping Centre-Back,In Possession,primary,Jumping,7
+Football Manager 26,Centre-Back,Overlapping Centre-Back,In Possession,primary,Pace,8
+Football Manager 26,Centre-Back,Overlapping Centre-Back,In Possession,primary,Stamina,9
+Football Manager 26,Centre-Back,Overlapping Centre-Back,In Possession,primary,Strength,10
+Football Manager 26,Centre-Back,Overlapping Centre-Back,In Possession,secondary,Dribbling,1
+Football Manager 26,Centre-Back,Overlapping Centre-Back,In Possession,secondary,Technique,2
+Football Manager 26,Centre-Back,Overlapping Centre-Back,In Possession,secondary,Aggression,3
+Football Manager 26,Centre-Back,Overlapping Centre-Back,In Possession,secondary,Bravery,4
+Football Manager 26,Centre-Back,Overlapping Centre-Back,In Possession,secondary,Composure,5
+Football Manager 26,Centre-Back,Overlapping Centre-Back,In Possession,secondary,Concentration,6
+Football Manager 26,Centre-Back,Overlapping Centre-Back,In Possession,secondary,Decisions,7
+Football Manager 26,Centre-Back,Overlapping Centre-Back,In Possession,secondary,Off the Ball,8
+Football Manager 26,Centre-Back,Overlapping Centre-Back,In Possession,secondary,Positioning,9
+Football Manager 26,Centre-Back,Overlapping Centre-Back,In Possession,secondary,Acceleration,10
+Football Manager 26,Centre-Back,Overlapping Centre-Back,In Possession,secondary,Agility,11
+Football Manager 26,Centre-Back,Covering Centre-Back,Out of Possession,primary,Anticipation,1
+Football Manager 26,Centre-Back,Covering Centre-Back,Out of Possession,primary,Pace,2
+Football Manager 26,Centre-Back,Covering Centre-Back,Out of Possession,primary,Marking,3
+Football Manager 26,Centre-Back,Stopping Centre-Back,Out of Possession,primary,Aggression,1
+Football Manager 26,Centre-Back,Stopping Centre-Back,Out of Possession,primary,Tackling,2
+Football Manager 26,Centre-Back,Stopping Centre-Back,Out of Possession,primary,Strength,3
+Football Manager 26,Centre-Back,Covering Wide Centre-Back,Out of Possession,primary,Anticipation,1
+Football Manager 26,Centre-Back,Covering Wide Centre-Back,Out of Possession,primary,Pace,2
+Football Manager 26,Centre-Back,Covering Wide Centre-Back,Out of Possession,primary,Marking,3
+Football Manager 26,Centre-Back,Stopping Wide Centre-Back,Out of Possession,primary,Aggression,1
+Football Manager 26,Centre-Back,Stopping Wide Centre-Back,Out of Possession,primary,Tackling,2
+Football Manager 26,Centre-Back,Stopping Wide Centre-Back,Out of Possession,primary,Strength,3
+Football Manager 26,Full-Back / Wing-Back,Full-Back,In Possession,primary,Marking,1
+Football Manager 26,Full-Back / Wing-Back,Full-Back,In Possession,primary,Tackling,2
+Football Manager 26,Full-Back / Wing-Back,Full-Back,In Possession,primary,Anticipation,3
+Football Manager 26,Full-Back / Wing-Back,Full-Back,In Possession,primary,Concentration,4
+Football Manager 26,Full-Back / Wing-Back,Full-Back,In Possession,primary,Positioning,5
+Football Manager 26,Full-Back / Wing-Back,Full-Back,In Possession,primary,Team Work,6
+Football Manager 26,Full-Back / Wing-Back,Full-Back,In Possession,primary,Acceleration,7
+Football Manager 26,Full-Back / Wing-Back,Full-Back,In Possession,secondary,Crossing,1
+Football Manager 26,Full-Back / Wing-Back,Full-Back,In Possession,secondary,Dribbling,2
+Football Manager 26,Full-Back / Wing-Back,Full-Back,In Possession,secondary,Passing,3
+Football Manager 26,Full-Back / Wing-Back,Full-Back,In Possession,secondary,Technique,4
+Football Manager 26,Full-Back / Wing-Back,Full-Back,In Possession,secondary,Decisions,5
+Football Manager 26,Full-Back / Wing-Back,Full-Back,In Possession,secondary,Work Rate,6
+Football Manager 26,Full-Back / Wing-Back,Full-Back,In Possession,secondary,Agility,7
+Football Manager 26,Full-Back / Wing-Back,Full-Back,In Possession,secondary,Pace,8
+Football Manager 26,Full-Back / Wing-Back,Full-Back,In Possession,secondary,Stamina,9
+Football Manager 26,Full-Back / Wing-Back,Inside Full-Back,In Possession,primary,Heading,1
+Football Manager 26,Full-Back / Wing-Back,Inside Full-Back,In Possession,primary,Marking,2
+Football Manager 26,Full-Back / Wing-Back,Inside Full-Back,In Possession,primary,Tackling,3
+Football Manager 26,Full-Back / Wing-Back,Inside Full-Back,In Possession,primary,Anticipation,4
+Football Manager 26,Full-Back / Wing-Back,Inside Full-Back,In Possession,primary,Positioning,5
+Football Manager 26,Full-Back / Wing-Back,Inside Full-Back,In Possession,primary,Strength,6
+Football Manager 26,Full-Back / Wing-Back,Inside Full-Back,In Possession,secondary,Dribbling,1
+Football Manager 26,Full-Back / Wing-Back,Inside Full-Back,In Possession,secondary,Aggression,2
+Football Manager 26,Full-Back / Wing-Back,Inside Full-Back,In Possession,secondary,Bravery,3
+Football Manager 26,Full-Back / Wing-Back,Inside Full-Back,In Possession,secondary,Composure,4
+Football Manager 26,Full-Back / Wing-Back,Inside Full-Back,In Possession,secondary,Concentration,5
+Football Manager 26,Full-Back / Wing-Back,Inside Full-Back,In Possession,secondary,Decisions,6
+Football Manager 26,Full-Back / Wing-Back,Inside Full-Back,In Possession,secondary,Work Rate,7
+Football Manager 26,Full-Back / Wing-Back,Inside Full-Back,In Possession,secondary,Acceleration,8
+Football Manager 26,Full-Back / Wing-Back,Inside Full-Back,In Possession,secondary,Agility,9
+Football Manager 26,Full-Back / Wing-Back,Inside Full-Back,In Possession,secondary,Jumping,10
+Football Manager 26,Full-Back / Wing-Back,Inside Full-Back,In Possession,secondary,Pace,11
+Football Manager 26,Full-Back / Wing-Back,Inside Full-Back,In Possession,secondary,Stamina,12
+Football Manager 26,Full-Back / Wing-Back,Holding Full-Back,Out of Possession,primary,Positioning,1
+Football Manager 26,Full-Back / Wing-Back,Holding Full-Back,Out of Possession,primary,Concentration,2
+Football Manager 26,Full-Back / Wing-Back,Holding Full-Back,Out of Possession,primary,Marking,3
+Football Manager 26,Full-Back / Wing-Back,Pressing Full-Back,Out of Possession,primary,Aggression,1
+Football Manager 26,Full-Back / Wing-Back,Pressing Full-Back,Out of Possession,primary,Work Rate,2
+Football Manager 26,Full-Back / Wing-Back,Pressing Full-Back,Out of Possession,primary,Anticipation,3
+Football Manager 26,Full-Back / Wing-Back,Inside Wing-Back,In Possession,primary,Passing,1
+Football Manager 26,Full-Back / Wing-Back,Inside Wing-Back,In Possession,primary,Tackling,2
+Football Manager 26,Full-Back / Wing-Back,Inside Wing-Back,In Possession,primary,Anticipation,3
+Football Manager 26,Full-Back / Wing-Back,Inside Wing-Back,In Possession,primary,Composure,4
+Football Manager 26,Full-Back / Wing-Back,Inside Wing-Back,In Possession,primary,Decisions,5
+Football Manager 26,Full-Back / Wing-Back,Inside Wing-Back,In Possession,primary,Positioning,6
+Football Manager 26,Full-Back / Wing-Back,Inside Wing-Back,In Possession,primary,Team Work,7
+Football Manager 26,Full-Back / Wing-Back,Inside Wing-Back,In Possession,primary,Acceleration,8
+Football Manager 26,Full-Back / Wing-Back,Inside Wing-Back,In Possession,secondary,First Touch,1
+Football Manager 26,Full-Back / Wing-Back,Inside Wing-Back,In Possession,secondary,Marking,2
+Football Manager 26,Full-Back / Wing-Back,Inside Wing-Back,In Possession,secondary,Technique,3
+Football Manager 26,Full-Back / Wing-Back,Inside Wing-Back,In Possession,secondary,Concentration,4
+Football Manager 26,Full-Back / Wing-Back,Inside Wing-Back,In Possession,secondary,Work Rate,5
+Football Manager 26,Full-Back / Wing-Back,Inside Wing-Back,In Possession,secondary,Agility,6
+Football Manager 26,Full-Back / Wing-Back,Inside Wing-Back,In Possession,secondary,Pace,7
+Football Manager 26,Full-Back / Wing-Back,Inside Wing-Back,In Possession,secondary,Stamina,8
+Football Manager 26,Full-Back / Wing-Back,Playmaking Wing-Back,In Possession,primary,First Touch,1
+Football Manager 26,Full-Back / Wing-Back,Playmaking Wing-Back,In Possession,primary,Passing,2
+Football Manager 26,Full-Back / Wing-Back,Playmaking Wing-Back,In Possession,primary,Tackling,3
+Football Manager 26,Full-Back / Wing-Back,Playmaking Wing-Back,In Possession,primary,Technique,4
+Football Manager 26,Full-Back / Wing-Back,Playmaking Wing-Back,In Possession,primary,Composure,5
+Football Manager 26,Full-Back / Wing-Back,Playmaking Wing-Back,In Possession,primary,Decisions,6
+Football Manager 26,Full-Back / Wing-Back,Playmaking Wing-Back,In Possession,primary,Positioning,7
+Football Manager 26,Full-Back / Wing-Back,Playmaking Wing-Back,In Possession,primary,Team Work,8
+Football Manager 26,Full-Back / Wing-Back,Playmaking Wing-Back,In Possession,primary,Vision,9
+Football Manager 26,Full-Back / Wing-Back,Playmaking Wing-Back,In Possession,primary,Acceleration,10
+Football Manager 26,Full-Back / Wing-Back,Playmaking Wing-Back,In Possession,secondary,Crossing,1
+Football Manager 26,Full-Back / Wing-Back,Playmaking Wing-Back,In Possession,secondary,Dribbling,2
+Football Manager 26,Full-Back / Wing-Back,Playmaking Wing-Back,In Possession,secondary,Marking,3
+Football Manager 26,Full-Back / Wing-Back,Playmaking Wing-Back,In Possession,secondary,Anticipation,4
+Football Manager 26,Full-Back / Wing-Back,Playmaking Wing-Back,In Possession,secondary,Concentration,5
+Football Manager 26,Full-Back / Wing-Back,Playmaking Wing-Back,In Possession,secondary,Off the Ball,6
+Football Manager 26,Full-Back / Wing-Back,Playmaking Wing-Back,In Possession,secondary,Positioning,7
+Football Manager 26,Full-Back / Wing-Back,Playmaking Wing-Back,In Possession,secondary,Work Rate,8
+Football Manager 26,Full-Back / Wing-Back,Playmaking Wing-Back,In Possession,secondary,Agility,9
+Football Manager 26,Full-Back / Wing-Back,Playmaking Wing-Back,In Possession,secondary,Pace,10
+Football Manager 26,Full-Back / Wing-Back,Playmaking Wing-Back,In Possession,secondary,Stamina,11
+Football Manager 26,Full-Back / Wing-Back,Wing-Back,In Possession,primary,Crossing,1
+Football Manager 26,Full-Back / Wing-Back,Wing-Back,In Possession,primary,Marking,2
+Football Manager 26,Full-Back / Wing-Back,Wing-Back,In Possession,primary,Tackling,3
+Football Manager 26,Full-Back / Wing-Back,Wing-Back,In Possession,primary,Team Work,4
+Football Manager 26,Full-Back / Wing-Back,Wing-Back,In Possession,primary,Work Rate,5
+Football Manager 26,Full-Back / Wing-Back,Wing-Back,In Possession,primary,Acceleration,6
+Football Manager 26,Full-Back / Wing-Back,Wing-Back,In Possession,primary,Pace,7
+Football Manager 26,Full-Back / Wing-Back,Wing-Back,In Possession,primary,Stamina,8
+Football Manager 26,Full-Back / Wing-Back,Wing-Back,In Possession,secondary,Dribbling,1
+Football Manager 26,Full-Back / Wing-Back,Wing-Back,In Possession,secondary,First Touch,2
+Football Manager 26,Full-Back / Wing-Back,Wing-Back,In Possession,secondary,Passing,3
+Football Manager 26,Full-Back / Wing-Back,Wing-Back,In Possession,secondary,Technique,4
+Football Manager 26,Full-Back / Wing-Back,Wing-Back,In Possession,secondary,Anticipation,5
+Football Manager 26,Full-Back / Wing-Back,Wing-Back,In Possession,secondary,Concentration,6
+Football Manager 26,Full-Back / Wing-Back,Wing-Back,In Possession,secondary,Decisions,7
+Football Manager 26,Full-Back / Wing-Back,Wing-Back,In Possession,secondary,Off the Ball,8
+Football Manager 26,Full-Back / Wing-Back,Wing-Back,In Possession,secondary,Positioning,9
+Football Manager 26,Full-Back / Wing-Back,Wing-Back,In Possession,secondary,Agility,10
+Football Manager 26,Full-Back / Wing-Back,Wing-Back,In Possession,secondary,Balance,11
+Football Manager 26,Full-Back / Wing-Back,Advanced Wing-Back,In Possession,primary,Crossing,1
+Football Manager 26,Full-Back / Wing-Back,Advanced Wing-Back,In Possession,primary,Dribbling,2
+Football Manager 26,Full-Back / Wing-Back,Advanced Wing-Back,In Possession,primary,Technique,3
+Football Manager 26,Full-Back / Wing-Back,Advanced Wing-Back,In Possession,primary,Off the Ball,4
+Football Manager 26,Full-Back / Wing-Back,Advanced Wing-Back,In Possession,primary,Team Work,5
+Football Manager 26,Full-Back / Wing-Back,Advanced Wing-Back,In Possession,primary,Work Rate,6
+Football Manager 26,Full-Back / Wing-Back,Advanced Wing-Back,In Possession,primary,Acceleration,7
+Football Manager 26,Full-Back / Wing-Back,Advanced Wing-Back,In Possession,primary,Agility,8
+Football Manager 26,Full-Back / Wing-Back,Advanced Wing-Back,In Possession,primary,Pace,9
+Football Manager 26,Full-Back / Wing-Back,Advanced Wing-Back,In Possession,primary,Stamina,10
+Football Manager 26,Full-Back / Wing-Back,Advanced Wing-Back,In Possession,secondary,First Touch,1
+Football Manager 26,Full-Back / Wing-Back,Advanced Wing-Back,In Possession,secondary,Marking,2
+Football Manager 26,Full-Back / Wing-Back,Advanced Wing-Back,In Possession,secondary,Passing,3
+Football Manager 26,Full-Back / Wing-Back,Advanced Wing-Back,In Possession,secondary,Tackling,4
+Football Manager 26,Full-Back / Wing-Back,Advanced Wing-Back,In Possession,secondary,Anticipation,5
+Football Manager 26,Full-Back / Wing-Back,Advanced Wing-Back,In Possession,secondary,Decisions,6
+Football Manager 26,Full-Back / Wing-Back,Advanced Wing-Back,In Possession,secondary,Flair,7
+Football Manager 26,Full-Back / Wing-Back,Advanced Wing-Back,In Possession,secondary,Positioning,8
+Football Manager 26,Full-Back / Wing-Back,Advanced Wing-Back,In Possession,secondary,Balance,9
+Football Manager 26,Full-Back / Wing-Back,Holding Wing-Back,Out of Possession,primary,Positioning,1
+Football Manager 26,Full-Back / Wing-Back,Holding Wing-Back,Out of Possession,primary,Concentration,2
+Football Manager 26,Full-Back / Wing-Back,Holding Wing-Back,Out of Possession,primary,Marking,3
+Football Manager 26,Full-Back / Wing-Back,Pressing Wing-Back,Out of Possession,primary,Aggression,1
+Football Manager 26,Full-Back / Wing-Back,Pressing Wing-Back,Out of Possession,primary,Work Rate,2
+Football Manager 26,Full-Back / Wing-Back,Pressing Wing-Back,Out of Possession,primary,Anticipation,3
+Football Manager 26,Defensive Midfielder,Defensive Midfielder,In Possession,primary,Tackling,1
+Football Manager 26,Defensive Midfielder,Defensive Midfielder,In Possession,primary,Anticipation,2
+Football Manager 26,Defensive Midfielder,Defensive Midfielder,In Possession,primary,Concentration,3
+Football Manager 26,Defensive Midfielder,Defensive Midfielder,In Possession,primary,Positioning,4
+Football Manager 26,Defensive Midfielder,Defensive Midfielder,In Possession,primary,Team Work,5
+Football Manager 26,Defensive Midfielder,Defensive Midfielder,In Possession,secondary,First Touch,1
+Football Manager 26,Defensive Midfielder,Defensive Midfielder,In Possession,secondary,Marking,2
+Football Manager 26,Defensive Midfielder,Defensive Midfielder,In Possession,secondary,Passing,3
+Football Manager 26,Defensive Midfielder,Defensive Midfielder,In Possession,secondary,Aggression,4
+Football Manager 26,Defensive Midfielder,Defensive Midfielder,In Possession,secondary,Composure,5
+Football Manager 26,Defensive Midfielder,Defensive Midfielder,In Possession,secondary,Decisions,6
+Football Manager 26,Defensive Midfielder,Defensive Midfielder,In Possession,secondary,Work Rate,7
+Football Manager 26,Defensive Midfielder,Defensive Midfielder,In Possession,secondary,Stamina,8
+Football Manager 26,Defensive Midfielder,Defensive Midfielder,In Possession,secondary,Strength,9
+Football Manager 26,Defensive Midfielder,Box-to-Box Midfielder,In Possession,primary,Passing,1
+Football Manager 26,Defensive Midfielder,Box-to-Box Midfielder,In Possession,primary,Tackling,2
+Football Manager 26,Defensive Midfielder,Box-to-Box Midfielder,In Possession,primary,Off the Ball,3
+Football Manager 26,Defensive Midfielder,Box-to-Box Midfielder,In Possession,primary,Team Work,4
+Football Manager 26,Defensive Midfielder,Box-to-Box Midfielder,In Possession,primary,Work Rate,5
+Football Manager 26,Defensive Midfielder,Box-to-Box Midfielder,In Possession,primary,Stamina,6
+Football Manager 26,Defensive Midfielder,Box-to-Box Midfielder,In Possession,secondary,Dribbling,1
+Football Manager 26,Defensive Midfielder,Box-to-Box Midfielder,In Possession,secondary,Finishing,2
+Football Manager 26,Defensive Midfielder,Box-to-Box Midfielder,In Possession,secondary,First Touch,3
+Football Manager 26,Defensive Midfielder,Box-to-Box Midfielder,In Possession,secondary,Long Shots,4
+Football Manager 26,Defensive Midfielder,Box-to-Box Midfielder,In Possession,secondary,Technique,5
+Football Manager 26,Defensive Midfielder,Box-to-Box Midfielder,In Possession,secondary,Aggression,6
+Football Manager 26,Defensive Midfielder,Box-to-Box Midfielder,In Possession,secondary,Anticipation,7
+Football Manager 26,Defensive Midfielder,Box-to-Box Midfielder,In Possession,secondary,Composure,8
+Football Manager 26,Defensive Midfielder,Box-to-Box Midfielder,In Possession,secondary,Decisions,9
+Football Manager 26,Defensive Midfielder,Box-to-Box Midfielder,In Possession,secondary,Positioning,10
+Football Manager 26,Defensive Midfielder,Box-to-Box Midfielder,In Possession,secondary,Acceleration,11
+Football Manager 26,Defensive Midfielder,Box-to-Box Midfielder,In Possession,secondary,Balance,12
+Football Manager 26,Defensive Midfielder,Box-to-Box Midfielder,In Possession,secondary,Pace,13
+Football Manager 26,Defensive Midfielder,Box-to-Box Midfielder,In Possession,secondary,Strength,14
+Football Manager 26,Defensive Midfielder,Box-to-Box Playmaker,In Possession,primary,First Touch,1
+Football Manager 26,Defensive Midfielder,Box-to-Box Playmaker,In Possession,primary,Passing,2
+Football Manager 26,Defensive Midfielder,Box-to-Box Playmaker,In Possession,primary,Technique,3
+Football Manager 26,Defensive Midfielder,Box-to-Box Playmaker,In Possession,primary,Composure,4
+Football Manager 26,Defensive Midfielder,Box-to-Box Playmaker,In Possession,primary,Decisions,5
+Football Manager 26,Defensive Midfielder,Box-to-Box Playmaker,In Possession,primary,Off the Ball,6
+Football Manager 26,Defensive Midfielder,Box-to-Box Playmaker,In Possession,primary,Team Work,7
+Football Manager 26,Defensive Midfielder,Box-to-Box Playmaker,In Possession,primary,Vision,8
+Football Manager 26,Defensive Midfielder,Box-to-Box Playmaker,In Possession,primary,Work Rate,9
+Football Manager 26,Defensive Midfielder,Box-to-Box Playmaker,In Possession,primary,Stamina,10
+Football Manager 26,Defensive Midfielder,Box-to-Box Playmaker,In Possession,secondary,Dribbling,1
+Football Manager 26,Defensive Midfielder,Box-to-Box Playmaker,In Possession,secondary,Marking,2
+Football Manager 26,Defensive Midfielder,Box-to-Box Playmaker,In Possession,secondary,Tackling,3
+Football Manager 26,Defensive Midfielder,Box-to-Box Playmaker,In Possession,secondary,Anticipation,4
+Football Manager 26,Defensive Midfielder,Box-to-Box Playmaker,In Possession,secondary,Positioning,5
+Football Manager 26,Defensive Midfielder,Box-to-Box Playmaker,In Possession,secondary,Acceleration,6
+Football Manager 26,Defensive Midfielder,Box-to-Box Playmaker,In Possession,secondary,Agility,7
+Football Manager 26,Defensive Midfielder,Box-to-Box Playmaker,In Possession,secondary,Balance,8
+Football Manager 26,Defensive Midfielder,Box-to-Box Playmaker,In Possession,secondary,Pace,9
+Football Manager 26,Defensive Midfielder,Deep-Lying Playmaker,In Possession,primary,First Touch,1
+Football Manager 26,Defensive Midfielder,Deep-Lying Playmaker,In Possession,primary,Passing,2
+Football Manager 26,Defensive Midfielder,Deep-Lying Playmaker,In Possession,primary,Technique,3
+Football Manager 26,Defensive Midfielder,Deep-Lying Playmaker,In Possession,primary,Composure,4
+Football Manager 26,Defensive Midfielder,Deep-Lying Playmaker,In Possession,primary,Decisions,5
+Football Manager 26,Defensive Midfielder,Deep-Lying Playmaker,In Possession,primary,Off the Ball,6
+Football Manager 26,Defensive Midfielder,Deep-Lying Playmaker,In Possession,primary,Team Work,7
+Football Manager 26,Defensive Midfielder,Deep-Lying Playmaker,In Possession,primary,Vision,8
+Football Manager 26,Defensive Midfielder,Deep-Lying Playmaker,In Possession,secondary,Marking,1
+Football Manager 26,Defensive Midfielder,Deep-Lying Playmaker,In Possession,secondary,Tackling,2
+Football Manager 26,Defensive Midfielder,Deep-Lying Playmaker,In Possession,secondary,Anticipation,3
+Football Manager 26,Defensive Midfielder,Deep-Lying Playmaker,In Possession,secondary,Concentration,4
+Football Manager 26,Defensive Midfielder,Deep-Lying Playmaker,In Possession,secondary,Off the Ball,5
+Football Manager 26,Defensive Midfielder,Deep-Lying Playmaker,In Possession,secondary,Positioning,6
+Football Manager 26,Defensive Midfielder,Deep-Lying Playmaker,In Possession,secondary,Work Rate,7
+Football Manager 26,Defensive Midfielder,Deep-Lying Playmaker,In Possession,secondary,Balance,8
+Football Manager 26,Defensive Midfielder,Deep-Lying Playmaker,In Possession,secondary,Stamina,9
+Football Manager 26,Defensive Midfielder,Half-Back,In Possession,primary,Heading,1
+Football Manager 26,Defensive Midfielder,Half-Back,In Possession,primary,Marking,2
+Football Manager 26,Defensive Midfielder,Half-Back,In Possession,primary,Tackling,3
+Football Manager 26,Defensive Midfielder,Half-Back,In Possession,primary,Anticipation,4
+Football Manager 26,Defensive Midfielder,Half-Back,In Possession,primary,Concentration,5
+Football Manager 26,Defensive Midfielder,Half-Back,In Possession,primary,Positioning,6
+Football Manager 26,Defensive Midfielder,Half-Back,In Possession,primary,Team Work,7
+Football Manager 26,Defensive Midfielder,Half-Back,In Possession,primary,Jumping,8
+Football Manager 26,Defensive Midfielder,Half-Back,In Possession,primary,Strength,9
+Football Manager 26,Defensive Midfielder,Half-Back,In Possession,secondary,First Touch,1
+Football Manager 26,Defensive Midfielder,Half-Back,In Possession,secondary,Passing,2
+Football Manager 26,Defensive Midfielder,Half-Back,In Possession,secondary,Aggression,3
+Football Manager 26,Defensive Midfielder,Half-Back,In Possession,secondary,Bravery,4
+Football Manager 26,Defensive Midfielder,Half-Back,In Possession,secondary,Composure,5
+Football Manager 26,Defensive Midfielder,Half-Back,In Possession,secondary,Decisions,6
+Football Manager 26,Defensive Midfielder,Half-Back,In Possession,secondary,Work Rate,7
+Football Manager 26,Defensive Midfielder,Half-Back,In Possession,secondary,Stamina,8
+Football Manager 26,Defensive Midfielder,Dropping Defensive Midfielder,Out of Possession,primary,Positioning,1
+Football Manager 26,Defensive Midfielder,Dropping Defensive Midfielder,Out of Possession,primary,Decisions,2
+Football Manager 26,Defensive Midfielder,Dropping Defensive Midfielder,Out of Possession,primary,Anticipation,3
+Football Manager 26,Defensive Midfielder,Pressing Defensive Midfielder,Out of Possession,primary,Aggression,1
+Football Manager 26,Defensive Midfielder,Pressing Defensive Midfielder,Out of Possession,primary,Work Rate,2
+Football Manager 26,Defensive Midfielder,Pressing Defensive Midfielder,Out of Possession,primary,Anticipation,3
+Football Manager 26,Defensive Midfielder,Screening Defensive Midfielder,Out of Possession,primary,Positioning,1
+Football Manager 26,Defensive Midfielder,Screening Defensive Midfielder,Out of Possession,primary,Concentration,2
+Football Manager 26,Defensive Midfielder,Screening Defensive Midfielder,Out of Possession,primary,Marking,3
+Football Manager 26,Defensive Midfielder,Wide Covering Defensive Midfielder,Out of Possession,primary,Anticipation,1
+Football Manager 26,Defensive Midfielder,Wide Covering Defensive Midfielder,Out of Possession,primary,Pace,2
+Football Manager 26,Defensive Midfielder,Wide Covering Defensive Midfielder,Out of Possession,primary,Work Rate,3
+Football Manager 26,Central Midfielder,Central Midfielder,In Possession,primary,First Touch,1
+Football Manager 26,Central Midfielder,Central Midfielder,In Possession,primary,Passing,2
+Football Manager 26,Central Midfielder,Central Midfielder,In Possession,primary,Tackling,3
+Football Manager 26,Central Midfielder,Central Midfielder,In Possession,primary,Decisions,4
+Football Manager 26,Central Midfielder,Central Midfielder,In Possession,primary,Team Work,5
+Football Manager 26,Central Midfielder,Central Midfielder,In Possession,secondary,Technique,1
+Football Manager 26,Central Midfielder,Central Midfielder,In Possession,secondary,Anticipation,2
+Football Manager 26,Central Midfielder,Central Midfielder,In Possession,secondary,Composure,3
+Football Manager 26,Central Midfielder,Central Midfielder,In Possession,secondary,Concentration,4
+Football Manager 26,Central Midfielder,Central Midfielder,In Possession,secondary,Off the Ball,5
+Football Manager 26,Central Midfielder,Central Midfielder,In Possession,secondary,Positioning,6
+Football Manager 26,Central Midfielder,Central Midfielder,In Possession,secondary,Vision,7
+Football Manager 26,Central Midfielder,Central Midfielder,In Possession,secondary,Work Rate,8
+Football Manager 26,Central Midfielder,Central Midfielder,In Possession,secondary,Stamina,9
+Football Manager 26,Central Midfielder,Advanced Playmaker,In Possession,primary,First Touch,1
+Football Manager 26,Central Midfielder,Advanced Playmaker,In Possession,primary,Passing,2
+Football Manager 26,Central Midfielder,Advanced Playmaker,In Possession,primary,Technique,3
+Football Manager 26,Central Midfielder,Advanced Playmaker,In Possession,primary,Composure,4
+Football Manager 26,Central Midfielder,Advanced Playmaker,In Possession,primary,Decisions,5
+Football Manager 26,Central Midfielder,Advanced Playmaker,In Possession,primary,Off the Ball,6
+Football Manager 26,Central Midfielder,Advanced Playmaker,In Possession,primary,Team Work,7
+Football Manager 26,Central Midfielder,Advanced Playmaker,In Possession,primary,Vision,8
+Football Manager 26,Central Midfielder,Advanced Playmaker,In Possession,secondary,Crossing,1
+Football Manager 26,Central Midfielder,Advanced Playmaker,In Possession,secondary,Dribbling,2
+Football Manager 26,Central Midfielder,Advanced Playmaker,In Possession,secondary,Anticipation,3
+Football Manager 26,Central Midfielder,Advanced Playmaker,In Possession,secondary,Flair,4
+Football Manager 26,Central Midfielder,Advanced Playmaker,In Possession,secondary,Acceleration,5
+Football Manager 26,Central Midfielder,Advanced Playmaker,In Possession,secondary,Agility,6
+Football Manager 26,Central Midfielder,Midfield Playmaker,In Possession,primary,First Touch,1
+Football Manager 26,Central Midfielder,Midfield Playmaker,In Possession,primary,Passing,2
+Football Manager 26,Central Midfielder,Midfield Playmaker,In Possession,primary,Technique,3
+Football Manager 26,Central Midfielder,Midfield Playmaker,In Possession,primary,Composure,4
+Football Manager 26,Central Midfielder,Midfield Playmaker,In Possession,primary,Decisions,5
+Football Manager 26,Central Midfielder,Midfield Playmaker,In Possession,primary,Off the Ball,6
+Football Manager 26,Central Midfielder,Midfield Playmaker,In Possession,primary,Team Work,7
+Football Manager 26,Central Midfielder,Midfield Playmaker,In Possession,primary,Vision,8
+Football Manager 26,Central Midfielder,Midfield Playmaker,In Possession,secondary,Dribbling,1
+Football Manager 26,Central Midfielder,Midfield Playmaker,In Possession,secondary,Tackling,2
+Football Manager 26,Central Midfielder,Midfield Playmaker,In Possession,secondary,Anticipation,3
+Football Manager 26,Central Midfielder,Midfield Playmaker,In Possession,secondary,Flair,4
+Football Manager 26,Central Midfielder,Midfield Playmaker,In Possession,secondary,Positioning,5
+Football Manager 26,Central Midfielder,Midfield Playmaker,In Possession,secondary,Work Rate,6
+Football Manager 26,Central Midfielder,Midfield Playmaker,In Possession,secondary,Agility,7
+Football Manager 26,Central Midfielder,Midfield Playmaker,In Possession,secondary,Stamina,8
+Football Manager 26,Central Midfielder,Wide Central Midfielder,In Possession,primary,First Touch,1
+Football Manager 26,Central Midfielder,Wide Central Midfielder,In Possession,primary,Passing,2
+Football Manager 26,Central Midfielder,Wide Central Midfielder,In Possession,primary,Tackling,3
+Football Manager 26,Central Midfielder,Wide Central Midfielder,In Possession,primary,Decisions,4
+Football Manager 26,Central Midfielder,Wide Central Midfielder,In Possession,primary,Team Work,5
+Football Manager 26,Central Midfielder,Wide Central Midfielder,In Possession,secondary,Crossing,1
+Football Manager 26,Central Midfielder,Wide Central Midfielder,In Possession,secondary,Dribbling,2
+Football Manager 26,Central Midfielder,Wide Central Midfielder,In Possession,secondary,Technique,3
+Football Manager 26,Central Midfielder,Wide Central Midfielder,In Possession,secondary,Anticipation,4
+Football Manager 26,Central Midfielder,Wide Central Midfielder,In Possession,secondary,Composure,5
+Football Manager 26,Central Midfielder,Wide Central Midfielder,In Possession,secondary,Concentration,6
+Football Manager 26,Central Midfielder,Wide Central Midfielder,In Possession,secondary,Off the Ball,7
+Football Manager 26,Central Midfielder,Wide Central Midfielder,In Possession,secondary,Positioning,8
+Football Manager 26,Central Midfielder,Wide Central Midfielder,In Possession,secondary,Vision,9
+Football Manager 26,Central Midfielder,Wide Central Midfielder,In Possession,secondary,Work Rate,10
+Football Manager 26,Central Midfielder,Wide Central Midfielder,In Possession,secondary,Agility,11
+Football Manager 26,Central Midfielder,Wide Central Midfielder,In Possession,secondary,Stamina,12
+Football Manager 26,Central Midfielder,Pressing Central Midfielder,Out of Possession,primary,Aggression,1
+Football Manager 26,Central Midfielder,Pressing Central Midfielder,Out of Possession,primary,Work Rate,2
+Football Manager 26,Central Midfielder,Pressing Central Midfielder,Out of Possession,primary,Anticipation,3
+Football Manager 26,Central Midfielder,Screening Central Midfielder,Out of Possession,primary,Positioning,1
+Football Manager 26,Central Midfielder,Screening Central Midfielder,Out of Possession,primary,Concentration,2
+Football Manager 26,Central Midfielder,Screening Central Midfielder,Out of Possession,primary,Marking,3
+Football Manager 26,Central Midfielder,Wide Covering Central Midfielder,Out of Possession,primary,Anticipation,1
+Football Manager 26,Central Midfielder,Wide Covering Central Midfielder,Out of Possession,primary,Pace,2
+Football Manager 26,Central Midfielder,Wide Covering Central Midfielder,Out of Possession,primary,Work Rate,3
+Football Manager 26,Wide Midfielder / Winger,Wide Midfielder,In Possession,primary,Crossing,1
+Football Manager 26,Wide Midfielder / Winger,Wide Midfielder,In Possession,primary,Passing,2
+Football Manager 26,Wide Midfielder / Winger,Wide Midfielder,In Possession,primary,Technique,3
+Football Manager 26,Wide Midfielder / Winger,Wide Midfielder,In Possession,primary,Team Work,4
+Football Manager 26,Wide Midfielder / Winger,Wide Midfielder,In Possession,primary,Work Rate,5
+Football Manager 26,Wide Midfielder / Winger,Wide Midfielder,In Possession,primary,Pace,6
+Football Manager 26,Wide Midfielder / Winger,Wide Midfielder,In Possession,primary,Stamina,7
+Football Manager 26,Wide Midfielder / Winger,Wide Midfielder,In Possession,secondary,Dribbling,1
+Football Manager 26,Wide Midfielder / Winger,Wide Midfielder,In Possession,secondary,First Touch,2
+Football Manager 26,Wide Midfielder / Winger,Wide Midfielder,In Possession,secondary,Anticipation,3
+Football Manager 26,Wide Midfielder / Winger,Wide Midfielder,In Possession,secondary,Composure,4
+Football Manager 26,Wide Midfielder / Winger,Wide Midfielder,In Possession,secondary,Off the Ball,5
+Football Manager 26,Wide Midfielder / Winger,Wide Midfielder,In Possession,secondary,Vision,6
+Football Manager 26,Wide Midfielder / Winger,Wide Midfielder,In Possession,secondary,Acceleration,7
+Football Manager 26,Wide Midfielder / Winger,Wide Midfielder,In Possession,secondary,Agility,8
+Football Manager 26,Wide Midfielder / Winger,Tracking Wide Midfielder,Out of Possession,primary,Marking,1
+Football Manager 26,Wide Midfielder / Winger,Tracking Wide Midfielder,Out of Possession,primary,Work Rate,2
+Football Manager 26,Wide Midfielder / Winger,Tracking Wide Midfielder,Out of Possession,primary,Stamina,3
+Football Manager 26,Wide Midfielder / Winger,Wide Outlet Wide Midfielder,Out of Possession,primary,Off the Ball,1
+Football Manager 26,Wide Midfielder / Winger,Wide Outlet Wide Midfielder,Out of Possession,primary,Pace,2
+Football Manager 26,Wide Midfielder / Winger,Wide Outlet Wide Midfielder,Out of Possession,primary,Anticipation,3
+Football Manager 26,Wide Midfielder / Winger,Inside Winger,In Possession,primary,Dribbling,1
+Football Manager 26,Wide Midfielder / Winger,Inside Winger,In Possession,primary,First Touch,2
+Football Manager 26,Wide Midfielder / Winger,Inside Winger,In Possession,primary,Technique,3
+Football Manager 26,Wide Midfielder / Winger,Inside Winger,In Possession,primary,Composure,4
+Football Manager 26,Wide Midfielder / Winger,Inside Winger,In Possession,primary,Team Work,5
+Football Manager 26,Wide Midfielder / Winger,Inside Winger,In Possession,primary,Acceleration,6
+Football Manager 26,Wide Midfielder / Winger,Inside Winger,In Possession,primary,Agility,7
+Football Manager 26,Wide Midfielder / Winger,Inside Winger,In Possession,secondary,Crossing,1
+Football Manager 26,Wide Midfielder / Winger,Inside Winger,In Possession,secondary,Long Shots,2
+Football Manager 26,Wide Midfielder / Winger,Inside Winger,In Possession,secondary,Passing,3
+Football Manager 26,Wide Midfielder / Winger,Inside Winger,In Possession,secondary,Anticipation,4
+Football Manager 26,Wide Midfielder / Winger,Inside Winger,In Possession,secondary,Flair,5
+Football Manager 26,Wide Midfielder / Winger,Inside Winger,In Possession,secondary,Off the Ball,6
+Football Manager 26,Wide Midfielder / Winger,Inside Winger,In Possession,secondary,Vision,7
+Football Manager 26,Wide Midfielder / Winger,Inside Winger,In Possession,secondary,Work Rate,8
+Football Manager 26,Wide Midfielder / Winger,Inside Winger,In Possession,secondary,Balance,9
+Football Manager 26,Wide Midfielder / Winger,Inside Winger,In Possession,secondary,Pace,10
+Football Manager 26,Wide Midfielder / Winger,Inside Winger,In Possession,secondary,Stamina,11
+Football Manager 26,Wide Midfielder / Winger,Playmaking Winger,In Possession,primary,Crossing,1
+Football Manager 26,Wide Midfielder / Winger,Playmaking Winger,In Possession,primary,Dribbling,2
+Football Manager 26,Wide Midfielder / Winger,Playmaking Winger,In Possession,primary,First Touch,3
+Football Manager 26,Wide Midfielder / Winger,Playmaking Winger,In Possession,primary,Passing,4
+Football Manager 26,Wide Midfielder / Winger,Playmaking Winger,In Possession,primary,Technique,5
+Football Manager 26,Wide Midfielder / Winger,Playmaking Winger,In Possession,primary,Composure,6
+Football Manager 26,Wide Midfielder / Winger,Playmaking Winger,In Possession,primary,Decisions,7
+Football Manager 26,Wide Midfielder / Winger,Playmaking Winger,In Possession,primary,Off the Ball,8
+Football Manager 26,Wide Midfielder / Winger,Playmaking Winger,In Possession,primary,Team Work,9
+Football Manager 26,Wide Midfielder / Winger,Playmaking Winger,In Possession,primary,Vision,10
+Football Manager 26,Wide Midfielder / Winger,Playmaking Winger,In Possession,primary,Acceleration,11
+Football Manager 26,Wide Midfielder / Winger,Playmaking Winger,In Possession,secondary,Anticipation,1
+Football Manager 26,Wide Midfielder / Winger,Playmaking Winger,In Possession,secondary,Flair,2
+Football Manager 26,Wide Midfielder / Winger,Playmaking Winger,In Possession,secondary,Work Rate,3
+Football Manager 26,Wide Midfielder / Winger,Playmaking Winger,In Possession,secondary,Agility,4
+Football Manager 26,Wide Midfielder / Winger,Playmaking Winger,In Possession,secondary,Pace,5
+Football Manager 26,Wide Midfielder / Winger,Playmaking Winger,In Possession,secondary,Stamina,6
+Football Manager 26,Wide Midfielder / Winger,Winger,In Possession,primary,Crossing,1
+Football Manager 26,Wide Midfielder / Winger,Winger,In Possession,primary,Dribbling,2
+Football Manager 26,Wide Midfielder / Winger,Winger,In Possession,primary,Technique,3
+Football Manager 26,Wide Midfielder / Winger,Winger,In Possession,primary,Team Work,4
+Football Manager 26,Wide Midfielder / Winger,Winger,In Possession,primary,Acceleration,5
+Football Manager 26,Wide Midfielder / Winger,Winger,In Possession,primary,Agility,6
+Football Manager 26,Wide Midfielder / Winger,Winger,In Possession,primary,Pace,7
+Football Manager 26,Wide Midfielder / Winger,Winger,In Possession,secondary,First Touch,1
+Football Manager 26,Wide Midfielder / Winger,Winger,In Possession,secondary,Passing,2
+Football Manager 26,Wide Midfielder / Winger,Winger,In Possession,secondary,Anticipation,3
+Football Manager 26,Wide Midfielder / Winger,Winger,In Possession,secondary,Flair,4
+Football Manager 26,Wide Midfielder / Winger,Winger,In Possession,secondary,Off the Ball,5
+Football Manager 26,Wide Midfielder / Winger,Winger,In Possession,secondary,Work Rate,6
+Football Manager 26,Wide Midfielder / Winger,Winger,In Possession,secondary,Balance,7
+Football Manager 26,Wide Midfielder / Winger,Winger,In Possession,secondary,Stamina,8
+Football Manager 26,Attacking Midfielder,Attacking Midfielder,In Possession,primary,First Touch,1
+Football Manager 26,Attacking Midfielder,Attacking Midfielder,In Possession,primary,Long Shots,2
+Football Manager 26,Attacking Midfielder,Attacking Midfielder,In Possession,primary,Passing,3
+Football Manager 26,Attacking Midfielder,Attacking Midfielder,In Possession,primary,Technique,4
+Football Manager 26,Attacking Midfielder,Attacking Midfielder,In Possession,primary,Composure,5
+Football Manager 26,Attacking Midfielder,Attacking Midfielder,In Possession,primary,Flair,6
+Football Manager 26,Attacking Midfielder,Attacking Midfielder,In Possession,primary,Off the Ball,7
+Football Manager 26,Attacking Midfielder,Attacking Midfielder,In Possession,secondary,Crossing,1
+Football Manager 26,Attacking Midfielder,Attacking Midfielder,In Possession,secondary,Dribbling,2
+Football Manager 26,Attacking Midfielder,Attacking Midfielder,In Possession,secondary,Finishing,3
+Football Manager 26,Attacking Midfielder,Attacking Midfielder,In Possession,secondary,Anticipation,4
+Football Manager 26,Attacking Midfielder,Attacking Midfielder,In Possession,secondary,Decisions,5
+Football Manager 26,Attacking Midfielder,Attacking Midfielder,In Possession,secondary,Vision,6
+Football Manager 26,Attacking Midfielder,Attacking Midfielder,In Possession,secondary,Acceleration,7
+Football Manager 26,Attacking Midfielder,Attacking Midfielder,In Possession,secondary,Agility,8
+Football Manager 26,Attacking Midfielder,Channel Midfielder,In Possession,primary,Crossing,1
+Football Manager 26,Attacking Midfielder,Channel Midfielder,In Possession,primary,First Touch,2
+Football Manager 26,Attacking Midfielder,Channel Midfielder,In Possession,primary,Passing,3
+Football Manager 26,Attacking Midfielder,Channel Midfielder,In Possession,primary,Technique,4
+Football Manager 26,Attacking Midfielder,Channel Midfielder,In Possession,primary,Composure,5
+Football Manager 26,Attacking Midfielder,Channel Midfielder,In Possession,primary,Off the Ball,6
+Football Manager 26,Attacking Midfielder,Channel Midfielder,In Possession,primary,Work Rate,7
+Football Manager 26,Attacking Midfielder,Channel Midfielder,In Possession,primary,Acceleration,8
+Football Manager 26,Attacking Midfielder,Channel Midfielder,In Possession,secondary,Dribbling,1
+Football Manager 26,Attacking Midfielder,Channel Midfielder,In Possession,secondary,Long Shots,2
+Football Manager 26,Attacking Midfielder,Channel Midfielder,In Possession,secondary,Anticipation,3
+Football Manager 26,Attacking Midfielder,Channel Midfielder,In Possession,secondary,Decisions,4
+Football Manager 26,Attacking Midfielder,Channel Midfielder,In Possession,secondary,Flair,5
+Football Manager 26,Attacking Midfielder,Channel Midfielder,In Possession,secondary,Vision,6
+Football Manager 26,Attacking Midfielder,Channel Midfielder,In Possession,secondary,Agility,7
+Football Manager 26,Attacking Midfielder,Channel Midfielder,In Possession,secondary,Pace,8
+Football Manager 26,Attacking Midfielder,Channel Midfielder,In Possession,secondary,Stamina,9
+Football Manager 26,Attacking Midfielder,Free Role,In Possession,primary,Dribbling,1
+Football Manager 26,Attacking Midfielder,Free Role,In Possession,primary,First Touch,2
+Football Manager 26,Attacking Midfielder,Free Role,In Possession,primary,Long Shots,3
+Football Manager 26,Attacking Midfielder,Free Role,In Possession,primary,Passing,4
+Football Manager 26,Attacking Midfielder,Free Role,In Possession,primary,Technique,5
+Football Manager 26,Attacking Midfielder,Free Role,In Possession,primary,Composure,6
+Football Manager 26,Attacking Midfielder,Free Role,In Possession,primary,Flair,7
+Football Manager 26,Attacking Midfielder,Free Role,In Possession,primary,Off the Ball,8
+Football Manager 26,Attacking Midfielder,Free Role,In Possession,primary,Vision,9
+Football Manager 26,Attacking Midfielder,Free Role,In Possession,secondary,Crossing,1
+Football Manager 26,Attacking Midfielder,Free Role,In Possession,secondary,Finishing,2
+Football Manager 26,Attacking Midfielder,Free Role,In Possession,secondary,Anticipation,3
+Football Manager 26,Attacking Midfielder,Free Role,In Possession,secondary,Decisions,4
+Football Manager 26,Attacking Midfielder,Free Role,In Possession,secondary,Acceleration,5
+Football Manager 26,Attacking Midfielder,Free Role,In Possession,secondary,Agility,6
+Football Manager 26,Attacking Midfielder,Second Striker,In Possession,primary,Finishing,1
+Football Manager 26,Attacking Midfielder,Second Striker,In Possession,primary,First Touch,2
+Football Manager 26,Attacking Midfielder,Second Striker,In Possession,primary,Anticipation,3
+Football Manager 26,Attacking Midfielder,Second Striker,In Possession,primary,Composure,4
+Football Manager 26,Attacking Midfielder,Second Striker,In Possession,primary,Off the Ball,5
+Football Manager 26,Attacking Midfielder,Second Striker,In Possession,primary,Acceleration,6
+Football Manager 26,Attacking Midfielder,Second Striker,In Possession,secondary,Dribbling,1
+Football Manager 26,Attacking Midfielder,Second Striker,In Possession,secondary,Long Shots,2
+Football Manager 26,Attacking Midfielder,Second Striker,In Possession,secondary,Passing,3
+Football Manager 26,Attacking Midfielder,Second Striker,In Possession,secondary,Technique,4
+Football Manager 26,Attacking Midfielder,Second Striker,In Possession,secondary,Concentration,5
+Football Manager 26,Attacking Midfielder,Second Striker,In Possession,secondary,Decisions,6
+Football Manager 26,Attacking Midfielder,Second Striker,In Possession,secondary,Work Rate,7
+Football Manager 26,Attacking Midfielder,Second Striker,In Possession,secondary,Agility,8
+Football Manager 26,Attacking Midfielder,Second Striker,In Possession,secondary,Pace,9
+Football Manager 26,Attacking Midfielder,Second Striker,In Possession,secondary,Stamina,10
+Football Manager 26,Attacking Midfielder,Central Outlet Attacking Midfielder,Out of Possession,primary,Off the Ball,1
+Football Manager 26,Attacking Midfielder,Central Outlet Attacking Midfielder,Out of Possession,primary,Decisions,2
+Football Manager 26,Attacking Midfielder,Central Outlet Attacking Midfielder,Out of Possession,primary,Anticipation,3
+Football Manager 26,Attacking Midfielder,Splitting Outlet Attacking Midfielder,Out of Possession,primary,Off the Ball,1
+Football Manager 26,Attacking Midfielder,Splitting Outlet Attacking Midfielder,Out of Possession,primary,Pace,2
+Football Manager 26,Attacking Midfielder,Splitting Outlet Attacking Midfielder,Out of Possession,primary,Anticipation,3
+Football Manager 26,Attacking Midfielder,Tracking Attacking Midfielder,Out of Possession,primary,Marking,1
+Football Manager 26,Attacking Midfielder,Tracking Attacking Midfielder,Out of Possession,primary,Work Rate,2
+Football Manager 26,Attacking Midfielder,Tracking Attacking Midfielder,Out of Possession,primary,Stamina,3
+Football Manager 26,Attacking Midfielder,Wide Forward,In Possession,primary,Dribbling,1
+Football Manager 26,Attacking Midfielder,Wide Forward,In Possession,primary,First Touch,2
+Football Manager 26,Attacking Midfielder,Wide Forward,In Possession,primary,Technique,3
+Football Manager 26,Attacking Midfielder,Wide Forward,In Possession,primary,Anticipation,4
+Football Manager 26,Attacking Midfielder,Wide Forward,In Possession,primary,Off the Ball,5
+Football Manager 26,Attacking Midfielder,Wide Forward,In Possession,primary,Acceleration,6
+Football Manager 26,Attacking Midfielder,Wide Forward,In Possession,primary,Agility,7
+Football Manager 26,Attacking Midfielder,Wide Forward,In Possession,primary,Pace,8
+Football Manager 26,Attacking Midfielder,Wide Forward,In Possession,secondary,Crossing,1
+Football Manager 26,Attacking Midfielder,Wide Forward,In Possession,secondary,Finishing,2
+Football Manager 26,Attacking Midfielder,Wide Forward,In Possession,secondary,Passing,3
+Football Manager 26,Attacking Midfielder,Wide Forward,In Possession,secondary,Composure,4
+Football Manager 26,Attacking Midfielder,Wide Forward,In Possession,secondary,Flair,5
+Football Manager 26,Attacking Midfielder,Wide Forward,In Possession,secondary,Work Rate,6
+Football Manager 26,Attacking Midfielder,Wide Forward,In Possession,secondary,Balance,7
+Football Manager 26,Attacking Midfielder,Wide Forward,In Possession,secondary,Stamina,8
+Football Manager 26,Attacking Midfielder,Inside Forward,In Possession,primary,Dribbling,1
+Football Manager 26,Attacking Midfielder,Inside Forward,In Possession,primary,First Touch,2
+Football Manager 26,Attacking Midfielder,Inside Forward,In Possession,primary,Technique,3
+Football Manager 26,Attacking Midfielder,Inside Forward,In Possession,primary,Anticipation,4
+Football Manager 26,Attacking Midfielder,Inside Forward,In Possession,primary,Composure,5
+Football Manager 26,Attacking Midfielder,Inside Forward,In Possession,primary,Off the Ball,6
+Football Manager 26,Attacking Midfielder,Inside Forward,In Possession,primary,Acceleration,7
+Football Manager 26,Attacking Midfielder,Inside Forward,In Possession,primary,Agility,8
+Football Manager 26,Attacking Midfielder,Inside Forward,In Possession,secondary,Crossing,1
+Football Manager 26,Attacking Midfielder,Inside Forward,In Possession,secondary,Finishing,2
+Football Manager 26,Attacking Midfielder,Inside Forward,In Possession,secondary,Long Shots,3
+Football Manager 26,Attacking Midfielder,Inside Forward,In Possession,secondary,Passing,4
+Football Manager 26,Attacking Midfielder,Inside Forward,In Possession,secondary,Flair,5
+Football Manager 26,Attacking Midfielder,Inside Forward,In Possession,secondary,Vision,6
+Football Manager 26,Attacking Midfielder,Inside Forward,In Possession,secondary,Work Rate,7
+Football Manager 26,Attacking Midfielder,Inside Forward,In Possession,secondary,Balance,8
+Football Manager 26,Attacking Midfielder,Inside Forward,In Possession,secondary,Pace,9
+Football Manager 26,Attacking Midfielder,Inside Forward,In Possession,secondary,Stamina,10
+Football Manager 26,Attacking Midfielder,Inside Outlet Winger,Out of Possession,primary,Off the Ball,1
+Football Manager 26,Attacking Midfielder,Inside Outlet Winger,Out of Possession,primary,Decisions,2
+Football Manager 26,Attacking Midfielder,Inside Outlet Winger,Out of Possession,primary,Anticipation,3
+Football Manager 26,Attacking Midfielder,Tracking Winger,Out of Possession,primary,Marking,1
+Football Manager 26,Attacking Midfielder,Tracking Winger,Out of Possession,primary,Work Rate,2
+Football Manager 26,Attacking Midfielder,Tracking Winger,Out of Possession,primary,Stamina,3
+Football Manager 26,Attacking Midfielder,Wide Outlet Winger,Out of Possession,primary,Off the Ball,1
+Football Manager 26,Attacking Midfielder,Wide Outlet Winger,Out of Possession,primary,Pace,2
+Football Manager 26,Attacking Midfielder,Wide Outlet Winger,Out of Possession,primary,Anticipation,3
+Football Manager 26,Striker,Centre Forward,In Possession,primary,Finishing,1
+Football Manager 26,Striker,Centre Forward,In Possession,primary,First Touch,2
+Football Manager 26,Striker,Centre Forward,In Possession,primary,Heading,3
+Football Manager 26,Striker,Centre Forward,In Possession,primary,Technique,4
+Football Manager 26,Striker,Centre Forward,In Possession,primary,Composure,5
+Football Manager 26,Striker,Centre Forward,In Possession,primary,Off the Ball,6
+Football Manager 26,Striker,Centre Forward,In Possession,primary,Acceleration,7
+Football Manager 26,Striker,Centre Forward,In Possession,primary,Strength,8
+Football Manager 26,Striker,Centre Forward,In Possession,secondary,Dribbling,1
+Football Manager 26,Striker,Centre Forward,In Possession,secondary,Passing,2
+Football Manager 26,Striker,Centre Forward,In Possession,secondary,Anticipation,3
+Football Manager 26,Striker,Centre Forward,In Possession,secondary,Decisions,4
+Football Manager 26,Striker,Centre Forward,In Possession,secondary,Agility,5
+Football Manager 26,Striker,Centre Forward,In Possession,secondary,Balance,6
+Football Manager 26,Striker,Centre Forward,In Possession,secondary,Jumping,7
+Football Manager 26,Striker,Centre Forward,In Possession,secondary,Pace,8
+Football Manager 26,Striker,Channel Forward,In Possession,primary,Dribbling,1
+Football Manager 26,Striker,Channel Forward,In Possession,primary,Finishing,2
+Football Manager 26,Striker,Channel Forward,In Possession,primary,First Touch,3
+Football Manager 26,Striker,Channel Forward,In Possession,primary,Technique,4
+Football Manager 26,Striker,Channel Forward,In Possession,primary,Composure,5
+Football Manager 26,Striker,Channel Forward,In Possession,primary,Off the Ball,6
+Football Manager 26,Striker,Channel Forward,In Possession,primary,Work Rate,7
+Football Manager 26,Striker,Channel Forward,In Possession,primary,Acceleration,8
+Football Manager 26,Striker,Channel Forward,In Possession,secondary,Crossing,1
+Football Manager 26,Striker,Channel Forward,In Possession,secondary,Heading,2
+Football Manager 26,Striker,Channel Forward,In Possession,secondary,Passing,3
+Football Manager 26,Striker,Channel Forward,In Possession,secondary,Anticipation,4
+Football Manager 26,Striker,Channel Forward,In Possession,secondary,Decisions,5
+Football Manager 26,Striker,Channel Forward,In Possession,secondary,Agility,6
+Football Manager 26,Striker,Channel Forward,In Possession,secondary,Balance,7
+Football Manager 26,Striker,Channel Forward,In Possession,secondary,Pace,8
+Football Manager 26,Striker,Channel Forward,In Possession,secondary,Stamina,9
+Football Manager 26,Striker,Deep-Lying Forward,In Possession,primary,Finishing,1
+Football Manager 26,Striker,Deep-Lying Forward,In Possession,primary,First Touch,2
+Football Manager 26,Striker,Deep-Lying Forward,In Possession,primary,Technique,3
+Football Manager 26,Striker,Deep-Lying Forward,In Possession,primary,Composure,4
+Football Manager 26,Striker,Deep-Lying Forward,In Possession,primary,Off the Ball,5
+Football Manager 26,Striker,Deep-Lying Forward,In Possession,primary,Strength,6
+Football Manager 26,Striker,Deep-Lying Forward,In Possession,secondary,Dribbling,1
+Football Manager 26,Striker,Deep-Lying Forward,In Possession,secondary,Passing,2
+Football Manager 26,Striker,Deep-Lying Forward,In Possession,secondary,Anticipation,3
+Football Manager 26,Striker,Deep-Lying Forward,In Possession,secondary,Decisions,4
+Football Manager 26,Striker,Deep-Lying Forward,In Possession,secondary,Team Work,5
+Football Manager 26,Striker,Deep-Lying Forward,In Possession,secondary,Vision,6
+Football Manager 26,Striker,Deep-Lying Forward,In Possession,secondary,Balance,7
+Football Manager 26,Striker,False Nine,In Possession,primary,Dribbling,1
+Football Manager 26,Striker,False Nine,In Possession,primary,First Touch,2
+Football Manager 26,Striker,False Nine,In Possession,primary,Passing,3
+Football Manager 26,Striker,False Nine,In Possession,primary,Technique,4
+Football Manager 26,Striker,False Nine,In Possession,primary,Composure,5
+Football Manager 26,Striker,False Nine,In Possession,primary,Decisions,6
+Football Manager 26,Striker,False Nine,In Possession,primary,Off the Ball,7
+Football Manager 26,Striker,False Nine,In Possession,primary,Team Work,8
+Football Manager 26,Striker,False Nine,In Possession,primary,Vision,9
+Football Manager 26,Striker,False Nine,In Possession,primary,Acceleration,10
+Football Manager 26,Striker,False Nine,In Possession,secondary,Finishing,1
+Football Manager 26,Striker,False Nine,In Possession,secondary,Anticipation,2
+Football Manager 26,Striker,False Nine,In Possession,secondary,Flair,3
+Football Manager 26,Striker,False Nine,In Possession,secondary,Agility,4
+Football Manager 26,Striker,False Nine,In Possession,secondary,Balance,5
+Football Manager 26,Striker,Poacher,In Possession,primary,Finishing,1
+Football Manager 26,Striker,Poacher,In Possession,primary,Heading,2
+Football Manager 26,Striker,Poacher,In Possession,primary,Anticipation,3
+Football Manager 26,Striker,Poacher,In Possession,primary,Composure,4
+Football Manager 26,Striker,Poacher,In Possession,primary,Concentration,5
+Football Manager 26,Striker,Poacher,In Possession,primary,Off the Ball,6
+Football Manager 26,Striker,Poacher,In Possession,primary,Acceleration,7
+Football Manager 26,Striker,Poacher,In Possession,secondary,First Touch,1
+Football Manager 26,Striker,Poacher,In Possession,secondary,Technique,2
+Football Manager 26,Striker,Poacher,In Possession,secondary,Decisions,3
+Football Manager 26,Striker,Poacher,In Possession,secondary,Balance,4
+Football Manager 26,Striker,Target Forward,In Possession,primary,Finishing,1
+Football Manager 26,Striker,Target Forward,In Possession,primary,Heading,2
+Football Manager 26,Striker,Target Forward,In Possession,primary,Aggression,3
+Football Manager 26,Striker,Target Forward,In Possession,primary,Bravery,4
+Football Manager 26,Striker,Target Forward,In Possession,primary,Composure,5
+Football Manager 26,Striker,Target Forward,In Possession,primary,Off the Ball,6
+Football Manager 26,Striker,Target Forward,In Possession,primary,Balance,7
+Football Manager 26,Striker,Target Forward,In Possession,primary,Jumping,8
+Football Manager 26,Striker,Target Forward,In Possession,primary,Strength,9
+Football Manager 26,Striker,Target Forward,In Possession,secondary,First Touch,1
+Football Manager 26,Striker,Target Forward,In Possession,secondary,Anticipation,2
+Football Manager 26,Striker,Target Forward,In Possession,secondary,Decisions,3
+Football Manager 26,Striker,Target Forward,In Possession,secondary,Team Work,4
+Football Manager 26,Striker,Central Outlet Centre Forward,Out of Possession,primary,Off the Ball,1
+Football Manager 26,Striker,Central Outlet Centre Forward,Out of Possession,primary,Decisions,2
+Football Manager 26,Striker,Central Outlet Centre Forward,Out of Possession,primary,Anticipation,3
+Football Manager 26,Striker,Splitting Outlet Centre Forward,Out of Possession,primary,Off the Ball,1
+Football Manager 26,Striker,Splitting Outlet Centre Forward,Out of Possession,primary,Pace,2
+Football Manager 26,Striker,Splitting Outlet Centre Forward,Out of Possession,primary,Anticipation,3
+Football Manager 26,Striker,Tracking Centre Forward,Out of Possession,primary,Marking,1
+Football Manager 26,Striker,Tracking Centre Forward,Out of Possession,primary,Work Rate,2
+Football Manager 26,Striker,Tracking Centre Forward,Out of Possession,primary,Stamina,3
