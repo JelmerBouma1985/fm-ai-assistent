@@ -1,0 +1,7 @@
+:host::part(contract-club-loaned-out) {
+    background-color: #fee2e2;
+}
+
+:host::part(playing-club-loaned-in) {
+    background-color: #dbeafe;
+}
