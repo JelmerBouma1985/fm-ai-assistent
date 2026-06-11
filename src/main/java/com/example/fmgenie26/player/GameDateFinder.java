@@ -28,6 +28,7 @@ public class GameDateFinder {
             + String.join("|", MONTHS) + ")\\s+(20\\d{2})\\b");
     private static final Pattern ISO_DATE_PATTERN = Pattern.compile("\\b(20\\d{2})-(\\d{1,2})-(\\d{1,2})\\b");
     private static final Pattern SLASH_DATE_PATTERN = Pattern.compile("\\b(\\d{1,2})/(\\d{1,2})/(20\\d{2})\\b");
+    private static final Pattern DASH_DATE_PATTERN = Pattern.compile("\\b(\\d{1,2})-(\\d{1,2})-(20\\d{2})\\b");
     private static final byte[] CURRENT_DATE_ASCII = "Current date:".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] CURRENT_DATE_UTF16 = "Current date:".getBytes(StandardCharsets.UTF_16LE);
     private static final Pattern PLAYER_COUNT = Pattern.compile("Player Count:\\s*(\\d+)");
@@ -61,6 +62,10 @@ public class GameDateFinder {
                 scanTelemetryBuffer(data, CURRENT_DATE_ASCII, StandardCharsets.UTF_8, candidates);
                 scanTelemetryBuffer(data, CURRENT_DATE_UTF16, StandardCharsets.UTF_16LE, candidates);
             });
+            Optional<LocalDate> confident = confidentTelemetryDate(candidates, expectedPlayerCount);
+            if (confident.isPresent()) {
+                return confident;
+            }
         }
         if (expectedPlayerCount > 0) {
             return candidates.stream()
@@ -84,6 +89,19 @@ public class GameDateFinder {
         return candidates.stream()
                 .max(Comparator.<TelemetryDate>comparingInt(TelemetryDate::playerCount)
                         .thenComparing(TelemetryDate::date))
+                .map(TelemetryDate::date);
+    }
+
+    private static Optional<LocalDate> confidentTelemetryDate(List<TelemetryDate> candidates, long expectedPlayerCount) {
+        return candidates.stream()
+                .filter(candidate -> candidate.activeManager())
+                .filter(candidate -> candidate.playerCount() > 0)
+                .filter(candidate -> candidate.connections() == 0)
+                .filter(candidate -> expectedPlayerCount <= 0
+                        || Math.abs(candidate.playerCount() - expectedPlayerCount) <= Math.max(10, expectedPlayerCount / 20))
+                .max(Comparator.<TelemetryDate>comparingInt(TelemetryDate::savesLoaded)
+                        .thenComparing(TelemetryDate::date)
+                        .thenComparingInt(TelemetryDate::gameVersion))
                 .map(TelemetryDate::date);
     }
 
@@ -352,6 +370,13 @@ public class GameDateFinder {
                     Integer.parseInt(slashDate.group(3)),
                     Integer.parseInt(slashDate.group(2)),
                     Integer.parseInt(slashDate.group(1)));
+        }
+        Matcher dashDate = DASH_DATE_PATTERN.matcher(text);
+        while (dashDate.find()) {
+            addDate(matches, dashDate.start(), dashDate.end(),
+                    Integer.parseInt(dashDate.group(3)),
+                    Integer.parseInt(dashDate.group(2)),
+                    Integer.parseInt(dashDate.group(1)));
         }
         Matcher isoDate = ISO_DATE_PATTERN.matcher(text);
         while (isoDate.find()) {
