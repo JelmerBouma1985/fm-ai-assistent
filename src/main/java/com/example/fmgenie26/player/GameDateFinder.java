@@ -30,9 +30,16 @@ public class GameDateFinder {
     private static final byte[] CURRENT_DATE_UTF16 = "Current date:".getBytes(StandardCharsets.UTF_16LE);
     private static final Pattern TELEMETRY_CURRENT_DATE = Pattern.compile("Current date:\\s*(\\d{1,2})/(\\d{1,2})/(20\\d{2})");
     private static final Pattern PLAYER_COUNT = Pattern.compile("Player Count:\\s*(\\d+)");
+    private static final Pattern SAVES_LOADED = Pattern.compile("Saves Loaded:\\s*(\\d+)");
+    private static final Pattern CONNECTIONS = Pattern.compile("Connections:\\s*(\\d+)");
+    private static final Pattern GAME_VERSION = Pattern.compile("\"game_(?:creation|last_saved)_version\":\"(\\d+)\"");
 
     public Optional<LocalDate> find(LinuxProcessReader reader) throws IOException {
-        Optional<LocalDate> telemetry = findTelemetryGameDate(reader);
+        return find(reader, 0);
+    }
+
+    public Optional<LocalDate> find(LinuxProcessReader reader, long expectedPlayerCount) throws IOException {
+        Optional<LocalDate> telemetry = findTelemetryGameDate(reader, expectedPlayerCount);
         if (telemetry.isPresent()) {
             return telemetry;
         }
@@ -40,8 +47,8 @@ public class GameDateFinder {
         return marker.isPresent() ? marker : findRenderedGameDate(reader);
     }
 
-    private Optional<LocalDate> findTelemetryGameDate(LinuxProcessReader reader) throws IOException {
-        Map<LocalDate, Integer> maxPlayerCounts = new HashMap<>();
+    private Optional<LocalDate> findTelemetryGameDate(LinuxProcessReader reader, long expectedPlayerCount) throws IOException {
+        List<TelemetryDate> candidates = new java.util.ArrayList<>();
         for (MemoryRegion region : reader.maps()) {
             if (!region.readable() || region.size() > 128L * 1024 * 1024 || region.start() < 0x70000000L) {
                 continue;
@@ -52,16 +59,35 @@ public class GameDateFinder {
             } catch (IOException | RuntimeException ex) {
                 continue;
             }
-            scanTelemetryBuffer(data, CURRENT_DATE_ASCII, StandardCharsets.UTF_8, maxPlayerCounts);
-            scanTelemetryBuffer(data, CURRENT_DATE_UTF16, StandardCharsets.UTF_16LE, maxPlayerCounts);
+            scanTelemetryBuffer(data, CURRENT_DATE_ASCII, StandardCharsets.UTF_8, candidates);
+            scanTelemetryBuffer(data, CURRENT_DATE_UTF16, StandardCharsets.UTF_16LE, candidates);
         }
-        return maxPlayerCounts.entrySet().stream()
-                .max(Comparator.<Map.Entry<LocalDate, Integer>>comparingInt(Map.Entry::getValue)
-                        .thenComparing(Map.Entry::getKey))
-                .map(Map.Entry::getKey);
+        if (expectedPlayerCount > 0) {
+            return candidates.stream()
+                    .filter(candidate -> candidate.playerCount() > 0)
+                    .min(Comparator.<TelemetryDate>comparingLong(candidate -> Math.abs(candidate.playerCount() - expectedPlayerCount))
+                            .thenComparing(candidate -> candidate.activeManager() ? 0 : 1)
+                            .thenComparing(candidate -> candidate.connections() == 0 ? 0 : 1)
+                            .thenComparing(Comparator.comparingInt(TelemetryDate::savesLoaded).reversed())
+                            .thenComparing(Comparator.comparing(TelemetryDate::date).reversed())
+                            .thenComparingInt(TelemetryDate::playerCount))
+                    .map(TelemetryDate::date);
+        }
+        int newestVersion = candidates.stream().mapToInt(TelemetryDate::gameVersion).max().orElse(0);
+        if (newestVersion > 0) {
+            return candidates.stream()
+                    .filter(candidate -> candidate.gameVersion() == newestVersion)
+                    .max(Comparator.<TelemetryDate, LocalDate>comparing(TelemetryDate::date)
+                            .thenComparingInt(TelemetryDate::playerCount))
+                    .map(TelemetryDate::date);
+        }
+        return candidates.stream()
+                .max(Comparator.<TelemetryDate>comparingInt(TelemetryDate::playerCount)
+                        .thenComparing(TelemetryDate::date))
+                .map(TelemetryDate::date);
     }
 
-    private static void scanTelemetryBuffer(byte[] data, byte[] needle, java.nio.charset.Charset charset, Map<LocalDate, Integer> maxPlayerCounts) {
+    private static void scanTelemetryBuffer(byte[] data, byte[] needle, java.nio.charset.Charset charset, List<TelemetryDate> candidates) {
         int cursor = 0;
         while (true) {
             int index = indexOf(data, needle, cursor);
@@ -96,10 +122,47 @@ public class GameDateFinder {
                 if (playerCount.find()) {
                     count = Integer.parseInt(playerCount.group(1));
                 }
-                maxPlayerCounts.merge(date, count, Math::max);
+                candidates.add(new TelemetryDate(date, count, savesLoaded(text), connections(text), gameVersion(text), activeManager(text)));
             }
             cursor = index + needle.length;
         }
+    }
+
+    private static int savesLoaded(String text) {
+        Matcher matcher = SAVES_LOADED.matcher(text);
+        int saves = 0;
+        while (matcher.find()) {
+            saves = Math.max(saves, Integer.parseInt(matcher.group(1)));
+        }
+        return saves;
+    }
+
+    private static int connections(String text) {
+        Matcher matcher = CONNECTIONS.matcher(text);
+        int connections = Integer.MAX_VALUE;
+        while (matcher.find()) {
+            connections = Math.min(connections, Integer.parseInt(matcher.group(1)));
+        }
+        return connections == Integer.MAX_VALUE ? -1 : connections;
+    }
+
+    private static int gameVersion(String text) {
+        Matcher matcher = GAME_VERSION.matcher(text);
+        int version = 0;
+        while (matcher.find()) {
+            version = Math.max(version, Integer.parseInt(matcher.group(1)));
+        }
+        return version;
+    }
+
+    private static boolean activeManager(String text) {
+        int currentDate = text.indexOf("Current date:");
+        int connections = text.indexOf("Connections:", currentDate);
+        if (currentDate < 0 || connections < 0 || connections <= currentDate) {
+            return false;
+        }
+        String between = text.substring(currentDate, connections);
+        return between.contains(" - ") && !between.contains("(on holiday)");
     }
 
     private Optional<LocalDate> findMarkerGameDate(LinuxProcessReader reader) throws IOException {
@@ -179,6 +242,15 @@ public class GameDateFinder {
                         if (context.contains("QuickChatHeader")) {
                             scores.merge(value, 100, Integer::sum);
                         }
+                        if (context.contains("AdditionalDetails")) {
+                            scores.merge(value, 80, Integer::sum);
+                        }
+                        if (context.contains("PortalMessagesTool")) {
+                            scores.merge(value, 120, Integer::sum);
+                        }
+                        if (context.contains("InProgress:")) {
+                            scores.merge(value, 40, Integer::sum);
+                        }
                         if (context.contains("last_saved") || context.contains("LastSave")) {
                             scores.merge(value, -25, Integer::sum);
                         }
@@ -227,5 +299,8 @@ public class GameDateFinder {
             return i;
         }
         return -1;
+    }
+
+    private record TelemetryDate(LocalDate date, int playerCount, int savesLoaded, int connections, int gameVersion, boolean activeManager) {
     }
 }

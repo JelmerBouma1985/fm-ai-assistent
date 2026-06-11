@@ -5,6 +5,7 @@ import com.example.fmgenie26.fm.FmOffsets;
 import com.example.fmgenie26.linux.LinuxProcessReader;
 
 import java.io.IOException;
+import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -44,7 +45,6 @@ public class PlayerExporter {
 
     public ExportResult exportAllPlayers(int pid, int build, Long gamePluginBase) throws IOException {
         try (LinuxProcessReader reader = new LinuxProcessReader(pid)) {
-            LocalDate gameDate = gameDateFinder.find(reader).orElse(null);
             FmOffsets.Bounds bounds = FmOffsets.peopleBounds(reader, build, gamePluginBase);
             List<Map<String, Object>> rows = new ArrayList<>();
             for (long index = 0; index < bounds.count(); index++) {
@@ -59,7 +59,7 @@ public class PlayerExporter {
                     var playingClubAddress = playingClubAddress(reader, record).or(() -> contractedClubAddress);
                     String contractedClub = contractedClubAddress.flatMap(value -> FmMemoryStrings.clubDisplayName(reader, value)).orElse("");
                     String playingClub = playingClubAddress.flatMap(value -> FmMemoryStrings.clubDisplayName(reader, value)).orElse(contractedClub);
-                    Map<String, Object> row = decodeRow(reader, (int) index, record, contractedClub, playingClub, gameDate);
+                    Map<String, Object> row = decodeRow(reader, (int) index, record, contractedClub, playingClub, null);
                     contractedClubAddress.ifPresent(value -> row.put("_club_address", value));
                     playingClubAddress.ifPresent(value -> row.put("_playing_club_address", value));
                     int ca = ((Number) row.get("ca")).intValue();
@@ -71,6 +71,8 @@ public class PlayerExporter {
                 } catch (IOException | RuntimeException ignored) {
                 }
             }
+            LocalDate gameDate = gameDateFinder.find(reader, rows.size()).orElse(null);
+            applyGameDate(rows, gameDate);
             rows.sort(Comparator.comparing(row -> String.valueOf(row.get("name")).toLowerCase()));
             return new ExportResult(gameDate == null ? "" : gameDate.toString(), rows);
         }
@@ -193,6 +195,24 @@ public class PlayerExporter {
             age--;
         }
         return age;
+    }
+
+    private static void applyGameDate(List<Map<String, Object>> rows, LocalDate gameDate) {
+        for (Map<String, Object> row : rows) {
+            String dobValue = String.valueOf(row.getOrDefault("date_of_birth", ""));
+            if (gameDate == null || dobValue.isBlank()) {
+                row.put("age", "");
+                row.put("age_as_of", "");
+                continue;
+            }
+            try {
+                row.put("age", ageOn(LocalDate.parse(dobValue), gameDate));
+                row.put("age_as_of", gameDate.toString());
+            } catch (DateTimeException ex) {
+                row.put("age", "");
+                row.put("age_as_of", "");
+            }
+        }
     }
 
     private static List<String> buildFieldNames() {
