@@ -92,6 +92,23 @@ final class PlayerAttributeCatalog {
                 .toList();
     }
 
+    static List<AttributeCategory> categoriesWithGoalkeepingLast() {
+        return Stream.concat(
+                        CATEGORIES.stream().filter(category -> !GOALKEEPING.equals(category.name())),
+                        CATEGORIES.stream().filter(category -> GOALKEEPING.equals(category.name())))
+                .toList();
+    }
+
+    static List<AttributeCategory> filterCategories() {
+        return List.of(
+                CATEGORIES.get(0),
+                CATEGORIES.get(1),
+                CATEGORIES.get(2),
+                CATEGORIES.get(3),
+                CATEGORIES.get(4),
+                CATEGORIES.get(5));
+    }
+
     private static AttributeDefinition attr(String columnName, String displayName) {
         return new AttributeDefinition(columnName == null ? null : columnName.toUpperCase(), displayName);
     }

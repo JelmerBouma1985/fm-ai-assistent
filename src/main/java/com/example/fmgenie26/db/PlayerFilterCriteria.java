@@ -14,6 +14,8 @@ public record PlayerFilterCriteria(
         String club,
         Integer ageMin,
         Integer ageMax,
+        Integer heightMin,
+        Integer heightMax,
         String nationality,
         Integer currentReputationMin,
         Integer currentReputationMax,
@@ -34,7 +36,7 @@ public record PlayerFilterCriteria(
         Map<String, Integer> attributeMinimums) {
     public static PlayerFilterCriteria empty() {
         return new PlayerFilterCriteria(
-                "", "", "", "", "", null, null, "", null, null, null, null, null, null,
+                "", "", "", "", "", null, null, null, null, "", null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null,
                 Map.of(), Map.of());
     }
@@ -47,6 +49,8 @@ public record PlayerFilterCriteria(
                 && isBlank(club)
                 && ageMin == null
                 && ageMax == null
+                && heightMin == null
+                && heightMax == null
                 && isBlank(nationality)
                 && currentReputationMin == null
                 && currentReputationMax == null

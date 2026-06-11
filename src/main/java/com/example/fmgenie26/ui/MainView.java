@@ -5,6 +5,7 @@ import com.example.fmgenie26.competition.CompetitionExporter;
 import com.example.fmgenie26.db.*;
 import com.example.fmgenie26.player.AttributeDefinitions;
 import com.example.fmgenie26.player.FieldDef;
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.ModalityMode;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
@@ -27,6 +28,7 @@ import com.vaadin.flow.component.tabs.Tab;
 import com.vaadin.flow.component.tabs.Tabs;
 import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 
@@ -38,10 +40,11 @@ import java.util.function.Function;
 
 @Route("")
 @PageTitle("FM Genie 26")
+@CssImport(value = "./styles/player-grid.css", themeFor = "vaadin-grid")
 public class MainView extends VerticalLayout {
     private static final Set<String> NUMERIC_SORT_COLUMNS = Set.of(
             "ID", "CLUB_ID", "PLAYING_CLUB_ID", "CURRENT_REPUTATION", "HOME_REPUTATION", "WORLD_REPUTATION",
-            "CA", "PA", "ASKING_PRICE", "ASKING_PRICE_RAW", "SALARY_PA", "SALARY_WEEKLY_RAW", "AGE",
+            "CA", "PA", "ASKING_PRICE", "ASKING_PRICE_RAW", "SALARY_PA", "SALARY_WEEKLY_RAW", "AGE", "HEIGHT_CM",
             "GOALKEEPER", "DEFENDER_LEFT", "DEFENDER_CENTRAL", "DEFENDER_RIGHT", "WING_BACK_LEFT",
             "DEFENSIVE_MIDFIELDER", "WING_BACK_RIGHT", "MIDFIELDER_LEFT", "MIDFIELDER_CENTRAL",
             "MIDFIELDER_RIGHT", "ATTACKING_MIDFIELDER_LEFT", "ATTACKING_MIDFIELDER_CENTRAL",
@@ -202,6 +205,7 @@ public class MainView extends VerticalLayout {
         List<PlayerColumn> columns = List.of(
                 new PlayerColumn("NAME", "Name", PlayerEntity::getName),
                 new PlayerColumn("AGE", "Age", PlayerEntity::getAge),
+                new PlayerColumn("HEIGHT_CM", "Height (cm)", PlayerEntity::getHeightCm),
                 new PlayerColumn("NATIONALITY", "Nationality", PlayerEntity::getNationality),
                 new PlayerColumn("CLUB", "Club", PlayerEntity::getClub),
                 new PlayerColumn("PLAYING_CLUB", "Playing Club", PlayerEntity::getPlayingClub),
@@ -259,6 +263,7 @@ public class MainView extends VerticalLayout {
 
     private void setPlayerGrid(List<PlayerColumn> columns, List<PlayerEntity> rows) {
         playersGrid.removeAllColumns();
+        playersGrid.setPartNameGenerator(this::playerRowPartName);
         for (PlayerColumn column : columns) {
             playersGrid.addColumn(player -> display(column.value(player)))
                     .setKey(column.key())
@@ -273,6 +278,22 @@ public class MainView extends VerticalLayout {
         content.setSizeFull();
         content.add(playersGrid);
         content.getStyle().set("height", "calc(100vh - 120px)");
+    }
+
+    private String playerRowPartName(PlayerEntity player) {
+        String filterClub = playerFilter.club();
+        if (filterClub == null || filterClub.isBlank()) {
+            return null;
+        }
+        boolean contractedToFilter = sameText(player.getClub(), filterClub);
+        boolean playingAtFilter = sameText(player.getPlayingClub(), filterClub);
+        if (contractedToFilter && !playingAtFilter) {
+            return "contract-club-loaned-out";
+        }
+        if (playingAtFilter && !contractedToFilter) {
+            return "playing-club-loaned-in";
+        }
+        return null;
     }
 
     private void configureLoadingDialog() {
@@ -302,6 +323,7 @@ public class MainView extends VerticalLayout {
         VerticalLayout info = new VerticalLayout(detailLayout(List.of(
                 new DetailField("Name", player.getName()),
                 new DetailField("Age", player.getAge()),
+                new DetailField("Height", heightDisplay(player)),
                 new DetailField("Nationality", player.getNationality()),
                 new DetailField("Club", player.getClub()),
                 new DetailField("Playing Club", player.getPlayingClub()),
@@ -346,15 +368,7 @@ public class MainView extends VerticalLayout {
         attributesView.setPadding(false);
         attributesView.setSpacing(true);
 
-        FormLayout positions = new FormLayout();
-        positions.setResponsiveSteps(
-                new FormLayout.ResponsiveStep("0", 1),
-                new FormLayout.ResponsiveStep("720px", 2));
-        for (FieldDef field : AttributeDefinitions.POSITION_FIELDS) {
-            String column = PlayerColumnNames.toColumnName(field.name()).toUpperCase();
-            Object value = player.getColumnValue(column);
-            positions.add(detailField(displayName(field.name()), display(value) + " - " + PositionTextFormatter.positionLevelText(value)));
-        }
+        Div positions = positionField(player);
 
         Tab infoTab = new Tab("Info");
         Tab attributesTab = new Tab("Attributes");
@@ -385,7 +399,7 @@ public class MainView extends VerticalLayout {
         
         Dialog dialog = new Dialog();
         dialog.setHeaderTitle("Player filter");
-        dialog.setWidth("980px");
+        dialog.setWidth("1280px");
         dialog.setMaxWidth("calc(100vw - 32px)");
 
         TextField name = new TextField("Name contains");
@@ -403,6 +417,8 @@ public class MainView extends VerticalLayout {
 
         IntegerField ageMin = intField("Age min", playerFilter.ageMin(), 1, 80);
         IntegerField ageMax = intField("Age max", playerFilter.ageMax(), 1, 80);
+        IntegerField heightMin = intField("Height min (cm)", playerFilter.heightMin(), 100, 230);
+        IntegerField heightMax = intField("Height max (cm)", playerFilter.heightMax(), 100, 230);
         IntegerField currentRepMin = intField("Current rep min", defaultInt(playerFilter.currentReputationMin(), 1), 1, 10000);
         IntegerField currentRepMax = intField("Current rep max", playerFilter.currentReputationMax(), 1, 10000);
         IntegerField homeRepMin = intField("Home rep min", defaultInt(playerFilter.homeReputationMin(), 1), 1, 10000);
@@ -425,6 +441,7 @@ public class MainView extends VerticalLayout {
                 name, gender,
                 playingNation, playingCompetition,
                 ageMin, ageMax,
+                heightMin, heightMax,
                 club, salaryMax.field(),
                 askingMin.field(), askingMax.field(),
                 contractFrom, contractTo,
@@ -440,41 +457,31 @@ public class MainView extends VerticalLayout {
                 new FormLayout.ResponsiveStep("720px", 2));
 
         Map<String, PositionLevel> selectedPositions = new LinkedHashMap<>();
-        Div positionGrid = new Div();
-        positionGrid.getStyle()
-                .set("display", "grid")
-                .set("grid-template-columns", "repeat(auto-fit, minmax(190px, 1fr))")
-                .set("gap", "8px")
-                .set("margin-top", "12px");
         for (FieldDef field : AttributeDefinitions.POSITION_FIELDS) {
             String column = PlayerColumnNames.toColumnName(field.name()).toUpperCase();
             PositionLevel initial = PositionLevel.fromMinimum(playerFilter.positionMinimums().get(column));
             selectedPositions.put(column, initial);
-            Button button = new Button(positionLabel(field.name(), initial));
-            button.setWidthFull();
-            applyPositionColor(button, initial);
-            button.addClickListener(event -> {
-                PositionLevel next = selectedPositions.get(column).next();
-                selectedPositions.put(column, next);
-                button.setText(positionLabel(field.name(), next));
-                applyPositionColor(button, next);
-            });
-            positionGrid.add(button);
         }
 
-        VerticalLayout playerTab = new VerticalLayout(basicFilters, positionGrid);
+        VerticalLayout playerTab = new VerticalLayout(basicFilters);
         playerTab.setPadding(false);
         playerTab.setSpacing(true);
 
+        Div positionFilterLayout = positionFilterField(selectedPositions);
+
         Map<String, IntegerField> attributeFields = new LinkedHashMap<>();
-        FormLayout attributeLayout = new FormLayout();
-        attributeLayout.setResponsiveSteps(
-                new FormLayout.ResponsiveStep("0", 2),
-                new FormLayout.ResponsiveStep("720px", 4));
+        Div attributeLayout = new Div();
+        attributeLayout.setWidthFull();
+        attributeLayout.getStyle()
+                .set("display", "grid")
+                .set("grid-template-columns", "repeat(6, minmax(180px, 1fr))")
+                .set("gap", "16px")
+                .set("align-items", "start");
 
         Tab filtersTab = new Tab("Filters");
+        Tab positionsTab = new Tab("Positions");
         Tab attributesTab = new Tab("Attributes");
-        Tabs dialogTabs = new Tabs(filtersTab, attributesTab);
+        Tabs dialogTabs = new Tabs(filtersTab, positionsTab, attributesTab);
         Div dialogContent = new Div(playerTab);
         dialogContent.setWidthFull();
         dialogContent.getStyle().set("max-height", "70vh").set("overflow", "auto");
@@ -482,6 +489,8 @@ public class MainView extends VerticalLayout {
             dialogContent.removeAll();
             if (event.getSelectedTab() == filtersTab) {
                 dialogContent.add(playerTab);
+            } else if (event.getSelectedTab() == positionsTab) {
+                dialogContent.add(positionFilterLayout);
             } else {
                 createAttributeFields(attributeFields, attributeLayout);
                 dialogContent.add(attributeLayout);
@@ -496,6 +505,7 @@ public class MainView extends VerticalLayout {
                     worldRepMin, worldRepMax,
                     caMin, caMax,
                     paMin, paMax,
+                    heightMin, heightMax,
                     attributeFields)) {
                 return;
             }
@@ -506,6 +516,7 @@ public class MainView extends VerticalLayout {
                     playingCompetition.getValue(),
                     club.getValue(),
                     ageMin.getValue(), ageMax.getValue(),
+                    heightMin.getValue(), heightMax.getValue(),
                     nationality.getValue(),
                     defaultInt(currentRepMin.getValue(), 1), currentRepMax.getValue(),
                     defaultInt(homeRepMin.getValue(), 1), homeRepMax.getValue(),
@@ -553,6 +564,15 @@ public class MainView extends VerticalLayout {
         return value == null ? "" : Objects.toString(value);
     }
 
+    private static String heightDisplay(PlayerEntity player) {
+        Integer cm = player.getHeightCm();
+        if (cm == null || cm <= 0) {
+            return "";
+        }
+        int totalInches = (int) Math.round(cm / 2.54);
+        return cm + " cm (" + (totalInches / 12) + "'" + (totalInches % 12) + "\")";
+    }
+
     private static FormLayout detailLayout(List<DetailField> fields) {
         FormLayout layout = new FormLayout();
         layout.setResponsiveSteps(
@@ -580,6 +600,217 @@ public class MainView extends VerticalLayout {
                 .set("gap", "2px")
                 .set("padding", "6px 0");
         return field;
+    }
+
+    private static Div positionField(PlayerEntity player) {
+        Div field = new Div();
+        field.getStyle()
+                .set("position", "relative")
+                .set("display", "grid")
+                .set("grid-template-rows", "repeat(6, 1fr)")
+                .set("gap", "6px")
+                .set("width", "min(320px, 100%)")
+                .set("aspect-ratio", "2 / 3")
+                .set("margin", "0 auto")
+                .set("padding", "10px")
+                .set("box-sizing", "border-box")
+                .set("border", "2px solid #d1fae5")
+                .set("border-radius", "8px")
+                .set("background", "linear-gradient(90deg, #064e3b 0%, #065f46 50%, #064e3b 100%)")
+                .set("overflow", "hidden");
+
+        addFieldLine(field, "50%", "0", "100%", "2px", "#d1fae580", "translateY(-1px)");
+        addFieldLine(field, "50%", "50%", "68px", "68px", "#d1fae580", "translate(-50%, -50%)");
+        addPenaltyBox(field, "top");
+        addPenaltyBox(field, "bottom");
+
+        field.add(
+                positionFieldRow(positionRow(null, pos(player, "ST", "Striker"), null)),
+                positionFieldRow(List.of(pos(player, "AML", "AttackingMidfielderLeft"), pos(player, "AMC", "AttackingMidfielderCentral"), pos(player, "AMR", "AttackingMidfielderRight"))),
+                positionFieldRow(List.of(pos(player, "ML", "MidfielderLeft"), pos(player, "MC", "MidfielderCentral"), pos(player, "MR", "MidfielderRight"))),
+                positionFieldRow(List.of(pos(player, "WBL", "WingBackLeft"), pos(player, "DMC", "DefensiveMidfielder"), pos(player, "WBR", "WingBackRight"))),
+                positionFieldRow(List.of(pos(player, "DL", "DefenderLeft"), pos(player, "DC", "DefenderCentral"), pos(player, "DR", "DefenderRight"))),
+                positionFieldRow(positionRow(null, pos(player, "GK", "Goalkeeper"), null))
+        );
+        return field;
+    }
+
+    private static Div positionFilterField(Map<String, PositionLevel> selectedPositions) {
+        Div field = emptyField();
+        field.add(
+                positionFilterRow(blank(), positionFilterTile("ST", "Striker", "STRIKER", selectedPositions), blank()),
+                positionFilterRow(
+                        positionFilterTile("AML", "Attacking Midfielder Left", "ATTACKING_MIDFIELDER_LEFT", selectedPositions),
+                        positionFilterTile("AMC", "Attacking Midfielder Central", "ATTACKING_MIDFIELDER_CENTRAL", selectedPositions),
+                        positionFilterTile("AMR", "Attacking Midfielder Right", "ATTACKING_MIDFIELDER_RIGHT", selectedPositions)),
+                positionFilterRow(
+                        positionFilterTile("ML", "Midfielder Left", "MIDFIELDER_LEFT", selectedPositions),
+                        positionFilterTile("MC", "Midfielder Central", "MIDFIELDER_CENTRAL", selectedPositions),
+                        positionFilterTile("MR", "Midfielder Right", "MIDFIELDER_RIGHT", selectedPositions)),
+                positionFilterRow(
+                        positionFilterTile("WBL", "Wing Back Left", "WING_BACK_LEFT", selectedPositions),
+                        positionFilterTile("DMC", "Defensive Midfielder", "DEFENSIVE_MIDFIELDER", selectedPositions),
+                        positionFilterTile("WBR", "Wing Back Right", "WING_BACK_RIGHT", selectedPositions)),
+                positionFilterRow(
+                        positionFilterTile("DL", "Defender Left", "DEFENDER_LEFT", selectedPositions),
+                        positionFilterTile("DC", "Defender Central", "DEFENDER_CENTRAL", selectedPositions),
+                        positionFilterTile("DR", "Defender Right", "DEFENDER_RIGHT", selectedPositions)),
+                positionFilterRow(blank(), positionFilterTile("GK", "Goalkeeper", "GOALKEEPER", selectedPositions), blank())
+        );
+        return field;
+    }
+
+    private static Div emptyField() {
+        Div field = new Div();
+        field.getStyle()
+                .set("position", "relative")
+                .set("display", "grid")
+                .set("grid-template-rows", "repeat(6, 1fr)")
+                .set("gap", "7px")
+                .set("width", "min(360px, 100%)")
+                .set("aspect-ratio", "2 / 3")
+                .set("margin", "0 auto")
+                .set("padding", "12px")
+                .set("box-sizing", "border-box")
+                .set("border", "2px solid #d1fae5")
+                .set("border-radius", "8px")
+                .set("background", "linear-gradient(90deg, #064e3b 0%, #065f46 50%, #064e3b 100%)")
+                .set("overflow", "hidden");
+        addFieldLine(field, "50%", "0", "100%", "2px", "#d1fae580", "translateY(-1px)");
+        addFieldLine(field, "50%", "50%", "76px", "76px", "#d1fae580", "translate(-50%, -50%)");
+        addPenaltyBox(field, "top");
+        addPenaltyBox(field, "bottom");
+        return field;
+    }
+
+    private static List<PositionTile> positionRow(PositionTile left, PositionTile center, PositionTile right) {
+        List<PositionTile> row = new ArrayList<>();
+        row.add(left);
+        row.add(center);
+        row.add(right);
+        return row;
+    }
+
+    private static PositionTile pos(PlayerEntity player, String label, String fieldName) {
+        String column = PlayerColumnNames.toColumnName(fieldName).toUpperCase();
+        return new PositionTile(label, displayName(fieldName), player.getColumnValue(column));
+    }
+
+    private static Div positionFieldRow(List<PositionTile> positions) {
+        Div row = new Div();
+        row.getStyle()
+                .set("position", "relative")
+                .set("z-index", "1")
+                .set("display", "grid")
+                .set("grid-template-columns", "repeat(3, minmax(0, 1fr))")
+                .set("gap", "6px")
+                .set("align-items", "center");
+        positions.forEach(position -> row.add(position == null ? new Div() : positionFieldTile(position)));
+        return row;
+    }
+
+    private static Div positionFilterRow(Component... positions) {
+        Div row = new Div();
+        row.getStyle()
+                .set("position", "relative")
+                .set("z-index", "1")
+                .set("display", "grid")
+                .set("grid-template-columns", "repeat(3, minmax(0, 1fr))")
+                .set("gap", "7px")
+                .set("align-items", "center");
+        row.add(positions);
+        return row;
+    }
+
+    private static Div blank() {
+        return new Div();
+    }
+
+    private static Button positionFilterTile(
+            String shortName,
+            String fullName,
+            String column,
+            Map<String, PositionLevel> selectedPositions) {
+        PositionLevel initial = selectedPositions.getOrDefault(column, PositionLevel.CANNOT);
+        Button button = new Button(filterPositionLabel(shortName, initial));
+        button.getElement().setProperty("title", fullName);
+        button.setWidthFull();
+        button.getStyle()
+                .set("min-width", "0")
+                .set("min-height", "38px")
+                .set("padding", "6px 4px")
+                .set("font-size", "var(--lumo-font-size-xs)")
+                .set("font-weight", "800")
+                .set("line-height", "1.1")
+                .set("white-space", "normal");
+        applyPositionColor(button, initial);
+        button.addClickListener(event -> {
+            PositionLevel next = selectedPositions.getOrDefault(column, PositionLevel.CANNOT).next();
+            selectedPositions.put(column, next);
+            button.setText(filterPositionLabel(shortName, next));
+            applyPositionColor(button, next);
+        });
+        return button;
+    }
+
+    private static Div positionFieldTile(PositionTile position) {
+        Span label = new Span(position.shortName());
+        label.getStyle().set("font-weight", "800").set("line-height", "1");
+        Span value = new Span(display(position.value()) + " - " + PositionTextFormatter.positionLevelText(position.value()));
+        value.getStyle()
+                .set("font-size", "var(--lumo-font-size-xs)")
+                .set("line-height", "1.15")
+                .set("text-align", "center");
+        Div tile = new Div(label, value);
+        PositionLevel level = PositionLevel.fromScore(position.value());
+        tile.getElement().setProperty("title", position.fullName());
+        tile.getStyle()
+                .set("min-width", "0")
+                .set("display", "flex")
+                .set("flex-direction", "column")
+                .set("align-items", "center")
+                .set("justify-content", "center")
+                .set("gap", "3px")
+                .set("padding", "5px 4px")
+                .set("min-height", "42px")
+                .set("border-radius", "8px")
+                .set("background", level.color)
+                .set("color", level.textColor)
+                .set("border", "1px solid rgba(255,255,255,.55)")
+                .set("box-shadow", "0 1px 3px rgba(0,0,0,.22)");
+        return tile;
+    }
+
+    private static void addFieldLine(Div field, String top, String left, String width, String height, String color, String transform) {
+        Div line = new Div();
+        line.getStyle()
+                .set("position", "absolute")
+                .set("top", top)
+                .set("left", left)
+                .set("width", width)
+                .set("height", height)
+                .set("border", "2px solid " + color)
+                .set("border-radius", "999px")
+                .set("transform", transform)
+                .set("box-sizing", "border-box")
+                .set("pointer-events", "none");
+        field.add(line);
+    }
+
+    private static void addPenaltyBox(Div field, String side) {
+        Div box = new Div();
+        box.getStyle()
+                .set("position", "absolute")
+                .set(side, "-2px")
+                .set("left", "50%")
+                .set("width", "44%")
+                .set("height", "15%")
+                .set("border", "2px solid #d1fae580")
+                .set("border-" + side, "0")
+                .set("transform", "translateX(-50%)")
+                .set("box-sizing", "border-box")
+                .set("pointer-events", "none");
+        field.add(box);
     }
 
     private static void renderAttributeColumns(
@@ -738,6 +969,10 @@ public class MainView extends VerticalLayout {
         return value == null || value.isBlank() ? "unknown" : value;
     }
 
+    private static boolean sameText(String left, String right) {
+        return left != null && right != null && left.equalsIgnoreCase(right);
+    }
+
     private static String toColumnName(String fieldName) {
         StringBuilder out = new StringBuilder();
         for (int i = 0; i < fieldName.length(); i++) {
@@ -772,15 +1007,30 @@ public class MainView extends VerticalLayout {
         return comboBox;
     }
 
-    private void createAttributeFields(Map<String, IntegerField> attributeFields, FormLayout attributeLayout) {
+    private void createAttributeFields(Map<String, IntegerField> attributeFields, Div attributeLayout) {
         if (!attributeFields.isEmpty()) {
             return;
         }
-        for (FieldDef field : AttributeDefinitions.VISIBLE_FIELDS) {
-            String column = PlayerColumnNames.toColumnName(field.name()).toUpperCase();
-            IntegerField attribute = intField(displayName(field.name()), playerFilter.attributeMinimums().getOrDefault(column, 1), 1, 20);
-            attributeFields.put(column, attribute);
-            attributeLayout.add(attribute);
+        for (PlayerAttributeCatalog.AttributeCategory category : PlayerAttributeCatalog.filterCategories()) {
+            VerticalLayout column = new VerticalLayout();
+            column.setPadding(false);
+            column.setSpacing(false);
+            Span title = new Span(attributeFilterCategoryTitle(category.name()));
+            title.getStyle()
+                    .set("font-weight", "700")
+                    .set("padding-bottom", "6px")
+                    .set("border-bottom", "1px solid var(--lumo-contrast-20pct)")
+                    .set("margin-bottom", "6px");
+            column.add(title);
+            for (PlayerAttributeCatalog.AttributeDefinition definition : category.attributes()) {
+                String attributeColumn = definition.columnName();
+                String key = category.name() + ":" + attributeColumn;
+                IntegerField attribute = intField(definition.displayName(), playerFilter.attributeMinimums().getOrDefault(attributeColumn, 1), 1, 20);
+                attribute.setWidthFull();
+                attributeFields.put(key, attribute);
+                column.add(attribute);
+            }
+            attributeLayout.add(column);
         }
     }
 
@@ -795,6 +1045,8 @@ public class MainView extends VerticalLayout {
             IntegerField caMax,
             IntegerField paMin,
             IntegerField paMax,
+            IntegerField heightMin,
+            IntegerField heightMax,
             Map<String, IntegerField> attributeFields) {
         for (IntegerField field : List.of(currentRepMin, currentRepMax, homeRepMin, homeRepMax, worldRepMin, worldRepMax)) {
             if (!validIntegerField(field, 1, 10000)) {
@@ -803,6 +1055,11 @@ public class MainView extends VerticalLayout {
         }
         for (IntegerField field : List.of(caMin, caMax, paMin, paMax)) {
             if (!validIntegerField(field, 1, 200)) {
+                return false;
+            }
+        }
+        for (IntegerField field : List.of(heightMin, heightMax)) {
+            if (!validIntegerField(field, 100, 230)) {
                 return false;
             }
         }
@@ -815,7 +1072,8 @@ public class MainView extends VerticalLayout {
                 && validRange("Home reputation", defaultInt(homeRepMin.getValue(), 1), homeRepMax.getValue())
                 && validRange("World reputation", defaultInt(worldRepMin.getValue(), 1), worldRepMax.getValue())
                 && validRange("CA", defaultInt(caMin.getValue(), 1), caMax.getValue())
-                && validRange("PA", defaultInt(paMin.getValue(), 1), paMax.getValue());
+                && validRange("PA", defaultInt(paMin.getValue(), 1), paMax.getValue())
+                && validRange("Height", heightMin.getValue(), heightMax.getValue());
     }
 
     private static boolean validIntegerField(IntegerField field, int min, int max) {
@@ -854,10 +1112,11 @@ public class MainView extends VerticalLayout {
 
     private static Map<String, Integer> selectedAttributeMinimums(Map<String, IntegerField> attributeFields) {
         Map<String, Integer> out = new LinkedHashMap<>();
-        attributeFields.forEach((column, field) -> {
+        attributeFields.forEach((key, field) -> {
             Integer value = defaultInt(field.getValue(), 1);
             if (value != null && value > 1) {
-                out.put(column, value);
+                String column = key.contains(":") ? key.substring(key.indexOf(':') + 1) : key;
+                out.merge(column, value, Math::max);
             }
         });
         return out;
@@ -867,8 +1126,22 @@ public class MainView extends VerticalLayout {
         return displayName(fieldName) + " - " + level.label;
     }
 
+    private static String filterPositionLabel(String shortName, PositionLevel level) {
+        return shortName + "\n" + level.label;
+    }
+
     private static String displayName(String fieldName) {
         return toColumnName(fieldName).replace('_', ' ');
+    }
+
+    private static String attributeFilterCategoryTitle(String categoryName) {
+        if (PlayerAttributeCatalog.GOALKEEPING.equals(categoryName)) {
+            return "Goalkeeper";
+        }
+        if ("Hidden Attributes".equals(categoryName)) {
+            return "Hidden";
+        }
+        return categoryName;
     }
 
     private static void applyPositionColor(Button button, PositionLevel level) {
@@ -885,6 +1158,9 @@ public class MainView extends VerticalLayout {
     }
 
     private record DetailField(String label, Object value) {
+    }
+
+    private record PositionTile(String shortName, String fullName, Object value) {
     }
 
     private enum PositionLevel {
@@ -921,6 +1197,23 @@ public class MainView extends VerticalLayout {
                 }
             }
             return CANNOT;
+        }
+
+        private static PositionLevel fromScore(Object scoreValue) {
+            Long score = sortableLong(scoreValue);
+            if (score == null || score <= 4) {
+                return CANNOT;
+            }
+            if (score <= 8) {
+                return CAN;
+            }
+            if (score <= 14) {
+                return COMPETENT;
+            }
+            if (score <= 17) {
+                return ACCOMPLISHED;
+            }
+            return NATURAL;
         }
     }
 

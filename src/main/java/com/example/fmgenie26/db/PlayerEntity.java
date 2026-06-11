@@ -74,6 +74,8 @@ public class PlayerEntity {
     private String age;
     @Column(name = "age_as_of", length = 1024)
     private String ageAsOf;
+    @Column(name = "height_cm")
+    private Integer heightCm;
     @Column
     private Integer goalkeeper;
     @Column(name = "defender_left")
@@ -368,6 +370,10 @@ public class PlayerEntity {
 
     public String getAgeAsOf() {
         return ageAsOf;
+    }
+
+    public Integer getHeightCm() {
+        return heightCm;
     }
 
     public Integer getGoalkeeper() {

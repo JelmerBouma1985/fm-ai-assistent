@@ -31,6 +31,7 @@
             <column name="date_of_birth" type="VARCHAR(1024)"/>
             <column name="age" type="VARCHAR(1024)"/>
             <column name="age_as_of" type="VARCHAR(1024)"/>
+            <column name="height_cm" type="INT"/>
             <column name="goalkeeper" type="VARCHAR(1024)"/>
             <column name="defender_left" type="VARCHAR(1024)"/>
             <column name="defender_central" type="VARCHAR(1024)"/>
@@ -490,6 +491,20 @@
             <column name="sportsmanship" type="INT"/>
             <column name="temperament" type="INT"/>
             <column name="controversy" type="INT"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="022-add-player-height" author="codex">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="players"/>
+                <not>
+                    <columnExists tableName="players" columnName="height_cm"/>
+                </not>
+            </and>
+        </preConditions>
+        <addColumn tableName="players">
+            <column name="height_cm" type="INT"/>
         </addColumn>
     </changeSet>
 </databaseChangeLog>

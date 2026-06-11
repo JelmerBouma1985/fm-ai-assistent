@@ -191,6 +191,7 @@ public class PlayerDatabaseService {
                 && inRange(player.getSalaryWeeklyRaw().longValue(), 1L, filter.salaryMax())
                 && equalsIgnoreCase(player.getNationality(), filter.nationality())
                 && inRange(asInt(player.getAge()), filter.ageMin(), filter.ageMax())
+                && inRange(player.getHeightCm(), filter.heightMin(), filter.heightMax())
                 && inRange(player.getCurrentReputation(), filter.currentReputationMin(), filter.currentReputationMax())
                 && inRange(player.getHomeReputation(), filter.homeReputationMin(), filter.homeReputationMax())
                 && inRange(player.getWorldReputation(), filter.worldReputationMin(), filter.worldReputationMax())

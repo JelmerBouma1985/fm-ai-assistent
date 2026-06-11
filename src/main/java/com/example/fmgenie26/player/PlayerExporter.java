@@ -25,6 +25,8 @@ import static com.example.fmgenie26.player.AttributeDefinitions.VISIBLE_FIELDS;
 import static com.example.fmgenie26.player.AttributeDefinitions.WORLD_REPUTATION_REL;
 
 public class PlayerExporter {
+    private static final int HEIGHT_CM_REL = -0x5A;
+
     public static final List<String> FIELD_NAMES = buildFieldNames();
 
     private final GameDateFinder gameDateFinder = new GameDateFinder();
@@ -120,6 +122,7 @@ public class PlayerExporter {
         row.put("date_of_birth", dob == null ? "" : dob.toString());
         row.put("age", dob == null || gameDate == null ? "" : ageOn(dob, gameDate));
         row.put("age_as_of", gameDate == null ? "" : gameDate.toString());
+        row.put("height_cm", reader.readU8(record + HEIGHT_CM_REL));
 
         for (FieldDef field : POSITION_FIELDS) {
             int raw = data[field.offset() - SOURCE_OBJECT_BASE_OFFSET] & 0xff;
@@ -197,7 +200,7 @@ public class PlayerExporter {
                 "index", "record", "name", "gender", "nationality", "club", "playing_club", "loan_club", "is_loaned_out",
                 "current_reputation", "home_reputation", "world_reputation", "ca", "pa",
                 "asking_price", "asking_price_raw", "contract_end_date", "salary_pa",
-                "salary_weekly_raw", "date_of_birth", "age", "age_as_of"));
+                "salary_weekly_raw", "date_of_birth", "age", "age_as_of", "height_cm"));
         POSITION_FIELDS.stream().map(FieldDef::name).forEach(names::add);
         VISIBLE_FIELDS.stream().map(FieldDef::name).forEach(names::add);
         HIDDEN_DIRECT_FIELDS.stream().map(FieldDef::name).forEach(names::add);

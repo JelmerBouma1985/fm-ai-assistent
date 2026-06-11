@@ -55,6 +55,7 @@ public class PlayerMapper implements Function<PlayerEntity, Map<String, Object>>
         out.put("DATE_OF_BIRTH", entity.getDateOfBirth());
         out.put("AGE", entity.getAge());
         out.put("AGE_AS_OF", entity.getAgeAsOf());
+        out.put("HEIGHT_CM", entity.getHeightCm());
         out.put("GOALKEEPER", entity.getGoalkeeper());
         out.put("DEFENDER_LEFT", entity.getDefenderLeft());
         out.put("DEFENDER_CENTRAL", entity.getDefenderCentral());
