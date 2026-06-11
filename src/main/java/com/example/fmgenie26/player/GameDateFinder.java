@@ -26,13 +26,17 @@ public class GameDateFinder {
             "July", "August", "September", "October", "November", "December");
     private static final Pattern DATE_PATTERN = Pattern.compile("\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+("
             + String.join("|", MONTHS) + ")\\s+(20\\d{2})\\b");
+    private static final Pattern ISO_DATE_PATTERN = Pattern.compile("\\b(20\\d{2})-(\\d{1,2})-(\\d{1,2})\\b");
+    private static final Pattern SLASH_DATE_PATTERN = Pattern.compile("\\b(\\d{1,2})/(\\d{1,2})/(20\\d{2})\\b");
     private static final byte[] CURRENT_DATE_ASCII = "Current date:".getBytes(StandardCharsets.US_ASCII);
     private static final byte[] CURRENT_DATE_UTF16 = "Current date:".getBytes(StandardCharsets.UTF_16LE);
-    private static final Pattern TELEMETRY_CURRENT_DATE = Pattern.compile("Current date:\\s*(\\d{1,2})/(\\d{1,2})/(20\\d{2})");
     private static final Pattern PLAYER_COUNT = Pattern.compile("Player Count:\\s*(\\d+)");
     private static final Pattern SAVES_LOADED = Pattern.compile("Saves Loaded:\\s*(\\d+)");
     private static final Pattern CONNECTIONS = Pattern.compile("Connections:\\s*(\\d+)");
     private static final Pattern GAME_VERSION = Pattern.compile("\"game_(?:creation|last_saved)_version\":\"(\\d+)\"");
+    private static final long MAX_SCAN_REGION_SIZE = 512L * 1024 * 1024;
+    private static final int SCAN_CHUNK_SIZE = 8 * 1024 * 1024;
+    private static final int SCAN_CHUNK_OVERLAP = 4096;
 
     public Optional<LocalDate> find(LinuxProcessReader reader) throws IOException {
         return find(reader, 0);
@@ -50,17 +54,13 @@ public class GameDateFinder {
     private Optional<LocalDate> findTelemetryGameDate(LinuxProcessReader reader, long expectedPlayerCount) throws IOException {
         List<TelemetryDate> candidates = new java.util.ArrayList<>();
         for (MemoryRegion region : reader.maps()) {
-            if (!region.readable() || region.size() > 128L * 1024 * 1024 || region.start() < 0x70000000L) {
+            if (!scannable(region, MAX_SCAN_REGION_SIZE)) {
                 continue;
             }
-            byte[] data;
-            try {
-                data = reader.readBytes(region.start(), Math.toIntExact(region.size()));
-            } catch (IOException | RuntimeException ex) {
-                continue;
-            }
-            scanTelemetryBuffer(data, CURRENT_DATE_ASCII, StandardCharsets.UTF_8, candidates);
-            scanTelemetryBuffer(data, CURRENT_DATE_UTF16, StandardCharsets.UTF_16LE, candidates);
+            scanRegion(reader, region, data -> {
+                scanTelemetryBuffer(data, CURRENT_DATE_ASCII, StandardCharsets.UTF_8, candidates);
+                scanTelemetryBuffer(data, CURRENT_DATE_UTF16, StandardCharsets.UTF_16LE, candidates);
+            });
         }
         if (expectedPlayerCount > 0) {
             return candidates.stream()
@@ -100,20 +100,11 @@ public class GameDateFinder {
                 to--;
             }
             String text = new String(Arrays.copyOfRange(data, from, to), charset).replace('\0', '.');
-            Matcher dateMatch = TELEMETRY_CURRENT_DATE.matcher(text);
-            while (dateMatch.find()) {
+            for (DateMatch dateMatch : currentDateMatches(text)) {
                 if (!text.contains("Game Started: true")) {
                     continue;
                 }
-                LocalDate date;
-                try {
-                    date = LocalDate.of(
-                            Integer.parseInt(dateMatch.group(3)),
-                            Integer.parseInt(dateMatch.group(2)),
-                            Integer.parseInt(dateMatch.group(1)));
-                } catch (DateTimeException ex) {
-                    continue;
-                }
+                LocalDate date = dateMatch.date();
                 if (date.isBefore(LocalDate.of(2024, 1, 1)) || date.isAfter(LocalDate.of(2035, 12, 31))) {
                     continue;
                 }
@@ -167,100 +158,64 @@ public class GameDateFinder {
 
     private Optional<LocalDate> findMarkerGameDate(LinuxProcessReader reader) throws IOException {
         for (MemoryRegion region : reader.maps()) {
-            if (!region.readable() || !region.writable() || region.size() > 64L * 1024 * 1024 || region.start() < 0x70000000L) {
+            if (!scannable(region, MAX_SCAN_REGION_SIZE) || !region.writable()) {
                 continue;
             }
-            byte[] data;
             try {
-                data = reader.readBytes(region.start(), Math.toIntExact(region.size()));
-            } catch (IOException | RuntimeException ex) {
-                continue;
-            }
-            int cursor = 0;
-            while (true) {
-                int index = indexOf(data, SIGNATURE, cursor);
-                if (index < 0) {
-                    break;
-                }
-                int dateOffset = index - SIGNATURE_DATE_DELTA;
-                if (dateOffset >= 0 && dateOffset + 4 <= data.length) {
-                    int day = u16(data, dateOffset);
-                    int year = u16(data, dateOffset + 2);
-                    if (validDayYear(day, year) && year >= 2020) {
-                        return Optional.of(dayYearToDate(day, year));
+                scanRegion(reader, region, data -> {
+                    int cursor = 0;
+                    while (true) {
+                        int index = indexOf(data, SIGNATURE, cursor);
+                        if (index < 0) {
+                            break;
+                        }
+                        int dateOffset = index - SIGNATURE_DATE_DELTA;
+                        if (dateOffset >= 0 && dateOffset + 4 <= data.length) {
+                            int day = u16(data, dateOffset);
+                            int year = u16(data, dateOffset + 2);
+                            if (validDayYear(day, year) && year >= 2020) {
+                                throw new DateFoundException(dayYearToDate(day, year));
+                            }
+                        }
+                        cursor = index + 1;
                     }
-                }
-                cursor = index + 1;
+                });
+            } catch (DateFoundException ex) {
+                return Optional.of(ex.date());
             }
         }
         return Optional.empty();
+    }
+
+    private static void scanRegion(LinuxProcessReader reader, MemoryRegion region, BufferScanner scanner) throws IOException {
+        long cursor = region.start();
+        while (cursor < region.end()) {
+            int size = (int) Math.min(SCAN_CHUNK_SIZE, region.end() - cursor);
+            try {
+                scanner.scan(reader.readBytes(cursor, size));
+            } catch (DateFoundException ex) {
+                throw ex;
+            } catch (IOException | RuntimeException ignored) {
+            }
+            long next = cursor + size;
+            if (next >= region.end()) {
+                break;
+            }
+            cursor = Math.max(cursor + 1, next - SCAN_CHUNK_OVERLAP);
+        }
     }
 
     private Optional<LocalDate> findRenderedGameDate(LinuxProcessReader reader) throws IOException {
         Map<LocalDate, Integer> counts = new HashMap<>();
         Map<LocalDate, Integer> scores = new HashMap<>();
         for (MemoryRegion region : reader.maps()) {
-            if (!region.readable() || !region.writable() || region.size() > 128L * 1024 * 1024 || region.start() < 0x70000000L) {
+            if (!scannable(region, MAX_SCAN_REGION_SIZE)) {
                 continue;
             }
-            byte[] data;
-            try {
-                data = reader.readBytes(region.start(), Math.toIntExact(region.size()));
-            } catch (IOException | RuntimeException ex) {
-                continue;
-            }
-            for (String month : MONTHS) {
-                byte[] needle = month.getBytes(StandardCharsets.UTF_16LE);
-                int cursor = 0;
-                while (true) {
-                    int index = indexOf(data, needle, cursor);
-                    if (index < 0) {
-                        break;
-                    }
-                    int from = Math.max(0, index - 80);
-                    int to = Math.min(data.length, index + 120);
-                    if ((to - from) % 2 != 0) {
-                        to--;
-                    }
-                    String text = new String(Arrays.copyOfRange(data, from, to), StandardCharsets.UTF_16LE);
-                    var matcher = DATE_PATTERN.matcher(text);
-                    while (matcher.find()) {
-                        int day = Integer.parseInt(matcher.group(1));
-                        int monthIndex = MONTHS.indexOf(matcher.group(2)) + 1;
-                        int year = Integer.parseInt(matcher.group(3));
-                        LocalDate value;
-                        try {
-                            value = LocalDate.of(year, monthIndex, day);
-                        } catch (DateTimeException ex) {
-                            continue;
-                        }
-                        if (value.isBefore(LocalDate.of(2024, 1, 1)) || value.isAfter(LocalDate.of(2035, 12, 31))) {
-                            continue;
-                        }
-                        counts.merge(value, 1, Integer::sum);
-                        String context = text.substring(Math.max(0, matcher.start() - 80), Math.min(text.length(), matcher.end() + 80));
-                        if (context.contains("QuickChatHeader")) {
-                            scores.merge(value, 100, Integer::sum);
-                        }
-                        if (context.contains("AdditionalDetails")) {
-                            scores.merge(value, 80, Integer::sum);
-                        }
-                        if (context.contains("PortalMessagesTool")) {
-                            scores.merge(value, 120, Integer::sum);
-                        }
-                        if (context.contains("InProgress:")) {
-                            scores.merge(value, 40, Integer::sum);
-                        }
-                        if (context.contains("last_saved") || context.contains("LastSave")) {
-                            scores.merge(value, -25, Integer::sum);
-                        }
-                        if (context.contains("announced on") || context.contains("Frame ")) {
-                            scores.merge(value, -25, Integer::sum);
-                        }
-                    }
-                    cursor = index + 2;
-                }
-            }
+            scanRegion(reader, region, data -> {
+                scanRenderedBuffer(data, StandardCharsets.UTF_16LE, counts, scores);
+                scanRenderedBuffer(data, StandardCharsets.UTF_8, counts, scores);
+            });
         }
         Optional<Map.Entry<LocalDate, Integer>> positive = scores.entrySet().stream()
                 .filter(e -> e.getValue() > 0)
@@ -284,6 +239,155 @@ public class GameDateFinder {
         return LocalDate.of(year, 1, 1).plusDays(day - 1L);
     }
 
+    private static boolean scannable(MemoryRegion region, long maxSize) {
+        if (!region.readable() || region.size() <= 0 || region.size() > maxSize) {
+            return false;
+        }
+        String path = region.path();
+        return path.isBlank()
+                || path.startsWith("[")
+                || path.contains("/steamapps/")
+                || path.contains("/SteamLibrary/")
+                || path.contains("/compatdata/")
+                || path.contains("/Proton")
+                || path.contains("/wine")
+                || path.startsWith("/memfd:wine")
+                || path.startsWith("/dev/shm/wine")
+                || path.contains("/fm.exe")
+                || path.contains("/FM26");
+    }
+
+    private static void scanRenderedBuffer(
+            byte[] data,
+            java.nio.charset.Charset charset,
+            Map<LocalDate, Integer> counts,
+            Map<LocalDate, Integer> scores) {
+        for (String month : MONTHS) {
+            byte[] needle = month.getBytes(charset);
+            int cursor = 0;
+            while (true) {
+                int index = indexOf(data, needle, cursor);
+                if (index < 0) {
+                    break;
+                }
+                int from = Math.max(0, index - 160);
+                int to = Math.min(data.length, index + 240);
+                if (charset.equals(StandardCharsets.UTF_16LE) && ((to - from) % 2 != 0)) {
+                    to--;
+                }
+                String text = new String(Arrays.copyOfRange(data, from, to), charset).replace('\0', '.');
+                scoreDateMatches(text, counts, scores);
+                cursor = index + Math.max(1, needle.length);
+            }
+        }
+        int cursor = 0;
+        while (true) {
+            byte[] needle = CURRENT_DATE_ASCII;
+            if (charset.equals(StandardCharsets.UTF_16LE)) {
+                needle = CURRENT_DATE_UTF16;
+            }
+            int index = indexOf(data, needle, cursor);
+            if (index < 0) {
+                break;
+            }
+            int from = Math.max(0, index - 160);
+            int to = Math.min(data.length, index + 240);
+            if (charset.equals(StandardCharsets.UTF_16LE) && ((to - from) % 2 != 0)) {
+                to--;
+            }
+            String text = new String(Arrays.copyOfRange(data, from, to), charset).replace('\0', '.');
+            scoreDateMatches(text, counts, scores);
+            cursor = index + Math.max(1, needle.length);
+        }
+    }
+
+    private static void scoreDateMatches(String text, Map<LocalDate, Integer> counts, Map<LocalDate, Integer> scores) {
+        for (DateMatch match : dateMatches(text)) {
+            LocalDate value = match.date();
+            if (value.isBefore(LocalDate.of(2024, 1, 1)) || value.isAfter(LocalDate.of(2035, 12, 31))) {
+                continue;
+            }
+            counts.merge(value, 1, Integer::sum);
+            String context = text.substring(Math.max(0, match.start() - 120), Math.min(text.length(), match.end() + 120));
+            int score = 0;
+            if (context.contains("Current date:")) {
+                score += 200;
+            }
+            if (context.contains("QuickChatHeader")) {
+                score += 100;
+            }
+            if (context.contains("AdditionalDetails")) {
+                score += 80;
+            }
+            if (context.contains("PortalMessagesTool")) {
+                score += 120;
+            }
+            if (context.contains("InProgress:")) {
+                score += 40;
+            }
+            if (context.contains("last_saved") || context.contains("LastSave")) {
+                score -= 25;
+            }
+            if (context.contains("announced on") || context.contains("Frame ")) {
+                score -= 25;
+            }
+            if (score != 0) {
+                scores.merge(value, score, Integer::sum);
+            }
+        }
+    }
+
+    private static List<DateMatch> dateMatches(String text) {
+        List<DateMatch> matches = new java.util.ArrayList<>();
+        Matcher wordDate = DATE_PATTERN.matcher(text);
+        while (wordDate.find()) {
+            addDate(matches, wordDate.start(), wordDate.end(),
+                    Integer.parseInt(wordDate.group(3)),
+                    MONTHS.indexOf(wordDate.group(2)) + 1,
+                    Integer.parseInt(wordDate.group(1)));
+        }
+        Matcher slashDate = SLASH_DATE_PATTERN.matcher(text);
+        while (slashDate.find()) {
+            addDate(matches, slashDate.start(), slashDate.end(),
+                    Integer.parseInt(slashDate.group(3)),
+                    Integer.parseInt(slashDate.group(2)),
+                    Integer.parseInt(slashDate.group(1)));
+        }
+        Matcher isoDate = ISO_DATE_PATTERN.matcher(text);
+        while (isoDate.find()) {
+            addDate(matches, isoDate.start(), isoDate.end(),
+                    Integer.parseInt(isoDate.group(1)),
+                    Integer.parseInt(isoDate.group(2)),
+                    Integer.parseInt(isoDate.group(3)));
+        }
+        return matches;
+    }
+
+    private static List<DateMatch> currentDateMatches(String text) {
+        List<DateMatch> matches = new java.util.ArrayList<>();
+        int cursor = 0;
+        while (true) {
+            int currentDate = text.indexOf("Current date:", cursor);
+            if (currentDate < 0) {
+                break;
+            }
+            int from = currentDate + "Current date:".length();
+            String tail = text.substring(from, Math.min(text.length(), from + 80));
+            for (DateMatch match : dateMatches(tail)) {
+                matches.add(new DateMatch(match.date(), from + match.start(), from + match.end()));
+            }
+            cursor = from;
+        }
+        return matches;
+    }
+
+    private static void addDate(List<DateMatch> matches, int start, int end, int year, int month, int day) {
+        try {
+            matches.add(new DateMatch(LocalDate.of(year, month, day), start, end));
+        } catch (DateTimeException ignored) {
+        }
+    }
+
     private static int u16(byte[] data, int offset) {
         return ByteBuffer.wrap(data, offset, 2).order(ByteOrder.LITTLE_ENDIAN).getShort() & 0xffff;
     }
@@ -301,6 +405,26 @@ public class GameDateFinder {
         return -1;
     }
 
+    @FunctionalInterface
+    private interface BufferScanner {
+        void scan(byte[] data) throws IOException;
+    }
+
+    private static class DateFoundException extends RuntimeException {
+        private final LocalDate date;
+
+        DateFoundException(LocalDate date) {
+            this.date = date;
+        }
+
+        LocalDate date() {
+            return date;
+        }
+    }
+
     private record TelemetryDate(LocalDate date, int playerCount, int savesLoaded, int connections, int gameVersion, boolean activeManager) {
+    }
+
+    private record DateMatch(LocalDate date, int start, int end) {
     }
 }
