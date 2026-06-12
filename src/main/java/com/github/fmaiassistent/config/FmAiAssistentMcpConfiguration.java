@@ -1,16 +1,16 @@
 package com.github.fmaiassistent.config;
 
-import com.github.fmaiassistent.mcp.FmGenieMcpTools;
+import com.github.fmaiassistent.mcp.FmAiAssistentTools;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-class FmGenieMcpConfiguration {
+class FmAiAssistentMcpConfiguration {
 
     @Bean
-    ToolCallbackProvider fmGenieToolCallbackProvider(FmGenieMcpTools tools) {
+    ToolCallbackProvider fmAiAssistentToolCallbackProvider(FmAiAssistentTools tools) {
         return MethodToolCallbackProvider.builder()
                 .toolObjects(tools)
                 .build();

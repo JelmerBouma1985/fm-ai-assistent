@@ -10,14 +10,14 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.example</groupId>
-    <artifactId>fm-genie26-rebuild</artifactId>
+    <groupId>com.github.fmaiassistent</groupId>
+    <artifactId>fm-ai-assistent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
-    <name>FM Genie 26 Rebuild</name>
+    <name>FM AI assistent</name>
     <description>Linux RAM reader and exporter for Football Manager 26 player data</description>
 
     <properties>
-        <java.version>21</java.version>
+        <java.version>25</java.version>
         <vaadin.version>25.1.6</vaadin.version>
         <vaadin.productionMode>true</vaadin.productionMode>
         <spring-ai.version>2.0.0-M2</spring-ai.version>

@@ -45,7 +45,7 @@ import java.util.concurrent.CompletionException;
 import java.util.function.Function;
 
 @Route("")
-@PageTitle("FM Genie 26")
+@PageTitle("FM AI Assistent")
 @CssImport(value = "./styles/player-grid.css", themeFor = "vaadin-grid")
 public class MainView extends VerticalLayout {
     private static final Set<String> NUMERIC_SORT_COLUMNS = Set.of(

@@ -24,7 +24,7 @@ import java.util.Optional;
 import java.util.function.Predicate;
 
 @Service
-public class FmGenieMcpTools {
+public class FmAiAssistentTools {
     private static final int DEFAULT_LIMIT = 50;
     private static final int MAX_LIMIT = 250;
     private static final int DEFAULT_REPUTATION_MARGIN = 750;
@@ -33,7 +33,7 @@ public class FmGenieMcpTools {
     private final ClubDatabaseService clubs;
     private final PlayerMapper playerMapper;
 
-    public FmGenieMcpTools(PlayerDatabaseService players, ClubDatabaseService clubs, PlayerMapper playerMapper) {
+    public FmAiAssistentTools(PlayerDatabaseService players, ClubDatabaseService clubs, PlayerMapper playerMapper) {
         this.players = players;
         this.clubs = clubs;
         this.playerMapper = playerMapper;

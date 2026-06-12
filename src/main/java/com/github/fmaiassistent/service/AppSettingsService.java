@@ -1,6 +1,6 @@
 package com.github.fmaiassistent.service;
 
-import com.github.fmaiassistent.FmGenie26Application;
+import com.github.fmaiassistent.FmAiAssistentApplication;
 import com.github.fmaiassistent.domain.enums.MoneyCurrency;
 import org.springframework.stereotype.Service;
 
@@ -16,8 +16,8 @@ import java.util.Properties;
 
 @Service
 public class AppSettingsService {
-    private static final String SETTINGS_FILE = "fm-genie26.properties";
-    private static final String SETTINGS_FILE_PROPERTY = "fmgenie26.settings.file";
+    private static final String SETTINGS_FILE = "fm-ai-assistent.properties";
+    private static final String SETTINGS_FILE_PROPERTY = "fmaiassistent.settings.file";
     private static final String CURRENCY_KEY = "currency";
 
     private final Path settingsPath;
@@ -61,7 +61,7 @@ public class AppSettingsService {
                 Files.createDirectories(parent);
             }
             try (OutputStream output = Files.newOutputStream(settingsPath)) {
-                properties.store(output, "FM Genie 26 settings");
+                properties.store(output, "FM AI Assistent settings");
             }
         } catch (IOException ex) {
             throw new IllegalStateException("Could not save settings to " + settingsPath, ex);
@@ -96,7 +96,7 @@ public class AppSettingsService {
             return jar.get().getParent();
         }
         try {
-            CodeSource codeSource = FmGenie26Application.class.getProtectionDomain().getCodeSource();
+            CodeSource codeSource = FmAiAssistentApplication.class.getProtectionDomain().getCodeSource();
             if (codeSource != null && codeSource.getLocation() != null) {
                 Path location = Path.of(codeSource.getLocation().toURI()).toAbsolutePath();
                 return Files.isRegularFile(location) ? location.getParent() : location;
