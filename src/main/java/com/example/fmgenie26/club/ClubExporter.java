@@ -117,41 +117,59 @@ public class ClubExporter {
         if (!CLUB_FINANCE_MARKERS.contains(reader.readU16(extra))) {
             return new Finance(0L, 0L, 0L);
         }
-        long balanceRaw = (long) (int) reader.readU32(extra + CLUB_BALANCE_REL);
+        long balanceRaw = reader.readI32(extra + CLUB_BALANCE_REL);
         long balance = roundToNearest(balanceRaw, balanceRoundingStep(balanceRaw));
-        long transferBudgetRaw = reader.readU32(extra + CLUB_TRANSFER_BUDGET_REL);
+        long transferBudgetRaw = reader.readI32(extra + CLUB_TRANSFER_BUDGET_REL);
         long transferBudget = roundToNearest(transferBudgetRaw, transferRoundingStep(transferBudgetRaw));
-        long payrollRaw = reader.readU32(extra + CLUB_PAYROLL_BUDGET_REL);
+        long payrollRaw = reader.readI32(extra + CLUB_PAYROLL_BUDGET_REL);
         long payrollBudget = roundToNearest(payrollRaw, payrollRoundingStep(payrollRaw));
         return new Finance(balance, transferBudget, payrollBudget);
     }
 
     private static long balanceRoundingStep(long value) {
-        return Math.abs(value) >= 10_000_000L ? 1_000_000L : 100_000L;
+        long abs = Math.abs(value);
+        if (abs >= 10_000_000L) {
+            return 1_000_000L;
+        }
+        if (abs >= 1_000_000L) {
+            return 100_000L;
+        }
+        return 25_000L;
     }
 
     private static long transferRoundingStep(long value) {
-        if (value >= 50_000_000L) {
+        long abs = Math.abs(value);
+        if (abs >= 50_000_000L) {
             return 1_000_000L;
         }
-        if (value >= 1_000_000L) {
+        if (abs >= 1_000_000L) {
             return 250_000L;
         }
-        return 50_000L;
+        if (abs >= 100_000L) {
+            return 25_000L;
+        }
+        return 250L;
     }
 
     private static long payrollRoundingStep(long value) {
-        if (value >= 5_000_000L) {
+        long abs = Math.abs(value);
+        if (abs >= 5_000_000L) {
             return 250_000L;
         }
-        if (value >= 1_000_000L) {
+        if (abs >= 1_000_000L) {
             return 100_000L;
         }
-        return 5_000L;
+        if (abs >= 100_000L) {
+            return 5_000L;
+        }
+        if (abs >= 50_000L) {
+            return 1_000L;
+        }
+        return 250L;
     }
 
     private static long roundToNearest(long value, long step) {
-        if (value <= 0 || step <= 0) {
+        if (value == 0 || step <= 0) {
             return value;
         }
         return Math.round(value / (double) step) * step;

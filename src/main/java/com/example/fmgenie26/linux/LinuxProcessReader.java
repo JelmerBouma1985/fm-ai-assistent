@@ -109,6 +109,10 @@ public class LinuxProcessReader implements AutoCloseable {
         return le(readBytes(address, 4)).getInt() & 0xffffffffL;
     }
 
+    public int readI32(long address) throws IOException {
+        return le(readBytes(address, 4)).getInt();
+    }
+
     public long readU64(long address) throws IOException {
         return le(readBytes(address, 8)).getLong();
     }
