@@ -5,18 +5,14 @@ import com.github.fmaiassistent.repository.CompetitionRepository;
 import com.github.fmaiassistent.domain.entity.LoadMetadataEntity;
 import com.github.fmaiassistent.repository.LoadMetadataRepository;
 import com.github.fmaiassistent.exporter.CompetitionExporter;
-import jakarta.persistence.criteria.Predicate;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
+import com.github.fmaiassistent.repository.CompetitionFilterCriteria;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 @Service
@@ -45,6 +41,16 @@ public class CompetitionDatabaseService {
     }
 
     @Transactional(readOnly = true)
+    public List<String> findNames() {
+        return competitions.findDistinctNameByOrderByNameAsc();
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> findGenders() {
+        return competitions.findDistinctGenders();
+    }
+
+    @Transactional(readOnly = true)
     public long countCompetitions() {
         return competitions.count();
     }
@@ -52,37 +58,57 @@ public class CompetitionDatabaseService {
     @Transactional(readOnly = true)
     public List<Map<String, Object>> findCompetitions(String name, String nation, String gender, int limit) {
         int safeLimit = Math.max(1, Math.min(limit, 500));
-        return competitions.findAll(
-                        competitionFilters(name, nation, gender),
-                        PageRequest.of(0, safeLimit, Sort.by(Sort.Direction.ASC, "name")))
+        return findCompetitionEntities(new CompetitionFilterCriteria(name, nation, null, null, gender))
                 .stream()
+                .limit(safeLimit)
                 .map(CompetitionEntity::toApiMap)
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> findAllCompetitions() {
-        return competitions.findAll(Sort.by(Sort.Direction.ASC, "name"))
+        return findAllCompetitionEntities()
                 .stream()
                 .map(CompetitionEntity::toApiMap)
                 .toList();
     }
 
-    private static Specification<CompetitionEntity> competitionFilters(String name, String nation, String gender) {
-        return (root, query, cb) -> {
-            List<Predicate> predicates = new ArrayList<>();
-            List.of((name == null ? "" : name).toLowerCase(Locale.ROOT).trim().split("\\s+")).stream()
-                    .filter(term -> !term.isBlank())
-                    .map(term -> cb.like(cb.lower(root.get("name")), "%" + term + "%"))
-                    .forEach(predicates::add);
-            if (nation != null && !nation.isBlank()) {
-                predicates.add(cb.equal(cb.lower(root.get("nation")), nation.toLowerCase(Locale.ROOT)));
-            }
-            if (gender != null && !gender.isBlank()) {
-                predicates.add(cb.equal(cb.lower(root.get("gender")), gender.toLowerCase(Locale.ROOT)));
-            }
-            return cb.and(predicates.toArray(Predicate[]::new));
-        };
+    @Transactional(readOnly = true)
+    public List<CompetitionEntity> findAllCompetitionEntities() {
+        return competitions.findAll(Sort.by(Sort.Direction.ASC, "name"));
+    }
+
+    @Transactional(readOnly = true)
+    public List<CompetitionEntity> findCompetitionEntities(CompetitionFilterCriteria filter) {
+        CompetitionFilterCriteria safeFilter = filter == null ? CompetitionFilterCriteria.empty() : filter;
+        if (safeFilter.isEmpty()) {
+            return findAllCompetitionEntities();
+        }
+        return findAllCompetitionEntities().stream()
+                .filter(competition -> matchesCompetitionFilter(competition, safeFilter))
+                .toList();
+    }
+
+    private static boolean matchesCompetitionFilter(CompetitionEntity competition, CompetitionFilterCriteria filter) {
+        return equalsIgnoreCase(competition.getName(), filter.name())
+                && equalsIgnoreCase(competition.getNation(), filter.nation())
+                && inRange(competition.getReputation(), filter.reputationMin(), filter.reputationMax())
+                && equalsIgnoreCase(competition.getGender(), filter.gender());
+    }
+
+    private static boolean equalsIgnoreCase(Object value, String term) {
+        return term == null || term.isBlank()
+                || String.valueOf(value == null ? "" : value).equalsIgnoreCase(term.trim());
+    }
+
+    private static boolean inRange(Integer value, Integer min, Integer max) {
+        if (min == null && max == null) {
+            return true;
+        }
+        if (value == null) {
+            return false;
+        }
+        return (min == null || value >= min) && (max == null || value <= max);
     }
 
     public record LoadResult(int count) {

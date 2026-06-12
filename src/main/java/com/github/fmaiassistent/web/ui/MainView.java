@@ -1,8 +1,8 @@
 package com.github.fmaiassistent.web.ui;
 
 import com.github.fmaiassistent.domain.entity.ClubEntity;
+import com.github.fmaiassistent.domain.entity.CompetitionEntity;
 import com.github.fmaiassistent.domain.entity.PlayerEntity;
-import com.github.fmaiassistent.exporter.CompetitionExporter;
 import com.github.fmaiassistent.service.*;
 import com.github.fmaiassistent.domain.enums.MoneyCurrency;
 import com.github.fmaiassistent.repository.*;
@@ -51,7 +51,7 @@ public class MainView extends VerticalLayout {
     private static final Set<String> NUMERIC_SORT_COLUMNS = Set.of(
             "ID", "CLUB_ID", "PLAYING_CLUB_ID", "CURRENT_REPUTATION", "HOME_REPUTATION", "WORLD_REPUTATION",
             "CA", "PA", "ASKING_PRICE", "ASKING_PRICE_RAW", "SALARY_PA", "SALARY_WEEKLY_RAW", "AGE", "HEIGHT_CM",
-            "TRANSFER_BUDGET", "PAYROLL_BUDGET",
+            "REPUTATION", "TRANSFER_BUDGET", "PAYROLL_BUDGET",
             "GOALKEEPER", "DEFENDER_LEFT", "DEFENDER_CENTRAL", "DEFENDER_RIGHT", "WING_BACK_LEFT",
             "DEFENSIVE_MIDFIELDER", "WING_BACK_RIGHT", "MIDFIELDER_LEFT", "MIDFIELDER_CENTRAL",
             "MIDFIELDER_RIGHT", "ATTACKING_MIDFIELDER_LEFT", "ATTACKING_MIDFIELDER_CENTRAL",
@@ -85,13 +85,14 @@ public class MainView extends VerticalLayout {
     private final Div content = new Div();
     private final Grid<PlayerEntity> playersGrid = new Grid<>();
     private final Grid<ClubEntity> clubsGrid = new Grid<>();
-    private final Grid<Map<String, Object>> competitionsGrid = new Grid<>();
+    private final Grid<CompetitionEntity> competitionsGrid = new Grid<>();
 
     private final Tab playersTab = new Tab("Players");
     private final Tab clubsTab = new Tab("Clubs");
     private final Tab competitionsTab = new Tab("Competitions");
     private PlayerFilterCriteria playerFilter = PlayerFilterCriteria.empty();
     private ClubFilterCriteria clubFilter = ClubFilterCriteria.empty();
+    private CompetitionFilterCriteria competitionFilter = CompetitionFilterCriteria.empty();
     private MoneyCurrency currency;
 
     public MainView(
@@ -142,7 +143,9 @@ public class MainView extends VerticalLayout {
         tabs.add(playersTab, clubsTab, competitionsTab);
         tabs.setWidthFull();
         tabs.addSelectedChangeListener(event -> {
-            filterButton.setVisible(event.getSelectedTab() == playersTab || event.getSelectedTab() == clubsTab);
+            filterButton.setVisible(event.getSelectedTab() == playersTab
+                    || event.getSelectedTab() == clubsTab
+                    || event.getSelectedTab() == competitionsTab);
             if (event.getSelectedTab() == playersTab) {
                 showPlayers();
             } else if (event.getSelectedTab() == clubsTab) {
@@ -260,34 +263,16 @@ public class MainView extends VerticalLayout {
     }
 
     private void showCompetitions() {
-        List<String> columns = new ArrayList<>(List.of("ID"));
-        CompetitionExporter.FIELD_NAMES.stream()
-                .map(MainView::toColumnName)
-                .map(String::toUpperCase)
-                .forEach(columns::add);
-        setGrid(competitionsGrid, columns, competitions.findAllCompetitions());
-    }
-
-    private void setGrid(Grid<Map<String, Object>> grid, List<String> columns, List<Map<String, Object>> rows) {
-        setGridColumns(grid, columns.stream().map(column -> new GridColumn(column, column)).toList(), rows);
-    }
-
-    private void setGridColumns(Grid<Map<String, Object>> grid, List<GridColumn> columns, List<Map<String, Object>> rows) {
-        grid.removeAllColumns();
-        for (GridColumn column : columns) {
-            grid.addColumn(row -> displayColumn(column.key(), row.get(column.key())))
-                    .setKey(column.key())
-                    .setHeader(column.header())
-                    .setAutoWidth(true)
-                    .setResizable(true)
-                    .setComparator((left, right) -> compareColumn(left, right, column.key()))
-                    .setSortable(true);
+        List<GridColumn> columns = List.of(
+                new GridColumn("NAME", "Name"),
+                new GridColumn("NATION", "Nation"),
+                new GridColumn("REPUTATION", "Reputation"),
+                new GridColumn("GENDER", "Gender"));
+        List<CompetitionEntity> rows = competitions.findCompetitionEntities(competitionFilter);
+        setCompetitionGrid(columns, rows);
+        if (!competitionFilter.isEmpty()) {
+            status.setText("Filtered competitions " + rows.size() + " | Total competitions " + competitions.countCompetitions());
         }
-        grid.setItems(rows);
-        content.removeAll();
-        content.setSizeFull();
-        content.add(grid);
-        content.getStyle().set("height", "calc(100vh - 120px)");
     }
 
     private void setClubGrid(List<GridColumn> columns, List<ClubEntity> rows) {
@@ -305,6 +290,24 @@ public class MainView extends VerticalLayout {
         content.removeAll();
         content.setSizeFull();
         content.add(clubsGrid);
+        content.getStyle().set("height", "calc(100vh - 120px)");
+    }
+
+    private void setCompetitionGrid(List<GridColumn> columns, List<CompetitionEntity> rows) {
+        competitionsGrid.removeAllColumns();
+        for (GridColumn column : columns) {
+            competitionsGrid.addColumn(competition -> displayColumn(column.key(), competitionColumnValue(competition, column.key())))
+                    .setKey(column.key())
+                    .setHeader(column.header())
+                    .setAutoWidth(true)
+                    .setResizable(true)
+                    .setComparator((left, right) -> compareCompetitionColumn(left, right, column.key()))
+                    .setSortable(true);
+        }
+        competitionsGrid.setItems(rows);
+        content.removeAll();
+        content.setSizeFull();
+        content.add(competitionsGrid);
         content.getStyle().set("height", "calc(100vh - 120px)");
     }
 
@@ -445,6 +448,8 @@ public class MainView extends VerticalLayout {
     private void openFilterDialog() {
         if (tabs.getSelectedTab() == clubsTab) {
             openClubFilterDialog();
+        } else if (tabs.getSelectedTab() == competitionsTab) {
+            openCompetitionFilterDialog();
         } else {
             openPlayerFilterDialog();
         }
@@ -697,6 +702,60 @@ public class MainView extends VerticalLayout {
         Button clear = new Button("Clear", event -> {
             clubFilter = ClubFilterCriteria.empty();
             showClubs();
+            updateStatus(null);
+            dialog.close();
+        });
+        Button cancel = new Button("Cancel", event -> dialog.close());
+
+        dialog.add(dialogContent);
+        dialog.getFooter().add(clear, cancel, apply);
+        dialog.open();
+    }
+
+    private void openCompetitionFilterDialog() {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle("Competition filter");
+        dialog.setWidth("1280px");
+        dialog.setMaxWidth("calc(100vw - 32px)");
+
+        ComboBox<String> name = comboBox("Name", competitions.findNames(), competitionFilter.name());
+        ComboBox<String> nation = comboBox("Nation", competitions.findNations(), competitionFilter.nation());
+        ComboBox<String> gender = comboBox("Gender", competitions.findGenders(), competitionFilter.gender());
+        IntegerField reputationMin = intField("Reputation min", competitionFilter.reputationMin(), 1, 10000);
+        IntegerField reputationMax = intField("Reputation max", competitionFilter.reputationMax(), 1, 10000);
+
+        FormLayout filters = new FormLayout(
+                name, nation,
+                reputationMin, reputationMax,
+                gender);
+        filters.setResponsiveSteps(
+                new FormLayout.ResponsiveStep("0", 1),
+                new FormLayout.ResponsiveStep("720px", 2));
+
+        Div dialogContent = new Div(filters);
+        dialogContent.setWidthFull();
+        dialogContent.getStyle().set("max-height", "70vh").set("overflow", "auto");
+
+        Button apply = new Button("Apply", event -> {
+            if (!validIntegerField(reputationMin, 1, 10000)
+                    || !validIntegerField(reputationMax, 1, 10000)
+                    || !validRange("Reputation", reputationMin.getValue(), reputationMax.getValue())) {
+                return;
+            }
+            competitionFilter = new CompetitionFilterCriteria(
+                    name.getValue(),
+                    nation.getValue(),
+                    reputationMin.getValue(),
+                    reputationMax.getValue(),
+                    gender.getValue());
+            showCompetitions();
+            dialog.close();
+        });
+        apply.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+
+        Button clear = new Button("Clear", event -> {
+            competitionFilter = CompetitionFilterCriteria.empty();
+            showCompetitions();
             updateStatus(null);
             dialog.close();
         });
@@ -1125,13 +1184,6 @@ public class MainView extends VerticalLayout {
         return goalkeeper != null && goalkeeper >= 15;
     }
 
-    private static int compareColumn(Map<String, Object> left, Map<String, Object> right, String column) {
-        if (NUMERIC_SORT_COLUMNS.contains(column)) {
-            return compareLongs(sortableLong(left.get(column)), sortableLong(right.get(column)));
-        }
-        return display(left.get(column)).compareToIgnoreCase(display(right.get(column)));
-    }
-
     private static int comparePlayerColumn(PlayerEntity left, PlayerEntity right, PlayerColumn column) {
         if (NUMERIC_SORT_COLUMNS.contains(column.key())) {
             if ("SALARY_WEEKLY_RAW".equals(column.key())) {
@@ -1214,6 +1266,13 @@ public class MainView extends VerticalLayout {
             return compareLongs(sortableLong(clubColumnValue(left, column)), sortableLong(clubColumnValue(right, column)));
         }
         return display(clubColumnValue(left, column)).compareToIgnoreCase(display(clubColumnValue(right, column)));
+    }
+
+    private static int compareCompetitionColumn(CompetitionEntity left, CompetitionEntity right, String column) {
+        if (NUMERIC_SORT_COLUMNS.contains(column)) {
+            return compareLongs(sortableLong(competitionColumnValue(left, column)), sortableLong(competitionColumnValue(right, column)));
+        }
+        return display(competitionColumnValue(left, column)).compareToIgnoreCase(display(competitionColumnValue(right, column)));
     }
 
     private static int compareLongs(Long left, Long right) {
@@ -1401,6 +1460,16 @@ public class MainView extends VerticalLayout {
             case "BALANCE" -> club.getBalance();
             case "TRANSFER_BUDGET" -> club.getTransferBudget();
             case "PAYROLL_BUDGET" -> club.getPayrollBudget();
+            default -> null;
+        };
+    }
+
+    private static Object competitionColumnValue(CompetitionEntity competition, String column) {
+        return switch (column) {
+            case "NAME" -> competition.getName();
+            case "NATION" -> competition.getNation();
+            case "REPUTATION" -> competition.getReputation();
+            case "GENDER" -> competition.getGender();
             default -> null;
         };
     }

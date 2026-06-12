@@ -28,4 +28,13 @@ public interface CompetitionRepository extends JpaRepository<CompetitionEntity, 
                 order by c.nation
             """)
     List<String> findDistinctNations();
+
+    @Cacheable(cacheNames = JCacheConfiguration.COMPETITIONS_CACHE)
+    @Query("""
+                select distinct c.gender
+                from CompetitionEntity c
+                where c.gender is not null
+                order by c.gender
+            """)
+    List<String> findDistinctGenders();
 }

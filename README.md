@@ -72,6 +72,13 @@ Add:
 
 Restart Claude Desktop after changing the config.
 
+## Use of the
+- Start Football Manager 26 and load your game.
+- Start the fm-ai-assistent
+- navigate to localhost:8080
+- Load from RAM
+- use AI to analyze
+
 ## AI Examples
 
 ### prompt

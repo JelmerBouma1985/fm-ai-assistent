@@ -77,15 +77,6 @@ public class ClubDatabaseService {
     }
 
     @Transactional(readOnly = true)
-    public List<ClubEntity> findClubs(String name, String gender, String nation, String competition, int limit) {
-        int safeLimit = Math.max(1, Math.min(limit, 500));
-        return clubs.findAll(
-                        clubFilters(name, gender, nation, competition),
-                        PageRequest.of(0, safeLimit, Sort.by(Sort.Direction.ASC, "name")))
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
     public List<ClubEntity> findAllClubs() {
         return clubs.findAll();
     }
@@ -99,26 +90,6 @@ public class ClubDatabaseService {
         return clubs.findAll().stream()
                 .filter(club -> matchesClubFilter(club, safeFilter))
                 .toList();
-    }
-
-    private static Specification<ClubEntity> clubFilters(String name, String gender, String nation, String competition) {
-        return (root, query, cb) -> {
-            List<Predicate> predicates = new ArrayList<>();
-            List.of((name == null ? "" : name).toLowerCase(Locale.ROOT).trim().split("\\s+")).stream()
-                    .filter(term -> !term.isBlank())
-                    .map(term -> cb.like(cb.lower(root.get("name")), "%" + term + "%"))
-                    .forEach(predicates::add);
-            if (gender != null && !gender.isBlank()) {
-                predicates.add(cb.equal(cb.lower(root.get("gender")), gender.toLowerCase(Locale.ROOT)));
-            }
-            if (nation != null && !nation.isBlank()) {
-                predicates.add(cb.equal(cb.lower(root.get("nation")), nation.toLowerCase(Locale.ROOT)));
-            }
-            if (competition != null && !competition.isBlank()) {
-                predicates.add(cb.equal(cb.lower(root.get("competition")), competition.toLowerCase(Locale.ROOT)));
-            }
-            return cb.and(predicates.toArray(Predicate[]::new));
-        };
     }
 
     private static boolean matchesClubFilter(ClubEntity club, ClubFilterCriteria filter) {
