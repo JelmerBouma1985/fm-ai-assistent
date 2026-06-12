@@ -15,6 +15,7 @@ public class JCacheConfiguration {
     public static final String NATIONS_CACHE = "nations";
     public static final String COMPETITIONS_CACHE = "competitions";
     public static final String CLUB_NAMES_CACHE = "club_names";
+    public static final String CLUB_CACHE = "clubs";
     public static final String PLAYER_MAPPING_CACHE = "player_mapping_cache";
 
     @Bean
@@ -25,6 +26,7 @@ public class JCacheConfiguration {
                 NATIONS_CACHE,
                 COMPETITIONS_CACHE,
                 CLUB_NAMES_CACHE,
+                CLUB_CACHE,
                 PLAYER_MAPPING_CACHE
         );
 

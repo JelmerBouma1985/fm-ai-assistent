@@ -73,21 +73,27 @@ public class ClubDatabaseService {
     }
 
     @Transactional(readOnly = true)
-    public List<Map<String, Object>> findClubs(String name, String gender, String nation, String competition, int limit) {
+    public List<ClubEntity> findClubs(String name, String gender, String nation, String competition, int limit) {
         int safeLimit = Math.max(1, Math.min(limit, 500));
         return clubs.findAll(
                         clubFilters(name, gender, nation, competition),
                         PageRequest.of(0, safeLimit, Sort.by(Sort.Direction.ASC, "name")))
-                .stream()
-                .map(ClubEntity::toApiMap)
                 .toList();
     }
 
     @Transactional(readOnly = true)
-    public List<Map<String, Object>> findAllClubs() {
-        return clubs.findAll(Sort.by(Sort.Direction.ASC, "name"))
-                .stream()
-                .map(ClubEntity::toApiMap)
+    public List<ClubEntity> findAllClubs() {
+        return clubs.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ClubEntity> findClubEntities(ClubFilterCriteria filter) {
+        ClubFilterCriteria safeFilter = filter == null ? ClubFilterCriteria.empty() : filter;
+        if (safeFilter.isEmpty()) {
+            return findAllClubs();
+        }
+        return clubs.findAll().stream()
+                .filter(club -> matchesClubFilter(club, safeFilter))
                 .toList();
     }
 
@@ -109,6 +115,41 @@ public class ClubDatabaseService {
             }
             return cb.and(predicates.toArray(Predicate[]::new));
         };
+    }
+
+    private static boolean matchesClubFilter(ClubEntity club, ClubFilterCriteria filter) {
+        return equalsIgnoreCase(club.getName(), filter.name())
+                && equalsIgnoreCase(club.getCompetition(), filter.competition())
+                && equalsIgnoreCase(club.getNation(), filter.nation())
+                && inRange(club.getReputation(), filter.reputationMin(), filter.reputationMax())
+                && inRange(club.getBalance(), filter.balanceMin(), filter.balanceMax())
+                && inRange(club.getTransferBudget(), filter.transferBudgetMin(), filter.transferBudgetMax())
+                && inRange(club.getPayrollBudget(), filter.payrollBudgetMin(), filter.payrollBudgetMax());
+    }
+
+    private static boolean equalsIgnoreCase(Object value, String term) {
+        return term == null || term.isBlank()
+                || String.valueOf(value == null ? "" : value).equalsIgnoreCase(term.trim());
+    }
+
+    private static boolean inRange(Integer value, Integer min, Integer max) {
+        if (min == null && max == null) {
+            return true;
+        }
+        if (value == null) {
+            return false;
+        }
+        return (min == null || value >= min) && (max == null || value <= max);
+    }
+
+    private static boolean inRange(Long value, Long min, Long max) {
+        if (min == null && max == null) {
+            return true;
+        }
+        if (value == null) {
+            return false;
+        }
+        return (min == null || value >= min) && (max == null || value <= max);
     }
 
     public record LoadResult(int count) {

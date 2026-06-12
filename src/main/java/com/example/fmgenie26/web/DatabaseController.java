@@ -101,7 +101,9 @@ public class DatabaseController {
             @RequestParam(defaultValue = "") String nation,
             @RequestParam(defaultValue = "") String competition,
             @RequestParam(defaultValue = "50") int limit) {
-        return clubs.findClubs(name, gender, nation, competition, limit);
+        return clubs.findClubs(name, gender, nation, competition, limit).stream()
+                .map(com.example.fmgenie26.db.ClubEntity::toApiMap)
+                .toList();
     }
 
     @GetMapping("/api/db/clubs/count")

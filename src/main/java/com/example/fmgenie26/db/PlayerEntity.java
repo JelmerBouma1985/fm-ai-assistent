@@ -267,19 +267,6 @@ public class PlayerEntity {
         };
     }
 
-    public Map<String, Object> toApiMap() {
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("ID", id);
-        out.put("CLUB_ID", clubEntity == null ? null : clubEntity.getId());
-        out.put("PLAYING_CLUB_ID", playingClubEntity == null ? null : playingClubEntity.getId());
-        out.put("PLAYING_NATION", playingClubEntity == null ? null : playingClubEntity.getNation());
-        out.put("PLAYING_COMPETITION", playingClubEntity == null ? null : playingClubEntity.getCompetition());
-        for (String exportField : PlayerExporter.FIELD_NAMES) {
-            out.put(PlayerColumnNames.toColumnName(exportField).toUpperCase(), getExportField(exportField));
-        }
-        return out;
-    }
-
     public void setClubEntity(ClubEntity clubEntity) {
         this.clubEntity = clubEntity;
     }

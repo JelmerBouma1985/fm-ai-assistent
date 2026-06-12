@@ -18,4 +18,8 @@ public interface ClubRepository extends JpaRepository<ClubEntity, Long>, JpaSpec
                 order by c.name
             """)
     List<String> findDistinctNameByOrderByNameAsc();
+
+    @Cacheable(cacheNames = JCacheConfiguration.CLUB_CACHE)
+    @Override
+    List<ClubEntity> findAll();
 }

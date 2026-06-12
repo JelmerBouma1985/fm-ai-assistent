@@ -1,6 +1,5 @@
 package com.example.fmgenie26.ui;
 
-import com.example.fmgenie26.club.ClubExporter;
 import com.example.fmgenie26.competition.CompetitionExporter;
 import com.example.fmgenie26.config.AppSettingsService;
 import com.example.fmgenie26.config.MoneyCurrency;
@@ -83,7 +82,7 @@ public class MainView extends VerticalLayout {
     private final Tabs tabs = new Tabs();
     private final Div content = new Div();
     private final Grid<PlayerEntity> playersGrid = new Grid<>();
-    private final Grid<Map<String, Object>> clubsGrid = new Grid<>();
+    private final Grid<ClubEntity> clubsGrid = new Grid<>();
     private final Grid<Map<String, Object>> competitionsGrid = new Grid<>();
 
     private final Tab playersTab = new Tab("Players");
@@ -251,8 +250,8 @@ public class MainView extends VerticalLayout {
                 new GridColumn("BALANCE", "Balance"),
                 new GridColumn("TRANSFER_BUDGET", "Transfer Budget"),
                 new GridColumn("PAYROLL_BUDGET", "Payroll Budget"));
-        List<Map<String, Object>> rows = filterClubRows(clubs.findAllClubs());
-        setGridColumns(clubsGrid, columns, rows);
+        List<ClubEntity> rows = clubs.findClubEntities(clubFilter);
+        setClubGrid(columns, rows);
         if (!clubFilter.isEmpty()) {
             status.setText("Filtered clubs " + rows.size() + " | Total clubs " + clubs.countClubs());
         }
@@ -286,6 +285,24 @@ public class MainView extends VerticalLayout {
         content.removeAll();
         content.setSizeFull();
         content.add(grid);
+        content.getStyle().set("height", "calc(100vh - 120px)");
+    }
+
+    private void setClubGrid(List<GridColumn> columns, List<ClubEntity> rows) {
+        clubsGrid.removeAllColumns();
+        for (GridColumn column : columns) {
+            clubsGrid.addColumn(club -> displayColumn(column.key(), clubColumnValue(club, column.key())))
+                    .setKey(column.key())
+                    .setHeader(column.header())
+                    .setAutoWidth(true)
+                    .setResizable(true)
+                    .setComparator((left, right) -> compareClubColumn(left, right, column.key()))
+                    .setSortable(true);
+        }
+        clubsGrid.setItems(rows);
+        content.removeAll();
+        content.setSizeFull();
+        content.add(clubsGrid);
         content.getStyle().set("height", "calc(100vh - 120px)");
     }
 
@@ -624,7 +641,7 @@ public class MainView extends VerticalLayout {
         dialog.setWidth("1280px");
         dialog.setMaxWidth("calc(100vw - 32px)");
 
-        List<Map<String, Object>> clubRows = clubs.findAllClubs();
+        List<ClubEntity> clubRows = clubs.findAllClubs();
         ComboBox<String> name = comboBox("Name", distinctColumnValues(clubRows, "NAME"), clubFilter.name());
         ComboBox<String> competition = comboBox("Competition", distinctColumnValues(clubRows, "COMPETITION"), clubFilter.competition());
         ComboBox<String> nation = comboBox("Nation", distinctColumnValues(clubRows, "NATION"), clubFilter.nation());
@@ -1096,6 +1113,13 @@ public class MainView extends VerticalLayout {
         return display(column.value(left)).compareToIgnoreCase(display(column.value(right)));
     }
 
+    private static int compareClubColumn(ClubEntity left, ClubEntity right, String column) {
+        if (NUMERIC_SORT_COLUMNS.contains(column)) {
+            return compareLongs(sortableLong(clubColumnValue(left, column)), sortableLong(clubColumnValue(right, column)));
+        }
+        return display(clubColumnValue(left, column)).compareToIgnoreCase(display(clubColumnValue(right, column)));
+    }
+
     private static int compareLongs(Long left, Long right) {
         if (left == null && right == null) {
             return 0;
@@ -1263,59 +1287,26 @@ public class MainView extends VerticalLayout {
         return true;
     }
 
-    private List<Map<String, Object>> filterClubRows(List<Map<String, Object>> rows) {
-        if (clubFilter.isEmpty()) {
-            return rows;
-        }
+    private static List<String> distinctColumnValues(List<ClubEntity> rows, String column) {
         return rows.stream()
-                .filter(row -> equalsText(row.get("NAME"), clubFilter.name()))
-                .filter(row -> equalsText(row.get("COMPETITION"), clubFilter.competition()))
-                .filter(row -> equalsText(row.get("NATION"), clubFilter.nation()))
-                .filter(row -> inRange(sortableLong(row.get("REPUTATION")), clubFilter.reputationMin(), clubFilter.reputationMax()))
-                .filter(row -> inRange(sortableLong(row.get("BALANCE")), clubFilter.balanceMin(), clubFilter.balanceMax()))
-                .filter(row -> inRange(sortableLong(row.get("TRANSFER_BUDGET")), clubFilter.transferBudgetMin(), clubFilter.transferBudgetMax()))
-                .filter(row -> inRange(sortableLong(row.get("PAYROLL_BUDGET")), clubFilter.payrollBudgetMin(), clubFilter.payrollBudgetMax()))
-                .toList();
-    }
-
-    private static boolean inRange(Long value, Integer min, Integer max) {
-        if (min == null && max == null) {
-            return true;
-        }
-        if (value == null) {
-            return false;
-        }
-        return (min == null || value >= min) && (max == null || value <= max);
-    }
-
-    private static boolean inRange(Long value, Long min, Long max) {
-        if (min == null && max == null) {
-            return true;
-        }
-        if (value == null) {
-            return false;
-        }
-        return (min == null || value >= min) && (max == null || value <= max);
-    }
-
-    private static boolean containsText(Object value, String term) {
-        return term == null || term.isBlank()
-                || String.valueOf(value == null ? "" : value).toLowerCase(Locale.ROOT)
-                .contains(term.toLowerCase(Locale.ROOT).trim());
-    }
-
-    private static boolean equalsText(Object value, String term) {
-        return term == null || term.isBlank()
-                || String.valueOf(value == null ? "" : value).equalsIgnoreCase(term.trim());
-    }
-
-    private static List<String> distinctColumnValues(List<Map<String, Object>> rows, String column) {
-        return rows.stream()
-                .map(row -> display(row.get(column)))
+                .map(row -> display(clubColumnValue(row, column)))
                 .filter(value -> !value.isBlank())
                 .distinct()
                 .sorted(String.CASE_INSENSITIVE_ORDER)
                 .toList();
+    }
+
+    private static Object clubColumnValue(ClubEntity club, String column) {
+        return switch (column) {
+            case "NAME" -> club.getName();
+            case "COMPETITION" -> club.getCompetition();
+            case "NATION" -> club.getNation();
+            case "REPUTATION" -> club.getReputation();
+            case "BALANCE" -> club.getBalance();
+            case "TRANSFER_BUDGET" -> club.getTransferBudget();
+            case "PAYROLL_BUDGET" -> club.getPayrollBudget();
+            default -> null;
+        };
     }
 
     private static Integer defaultInt(Integer value, int defaultValue) {
@@ -1380,37 +1371,6 @@ public class MainView extends VerticalLayout {
     }
 
     private record GridColumn(String key, String header) {
-    }
-
-    private record ClubFilterCriteria(
-            String name,
-            String competition,
-            String nation,
-            Integer reputationMin,
-            Integer reputationMax,
-            Long balanceMin,
-            Long balanceMax,
-            Long transferBudgetMin,
-            Long transferBudgetMax,
-            Long payrollBudgetMin,
-            Long payrollBudgetMax) {
-        private static ClubFilterCriteria empty() {
-            return new ClubFilterCriteria(null, null, null, null, null, null, null, null, null, null, null);
-        }
-
-        private boolean isEmpty() {
-            return (name == null || name.isBlank())
-                    && (competition == null || competition.isBlank())
-                    && (nation == null || nation.isBlank())
-                    && reputationMin == null
-                    && reputationMax == null
-                    && balanceMin == null
-                    && balanceMax == null
-                    && transferBudgetMin == null
-                    && transferBudgetMax == null
-                    && payrollBudgetMin == null
-                    && payrollBudgetMax == null;
-        }
     }
 
     private record DetailField(String label, Object value) {
