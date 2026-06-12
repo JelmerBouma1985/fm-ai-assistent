@@ -134,7 +134,10 @@ public class ClubExporter {
         if (abs >= 1_000_000L) {
             return 100_000L;
         }
-        return 25_000L;
+        if (abs >= 100_000L) {
+            return 25_000L;
+        }
+        return 1_000L;
     }
 
     private static long transferRoundingStep(long value) {
@@ -144,6 +147,9 @@ public class ClubExporter {
         }
         if (abs >= 1_000_000L) {
             return 250_000L;
+        }
+        if (abs >= 500_000L) {
+            return 1_000L;
         }
         if (abs >= 100_000L) {
             return 25_000L;

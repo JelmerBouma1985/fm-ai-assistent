@@ -237,6 +237,10 @@ public class PlayerEntity {
         for (String exportField : PlayerExporter.FIELD_NAMES) {
             entity.setExportField(exportField, row.get(exportField));
         }
+        if (entity.club == null || entity.club.isBlank()) {
+            entity.askingPrice = 0L;
+            entity.askingPriceRaw = 0L;
+        }
         return entity;
     }
 

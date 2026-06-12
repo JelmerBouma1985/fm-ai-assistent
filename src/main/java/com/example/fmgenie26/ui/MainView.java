@@ -373,7 +373,7 @@ public class MainView extends VerticalLayout {
                 new DetailField("Club", player.getClub()),
                 new DetailField("Playing Club", player.getPlayingClub()),
                 new DetailField("Position", PositionTextFormatter.format(player)),
-                new DetailField("Salary Weekly", moneyDisplay(player.getSalaryWeeklyRaw())),
+                new DetailField("Salary Weekly", salaryWeeklyDisplay(player.getSalaryWeeklyRaw())),
                 new DetailField("Asking Price", moneyDisplay(player.getAskingPrice())),
                 new DetailField("Contract End Date", player.getContractEndDate()),
                 new DetailField("Current Reputation", player.getCurrentReputation()),
@@ -724,7 +724,24 @@ public class MainView extends VerticalLayout {
     }
 
     private String displayColumn(String column, Object value) {
+        if ("SALARY_WEEKLY_RAW".equals(column)) {
+            return salaryWeeklyDisplay(value);
+        }
         return MONEY_COLUMNS.contains(column) ? moneyDisplay(value) : display(value);
+    }
+
+    private String salaryWeeklyDisplay(Object value) {
+        Long pounds = sortableLong(value);
+        if (pounds == null) {
+            return "";
+        }
+        MoneyCurrency selected = currency == null ? MoneyCurrency.POUND : currency;
+        long roundedPounds = roundDisplayedWeeklySalary(pounds);
+        long converted = convertPounds(roundedPounds, selected);
+        if (selected != MoneyCurrency.POUND) {
+            converted = roundDisplayedWeeklySalaryCurrency(converted);
+        }
+        return selected.symbol() + NumberFormat.getIntegerInstance(Locale.US).format(converted);
     }
 
     private String moneyDisplay(Object value) {
@@ -733,11 +750,18 @@ public class MainView extends VerticalLayout {
             return "";
         }
         MoneyCurrency selected = currency == null ? MoneyCurrency.POUND : currency;
-        long converted = BigDecimal.valueOf(pounds)
+        long converted = convertPounds(pounds, selected);
+        if (selected != MoneyCurrency.POUND) {
+            converted = roundDisplayedCurrencyAmount(converted);
+        }
+        return selected.symbol() + NumberFormat.getIntegerInstance(Locale.US).format(converted);
+    }
+
+    private static long convertPounds(long pounds, MoneyCurrency selected) {
+        return BigDecimal.valueOf(pounds)
                 .multiply(selected.rateFromPounds())
                 .setScale(0, RoundingMode.HALF_UP)
                 .longValue();
-        return selected.symbol() + NumberFormat.getIntegerInstance(Locale.US).format(converted);
     }
 
     private static String heightDisplay(PlayerEntity player) {
@@ -1108,9 +1132,79 @@ public class MainView extends VerticalLayout {
 
     private static int comparePlayerColumn(PlayerEntity left, PlayerEntity right, PlayerColumn column) {
         if (NUMERIC_SORT_COLUMNS.contains(column.key())) {
+            if ("SALARY_WEEKLY_RAW".equals(column.key())) {
+                return compareLongs(
+                        roundedDisplayedWeeklySalary(column.value(left)),
+                        roundedDisplayedWeeklySalary(column.value(right)));
+            }
             return compareLongs(sortableLong(column.value(left)), sortableLong(column.value(right)));
         }
         return display(column.value(left)).compareToIgnoreCase(display(column.value(right)));
+    }
+
+    private static Long roundedDisplayedWeeklySalary(Object value) {
+        Long pounds = sortableLong(value);
+        return pounds == null ? null : roundDisplayedWeeklySalary(pounds);
+    }
+
+    private static long roundDisplayedWeeklySalary(long pounds) {
+        if (pounds <= 0) {
+            return 0;
+        }
+        long step;
+        if (pounds < 500L) {
+            step = 10L;
+        } else if (pounds < 1_000L) {
+            step = 50L;
+        } else if (pounds < 10_000L) {
+            step = 100L;
+        } else if (pounds < 50_000L) {
+            step = 500L;
+        } else {
+            step = 1_000L;
+        }
+        return Math.round(pounds / (double) step) * step;
+    }
+
+    private static long roundDisplayedWeeklySalaryCurrency(long amount) {
+        long abs = Math.abs(amount);
+        long step;
+        if (abs < 500L) {
+            step = 50L;
+        } else if (abs < 1_000L) {
+            step = 25L;
+        } else if (abs < 10_000L) {
+            step = 100L;
+        } else if (abs < 50_000L) {
+            step = 1_000L;
+        } else {
+            step = 5_000L;
+        }
+        return roundToNearest(amount, step);
+    }
+
+    private static long roundDisplayedCurrencyAmount(long amount) {
+        long abs = Math.abs(amount);
+        long step;
+        if (abs < 25_000L) {
+            step = 250L;
+        } else if (abs < 100_000L) {
+            step = 1_000L;
+        } else if (abs < 1_000_000L) {
+            step = 25_000L;
+        } else if (abs < 10_000_000L) {
+            step = 1_000_000L;
+        } else {
+            step = 1_000_000L;
+        }
+        return roundToNearest(amount, step);
+    }
+
+    private static long roundToNearest(long value, long step) {
+        if (value == 0 || step <= 0) {
+            return value;
+        }
+        return Math.round(value / (double) step) * step;
     }
 
     private static int compareClubColumn(ClubEntity left, ClubEntity right, String column) {

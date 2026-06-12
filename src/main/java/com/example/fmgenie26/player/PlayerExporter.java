@@ -98,7 +98,7 @@ public class PlayerExporter {
 
         String loanClub = !club.isBlank() && !playingClub.equalsIgnoreCase(club) ? playingClub : "";
         LocalDate dob = dateOfBirth(reader, record);
-        long displayValue = reader.readU32(record + DISPLAY_VALUE_REL);
+        long displayValue = club.isBlank() ? 0L : reader.readU32(record + DISPLAY_VALUE_REL);
         Salary salary = salaryValues(reader, record);
 
         Map<String, Object> row = new LinkedHashMap<>();
