@@ -14,11 +14,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-final class PositionTextFormatter {
+public final class PositionTextFormatter {
     private PositionTextFormatter() {
     }
 
-    static String format(PlayerEntity player) {
+    public static String format(PlayerEntity player) {
         Map<PositionLine, List<PositionSide>> byLine = new EnumMap<>(PositionLine.class);
         for (FieldDef field : AttributeDefinitions.POSITION_FIELDS) {
             PlayerPosition position = playerPosition(field, player);
@@ -47,7 +47,7 @@ final class PositionTextFormatter {
                 .collect(Collectors.joining(","));
     }
 
-    static String positionLevelText(Object score) {
+    public static String positionLevelText(Object score) {
         Integer value = asInteger(score);
         if (value == null || value <= 4) {
             return "Cannot play";
