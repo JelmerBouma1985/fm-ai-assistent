@@ -12,7 +12,7 @@
 
     <groupId>com.github.fmaiassistent</groupId>
     <artifactId>fm-ai-assistent</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.1.0</version>
     <name>FM AI assistent</name>
     <description>Linux RAM reader and exporter for Football Manager 26 player data</description>
 

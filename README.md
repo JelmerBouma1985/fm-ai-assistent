@@ -6,11 +6,14 @@ It reads FM26 data from RAM and makes the data available to AI assistants throug
 
 The app also includes a frontend where you can search and filter the data yourself. You can inspect players, clubs, competitions, attributes, positions, reputations, contracts, salaries, asking prices, and budgets.
 
+## Disclaimer
+Currently only works when running FM26 on a Linux distro. POP OS, Ubuntu and Linux Mint tested. Start FM preferable without proton/compatibility mode
+
 ## How To Install
 
 ### Option 1: Native Image
 
-Download the native image.
+Download the latest native image.
 
 Make it executable:
 
