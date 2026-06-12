@@ -1,7 +1,7 @@
 package com.github.fmaiscout.web.mapper;
 
 import com.github.fmaiscout.config.JCacheConfiguration;
-import com.github.fmaiscout.db.PlayerEntity;
+import com.github.fmaiscout.domain.entity.PlayerEntity;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 

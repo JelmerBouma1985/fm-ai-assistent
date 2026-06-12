@@ -1,12 +1,12 @@
 package com.github.fmaiscout.mcp;
 
-import com.github.fmaiscout.db.ClubDatabaseService;
-import com.github.fmaiscout.db.ClubEntity;
-import com.github.fmaiscout.db.PlayerDatabaseService;
-import com.github.fmaiscout.db.PlayerEntity;
+import com.github.fmaiscout.service.ClubDatabaseService;
+import com.github.fmaiscout.domain.entity.ClubEntity;
+import com.github.fmaiscout.service.PlayerDatabaseService;
+import com.github.fmaiscout.domain.entity.PlayerEntity;
 import com.github.fmaiscout.player.AttributeDefinitions;
 import com.github.fmaiscout.player.FieldDef;
-import com.github.fmaiscout.ui.PositionTextFormatter;
+import com.github.fmaiscout.web.ui.PositionTextFormatter;
 import com.github.fmaiscout.web.mapper.PlayerMapper;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
