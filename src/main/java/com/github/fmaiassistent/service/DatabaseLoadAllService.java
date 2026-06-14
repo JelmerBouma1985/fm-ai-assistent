@@ -25,13 +25,13 @@ public class DatabaseLoadAllService {
     }
 
     @Caching(evict = {
-            @CacheEvict(cacheNames = JCacheConfiguration.PLAYERS_CACHE, allEntries = true),
-            @CacheEvict(cacheNames = JCacheConfiguration.PLAYERS_WITH_CLUBS_CACHE, allEntries = true),
-            @CacheEvict(cacheNames = JCacheConfiguration.NATIONS_CACHE, allEntries = true),
-            @CacheEvict(cacheNames = JCacheConfiguration.COMPETITIONS_CACHE, allEntries = true),
-            @CacheEvict(cacheNames = JCacheConfiguration.CLUB_NAMES_CACHE, allEntries = true),
-            @CacheEvict(cacheNames = JCacheConfiguration.CLUB_CACHE, allEntries = true),
-            @CacheEvict(cacheNames = JCacheConfiguration.PLAYER_MAPPING_CACHE, allEntries = true)
+            @CacheEvict(cacheNames = JCacheConfiguration.PLAYERS_CACHE, allEntries = true, beforeInvocation = true),
+            @CacheEvict(cacheNames = JCacheConfiguration.PLAYERS_WITH_CLUBS_CACHE, allEntries = true, beforeInvocation = true),
+            @CacheEvict(cacheNames = JCacheConfiguration.NATIONS_CACHE, allEntries = true, beforeInvocation = true),
+            @CacheEvict(cacheNames = JCacheConfiguration.COMPETITIONS_CACHE, allEntries = true, beforeInvocation = true),
+            @CacheEvict(cacheNames = JCacheConfiguration.CLUB_NAMES_CACHE, allEntries = true, beforeInvocation = true),
+            @CacheEvict(cacheNames = JCacheConfiguration.CLUB_CACHE, allEntries = true, beforeInvocation = true),
+            @CacheEvict(cacheNames = JCacheConfiguration.PLAYER_MAPPING_CACHE, allEntries = true, beforeInvocation = true)
     })
     @Transactional
     public LoadAllResult loadAll(Integer pid, int build, Long gamePluginBase) throws IOException {
