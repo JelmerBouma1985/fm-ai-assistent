@@ -58,6 +58,12 @@ public class PlayerDatabaseService {
     }
 
     private static PlayerEntity playerEntity(Map<String, Object> row, Map<Long, ClubEntity> clubsByAddress) {
+        if (isBlank(row.get("club")) && !isBlank(row.get("playing_club"))) {
+            row.put("club", row.get("playing_club"));
+        }
+        if (!row.containsKey("_club_address") && row.containsKey("_playing_club_address")) {
+            row.put("_club_address", row.get("_playing_club_address"));
+        }
         PlayerEntity entity = PlayerEntity.fromExportRow(row);
         Object clubAddress = row.get("_club_address");
         if (clubAddress instanceof Number number) {
@@ -66,6 +72,9 @@ public class PlayerDatabaseService {
         Object playingClubAddress = row.get("_playing_club_address");
         if (playingClubAddress instanceof Number number) {
             entity.setPlayingClubEntity(clubsByAddress.get(number.longValue()));
+        }
+        if (entity.getClubEntity() == null && entity.getPlayingClubEntity() != null) {
+            entity.setClubEntity(entity.getPlayingClubEntity());
         }
         return entity;
     }
@@ -144,8 +153,11 @@ public class PlayerDatabaseService {
                 && equalsIgnoreCase(player.getGender(), filter.gender())
                 && equalsIgnoreCase(Optional.ofNullable(player.getPlayingClubEntity()).map(ClubEntity::getCompetitionEntity).map(CompetitionEntity::getNation).orElse(null), filter.playingNation())
                 && equalsIgnoreCase(Optional.ofNullable(player.getPlayingClubEntity()).map(ClubEntity::getCompetitionEntity).map(CompetitionEntity::getName).orElse(null), filter.playingCompetition())
-                && (equalsIgnoreCase(Optional.ofNullable(player.getClubEntity()).map(ClubEntity::getName).orElse(null), filter.club()) || equalsIgnoreCase(Optional.ofNullable(player.getPlayingClubEntity()).map(ClubEntity::getName).orElse(null), filter.club()))
-                && inRange(player.getSalaryWeeklyRaw().longValue(), 1L, filter.salaryMax())
+                && (equalsIgnoreCase(player.getClub(), filter.club())
+                || equalsIgnoreCase(player.getPlayingClub(), filter.club())
+                || equalsIgnoreCase(Optional.ofNullable(player.getClubEntity()).map(ClubEntity::getName).orElse(null), filter.club())
+                || equalsIgnoreCase(Optional.ofNullable(player.getPlayingClubEntity()).map(ClubEntity::getName).orElse(null), filter.club()))
+                && inRange(player.getSalaryWeeklyRaw().longValue(), 0L, filter.salaryMax())
                 && equalsIgnoreCase(player.getNationality(), filter.nationality())
                 && inRange(asInt(player.getAge()), filter.ageMin(), filter.ageMax())
                 && inRange(player.getHeightCm(), filter.heightMin(), filter.heightMax())
@@ -169,6 +181,10 @@ public class PlayerDatabaseService {
     private static boolean equalsIgnoreCase(Object value, String term) {
         return term == null || term.isBlank()
                 || String.valueOf(value == null ? "" : value).equalsIgnoreCase(term.trim());
+    }
+
+    private static boolean isBlank(Object value) {
+        return value == null || String.valueOf(value).isBlank();
     }
 
     private static boolean minimumsMatch(PlayerEntity player, Map<String, Integer> minimums) {

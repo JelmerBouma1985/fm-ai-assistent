@@ -59,9 +59,16 @@ public class PlayerExporter {
                 long record = recordOpt.get();
                 try {
                     var contractedClubAddress = currentClubAddress(reader, record);
-                    var playingClubAddress = playingClubAddress(reader, record).or(() -> contractedClubAddress);
+                    var playingClubAddress = playingClubAddress(reader, record);
+                    if (playingClubAddress.isEmpty()) {
+                        playingClubAddress = contractedClubAddress;
+                    }
                     String contractedClub = contractedClubAddress.flatMap(value -> FmMemoryStrings.clubDisplayName(reader, value)).orElse("");
                     String playingClub = playingClubAddress.flatMap(value -> FmMemoryStrings.clubDisplayName(reader, value)).orElse(contractedClub);
+                    if (contractedClub.isBlank() && !playingClub.isBlank() && playingClubAddress.isPresent()) {
+                        contractedClubAddress = playingClubAddress;
+                        contractedClub = playingClub;
+                    }
                     Map<String, Object> row = decodeRow(reader, (int) index, record, contractedClub, playingClub, null);
                     contractedClubAddress.ifPresent(value -> row.put("_club_address", value));
                     playingClubAddress.ifPresent(value -> row.put("_playing_club_address", value));
