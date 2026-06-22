@@ -1,6 +1,6 @@
-# FM AI Assistent for Linux
+# FM AI Assistent for Linux and Windows
 
-FM AI Assistent is an AI assistant companion for Football Manager 26 running on Linux(!)
+FM AI Assistent is an AI assistant companion for Football Manager 26 running on Linux or Windows 11.
 
 It reads FM26 data from RAM and makes the data available to AI assistants through MCP. An AI assistant can use this information to help with buying and selling players, finding profitable young talents, comparing squads, checking club finances, and giving tactical advice based on the players in your save.
 
@@ -33,6 +33,14 @@ Download the jar and run:
 ```bash
 java -jar ./fm-ai-assistent.jar
 ```
+
+On Windows, run the command from PowerShell or Command Prompt:
+
+```powershell
+java -jar .\fm-ai-assistent.jar
+```
+
+Start FM26 and load a save before loading RAM data. Run FM AI Assistent as the same Windows user as FM26. Administrator privileges are normally not required, but may be needed if FM26 itself was started as administrator.
 
 The application starts on:
 

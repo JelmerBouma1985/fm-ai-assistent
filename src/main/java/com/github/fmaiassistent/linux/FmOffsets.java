@@ -1,5 +1,7 @@
 package com.github.fmaiassistent.linux;
 
+import com.github.fmaiassistent.memory.ProcessMemoryReader;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -62,7 +64,7 @@ public final class FmOffsets {
     private FmOffsets() {
     }
 
-    public static long findGamePluginBase(LinuxProcessReader reader) throws IOException {
+    public static long findGamePluginBase(ProcessMemoryReader reader) throws IOException {
         return reader.maps().stream()
                 .filter(region -> region.path().contains("game_plugin.dll"))
                 .mapToLong(region -> region.start())
@@ -70,11 +72,11 @@ public final class FmOffsets {
                 .orElseThrow(() -> new IllegalStateException("game_plugin.dll not found in maps"));
     }
 
-    public static Bounds peopleBounds(LinuxProcessReader reader, int build, Long gamePluginBase) throws IOException {
+    public static Bounds peopleBounds(ProcessMemoryReader reader, int build, Long gamePluginBase) throws IOException {
         return tableBounds(reader, build, gamePluginBase, PEOPLE_SLOT);
     }
 
-    public static Bounds tableBounds(LinuxProcessReader reader, int build, Long gamePluginBase, String slotName) throws IOException {
+    public static Bounds tableBounds(ProcessMemoryReader reader, int build, Long gamePluginBase, String slotName) throws IOException {
         long base = gamePluginBase == null ? findGamePluginBase(reader) : gamePluginBase;
         Long slot = SLOTS.get(slotName);
         if (slot == null) {
@@ -86,7 +88,7 @@ public final class FmOffsets {
         return new Bounds(reader.readU64(offsetValue), reader.readU64(offsetValue + 8));
     }
 
-    private static long findOffsetTableBase(LinuxProcessReader reader, int build, long gamePluginBase) throws IOException {
+    private static long findOffsetTableBase(ProcessMemoryReader reader, int build, long gamePluginBase) throws IOException {
         String cacheKey = reader.pid() + ":0x" + Long.toHexString(gamePluginBase);
         Long cached = DETECTED_TABLE_BASES.get(cacheKey);
         if (cached != null && tableScore(reader, cached) >= MIN_VALID_TABLE_SCORE) {
@@ -107,7 +109,7 @@ public final class FmOffsets {
         return detected;
     }
 
-    private static long scanOffsetTableBase(LinuxProcessReader reader, long gamePluginBase) throws IOException {
+    private static long scanOffsetTableBase(ProcessMemoryReader reader, long gamePluginBase) throws IOException {
         List<MemoryRegion> maps = reader.maps().stream()
                 .filter(MemoryRegion::readable)
                 .sorted(Comparator.comparingLong(MemoryRegion::start))
@@ -157,7 +159,7 @@ public final class FmOffsets {
         return bestTable;
     }
 
-    private static int tableScore(LinuxProcessReader reader, long tableBase) {
+    private static int tableScore(ProcessMemoryReader reader, long tableBase) {
         Map<String, Long> counts = tableCounts(reader, tableBase);
         if (counts.isEmpty()) {
             return 0;
@@ -177,7 +179,7 @@ public final class FmOffsets {
         return score;
     }
 
-    private static Map<String, Long> tableCounts(LinuxProcessReader reader, long tableBase) {
+    private static Map<String, Long> tableCounts(ProcessMemoryReader reader, long tableBase) {
         Map<String, Long> counts = new LinkedHashMap<>();
         try {
             for (Map.Entry<String, Long> slot : SLOTS.entrySet()) {

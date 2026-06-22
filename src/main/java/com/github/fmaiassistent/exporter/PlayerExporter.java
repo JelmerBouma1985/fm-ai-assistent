@@ -2,7 +2,8 @@ package com.github.fmaiassistent.exporter;
 
 import com.github.fmaiassistent.linux.FmMemoryStrings;
 import com.github.fmaiassistent.linux.FmOffsets;
-import com.github.fmaiassistent.linux.LinuxProcessReader;
+import com.github.fmaiassistent.memory.ProcessMemoryReader;
+import com.github.fmaiassistent.memory.ProcessReaders;
 import com.github.fmaiassistent.player.AttributeDefinitions;
 import com.github.fmaiassistent.player.FieldDef;
 import com.github.fmaiassistent.linux.GameDateFinder;
@@ -47,7 +48,7 @@ public class PlayerExporter {
     }
 
     public ExportResult exportAllPlayers(int pid, int build, Long gamePluginBase) throws IOException {
-        try (LinuxProcessReader reader = new LinuxProcessReader(pid)) {
+        try (ProcessMemoryReader reader = ProcessReaders.open(pid)) {
             FmOffsets.Bounds bounds = FmOffsets.peopleBounds(reader, build, gamePluginBase);
             List<Map<String, Object>> rows = new ArrayList<>();
             for (long index = 0; index < bounds.count(); index++) {
@@ -81,13 +82,13 @@ public class PlayerExporter {
         }
     }
 
-    public Map<String, Object> decodeRow(LinuxProcessReader reader, int index, long record, String club, LocalDate gameDate) throws IOException {
+    public Map<String, Object> decodeRow(ProcessMemoryReader reader, int index, long record, String club, LocalDate gameDate) throws IOException {
         String playingClub = FmMemoryStrings.playingClubName(reader, record).orElse(club);
         return decodeRow(reader, index, record, club, playingClub, gameDate);
     }
 
     public Map<String, Object> decodeRow(
-            LinuxProcessReader reader,
+            ProcessMemoryReader reader,
             int index,
             long record,
             String club,
@@ -143,12 +144,12 @@ public class PlayerExporter {
         return row;
     }
 
-    private static LocalDate dateOfBirth(LinuxProcessReader reader, long record) throws IOException {
+    private static LocalDate dateOfBirth(ProcessMemoryReader reader, long record) throws IOException {
         DatePair pair = readDatePair(reader, record + 0x88);
         return GameDateFinder.validDayYear(pair.day(), pair.year()) ? GameDateFinder.dayYearToDate(pair.day(), pair.year()) : null;
     }
 
-    private static String contractEndDate(LinuxProcessReader reader, long record) throws IOException {
+    private static String contractEndDate(ProcessMemoryReader reader, long record) throws IOException {
         var registration = reader.qwordOrNull(record + 0xA8);
         if (registration.isEmpty()) {
             return "";
@@ -159,23 +160,23 @@ public class PlayerExporter {
                 : "";
     }
 
-    private static java.util.Optional<Long> currentClubAddress(LinuxProcessReader reader, long record) {
+    private static java.util.Optional<Long> currentClubAddress(ProcessMemoryReader reader, long record) {
         return reader.qwordOrNull(record + 0xA8)
                 .flatMap(registration -> reader.qwordOrNull(registration + 0x10))
                 .flatMap(registrationBody -> reader.qwordOrNull(registrationBody + 0x30));
     }
 
-    private static java.util.Optional<Long> playingClubAddress(LinuxProcessReader reader, long record) {
+    private static java.util.Optional<Long> playingClubAddress(ProcessMemoryReader reader, long record) {
         return reader.qwordOrNull(record - 0x158)
                 .flatMap(teamBody -> reader.qwordOrNull(teamBody + 0x30));
     }
 
-    private static String playerGender(LinuxProcessReader reader, long record) throws IOException {
+    private static String playerGender(ProcessMemoryReader reader, long record) throws IOException {
         int value = reader.readU8(record + 0x19);
         return (value & 0x10) != 0 ? "female" : "male";
     }
 
-    private static Salary salaryValues(LinuxProcessReader reader, long record) throws IOException {
+    private static Salary salaryValues(ProcessMemoryReader reader, long record) throws IOException {
         var registration = reader.qwordOrNull(record + 0xA8);
         if (registration.isEmpty()) {
             return new Salary(0, 0);
@@ -185,7 +186,7 @@ public class PlayerExporter {
         return new Salary(weeklyRaw, Math.round(annualRaw / 1000.0) * 1000);
     }
 
-    private static DatePair readDatePair(LinuxProcessReader reader, long address) throws IOException {
+    private static DatePair readDatePair(ProcessMemoryReader reader, long address) throws IOException {
         int day = reader.readU16(address);
         int year = reader.readU16(address + 2);
         return new DatePair(day, year);

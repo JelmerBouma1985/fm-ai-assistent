@@ -2,8 +2,8 @@ package com.github.fmaiassistent.service;
 
 import com.github.fmaiassistent.config.JCacheConfiguration;
 import com.github.fmaiassistent.linux.FmOffsets;
-import com.github.fmaiassistent.linux.LinuxProcessReader;
 import com.github.fmaiassistent.linux.ProcessInfo;
+import com.github.fmaiassistent.memory.ProcessReaders;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
@@ -46,7 +46,7 @@ public class DatabaseLoadAllService {
     }
 
     public int detectFmPid() throws IOException {
-        return LinuxProcessReader.findProcesses("fm.exe").stream()
+        return ProcessReaders.findProcesses("fm.exe").stream()
                 .max(Comparator.comparingInt(DatabaseLoadAllService::processScore))
                 .filter(process -> processScore(process) > 0)
                 .map(ProcessInfo::pid)
