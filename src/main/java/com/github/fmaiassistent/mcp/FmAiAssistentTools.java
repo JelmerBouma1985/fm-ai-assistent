@@ -14,6 +14,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.text.Normalizer;
+import java.time.LocalDate;
+import java.time.Period;
+import java.time.format.DateTimeParseException;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -103,6 +106,9 @@ public class FmAiAssistentTools {
             @ToolParam(required = false, description = "Maximum weekly salary in pounds") Integer salaryWeeklyMax,
             @ToolParam(required = false, description = "Minimum world reputation") Integer worldReputationMin,
             @ToolParam(required = false, description = "Maximum world reputation") Integer worldReputationMax,
+            @ToolParam(required = false, description = "Transfer-listed filter. Use true for only transfer-listed players, false for only players not transfer-listed.") Boolean transferListed,
+            @ToolParam(required = false, description = "Listed-for-loan filter. Use true for only loan-listed players, false for only players not listed for loan.") Boolean listedForLoan,
+            @ToolParam(required = false, description = "Injury filter. Use true for only injured players, false for only currently fit players.") Boolean injured,
             @ToolParam(required = false, description = "Maximum players to return") Integer limit) {
         int safeLimit = safeLimit(limit);
         Predicate<PlayerEntity> filter = player ->
@@ -117,7 +123,10 @@ public class FmAiAssistentTools {
                         && inRange(player.getPa(), paMin, paMax)
                         && (askingPriceMax == null || value(player.getAskingPrice()) <= askingPriceMax)
                         && (salaryWeeklyMax == null || value(player.getSalaryWeeklyRaw()) <= salaryWeeklyMax)
-                        && inRange(player.getWorldReputation(), worldReputationMin, worldReputationMax);
+                        && inRange(player.getWorldReputation(), worldReputationMin, worldReputationMax)
+                        && matchesBoolean(player.getTransferListed(), transferListed)
+                        && matchesBoolean(player.getListedForLoan(), listedForLoan)
+                        && matchesBoolean(player.getInjured(), injured);
         List<Map<String, Object>> rows = allPlayers().stream()
                 .filter(filter)
                 .sorted(Comparator
@@ -154,7 +163,7 @@ public class FmAiAssistentTools {
         return result("players", rows, safeLimit);
     }
 
-    @Tool(name = "fm26_transfer_shortlist", description = "Build a transfer shortlist for a managing club using squad CA/PA, transfer budget, asking price, age, potential and a reputation-based willingness heuristic.")
+    @Tool(name = "fm26_transfer_shortlist", description = "Build a transfer shortlist for a managing club using squad CA/PA, transfer budget, asking price, age, potential, reputation and time at the current club.")
     @Transactional(readOnly = true)
     public Map<String, Object> transferShortlist(
             @ToolParam(description = "Managing club name, for example Feyenoord") String managingClub,
@@ -162,12 +171,17 @@ public class FmAiAssistentTools {
             @ToolParam(required = false, description = "Minimum potential ability. If omitted, uses the squad average PA or 150, whichever is higher.") Integer minPotentialAbility,
             @ToolParam(required = false, description = "Maximum asking price in pounds. If omitted, uses the club transfer budget.") Long maxAskingPrice,
             @ToolParam(required = false, description = "Extra reputation above the club reputation still considered plausible. Defaults to 750.") Integer reputationMargin,
+            @ToolParam(required = false, description = "Minimum time at current club before considering a player willing to move. ISO-8601 period like P1Y, P6M, P18M, or plain days like 365. Defaults to P1Y.") String minimumTimeAtCurrentClub,
+            @ToolParam(required = false, description = "Transfer-listed filter. Use true to prefer only transfer-listed candidates, false to exclude them.") Boolean transferListed,
+            @ToolParam(required = false, description = "Listed-for-loan filter. Use true to prefer only loan-listed candidates, false to exclude them.") Boolean listedForLoan,
+            @ToolParam(required = false, description = "Injury filter. Use false to exclude injured players, true for only injured players.") Boolean injured,
             @ToolParam(required = false, description = "Maximum candidates to return") Integer limit) {
         ClubEntity club = requireClub(managingClub);
         List<PlayerEntity> squad = squadPlayers(club.getName());
         long budget = Math.max(0L, value(club.getTransferBudget()));
         int safeMaxAge = maxAge == null ? 23 : maxAge;
         int safeReputationMargin = reputationMargin == null ? DEFAULT_REPUTATION_MARGIN : reputationMargin;
+        Period safeMinimumTimeAtCurrentClub = parsePeriod(minimumTimeAtCurrentClub, Period.ofYears(1));
         int minPa = minPotentialAbility == null ? Math.max(150, averageInt(squad, PlayerEntity::getPa)) : minPotentialAbility;
         long priceCap = maxAskingPrice == null ? budget : Math.min(maxAskingPrice, budget);
         int maxAllowedReputation = value(club.getReputation()) + safeReputationMargin;
@@ -178,14 +192,17 @@ public class FmAiAssistentTools {
                 .filter(player -> inRange(asInteger(player.getAge()), null, safeMaxAge))
                 .filter(player -> value(player.getPa()) >= minPa)
                 .filter(player -> value(player.getAskingPrice()) <= priceCap)
-                .filter(player -> likelyWilling(player, maxAllowedReputation))
+                .filter(player -> likelyWilling(player, maxAllowedReputation, safeMinimumTimeAtCurrentClub))
+                .filter(player -> matchesBoolean(player.getTransferListed(), transferListed))
+                .filter(player -> matchesBoolean(player.getListedForLoan(), listedForLoan))
+                .filter(player -> matchesBoolean(player.getInjured(), injured))
                 .sorted(Comparator
                         .comparing((PlayerEntity player) -> value(player.getPa())).reversed()
                         .thenComparing(player -> value(player.getAskingPrice()))
                         .thenComparing((PlayerEntity player) -> value(player.getCa())).reversed()
                         .thenComparing(PlayerEntity::getName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
                 .limit(safeLimit(limit))
-                .map(player -> candidateMap(player, club, priceCap, maxAllowedReputation))
+                .map(player -> candidateMap(player, club, priceCap, maxAllowedReputation, safeMinimumTimeAtCurrentClub))
                 .toList();
 
         Map<String, Object> criteria = new LinkedHashMap<>();
@@ -194,7 +211,11 @@ public class FmAiAssistentTools {
         criteria.put("max_asking_price", priceCap);
         criteria.put("club_transfer_budget", budget);
         criteria.put("max_allowed_player_reputation", maxAllowedReputation);
-        criteria.put("willingness_heuristic", "player world/current/home reputation must be <= club reputation + reputation margin");
+        criteria.put("minimum_time_at_current_club", safeMinimumTimeAtCurrentClub.toString());
+        criteria.put("transfer_listed", transferListed);
+        criteria.put("listed_for_loan", listedForLoan);
+        criteria.put("injured", injured);
+        criteria.put("willingness_heuristic", "player reputation must fit the club and the player must have been at the current club for at least minimum_time_at_current_club");
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("managing_club", clubMap(club));
@@ -233,13 +254,21 @@ public class FmAiAssistentTools {
                 .toList();
     }
 
-    private Map<String, Object> candidateMap(PlayerEntity player, ClubEntity managingClub, long priceCap, int maxAllowedReputation) {
+    private Map<String, Object> candidateMap(
+            PlayerEntity player,
+            ClubEntity managingClub,
+            long priceCap,
+            int maxAllowedReputation,
+            Period minimumTimeAtCurrentClub) {
         Map<String, Object> out = playerSummaryMap(player);
         out.put("potential_profit_signal", value(player.getPa()) - value(player.getCa()));
         out.put("affordable", value(player.getAskingPrice()) <= priceCap);
-        out.put("likely_willing_by_reputation", likelyWilling(player, maxAllowedReputation));
+        out.put("likely_willing_by_reputation", reputationAllowsMove(player, maxAllowedReputation));
+        out.put("recently_joined_current_club", recentlyJoinedCurrentClub(player, minimumTimeAtCurrentClub));
+        out.put("likely_willing", likelyWilling(player, maxAllowedReputation, minimumTimeAtCurrentClub));
         out.put("reputation_gap_to_club", highestReputation(player) - value(managingClub.getReputation()));
         out.put("reason", "PA " + value(player.getPa()) + ", age " + nullSafe(player.getAge())
+                + ", joined current club " + nullSafe(player.getJoinedClubDate())
                 + ", asking price " + value(player.getAskingPrice()) + ", CA/PA gap "
                 + (value(player.getPa()) - value(player.getCa())));
         return out;
@@ -261,6 +290,10 @@ public class FmAiAssistentTools {
         out.put("pa", player.getPa());
         out.put("asking_price", player.getAskingPrice());
         out.put("salary_weekly_raw", player.getSalaryWeeklyRaw());
+        out.put("joined_club_date", player.getJoinedClubDate());
+        out.put("transfer_listed", player.getTransferListed());
+        out.put("listed_for_loan", player.getListedForLoan());
+        out.put("injured", player.getInjured());
         out.put("contract_end_date", player.getContractEndDate());
         out.put("current_reputation", player.getCurrentReputation());
         out.put("home_reputation", player.getHomeReputation());
@@ -349,8 +382,53 @@ public class FmAiAssistentTools {
         return out.toString();
     }
 
-    private static boolean likelyWilling(PlayerEntity player, int maxAllowedReputation) {
+    private static boolean likelyWilling(PlayerEntity player, int maxAllowedReputation, Period minimumTimeAtCurrentClub) {
+        return reputationAllowsMove(player, maxAllowedReputation) && !recentlyJoinedCurrentClub(player, minimumTimeAtCurrentClub);
+    }
+
+    private static boolean reputationAllowsMove(PlayerEntity player, int maxAllowedReputation) {
         return highestReputation(player) <= maxAllowedReputation;
+    }
+
+    private static boolean recentlyJoinedCurrentClub(PlayerEntity player, Period minimumTimeAtCurrentClub) {
+        LocalDate joined = parseDate(player.getJoinedClubDate());
+        LocalDate gameDate = parseDate(player.getAgeAsOf());
+        if (joined == null || gameDate == null) {
+            return false;
+        }
+        return joined.isAfter(gameDate.minus(minimumTimeAtCurrentClub));
+    }
+
+    private static Period parsePeriod(String value, Period defaultValue) {
+        if (blank(value)) {
+            return defaultValue;
+        }
+        String trimmed = value.trim().toUpperCase(Locale.ROOT);
+        try {
+            if (trimmed.chars().allMatch(Character::isDigit)) {
+                return Period.ofDays(Integer.parseInt(trimmed));
+            }
+            if (trimmed.endsWith("D") && trimmed.substring(0, trimmed.length() - 1).chars().allMatch(Character::isDigit)) {
+                return Period.ofDays(Integer.parseInt(trimmed.substring(0, trimmed.length() - 1)));
+            }
+            if (!trimmed.startsWith("P")) {
+                trimmed = "P" + trimmed;
+            }
+            return Period.parse(trimmed);
+        } catch (RuntimeException ex) {
+            return defaultValue;
+        }
+    }
+
+    private static LocalDate parseDate(String value) {
+        if (blank(value)) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(value);
+        } catch (DateTimeParseException ex) {
+            return null;
+        }
     }
 
     private static int highestReputation(PlayerEntity player) {
@@ -384,6 +462,10 @@ public class FmAiAssistentTools {
 
     private static boolean inRange(Integer value, Integer min, Integer max) {
         return value != null && (min == null || value >= min) && (max == null || value <= max);
+    }
+
+    private static boolean matchesBoolean(Boolean value, Boolean expected) {
+        return expected == null || Objects.equals(Boolean.TRUE.equals(value), expected);
     }
 
     private static Integer asInteger(String value) {

@@ -54,6 +54,10 @@
             <column name="pa" type="INT"/>
             <column name="asking_price" type="BIGINT"/>
             <column name="asking_price_raw" type="BIGINT"/>
+            <column name="joined_club_date" type="VARCHAR(1024)"/>
+            <column name="transfer_listed" type="BOOLEAN"/>
+            <column name="listed_for_loan" type="BOOLEAN"/>
+            <column name="injured" type="BOOLEAN"/>
             <column name="contract_end_date" type="VARCHAR(1024)"/>
             <column name="salary_pa" type="INT"/>
             <column name="salary_weekly_raw" type="INT"/>

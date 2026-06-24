@@ -61,6 +61,14 @@ public class PlayerEntity {
     private Long askingPrice;
     @Column(name = "asking_price_raw")
     private Long askingPriceRaw;
+    @Column(name = "joined_club_date", length = 1024)
+    private String joinedClubDate;
+    @Column(name = "transfer_listed")
+    private Boolean transferListed;
+    @Column(name = "listed_for_loan")
+    private Boolean listedForLoan;
+    @Column
+    private Boolean injured;
     @Column(name = "contract_end_date", length = 1024)
     private String contractEndDate;
     @Column(name = "salary_pa")
@@ -336,6 +344,22 @@ public class PlayerEntity {
 
     public Long getAskingPriceRaw() {
         return askingPriceRaw;
+    }
+
+    public String getJoinedClubDate() {
+        return joinedClubDate;
+    }
+
+    public Boolean getTransferListed() {
+        return transferListed;
+    }
+
+    public Boolean getListedForLoan() {
+        return listedForLoan;
+    }
+
+    public Boolean getInjured() {
+        return injured;
     }
 
     public String getContractEndDate() {
@@ -696,6 +720,9 @@ public class PlayerEntity {
         }
         if (targetType == Long.class) {
             return Long.valueOf(text);
+        }
+        if (targetType == Boolean.class) {
+            return Boolean.valueOf(text);
         }
         throw new IllegalArgumentException("unsupported player field type: " + targetType.getName());
     }

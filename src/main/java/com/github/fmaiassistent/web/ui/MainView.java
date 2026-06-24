@@ -236,6 +236,9 @@ public class MainView extends VerticalLayout {
                 new PlayerColumn("SALARY_WEEKLY_RAW", "Salary Weekly", PlayerEntity::getSalaryWeeklyRaw),
                 new PlayerColumn("ASKING_PRICE", "Asking Price", PlayerEntity::getAskingPrice),
                 new PlayerColumn("CONTRACT_END_DATE", "Contract End Date", PlayerEntity::getContractEndDate),
+                new PlayerColumn("TRANSFER_LISTED", "Transfer Listed", PlayerEntity::getTransferListed),
+                new PlayerColumn("LISTED_FOR_LOAN", "Listed For Loan", PlayerEntity::getListedForLoan),
+                new PlayerColumn("INJURED", "Injured", PlayerEntity::getInjured),
                 new PlayerColumn("CURRENT_REPUTATION", "Current Reputation", PlayerEntity::getCurrentReputation),
                 new PlayerColumn("HOME_REPUTATION", "Home Reputation", PlayerEntity::getHomeReputation),
                 new PlayerColumn("WORLD_REPUTATION", "World Reputation", PlayerEntity::getWorldReputation));
@@ -380,6 +383,7 @@ public class MainView extends VerticalLayout {
                 new DetailField("Position", PositionTextFormatter.format(player)),
                 new DetailField("Salary Weekly", salaryWeeklyDisplay(player.getSalaryWeeklyRaw())),
                 new DetailField("Asking Price", moneyDisplay(player.getAskingPrice())),
+                new DetailField("Joined Club Date", player.getJoinedClubDate()),
                 new DetailField("Contract End Date", player.getContractEndDate()),
                 new DetailField("Current Reputation", player.getCurrentReputation()),
                 new DetailField("Home Reputation", player.getHomeReputation()),
