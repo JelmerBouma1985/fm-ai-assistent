@@ -57,6 +57,9 @@
             <column name="joined_club_date" type="VARCHAR(1024)"/>
             <column name="transfer_listed" type="BOOLEAN"/>
             <column name="listed_for_loan" type="BOOLEAN"/>
+            <column name="transfer_agreed" type="BOOLEAN"/>
+            <column name="future_transfer_club" type="VARCHAR(1024)"/>
+            <column name="future_transfer_date" type="VARCHAR(1024)"/>
             <column name="injured" type="BOOLEAN"/>
             <column name="contract_end_date" type="VARCHAR(1024)"/>
             <column name="salary_pa" type="INT"/>

@@ -67,6 +67,12 @@ public class PlayerEntity {
     private Boolean transferListed;
     @Column(name = "listed_for_loan")
     private Boolean listedForLoan;
+    @Column(name = "transfer_agreed")
+    private Boolean transferAgreed;
+    @Column(name = "future_transfer_club", length = 1024)
+    private String futureTransferClub;
+    @Column(name = "future_transfer_date", length = 1024)
+    private String futureTransferDate;
     @Column
     private Boolean injured;
     @Column(name = "contract_end_date", length = 1024)
@@ -356,6 +362,18 @@ public class PlayerEntity {
 
     public Boolean getListedForLoan() {
         return listedForLoan;
+    }
+
+    public Boolean getTransferAgreed() {
+        return transferAgreed;
+    }
+
+    public String getFutureTransferClub() {
+        return futureTransferClub;
+    }
+
+    public String getFutureTransferDate() {
+        return futureTransferDate;
     }
 
     public Boolean getInjured() {

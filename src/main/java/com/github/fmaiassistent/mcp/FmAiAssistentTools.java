@@ -108,6 +108,8 @@ public class FmAiAssistentTools {
             @ToolParam(required = false, description = "Maximum world reputation") Integer worldReputationMax,
             @ToolParam(required = false, description = "Transfer-listed filter. Use true for only transfer-listed players, false for only players not transfer-listed.") Boolean transferListed,
             @ToolParam(required = false, description = "Listed-for-loan filter. Use true for only loan-listed players, false for only players not listed for loan.") Boolean listedForLoan,
+            @ToolParam(required = false, description = "Transfer-agreed filter. Use true for players who already agreed a future move, false to exclude them.") Boolean transferAgreed,
+            @ToolParam(required = false, description = "Future transfer destination club exact filter.") String futureTransferClub,
             @ToolParam(required = false, description = "Injury filter. Use true for only injured players, false for only currently fit players.") Boolean injured,
             @ToolParam(required = false, description = "Maximum players to return") Integer limit) {
         int safeLimit = safeLimit(limit);
@@ -126,6 +128,8 @@ public class FmAiAssistentTools {
                         && inRange(player.getWorldReputation(), worldReputationMin, worldReputationMax)
                         && matchesBoolean(player.getTransferListed(), transferListed)
                         && matchesBoolean(player.getListedForLoan(), listedForLoan)
+                        && matchesBoolean(player.getTransferAgreed(), transferAgreed)
+                        && (blank(futureTransferClub) || equalsIgnoreCase(player.getFutureTransferClub(), futureTransferClub))
                         && matchesBoolean(player.getInjured(), injured);
         List<Map<String, Object>> rows = allPlayers().stream()
                 .filter(filter)
@@ -174,6 +178,7 @@ public class FmAiAssistentTools {
             @ToolParam(required = false, description = "Minimum time at current club before considering a player willing to move. ISO-8601 period like P1Y, P6M, P18M, or plain days like 365. Defaults to P1Y.") String minimumTimeAtCurrentClub,
             @ToolParam(required = false, description = "Transfer-listed filter. Use true to prefer only transfer-listed candidates, false to exclude them.") Boolean transferListed,
             @ToolParam(required = false, description = "Listed-for-loan filter. Use true to prefer only loan-listed candidates, false to exclude them.") Boolean listedForLoan,
+            @ToolParam(required = false, description = "Transfer-agreed filter. Defaults to false because players who already agreed a move cannot normally be bought by another club.") Boolean transferAgreed,
             @ToolParam(required = false, description = "Injury filter. Use false to exclude injured players, true for only injured players.") Boolean injured,
             @ToolParam(required = false, description = "Maximum candidates to return") Integer limit) {
         ClubEntity club = requireClub(managingClub);
@@ -195,6 +200,7 @@ public class FmAiAssistentTools {
                 .filter(player -> likelyWilling(player, maxAllowedReputation, safeMinimumTimeAtCurrentClub))
                 .filter(player -> matchesBoolean(player.getTransferListed(), transferListed))
                 .filter(player -> matchesBoolean(player.getListedForLoan(), listedForLoan))
+                .filter(player -> matchesBoolean(player.getTransferAgreed(), transferAgreed == null ? Boolean.FALSE : transferAgreed))
                 .filter(player -> matchesBoolean(player.getInjured(), injured))
                 .sorted(Comparator
                         .comparing((PlayerEntity player) -> value(player.getPa())).reversed()
@@ -214,6 +220,7 @@ public class FmAiAssistentTools {
         criteria.put("minimum_time_at_current_club", safeMinimumTimeAtCurrentClub.toString());
         criteria.put("transfer_listed", transferListed);
         criteria.put("listed_for_loan", listedForLoan);
+        criteria.put("transfer_agreed", transferAgreed == null ? Boolean.FALSE : transferAgreed);
         criteria.put("injured", injured);
         criteria.put("willingness_heuristic", "player reputation must fit the club and the player must have been at the current club for at least minimum_time_at_current_club");
 
@@ -293,6 +300,9 @@ public class FmAiAssistentTools {
         out.put("joined_club_date", player.getJoinedClubDate());
         out.put("transfer_listed", player.getTransferListed());
         out.put("listed_for_loan", player.getListedForLoan());
+        out.put("transfer_agreed", player.getTransferAgreed());
+        out.put("future_transfer_club", player.getFutureTransferClub());
+        out.put("future_transfer_date", player.getFutureTransferDate());
         out.put("injured", player.getInjured());
         out.put("contract_end_date", player.getContractEndDate());
         out.put("current_reputation", player.getCurrentReputation());
