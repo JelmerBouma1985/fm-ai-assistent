@@ -4,6 +4,7 @@ import com.github.fmaiassistent.config.JCacheConfiguration;
 import com.github.fmaiassistent.linux.FmOffsets;
 import com.github.fmaiassistent.linux.ProcessInfo;
 import com.github.fmaiassistent.memory.ProcessReaders;
+import com.github.fmaiassistent.repository.DatabaseService;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
@@ -17,11 +18,13 @@ public class DatabaseLoadAllService {
     private final PlayerDatabaseService players;
     private final ClubDatabaseService clubs;
     private final CompetitionDatabaseService competitions;
+    private final DatabaseService databaseService;
 
-    public DatabaseLoadAllService(PlayerDatabaseService players, ClubDatabaseService clubs, CompetitionDatabaseService competitions) {
+    public DatabaseLoadAllService(PlayerDatabaseService players, ClubDatabaseService clubs, CompetitionDatabaseService competitions, DatabaseService databaseService) {
         this.players = players;
         this.clubs = clubs;
         this.competitions = competitions;
+        this.databaseService = databaseService;
     }
 
     @Caching(evict = {
@@ -36,6 +39,7 @@ public class DatabaseLoadAllService {
     @Transactional
     public LoadAllResult loadAll(Integer pid, int build, Long gamePluginBase) throws IOException {
         int resolvedPid = pid == null ? detectFmPid() : pid;
+        databaseService.clearAllTables();
         PlayerDatabaseService.LoadResult playerResult = players.loadAllPlayers(resolvedPid, build, gamePluginBase);
         return new LoadAllResult(
                 resolvedPid,

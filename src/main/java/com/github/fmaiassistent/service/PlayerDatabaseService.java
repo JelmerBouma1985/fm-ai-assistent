@@ -45,7 +45,6 @@ public class PlayerDatabaseService {
 
     @Transactional
     public LoadResult loadAllPlayers(int pid, int build, Long gamePluginBase) throws IOException {
-        players.deleteAllInBatch();
         clubDatabaseService.loadAllClubs(pid, build, gamePluginBase);
         Map<Long, ClubEntity> clubsByAddress = clubsByAddress();
         PlayerExporter.ExportResult result = exporter.exportAllPlayers(pid, build, gamePluginBase);
