@@ -8,9 +8,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 public class DatabaseService {
 
+    private final List<String> TABLES_TO_TRUNCATE = List.of(
+            "PLAYERS",
+            "CLUBS",
+            "COMPETITIONS",
+            "LOAD_METADATA"
+    );
     private final JdbcTemplate jdbcTemplate;
 
     public DatabaseService(JdbcTemplate jdbcTemplate) {
@@ -28,17 +36,12 @@ public class DatabaseService {
     })
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void clearAllTables() {
-        jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY FALSE");
 
         try {
-            jdbcTemplate.queryForList("""
-                    SELECT TABLE_NAME
-                    FROM INFORMATION_SCHEMA.TABLES
-                    WHERE TABLE_SCHEMA = 'PUBLIC'
-                      AND TABLE_TYPE = 'BASE TABLE'
-                    """, String.class).forEach(table ->
-                    jdbcTemplate.execute("TRUNCATE TABLE " + quote(table) + " RESTART IDENTITY")
-            );
+            jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY FALSE");
+            for(String table : TABLES_TO_TRUNCATE) {
+                jdbcTemplate.execute("TRUNCATE TABLE " + quote(table) + " RESTART IDENTITY");
+            }
         } finally {
             jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY TRUE");
         }
