@@ -303,7 +303,15 @@ public class FmAiAssistentTools {
         out.put("transfer_agreed", player.getTransferAgreed());
         out.put("future_transfer_club", player.getFutureTransferClub());
         out.put("future_transfer_date", player.getFutureTransferDate());
+        out.put("future_transfer_contract_end_date", player.getFutureTransferContractEndDate());
         out.put("injured", player.getInjured());
+        out.put("injury", player.getInjury());
+        out.put("injury_start_date", player.getInjuryStartDate());
+        out.put("injury_light_training_days_remaining", player.getInjuryLightTrainingDaysRemaining());
+        out.put("injury_full_training_days_remaining", player.getInjuryFullTrainingDaysRemaining());
+        out.put("injury_min_days_remaining", player.getInjuryMinDaysRemaining());
+        out.put("injury_max_days_remaining", player.getInjuryMaxDaysRemaining());
+        out.put("injury_expected_return", player.getInjuryExpectedReturn());
         out.put("contract_end_date", player.getContractEndDate());
         out.put("current_reputation", player.getCurrentReputation());
         out.put("home_reputation", player.getHomeReputation());

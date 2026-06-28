@@ -55,7 +55,15 @@ public class PlayerMapper implements Function<PlayerEntity, Map<String, Object>>
         out.put("TRANSFER_AGREED", entity.getTransferAgreed());
         out.put("FUTURE_TRANSFER_CLUB", entity.getFutureTransferClub());
         out.put("FUTURE_TRANSFER_DATE", entity.getFutureTransferDate());
+        out.put("FUTURE_TRANSFER_CONTRACT_END_DATE", entity.getFutureTransferContractEndDate());
         out.put("INJURED", entity.getInjured());
+        out.put("INJURY", entity.getInjury());
+        out.put("INJURY_START_DATE", entity.getInjuryStartDate());
+        out.put("INJURY_LIGHT_TRAINING_DAYS_REMAINING", entity.getInjuryLightTrainingDaysRemaining());
+        out.put("INJURY_FULL_TRAINING_DAYS_REMAINING", entity.getInjuryFullTrainingDaysRemaining());
+        out.put("INJURY_MIN_DAYS_REMAINING", entity.getInjuryMinDaysRemaining());
+        out.put("INJURY_MAX_DAYS_REMAINING", entity.getInjuryMaxDaysRemaining());
+        out.put("INJURY_EXPECTED_RETURN", entity.getInjuryExpectedReturn());
         out.put("CONTRACT_END_DATE", entity.getContractEndDate());
         out.put("SALARY_PA", entity.getSalaryPa());
         out.put("SALARY_WEEKLY_RAW", entity.getSalaryWeeklyRaw());

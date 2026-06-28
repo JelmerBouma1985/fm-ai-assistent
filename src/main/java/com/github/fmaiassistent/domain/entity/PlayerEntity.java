@@ -73,8 +73,24 @@ public class PlayerEntity {
     private String futureTransferClub;
     @Column(name = "future_transfer_date", length = 1024)
     private String futureTransferDate;
+    @Column(name = "future_transfer_contract_end_date", length = 1024)
+    private String futureTransferContractEndDate;
     @Column
     private Boolean injured;
+    @Column(length = 1024)
+    private String injury;
+    @Column(name = "injury_start_date", length = 1024)
+    private String injuryStartDate;
+    @Column(name = "injury_light_training_days_remaining")
+    private Integer injuryLightTrainingDaysRemaining;
+    @Column(name = "injury_full_training_days_remaining")
+    private Integer injuryFullTrainingDaysRemaining;
+    @Column(name = "injury_min_days_remaining")
+    private Integer injuryMinDaysRemaining;
+    @Column(name = "injury_max_days_remaining")
+    private Integer injuryMaxDaysRemaining;
+    @Column(name = "injury_expected_return", length = 1024)
+    private String injuryExpectedReturn;
     @Column(name = "contract_end_date", length = 1024)
     private String contractEndDate;
     @Column(name = "salary_pa")
@@ -376,8 +392,40 @@ public class PlayerEntity {
         return futureTransferDate;
     }
 
+    public String getFutureTransferContractEndDate() {
+        return futureTransferContractEndDate;
+    }
+
     public Boolean getInjured() {
         return injured;
+    }
+
+    public String getInjury() {
+        return injury;
+    }
+
+    public String getInjuryStartDate() {
+        return injuryStartDate;
+    }
+
+    public Integer getInjuryLightTrainingDaysRemaining() {
+        return injuryLightTrainingDaysRemaining;
+    }
+
+    public Integer getInjuryFullTrainingDaysRemaining() {
+        return injuryFullTrainingDaysRemaining;
+    }
+
+    public Integer getInjuryMinDaysRemaining() {
+        return injuryMinDaysRemaining;
+    }
+
+    public Integer getInjuryMaxDaysRemaining() {
+        return injuryMaxDaysRemaining;
+    }
+
+    public String getInjuryExpectedReturn() {
+        return injuryExpectedReturn;
     }
 
     public String getContractEndDate() {
