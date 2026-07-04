@@ -1,5 +1,7 @@
 package com.github.fmaiassistent.linux;
 
+import com.github.fmaiassistent.memory.ProcessMemoryReader;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -36,11 +38,11 @@ public class GameDateFinder {
     private static final int SCAN_CHUNK_SIZE = 8 * 1024 * 1024;
     private static final int SCAN_CHUNK_OVERLAP = 4096;
 
-    public Optional<LocalDate> find(LinuxProcessReader reader) throws IOException {
+    public Optional<LocalDate> find(ProcessMemoryReader reader) throws IOException {
         return find(reader, 0);
     }
 
-    public Optional<LocalDate> find(LinuxProcessReader reader, long expectedPlayerCount) throws IOException {
+    public Optional<LocalDate> find(ProcessMemoryReader reader, long expectedPlayerCount) throws IOException {
         Optional<LocalDate> telemetry = findTelemetryGameDate(reader, expectedPlayerCount);
         if (telemetry.isPresent()) {
             return telemetry;
@@ -49,7 +51,7 @@ public class GameDateFinder {
         return marker.isPresent() ? marker : findRenderedGameDate(reader);
     }
 
-    private Optional<LocalDate> findTelemetryGameDate(LinuxProcessReader reader, long expectedPlayerCount) throws IOException {
+    private Optional<LocalDate> findTelemetryGameDate(ProcessMemoryReader reader, long expectedPlayerCount) throws IOException {
         List<TelemetryDate> candidates = new java.util.ArrayList<>();
         for (MemoryRegion region : reader.maps()) {
             if (!scannable(region, MAX_SCAN_REGION_SIZE)) {
@@ -171,7 +173,7 @@ public class GameDateFinder {
         return between.contains(" - ") && !between.contains("(on holiday)");
     }
 
-    private Optional<LocalDate> findMarkerGameDate(LinuxProcessReader reader) throws IOException {
+    private Optional<LocalDate> findMarkerGameDate(ProcessMemoryReader reader) throws IOException {
         for (MemoryRegion region : reader.maps()) {
             if (!scannable(region, MAX_SCAN_REGION_SIZE) || !region.writable()) {
                 continue;
@@ -202,7 +204,7 @@ public class GameDateFinder {
         return Optional.empty();
     }
 
-    private static void scanRegion(LinuxProcessReader reader, MemoryRegion region, BufferScanner scanner) throws IOException {
+    private static void scanRegion(ProcessMemoryReader reader, MemoryRegion region, BufferScanner scanner) throws IOException {
         long cursor = region.start();
         while (cursor < region.end()) {
             int size = (int) Math.min(SCAN_CHUNK_SIZE, region.end() - cursor);
@@ -220,7 +222,7 @@ public class GameDateFinder {
         }
     }
 
-    private Optional<LocalDate> findRenderedGameDate(LinuxProcessReader reader) throws IOException {
+    private Optional<LocalDate> findRenderedGameDate(ProcessMemoryReader reader) throws IOException {
         Map<LocalDate, Integer> counts = new HashMap<>();
         Map<LocalDate, Integer> scores = new HashMap<>();
         for (MemoryRegion region : reader.maps()) {

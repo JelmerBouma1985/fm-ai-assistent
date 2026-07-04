@@ -29,7 +29,6 @@ public class CompetitionDatabaseService {
     @Transactional
     public LoadResult loadAllCompetitions(int pid, int build, Long gamePluginBase) throws IOException {
         CompetitionExporter.ExportResult result = exporter.exportAllCompetitions(pid, build, gamePluginBase);
-        competitions.deleteAllInBatch();
         competitions.saveAll(result.rows().stream().map(CompetitionEntity::fromExportRow).toList());
         metadata.save(new LoadMetadataEntity("competitions_loaded_at", OffsetDateTime.now().toString()));
         return new LoadResult(result.rows().size());

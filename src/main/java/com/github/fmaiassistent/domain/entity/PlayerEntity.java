@@ -61,6 +61,36 @@ public class PlayerEntity {
     private Long askingPrice;
     @Column(name = "asking_price_raw")
     private Long askingPriceRaw;
+    @Column(name = "joined_club_date", length = 1024)
+    private String joinedClubDate;
+    @Column(name = "transfer_listed")
+    private Boolean transferListed;
+    @Column(name = "listed_for_loan")
+    private Boolean listedForLoan;
+    @Column(name = "transfer_agreed")
+    private Boolean transferAgreed;
+    @Column(name = "future_transfer_club", length = 1024)
+    private String futureTransferClub;
+    @Column(name = "future_transfer_date", length = 1024)
+    private String futureTransferDate;
+    @Column(name = "future_transfer_contract_end_date", length = 1024)
+    private String futureTransferContractEndDate;
+    @Column
+    private Boolean injured;
+    @Column(length = 1024)
+    private String injury;
+    @Column(name = "injury_start_date", length = 1024)
+    private String injuryStartDate;
+    @Column(name = "injury_light_training_days_remaining")
+    private Integer injuryLightTrainingDaysRemaining;
+    @Column(name = "injury_full_training_days_remaining")
+    private Integer injuryFullTrainingDaysRemaining;
+    @Column(name = "injury_min_days_remaining")
+    private Integer injuryMinDaysRemaining;
+    @Column(name = "injury_max_days_remaining")
+    private Integer injuryMaxDaysRemaining;
+    @Column(name = "injury_expected_return", length = 1024)
+    private String injuryExpectedReturn;
     @Column(name = "contract_end_date", length = 1024)
     private String contractEndDate;
     @Column(name = "salary_pa")
@@ -336,6 +366,66 @@ public class PlayerEntity {
 
     public Long getAskingPriceRaw() {
         return askingPriceRaw;
+    }
+
+    public String getJoinedClubDate() {
+        return joinedClubDate;
+    }
+
+    public Boolean getTransferListed() {
+        return transferListed;
+    }
+
+    public Boolean getListedForLoan() {
+        return listedForLoan;
+    }
+
+    public Boolean getTransferAgreed() {
+        return transferAgreed;
+    }
+
+    public String getFutureTransferClub() {
+        return futureTransferClub;
+    }
+
+    public String getFutureTransferDate() {
+        return futureTransferDate;
+    }
+
+    public String getFutureTransferContractEndDate() {
+        return futureTransferContractEndDate;
+    }
+
+    public Boolean getInjured() {
+        return injured;
+    }
+
+    public String getInjury() {
+        return injury;
+    }
+
+    public String getInjuryStartDate() {
+        return injuryStartDate;
+    }
+
+    public Integer getInjuryLightTrainingDaysRemaining() {
+        return injuryLightTrainingDaysRemaining;
+    }
+
+    public Integer getInjuryFullTrainingDaysRemaining() {
+        return injuryFullTrainingDaysRemaining;
+    }
+
+    public Integer getInjuryMinDaysRemaining() {
+        return injuryMinDaysRemaining;
+    }
+
+    public Integer getInjuryMaxDaysRemaining() {
+        return injuryMaxDaysRemaining;
+    }
+
+    public String getInjuryExpectedReturn() {
+        return injuryExpectedReturn;
     }
 
     public String getContractEndDate() {
@@ -696,6 +786,9 @@ public class PlayerEntity {
         }
         if (targetType == Long.class) {
             return Long.valueOf(text);
+        }
+        if (targetType == Boolean.class) {
+            return Boolean.valueOf(text);
         }
         throw new IllegalArgumentException("unsupported player field type: " + targetType.getName());
     }

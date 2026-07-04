@@ -54,6 +54,21 @@
             <column name="pa" type="INT"/>
             <column name="asking_price" type="BIGINT"/>
             <column name="asking_price_raw" type="BIGINT"/>
+            <column name="joined_club_date" type="VARCHAR(1024)"/>
+            <column name="transfer_listed" type="BOOLEAN"/>
+            <column name="listed_for_loan" type="BOOLEAN"/>
+            <column name="transfer_agreed" type="BOOLEAN"/>
+            <column name="future_transfer_club" type="VARCHAR(1024)"/>
+            <column name="future_transfer_date" type="VARCHAR(1024)"/>
+            <column name="future_transfer_contract_end_date" type="VARCHAR(1024)"/>
+            <column name="injured" type="BOOLEAN"/>
+            <column name="injury" type="VARCHAR(1024)"/>
+            <column name="injury_start_date" type="VARCHAR(1024)"/>
+            <column name="injury_light_training_days_remaining" type="INT"/>
+            <column name="injury_full_training_days_remaining" type="INT"/>
+            <column name="injury_min_days_remaining" type="INT"/>
+            <column name="injury_max_days_remaining" type="INT"/>
+            <column name="injury_expected_return" type="VARCHAR(1024)"/>
             <column name="contract_end_date" type="VARCHAR(1024)"/>
             <column name="salary_pa" type="INT"/>
             <column name="salary_weekly_raw" type="INT"/>

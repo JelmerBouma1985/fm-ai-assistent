@@ -2,7 +2,8 @@ package com.github.fmaiassistent.exporter;
 
 import com.github.fmaiassistent.linux.FmMemoryStrings;
 import com.github.fmaiassistent.linux.FmOffsets;
-import com.github.fmaiassistent.linux.LinuxProcessReader;
+import com.github.fmaiassistent.memory.ProcessMemoryReader;
+import com.github.fmaiassistent.memory.ProcessReaders;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -26,7 +27,7 @@ public class ClubExporter {
     private static final long CLUB_PAYROLL_BUDGET_REL = 0x810;
 
     public ExportResult exportAllClubs(int pid, int build, Long gamePluginBase) throws IOException {
-        try (LinuxProcessReader reader = new LinuxProcessReader(pid)) {
+        try (ProcessMemoryReader reader = ProcessReaders.open(pid)) {
             FmOffsets.Bounds bounds = FmOffsets.tableBounds(reader, build, gamePluginBase, "TeamOffset");
             Map<String, Map<String, Object>> byClub = new LinkedHashMap<>();
             for (long index = 0; index < bounds.count(); index++) {
@@ -56,7 +57,7 @@ public class ClubExporter {
         }
     }
 
-    private Map<String, Object> decodeTeamClub(LinuxProcessReader reader, long team) throws IOException {
+    private Map<String, Object> decodeTeamClub(ProcessMemoryReader reader, long team) throws IOException {
         var clubOpt = reader.qwordOrNull(team + TEAM_CLUB_REL);
         if (clubOpt.isEmpty()) {
             return Map.of();
@@ -108,7 +109,7 @@ public class ClubExporter {
         return score;
     }
 
-    private static Finance readFinance(LinuxProcessReader reader, long club) throws IOException {
+    private static Finance readFinance(ProcessMemoryReader reader, long club) throws IOException {
         var extraOpt = reader.qwordOrNull(club + CLUB_FINANCE_BLOCK_REL);
         if (extraOpt.isEmpty()) {
             return new Finance(0L, 0L, 0L);

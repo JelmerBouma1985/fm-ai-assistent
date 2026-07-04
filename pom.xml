@@ -14,13 +14,14 @@
     <artifactId>fm-ai-assistent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <name>FM AI assistent</name>
-    <description>Linux RAM reader and exporter for Football Manager 26 player data</description>
+    <description>Linux and Windows RAM reader and exporter for Football Manager 26 game data</description>
 
     <properties>
         <java.version>25</java.version>
         <vaadin.version>25.1.6</vaadin.version>
         <vaadin.productionMode>true</vaadin.productionMode>
         <spring-ai.version>2.0.0-M2</spring-ai.version>
+        <jna.version>5.18.1</jna.version>
     </properties>
 
     <dependencyManagement>
@@ -47,6 +48,11 @@
             <groupId>org.junit.platform</groupId>
             <artifactId>junit-platform-launcher</artifactId>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>net.java.dev.jna</groupId>
+            <artifactId>jna-platform</artifactId>
+            <version>${jna.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -96,6 +102,12 @@
         <dependency>
             <groupId>com.vaadin</groupId>
             <artifactId>vaadin-spring-boot-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vaadin</groupId>
+            <artifactId>vaadin-dev</artifactId>
+            <scope>provided</scope>
+            <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

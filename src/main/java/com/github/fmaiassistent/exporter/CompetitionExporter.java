@@ -2,7 +2,8 @@ package com.github.fmaiassistent.exporter;
 
 import com.github.fmaiassistent.linux.FmMemoryStrings;
 import com.github.fmaiassistent.linux.FmOffsets;
-import com.github.fmaiassistent.linux.LinuxProcessReader;
+import com.github.fmaiassistent.memory.ProcessMemoryReader;
+import com.github.fmaiassistent.memory.ProcessReaders;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -20,7 +21,7 @@ public class CompetitionExporter {
     private static final long REPUTATION_REL = 0x188;
 
     public ExportResult exportAllCompetitions(int pid, int build, Long gamePluginBase) throws IOException {
-        try (LinuxProcessReader reader = new LinuxProcessReader(pid)) {
+        try (ProcessMemoryReader reader = ProcessReaders.open(pid)) {
             FmOffsets.Bounds bounds = FmOffsets.tableBounds(reader, build, gamePluginBase, "CompetitionOffset");
             Map<Long, Map<String, Object>> byCompetition = new LinkedHashMap<>();
             for (long index = 0; index < bounds.count(); index++) {
@@ -44,7 +45,7 @@ public class CompetitionExporter {
         }
     }
 
-    private Map<String, Object> decodeCompetition(LinuxProcessReader reader, long competition) throws IOException {
+    private Map<String, Object> decodeCompetition(ProcessMemoryReader reader, long competition) throws IOException {
         String name = FmMemoryStrings.objectStringAt(reader, competition, NAME_REL)
                 .or(() -> FmMemoryStrings.competitionDisplayName(reader, competition))
                 .orElse("");
