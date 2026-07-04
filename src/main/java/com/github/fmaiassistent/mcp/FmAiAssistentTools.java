@@ -10,6 +10,7 @@ import com.github.fmaiassistent.web.ui.PositionTextFormatter;
 import com.github.fmaiassistent.web.mapper.PlayerMapper;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +25,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Predicate;
 
 @Service
@@ -35,11 +37,13 @@ public class FmAiAssistentTools {
     private final PlayerDatabaseService players;
     private final ClubDatabaseService clubs;
     private final PlayerMapper playerMapper;
+    private final JdbcTemplate jdbc;
 
-    public FmAiAssistentTools(PlayerDatabaseService players, ClubDatabaseService clubs, PlayerMapper playerMapper) {
+    public FmAiAssistentTools(PlayerDatabaseService players, ClubDatabaseService clubs, PlayerMapper playerMapper, JdbcTemplate jdbc) {
         this.players = players;
         this.clubs = clubs;
         this.playerMapper = playerMapper;
+        this.jdbc = jdbc;
     }
 
     @Tool(name = "fm26_find_clubs", description = "Find FM26 clubs by name, nation, competition, reputation and finances. Money values are raw pounds.")
@@ -165,6 +169,61 @@ public class FmAiAssistentTools {
                         .toList()
                 : exact;
         return result("players", rows, safeLimit);
+    }
+
+    @Tool(name = "fm26_get_role_attributes", description = "Get FM26 positional roles and the primary/secondary attributes that matter for each role. Use this for tactical fit and transfer advice.")
+    @Transactional(readOnly = true)
+    public Map<String, Object> getRoleAttributes(
+            @ToolParam(required = false, description = "Phase exact filter: In Possession or Out of Possession") String phase,
+            @ToolParam(required = false, description = "Position group exact filter, for example Striker, Goalkeeper, Defender Central, Midfielder Central") String positionGroup,
+            @ToolParam(required = false, description = "Role name contains filter, for example Advanced Forward, Ball-Playing Defender, Goalkeeper") String roleName,
+            @ToolParam(required = false, description = "Maximum roles to return") Integer limit) {
+        int safeLimit = safeLimit(limit);
+        List<RoleAttributeRow> rows = jdbc.query("""
+                        SELECT r.game, r.position_group, r.role_name, r.phase,
+                               ra.attribute_priority, a.attribute_name, ra.sort_order
+                        FROM fm_role r
+                        JOIN fm_role_attribute ra ON ra.role_id = r.id
+                        JOIN fm_attribute a ON a.id = ra.attribute_id
+                        ORDER BY r.position_group, r.role_name, r.phase,
+                                 CASE ra.attribute_priority WHEN 'primary' THEN 0 ELSE 1 END,
+                                 ra.sort_order, a.attribute_name
+                        """,
+                (rs, rowNum) -> new RoleAttributeRow(
+                        rs.getString("game"),
+                        rs.getString("position_group"),
+                        rs.getString("role_name"),
+                        rs.getString("phase"),
+                        rs.getString("attribute_priority"),
+                        rs.getString("attribute_name"),
+                        rs.getInt("sort_order")));
+
+        Map<RoleKey, RoleBucket> grouped = new LinkedHashMap<>();
+        rows.stream()
+                .filter(row -> blank(phase) || equalsIgnoreCase(row.phase(), phase))
+                .filter(row -> blank(positionGroup) || equalsIgnoreCase(row.positionGroup(), positionGroup))
+                .filter(row -> contains(row.roleName(), roleName))
+                .forEach(row -> grouped
+                        .computeIfAbsent(new RoleKey(row.game(), row.positionGroup(), row.roleName(), row.phase()), RoleBucket::new)
+                        .add(row));
+
+        List<Map<String, Object>> roles = grouped.values().stream()
+                .limit(safeLimit)
+                .map(RoleBucket::toMap)
+                .toList();
+
+        Map<String, Object> filters = new LinkedHashMap<>();
+        filters.put("phase", phase);
+        filters.put("position_group", positionGroup);
+        filters.put("role_name", roleName);
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("count", roles.size());
+        out.put("limit", safeLimit);
+        out.put("filters", filters);
+        out.put("usage", "Compare a player's ATTRIBUTES from fm26_get_player_details with primary_attributes and secondary_attributes. Primary attributes matter most for the role.");
+        out.put("roles", roles);
+        return out;
     }
 
     @Tool(name = "fm26_transfer_shortlist", description = "Build a transfer shortlist for a managing club using squad CA/PA, transfer budget, asking price, age, potential, reputation and time at the current club.")
@@ -400,6 +459,25 @@ public class FmAiAssistentTools {
         return out.toString();
     }
 
+    private static String playerAttributeKey(String attributeName) {
+        String normalized = attributeName.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "_");
+        normalized = normalized.replaceAll("^_+|_+$", "");
+        if (Set.of("aerial_reach").contains(normalized)) {
+            return "aerial_ability";
+        }
+        if (Set.of("free_kick_taking").contains(normalized)) {
+            return "free_kicks";
+        }
+        if (Set.of("penalty_taking").contains(normalized)) {
+            return "penalties";
+        }
+        return normalized;
+    }
+
+    private static String playerAttributeColumn(String attributeName) {
+        return playerAttributeKey(attributeName).toUpperCase(Locale.ROOT);
+    }
+
     private static boolean likelyWilling(PlayerEntity player, int maxAllowedReputation, Period minimumTimeAtCurrentClub) {
         return reputationAllowsMove(player, maxAllowedReputation) && !recentlyJoinedCurrentClub(player, minimumTimeAtCurrentClub);
     }
@@ -530,5 +608,52 @@ public class FmAiAssistentTools {
                 .replace('Ð', 'd')
                 .toLowerCase(Locale.ROOT)
                 .trim();
+    }
+
+    private record RoleAttributeRow(
+            String game,
+            String positionGroup,
+            String roleName,
+            String phase,
+            String attributePriority,
+            String attributeName,
+            int sortOrder) {
+    }
+
+    private record RoleKey(String game, String positionGroup, String roleName, String phase) {
+    }
+
+    private static final class RoleBucket {
+        private final RoleKey key;
+        private final List<Map<String, Object>> primaryAttributes = new java.util.ArrayList<>();
+        private final List<Map<String, Object>> secondaryAttributes = new java.util.ArrayList<>();
+
+        private RoleBucket(RoleKey key) {
+            this.key = key;
+        }
+
+        private void add(RoleAttributeRow row) {
+            Map<String, Object> attribute = new LinkedHashMap<>();
+            attribute.put("name", row.attributeName());
+            attribute.put("player_attribute_key", playerAttributeKey(row.attributeName()));
+            attribute.put("player_attribute_column", playerAttributeColumn(row.attributeName()));
+            attribute.put("sort_order", row.sortOrder());
+            if ("primary".equalsIgnoreCase(row.attributePriority())) {
+                primaryAttributes.add(attribute);
+            } else {
+                secondaryAttributes.add(attribute);
+            }
+        }
+
+        private Map<String, Object> toMap() {
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("game", key.game());
+            out.put("position_group", key.positionGroup());
+            out.put("role_name", key.roleName());
+            out.put("phase", key.phase());
+            out.put("primary_attributes", primaryAttributes);
+            out.put("secondary_attributes", secondaryAttributes);
+            return out;
+        }
     }
 }
