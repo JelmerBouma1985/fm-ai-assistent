@@ -143,8 +143,8 @@ public class PlayerDatabaseService {
                 && equalsIgnoreCase(player.getGender(), filter.gender())
                 && equalsIgnoreCase(Optional.ofNullable(player.getPlayingClubEntity()).map(ClubEntity::getCompetitionEntity).map(CompetitionEntity::getNation).orElse(null), filter.playingNation())
                 && equalsIgnoreCase(Optional.ofNullable(player.getPlayingClubEntity()).map(ClubEntity::getCompetitionEntity).map(CompetitionEntity::getName).orElse(null), filter.playingCompetition())
-                && (equalsIgnoreCase(Optional.ofNullable(player.getClubEntity()).map(ClubEntity::getName).orElse(null), filter.club()) || equalsIgnoreCase(Optional.ofNullable(player.getPlayingClubEntity()).map(ClubEntity::getName).orElse(null), filter.club()))
-                && inRange(player.getSalaryWeeklyRaw().longValue(), 1L, filter.salaryMax())
+                && matchesClub(player, filter.club())
+                && inRange(player.getSalaryWeeklyRaw().longValue(), 0L, filter.salaryMax())
                 && equalsIgnoreCase(player.getNationality(), filter.nationality())
                 && inRange(asInt(player.getAge()), filter.ageMin(), filter.ageMax())
                 && inRange(player.getHeightCm(), filter.heightMin(), filter.heightMax())
@@ -168,6 +168,13 @@ public class PlayerDatabaseService {
     private static boolean equalsIgnoreCase(Object value, String term) {
         return term == null || term.isBlank()
                 || String.valueOf(value == null ? "" : value).equalsIgnoreCase(term.trim());
+    }
+
+    private static boolean matchesClub(PlayerEntity player, String club) {
+        return equalsIgnoreCase(Optional.ofNullable(player.getClubEntity()).map(ClubEntity::getName).orElse(null), club)
+                || equalsIgnoreCase(Optional.ofNullable(player.getPlayingClubEntity()).map(ClubEntity::getName).orElse(null), club)
+                || equalsIgnoreCase(player.getClub(), club)
+                || equalsIgnoreCase(player.getPlayingClub(), club);
     }
 
     private static boolean minimumsMatch(PlayerEntity player, Map<String, Integer> minimums) {
