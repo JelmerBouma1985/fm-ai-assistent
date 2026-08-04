@@ -19,8 +19,10 @@ import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.grid.GridVariant;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
@@ -46,6 +48,7 @@ import java.util.function.Function;
 
 @Route("")
 @PageTitle("FM AI Assistent")
+@CssImport("./styles/main-view.css")
 @CssImport(value = "./styles/player-grid.css", themeFor = "vaadin-grid")
 public class MainView extends VerticalLayout {
     private static final Set<String> NUMERIC_SORT_COLUMNS = Set.of(
@@ -77,9 +80,9 @@ public class MainView extends VerticalLayout {
 
     private final Dialog loadingDialog = new Dialog();
     private final ProgressBar spinner = new ProgressBar();
-    private final Button loadButton = new Button("Load from RAM");
-    private final Button settingsButton = new Button("Settings");
-    private final Button filterButton = new Button("Filter");
+    private final Button loadButton = new Button("Load from RAM", VaadinIcon.DATABASE.create());
+    private final Button settingsButton = new Button(VaadinIcon.COG.create());
+    private final Button filterButton = new Button("Filter", VaadinIcon.FILTER.create());
     private final Span status = new Span();
     private final Tabs tabs = new Tabs();
     private final Div content = new Div();
@@ -111,8 +114,10 @@ public class MainView extends VerticalLayout {
         setSizeFull();
         setPadding(false);
         setSpacing(false);
+        addClassName("main-view");
 
-        add(header(), tabs, content);
+        add(header(), content);
+        expand(content);
         configureTabs();
         configureGrid(playersGrid);
         configureGrid(clubsGrid);
@@ -123,25 +128,65 @@ public class MainView extends VerticalLayout {
         showPlayers();
     }
 
-    private HorizontalLayout header() {
+    private Component header() {
         loadButton.addClickListener(event -> loadAllData());
         settingsButton.addClickListener(event -> openSettingsDialog());
         filterButton.addClickListener(event -> openFilterDialog());
-        status.getStyle().set("font-size", "var(--lumo-font-size-s)");
-        status.getStyle().set("color", "var(--lumo-secondary-text-color)");
+        loadButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        loadButton.addClassName("load-button");
+        filterButton.addClassName("filter-button");
+        settingsButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
+        settingsButton.addClassName("icon-button");
+        settingsButton.setTooltipText("Settings");
+        settingsButton.getElement().setAttribute("aria-label", "Settings");
+        status.addClassName("app-status");
 
-        HorizontalLayout header = new HorizontalLayout(loadButton, settingsButton, filterButton, status);
-        header.setWidthFull();
-        header.setAlignItems(Alignment.CENTER);
-        header.setPadding(true);
-        header.setSpacing(true);
-        header.getStyle().set("border-bottom", "1px solid var(--lumo-contrast-10pct)");
+        Div brandIcon = new Div(VaadinIcon.CHART.create());
+        brandIcon.addClassName("brand-icon");
+        Span product = new Span("FM AI Assistent");
+        product.addClassName("brand-title");
+        Span descriptor = new Span("Recruitment intelligence");
+        descriptor.addClassName("brand-descriptor");
+        Div brandCopy = new Div(product, descriptor);
+        brandCopy.addClassName("brand-copy");
+        HorizontalLayout brand = new HorizontalLayout(brandIcon, brandCopy);
+        brand.setAlignItems(Alignment.CENTER);
+        brand.setSpacing(false);
+        brand.addClassName("brand");
+
+        HorizontalLayout actions = new HorizontalLayout(status, loadButton, settingsButton);
+        actions.setAlignItems(Alignment.CENTER);
+        actions.setSpacing(false);
+        actions.addClassName("app-actions");
+
+        HorizontalLayout appBar = new HorizontalLayout(brand, actions);
+        appBar.setWidthFull();
+        appBar.setAlignItems(Alignment.CENTER);
+        appBar.expand(brand);
+        appBar.setPadding(false);
+        appBar.setSpacing(false);
+        appBar.addClassName("app-bar");
+
+        HorizontalLayout navigation = new HorizontalLayout(tabs, filterButton);
+        navigation.setWidthFull();
+        navigation.setAlignItems(Alignment.CENTER);
+        navigation.expand(tabs);
+        navigation.setPadding(false);
+        navigation.setSpacing(false);
+        navigation.addClassName("workspace-nav");
+
+        Div header = new Div(appBar, navigation);
+        header.addClassName("app-header");
         return header;
     }
 
     private void configureTabs() {
         tabs.add(playersTab, clubsTab, competitionsTab);
         tabs.setWidthFull();
+        tabs.addClassName("workspace-tabs");
+        playersTab.addComponentAsFirst(VaadinIcon.USERS.create());
+        clubsTab.addComponentAsFirst(VaadinIcon.OFFICE.create());
+        competitionsTab.addComponentAsFirst(VaadinIcon.TROPHY.create());
         tabs.addSelectedChangeListener(event -> {
             filterButton.setVisible(event.getSelectedTab() == playersTab
                     || event.getSelectedTab() == clubsTab
@@ -159,13 +204,16 @@ public class MainView extends VerticalLayout {
     private void configureGrid(Grid<?> grid) {
         grid.setSizeFull();
         grid.setColumnReorderingAllowed(true);
-        grid.getStyle().set("border", "0");
+        grid.addThemeVariants(GridVariant.LUMO_NO_BORDER);
+        grid.addClassName("data-grid");
     }
 
     private void loadAllData() {
         UI ui = UI.getCurrent();
         loadButton.setEnabled(false);
         loadButton.setText("Loading...");
+        loadButton.setIcon(VaadinIcon.REFRESH.create());
+        loadButton.addClassName("is-loading");
         loadingDialog.open();
 
         CompletableFuture
@@ -209,6 +257,8 @@ public class MainView extends VerticalLayout {
                     loadingDialog.close();
                     loadButton.setEnabled(true);
                     loadButton.setText("Load from RAM");
+                    loadButton.setIcon(VaadinIcon.DATABASE.create());
+                    loadButton.removeClassName("is-loading");
                 }));
     }
 
@@ -252,6 +302,7 @@ public class MainView extends VerticalLayout {
                 new PlayerColumn("WORLD_REPUTATION", "World Reputation", PlayerEntity::getWorldReputation));
         List<PlayerEntity> rows = playerFilter.isEmpty() ? players.findAllPlayerEntities() : players.findPlayerEntities(playerFilter);
         setPlayerGrid(columns, rows);
+        setFilterActive(!playerFilter.isEmpty());
         if (!playerFilter.isEmpty()) {
             status.setText("Filtered players " + rows.size() + " | Total players " + players.countPlayers());
         }
@@ -268,6 +319,7 @@ public class MainView extends VerticalLayout {
                 new GridColumn("PAYROLL_BUDGET", "Payroll Budget"));
         List<ClubEntity> rows = clubs.findClubEntities(clubFilter);
         setClubGrid(columns, rows);
+        setFilterActive(!clubFilter.isEmpty());
         if (!clubFilter.isEmpty()) {
             status.setText("Filtered clubs " + rows.size() + " | Total clubs " + clubs.countClubs());
         }
@@ -281,6 +333,7 @@ public class MainView extends VerticalLayout {
                 new GridColumn("GENDER", "Gender"));
         List<CompetitionEntity> rows = competitions.findCompetitionEntities(competitionFilter);
         setCompetitionGrid(columns, rows);
+        setFilterActive(!competitionFilter.isEmpty());
         if (!competitionFilter.isEmpty()) {
             status.setText("Filtered competitions " + rows.size() + " | Total competitions " + competitions.countCompetitions());
         }
@@ -301,7 +354,7 @@ public class MainView extends VerticalLayout {
         content.removeAll();
         content.setSizeFull();
         content.add(clubsGrid);
-        content.getStyle().set("height", "calc(100vh - 120px)");
+        content.addClassName("data-workspace");
     }
 
     private void setCompetitionGrid(List<GridColumn> columns, List<CompetitionEntity> rows) {
@@ -319,7 +372,7 @@ public class MainView extends VerticalLayout {
         content.removeAll();
         content.setSizeFull();
         content.add(competitionsGrid);
-        content.getStyle().set("height", "calc(100vh - 120px)");
+        content.addClassName("data-workspace");
     }
 
     private void setPlayerGrid(List<PlayerColumn> columns, List<PlayerEntity> rows) {
@@ -338,7 +391,7 @@ public class MainView extends VerticalLayout {
         content.removeAll();
         content.setSizeFull();
         content.add(playersGrid);
-        content.getStyle().set("height", "calc(100vh - 120px)");
+        content.addClassName("data-workspace");
     }
 
     private String playerRowPartName(PlayerEntity player) {
@@ -359,6 +412,7 @@ public class MainView extends VerticalLayout {
 
     private void configureLoadingDialog() {
         spinner.setIndeterminate(true);
+        spinner.addClassName("loading-progress");
         loadingDialog.setModality(ModalityMode.STRICT);
         loadingDialog.setCloseOnEsc(false);
         loadingDialog.setCloseOnOutsideClick(false);
@@ -366,20 +420,26 @@ public class MainView extends VerticalLayout {
         loadingDialog.setResizable(false);
 
         VerticalLayout content = new VerticalLayout(
+                new Div(VaadinIcon.DATABASE.create()),
                 spinner,
-                new Span("Loading data...")
+                new Span("Reading Football Manager memory"),
+                new Span("Players, clubs and competitions will refresh automatically.")
         );
         content.setAlignItems(FlexComponent.Alignment.CENTER);
         content.setPadding(true);
+        content.addClassName("loading-content");
 
         loadingDialog.add(content);
+        loadingDialog.addClassName("loading-dialog");
     }
 
     private void openPlayerDetailsDialog(PlayerEntity player) {
         Dialog dialog = new Dialog();
         dialog.setHeaderTitle(display(player.getName()));
-        dialog.setWidth("980px");
+        dialog.setWidth("1100px");
         dialog.setMaxWidth("calc(100vw - 32px)");
+        dialog.getElement().getThemeList().add("professional-dialog");
+        dialog.getElement().getThemeList().add("player-detail-dialog");
 
         VerticalLayout info = new VerticalLayout(detailLayout(List.of(
                 new DetailField("Name", player.getName()),
@@ -397,6 +457,7 @@ public class MainView extends VerticalLayout {
                 new DetailField("Home Reputation", player.getHomeReputation()),
                 new DetailField("World Reputation", player.getWorldReputation()))));
         info.setPadding(false);
+        info.addClassName("detail-info");
 
         Checkbox showGoalkeeping = new Checkbox("Show goalkeeping attributes");
         showGoalkeeping.setValue(isGoalkeeper(player));
@@ -404,6 +465,7 @@ public class MainView extends VerticalLayout {
         ComboBox<String> outOfPossessionRole = roleComboBox("Out of possession role", PlayerRoleAttributeCatalog.OUT_OF_POSSESSION);
         Div attributes = new Div();
         attributes.setWidthFull();
+        attributes.addClassName("attribute-panel");
         renderAttributeColumns(attributes, player, showGoalkeeping.getValue(), Map.of());
         showGoalkeeping.addValueChangeListener(event -> renderAttributeColumns(
                 attributes,
@@ -426,9 +488,11 @@ public class MainView extends VerticalLayout {
         attributeToolbar.setWidthFull();
         attributeToolbar.setAlignItems(Alignment.END);
         attributeToolbar.expand(showGoalkeeping);
+        attributeToolbar.addClassName("attribute-toolbar");
         VerticalLayout attributesView = new VerticalLayout(attributeToolbar, attributes);
         attributesView.setPadding(false);
         attributesView.setSpacing(true);
+        attributesView.addClassName("attributes-view");
 
         Div positions = positionField(player);
 
@@ -436,9 +500,10 @@ public class MainView extends VerticalLayout {
         Tab attributesTab = new Tab("Attributes");
         Tab positionsTab = new Tab("Positions");
         Tabs detailTabs = new Tabs(infoTab, attributesTab, positionsTab);
+        detailTabs.addClassName("dialog-tabs");
         Div detailContent = new Div(info);
         detailContent.setWidthFull();
-        detailContent.getStyle().set("max-height", "70vh").set("overflow", "auto");
+        detailContent.addClassName("dialog-content");
         detailTabs.addSelectedChangeListener(event -> {
             detailContent.removeAll();
             if (event.getSelectedTab() == infoTab) {
@@ -450,7 +515,7 @@ public class MainView extends VerticalLayout {
             }
         });
 
-        Button close = new Button("Close", event -> dialog.close());
+        Button close = new Button("Close", VaadinIcon.CLOSE_SMALL.create(), event -> dialog.close());
         close.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         dialog.add(detailTabs, detailContent);
         dialog.getFooter().add(close);
@@ -472,6 +537,8 @@ public class MainView extends VerticalLayout {
         dialog.setHeaderTitle("Settings");
         dialog.setWidth("420px");
         dialog.setMaxWidth("calc(100vw - 32px)");
+        dialog.getElement().getThemeList().add("professional-dialog");
+        dialog.getElement().getThemeList().add("settings-dialog");
 
         Select<MoneyCurrency> currencySelect = new Select<>();
         currencySelect.setLabel("Currency");
@@ -488,9 +555,10 @@ public class MainView extends VerticalLayout {
         VerticalLayout layout = new VerticalLayout(currencySelect, file);
         layout.setPadding(false);
         layout.setSpacing(true);
+        layout.addClassName("settings-content");
         dialog.add(layout);
 
-        Button save = new Button("Save", event -> {
+        Button save = new Button("Save", VaadinIcon.CHECK.create(), event -> {
             currency = currencySelect.getValue() == null ? MoneyCurrency.POUND : currencySelect.getValue();
             settings.saveCurrency(currency);
             refreshSelectedTab();
@@ -498,17 +566,19 @@ public class MainView extends VerticalLayout {
             dialog.close();
         });
         save.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        Button cancel = new Button("Cancel", event -> dialog.close());
+        Button cancel = new Button("Cancel", VaadinIcon.CLOSE_SMALL.create(), event -> dialog.close());
         dialog.getFooter().add(cancel, save);
         dialog.open();
     }
 
     private void openPlayerFilterDialog() {
-        
         Dialog dialog = new Dialog();
         dialog.setHeaderTitle("Player filter");
         dialog.setWidth("1280px");
         dialog.setMaxWidth("calc(100vw - 32px)");
+        dialog.getElement().getThemeList().add("professional-dialog");
+        dialog.getElement().getThemeList().add("filter-dialog");
+        dialog.getElement().getThemeList().add("wide-dialog");
 
         TextField name = new TextField("Name contains");
         name.setValue(nullSafeValue(playerFilter.name()));
@@ -563,6 +633,7 @@ public class MainView extends VerticalLayout {
         basicFilters.setResponsiveSteps(
                 new FormLayout.ResponsiveStep("0", 1),
                 new FormLayout.ResponsiveStep("720px", 2));
+        basicFilters.addClassName("filter-form");
 
         Map<String, PositionLevel> selectedPositions = new LinkedHashMap<>();
         for (FieldDef field : AttributeDefinitions.POSITION_FIELDS) {
@@ -574,12 +645,14 @@ public class MainView extends VerticalLayout {
         VerticalLayout playerTab = new VerticalLayout(basicFilters);
         playerTab.setPadding(false);
         playerTab.setSpacing(true);
+        playerTab.addClassName("filter-tab-content");
 
         Div positionFilterLayout = positionFilterField(selectedPositions);
 
         Map<String, IntegerField> attributeFields = new LinkedHashMap<>();
         Div attributeLayout = new Div();
         attributeLayout.setWidthFull();
+        attributeLayout.addClassName("attribute-filter-grid");
         attributeLayout.getStyle()
                 .set("display", "grid")
                 .set("grid-template-columns", "repeat(6, minmax(180px, 1fr))")
@@ -590,9 +663,11 @@ public class MainView extends VerticalLayout {
         Tab positionsTab = new Tab("Positions");
         Tab attributesTab = new Tab("Attributes");
         Tabs dialogTabs = new Tabs(filtersTab, positionsTab, attributesTab);
+        dialogTabs.addClassName("dialog-tabs");
         Div dialogContent = new Div(playerTab);
         dialogContent.setWidthFull();
-        dialogContent.getStyle().set("max-height", "70vh").set("overflow", "auto");
+        dialogContent.addClassName("dialog-content");
+        dialogContent.addClassName("filter-dialog-content");
         dialogTabs.addSelectedChangeListener(event -> {
             dialogContent.removeAll();
             if (event.getSelectedTab() == filtersTab) {
@@ -605,7 +680,7 @@ public class MainView extends VerticalLayout {
             }
         });
 
-        Button apply = new Button("Apply", event -> {
+        Button apply = new Button("Apply filters", VaadinIcon.CHECK.create(), event -> {
             createAttributeFields(attributeFields, attributeLayout);
             if (!validPlayerFilter(
                     currentRepMin, currentRepMax,
@@ -641,13 +716,13 @@ public class MainView extends VerticalLayout {
         });
         apply.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
-        Button clear = new Button("Clear", event -> {
+        Button clear = new Button("Clear", VaadinIcon.TRASH.create(), event -> {
             playerFilter = PlayerFilterCriteria.empty();
             showPlayers();
             updateStatus(null);
             dialog.close();
         });
-        Button cancel = new Button("Cancel", event -> dialog.close());
+        Button cancel = new Button("Cancel", VaadinIcon.CLOSE_SMALL.create(), event -> dialog.close());
 
         dialog.add(dialogTabs, dialogContent);
         dialog.getFooter().add(clear, cancel, apply);
@@ -659,6 +734,8 @@ public class MainView extends VerticalLayout {
         dialog.setHeaderTitle("Club filter");
         dialog.setWidth("1280px");
         dialog.setMaxWidth("calc(100vw - 32px)");
+        dialog.getElement().getThemeList().add("professional-dialog");
+        dialog.getElement().getThemeList().add("filter-dialog");
 
         List<ClubEntity> clubRows = clubs.findAllClubs();
         ComboBox<String> name = comboBox("Name", distinctColumnValues(clubRows, "NAME"), clubFilter.name());
@@ -684,12 +761,14 @@ public class MainView extends VerticalLayout {
         filters.setResponsiveSteps(
                 new FormLayout.ResponsiveStep("0", 1),
                 new FormLayout.ResponsiveStep("720px", 2));
+        filters.addClassName("filter-form");
 
         Div dialogContent = new Div(filters);
         dialogContent.setWidthFull();
-        dialogContent.getStyle().set("max-height", "70vh").set("overflow", "auto");
+        dialogContent.addClassName("dialog-content");
+        dialogContent.addClassName("filter-dialog-content");
 
-        Button apply = new Button("Apply", event -> {
+        Button apply = new Button("Apply filters", VaadinIcon.CHECK.create(), event -> {
             if (!validIntegerField(reputationMin, 1, 10000)
                     || !validIntegerField(reputationMax, 1, 10000)
                     || !validRange("Reputation", reputationMin.getValue(), reputationMax.getValue())
@@ -711,13 +790,13 @@ public class MainView extends VerticalLayout {
         });
         apply.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
-        Button clear = new Button("Clear", event -> {
+        Button clear = new Button("Clear", VaadinIcon.TRASH.create(), event -> {
             clubFilter = ClubFilterCriteria.empty();
             showClubs();
             updateStatus(null);
             dialog.close();
         });
-        Button cancel = new Button("Cancel", event -> dialog.close());
+        Button cancel = new Button("Cancel", VaadinIcon.CLOSE_SMALL.create(), event -> dialog.close());
 
         dialog.add(dialogContent);
         dialog.getFooter().add(clear, cancel, apply);
@@ -729,6 +808,8 @@ public class MainView extends VerticalLayout {
         dialog.setHeaderTitle("Competition filter");
         dialog.setWidth("1280px");
         dialog.setMaxWidth("calc(100vw - 32px)");
+        dialog.getElement().getThemeList().add("professional-dialog");
+        dialog.getElement().getThemeList().add("filter-dialog");
 
         ComboBox<String> name = comboBox("Name", competitions.findNames(), competitionFilter.name());
         ComboBox<String> nation = comboBox("Nation", competitions.findNations(), competitionFilter.nation());
@@ -743,12 +824,14 @@ public class MainView extends VerticalLayout {
         filters.setResponsiveSteps(
                 new FormLayout.ResponsiveStep("0", 1),
                 new FormLayout.ResponsiveStep("720px", 2));
+        filters.addClassName("filter-form");
 
         Div dialogContent = new Div(filters);
         dialogContent.setWidthFull();
-        dialogContent.getStyle().set("max-height", "70vh").set("overflow", "auto");
+        dialogContent.addClassName("dialog-content");
+        dialogContent.addClassName("filter-dialog-content");
 
-        Button apply = new Button("Apply", event -> {
+        Button apply = new Button("Apply filters", VaadinIcon.CHECK.create(), event -> {
             if (!validIntegerField(reputationMin, 1, 10000)
                     || !validIntegerField(reputationMax, 1, 10000)
                     || !validRange("Reputation", reputationMin.getValue(), reputationMax.getValue())) {
@@ -765,13 +848,13 @@ public class MainView extends VerticalLayout {
         });
         apply.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 
-        Button clear = new Button("Clear", event -> {
+        Button clear = new Button("Clear", VaadinIcon.TRASH.create(), event -> {
             competitionFilter = CompetitionFilterCriteria.empty();
             showCompetitions();
             updateStatus(null);
             dialog.close();
         });
-        Button cancel = new Button("Cancel", event -> dialog.close());
+        Button cancel = new Button("Cancel", VaadinIcon.CLOSE_SMALL.create(), event -> dialog.close());
 
         dialog.add(dialogContent);
         dialog.getFooter().add(clear, cancel, apply);
@@ -790,6 +873,11 @@ public class MainView extends VerticalLayout {
                 + " | Players " + result.players()
                 + " | Clubs " + result.clubs()
                 + " | Competitions " + result.competitions());
+    }
+
+    private void setFilterActive(boolean active) {
+        filterButton.setText(active ? "Filter active" : "Filter");
+        filterButton.getElement().getClassList().set("has-filter", active);
     }
 
     private static String display(Object value) {
@@ -848,6 +936,7 @@ public class MainView extends VerticalLayout {
 
     private static FormLayout detailLayout(List<DetailField> fields) {
         FormLayout layout = new FormLayout();
+        layout.addClassName("detail-grid");
         layout.setResponsiveSteps(
                 new FormLayout.ResponsiveStep("0", 1),
                 new FormLayout.ResponsiveStep("720px", 2));
@@ -859,24 +948,17 @@ public class MainView extends VerticalLayout {
 
     private static Div detailField(String label, Object value) {
         Span labelText = new Span(label);
-        labelText.getStyle()
-                .set("font-size", "var(--lumo-font-size-xs)")
-                .set("color", "var(--lumo-secondary-text-color)");
+        labelText.addClassName("detail-label");
         Span valueText = new Span(display(value));
-        valueText.getStyle()
-                .set("font-weight", "600")
-                .set("line-height", "1.2");
+        valueText.addClassName("detail-value");
         Div field = new Div(labelText, valueText);
-        field.getStyle()
-                .set("display", "flex")
-                .set("flex-direction", "column")
-                .set("gap", "2px")
-                .set("padding", "6px 0");
+        field.addClassName("detail-field");
         return field;
     }
 
     private static Div positionField(PlayerEntity player) {
         Div field = new Div();
+        field.addClassName("position-pitch");
         field.getStyle()
                 .set("position", "relative")
                 .set("display", "grid")
@@ -935,6 +1017,8 @@ public class MainView extends VerticalLayout {
 
     private static Div emptyField() {
         Div field = new Div();
+        field.addClassName("position-pitch");
+        field.addClassName("position-filter-pitch");
         field.getStyle()
                 .set("position", "relative")
                 .set("display", "grid")
@@ -971,6 +1055,7 @@ public class MainView extends VerticalLayout {
 
     private static Div positionFieldRow(List<PositionTile> positions) {
         Div row = new Div();
+        row.addClassName("position-row");
         row.getStyle()
                 .set("position", "relative")
                 .set("z-index", "1")
@@ -984,6 +1069,7 @@ public class MainView extends VerticalLayout {
 
     private static Div positionFilterRow(Component... positions) {
         Div row = new Div();
+        row.addClassName("position-row");
         row.getStyle()
                 .set("position", "relative")
                 .set("z-index", "1")
@@ -1006,6 +1092,7 @@ public class MainView extends VerticalLayout {
             Map<String, PositionLevel> selectedPositions) {
         PositionLevel initial = selectedPositions.getOrDefault(column, PositionLevel.CANNOT);
         Button button = new Button(filterPositionLabel(shortName, initial));
+        button.addClassName("position-filter-tile");
         button.getElement().setProperty("title", fullName);
         button.setWidthFull();
         button.getStyle()
@@ -1035,6 +1122,7 @@ public class MainView extends VerticalLayout {
                 .set("line-height", "1.15")
                 .set("text-align", "center");
         Div tile = new Div(label, value);
+        tile.addClassName("position-tile");
         PositionLevel level = PositionLevel.fromScore(position.value());
         tile.getElement().setProperty("title", position.fullName());
         tile.getStyle()
@@ -1093,6 +1181,7 @@ public class MainView extends VerticalLayout {
             Map<String, String> rolePriorities) {
         container.removeAll();
         Div columns = new Div();
+        columns.addClassName("attribute-columns");
         columns.getStyle()
                 .set("display", "grid")
                 .set("grid-template-columns", "repeat(auto-fit, minmax(170px, 1fr))")
@@ -1112,6 +1201,7 @@ public class MainView extends VerticalLayout {
                 .set("padding-bottom", "6px")
                 .set("border-bottom", "1px solid var(--lumo-contrast-20pct)");
         Div column = new Div(title);
+        column.addClassName("attribute-category");
         column.getStyle()
                 .set("display", "flex")
                 .set("flex-direction", "column")
@@ -1132,6 +1222,7 @@ public class MainView extends VerticalLayout {
                 .set("text-align", "right")
                 .set("color", scoreColor(value));
         Div row = new Div(labelText, valueText);
+        row.addClassName("attribute-row");
         row.getStyle()
                 .set("display", "grid")
                 .set("grid-template-columns", "1fr auto")
@@ -1141,8 +1232,10 @@ public class MainView extends VerticalLayout {
                 .set("padding", "2px 4px")
                 .set("border-radius", "4px");
         if ("primary".equals(rolePriority)) {
+            row.addClassName("role-primary");
             row.getStyle().set("background", "#dcfce7");
         } else if ("secondary".equals(rolePriority)) {
+            row.addClassName("role-secondary");
             row.getStyle().set("background", "#dbeafe");
         }
         return row;
@@ -1365,6 +1458,7 @@ public class MainView extends VerticalLayout {
             VerticalLayout column = new VerticalLayout();
             column.setPadding(false);
             column.setSpacing(false);
+            column.addClassName("attribute-filter-column");
             Span title = new Span(attributeFilterCategoryTitle(category.name()));
             title.getStyle()
                     .set("font-weight", "700")

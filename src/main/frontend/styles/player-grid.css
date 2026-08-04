@@ -1,7 +1,52 @@
+:host(.data-grid) {
+    --_lumo-grid-border-color: #d9dfdb;
+    color: #17201c;
+    font-size: 12px;
+}
+
+:host(.data-grid) [part~="row"] {
+    min-height: 38px;
+}
+
+:host(.data-grid) [part~="cell"] {
+    min-height: 38px;
+    padding: 0 12px;
+    border-bottom-color: #e9edea;
+    background-clip: padding-box;
+}
+
+:host(.data-grid) [part~="header-cell"] {
+    min-height: 42px;
+    border-bottom: 1px solid #cfd6d2;
+    background: #f7f9f8;
+    color: #46524b;
+    font-size: 11px;
+    font-weight: 750;
+    text-transform: uppercase;
+}
+
+:host(.data-grid) [part~="body-cell"] {
+    font-variant-numeric: tabular-nums;
+}
+
+:host(.data-grid) [part~="row"]:hover [part~="body-cell"] {
+    background-color: #f1f6f3;
+}
+
+:host(.data-grid) [part~="first-column-cell"] {
+    font-weight: 650;
+}
+
+:host(.data-grid) [part~="reorder-ghost"] {
+    border: 1px solid #aebbb4;
+    background: #ffffff;
+    box-shadow: 0 8px 24px rgba(23, 32, 28, 0.18);
+}
+
 :host::part(contract-club-loaned-out) {
-    background-color: #fee2e2;
+    background-color: #fbe8e8;
 }
 
 :host::part(playing-club-loaned-in) {
-    background-color: #dbeafe;
+    background-color: #e7f0fb;
 }

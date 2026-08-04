@@ -1,0 +1,642 @@
+:root {
+    --fmai-ink: #17201c;
+    --fmai-muted: #66716b;
+    --fmai-border: #d9dfdb;
+    --fmai-border-strong: #c8d0cb;
+    --fmai-surface: #ffffff;
+    --fmai-canvas: #f2f5f3;
+    --fmai-header: #18231f;
+    --fmai-green: #087a53;
+    --fmai-green-dark: #056341;
+    --fmai-green-soft: #e4f3ed;
+    --fmai-blue-soft: #e7f0fb;
+    --fmai-red-soft: #fbe8e8;
+    --lumo-primary-color: var(--fmai-green);
+    --lumo-primary-color-10pct: rgba(8, 122, 83, 0.10);
+    --lumo-primary-color-50pct: rgba(8, 122, 83, 0.50);
+    --lumo-primary-text-color: var(--fmai-green-dark);
+    --lumo-body-text-color: var(--fmai-ink);
+    --lumo-secondary-text-color: var(--fmai-muted);
+    --lumo-font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --lumo-border-radius-s: 4px;
+    --lumo-border-radius-m: 6px;
+    --lumo-border-radius-l: 8px;
+    --lumo-box-shadow-s: 0 1px 2px rgba(23, 32, 28, 0.08);
+    --lumo-box-shadow-m: 0 12px 32px rgba(23, 32, 28, 0.16);
+}
+
+html,
+body {
+    background: var(--fmai-canvas);
+    color: var(--fmai-ink);
+    font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.main-view {
+    min-height: 100%;
+    background: var(--fmai-canvas);
+    font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    overflow: hidden;
+}
+
+.app-header {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    flex: 0 0 auto;
+    background: var(--fmai-surface);
+    box-shadow: 0 1px 0 var(--fmai-border);
+}
+
+.app-bar {
+    min-height: 64px;
+    box-sizing: border-box;
+    padding: 0 24px;
+    background: var(--fmai-header);
+    color: #ffffff;
+}
+
+.brand {
+    min-width: 0;
+    gap: 12px;
+}
+
+.brand-icon {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 6px;
+    background: #0b8b5f;
+    color: #ffffff;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.brand-icon vaadin-icon {
+    width: 19px;
+    height: 19px;
+}
+
+.brand-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1px;
+}
+
+.brand-title {
+    overflow: hidden;
+    color: #ffffff;
+    font-size: 17px;
+    font-weight: 750;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.brand-descriptor {
+    color: #aebbb5;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+
+.app-actions {
+    flex: 0 0 auto;
+    gap: 9px;
+}
+
+.app-status {
+    display: flex;
+    max-width: min(46vw, 680px);
+    align-items: center;
+    gap: 8px;
+    overflow: hidden;
+    color: #c4cec9;
+    font-size: 12px;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.app-status::before {
+    width: 7px;
+    height: 7px;
+    flex: 0 0 7px;
+    border-radius: 50%;
+    background: #39c98a;
+    box-shadow: 0 0 0 3px rgba(57, 201, 138, 0.14);
+    content: "";
+}
+
+.app-bar vaadin-button {
+    --lumo-primary-color: #10976a;
+    --lumo-primary-text-color: #ffffff;
+    min-height: 36px;
+}
+
+.app-bar .load-button {
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    background: #0b8b5f;
+    color: #ffffff;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.16);
+    font-weight: 700;
+}
+
+.app-bar .load-button:hover {
+    background: #0a7d56;
+}
+
+.app-bar .load-button.is-loading vaadin-icon {
+    animation: fmai-spin 1s linear infinite;
+}
+
+@keyframes fmai-spin {
+    to { transform: rotate(360deg); }
+}
+
+.app-bar .icon-button {
+    width: 36px;
+    min-width: 36px;
+    padding: 0;
+    color: #d4ddd8;
+}
+
+.app-bar .icon-button:hover {
+    background: rgba(255, 255, 255, 0.10);
+    color: #ffffff;
+}
+
+.workspace-nav {
+    min-height: 51px;
+    box-sizing: border-box;
+    padding: 0 20px 0 12px;
+    border-bottom: 1px solid var(--fmai-border);
+    background: var(--fmai-surface);
+}
+
+.workspace-tabs {
+    min-width: 0;
+    --lumo-contrast-60pct: var(--fmai-muted);
+}
+
+.workspace-tabs::part(tabs) {
+    gap: 4px;
+}
+
+.workspace-tabs vaadin-tab {
+    min-width: 116px;
+    min-height: 50px;
+    padding: 0 16px;
+    gap: 8px;
+    color: #59645e;
+    font-size: 13px;
+    font-weight: 650;
+}
+
+.workspace-tabs vaadin-tab vaadin-icon {
+    width: 16px;
+    height: 16px;
+}
+
+.workspace-tabs vaadin-tab[selected] {
+    color: var(--fmai-green-dark);
+}
+
+.workspace-tabs vaadin-tab[selected]::before,
+.workspace-tabs vaadin-tab[selected]::after {
+    height: 3px;
+    background: var(--fmai-green);
+}
+
+.filter-button {
+    min-width: 96px;
+    border: 1px solid var(--fmai-border-strong);
+    background: #ffffff;
+    color: #37423c;
+    font-weight: 650;
+}
+
+.filter-button:hover {
+    border-color: #aebbb4;
+    background: #f6f8f7;
+}
+
+.filter-button.has-filter {
+    border-color: #9bcbb9;
+    background: var(--fmai-green-soft);
+    color: var(--fmai-green-dark);
+}
+
+.data-workspace {
+    min-height: 0;
+    box-sizing: border-box;
+    padding: 12px;
+    overflow: hidden;
+    background: var(--fmai-canvas);
+}
+
+.data-grid {
+    overflow: hidden;
+    border: 1px solid var(--fmai-border);
+    border-radius: 6px;
+    background: var(--fmai-surface);
+    box-shadow: var(--lumo-box-shadow-s);
+}
+
+/* Dialogs */
+vaadin-dialog-overlay[theme~="professional-dialog"]::part(overlay) {
+    max-height: calc(100vh - 32px);
+    overflow: hidden;
+    border: 1px solid rgba(23, 32, 28, 0.12);
+    border-radius: 8px;
+    background: var(--fmai-surface);
+    box-shadow: 0 24px 64px rgba(23, 32, 28, 0.24);
+}
+
+vaadin-dialog-overlay[theme~="professional-dialog"]::part(header) {
+    min-height: 64px;
+    box-sizing: border-box;
+    padding: 18px 24px 14px;
+    border-bottom: 1px solid var(--fmai-border);
+    background: #fbfcfb;
+}
+
+vaadin-dialog-overlay[theme~="professional-dialog"]::part(title) {
+    color: var(--fmai-ink);
+    font-size: 19px;
+    font-weight: 750;
+}
+
+vaadin-dialog-overlay[theme~="professional-dialog"]::part(content) {
+    padding: 0 24px;
+}
+
+vaadin-dialog-overlay[theme~="professional-dialog"]::part(footer) {
+    min-height: 64px;
+    box-sizing: border-box;
+    padding: 12px 24px;
+    border-top: 1px solid var(--fmai-border);
+    background: #fbfcfb;
+}
+
+vaadin-dialog-overlay[theme~="professional-dialog"]::part(backdrop) {
+    background: rgba(15, 23, 19, 0.42);
+    backdrop-filter: blur(2px);
+}
+
+.dialog-tabs {
+    width: 100%;
+    border-bottom: 1px solid var(--fmai-border);
+}
+
+.dialog-tabs vaadin-tab {
+    min-height: 48px;
+    padding: 0 18px;
+    color: var(--fmai-muted);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.dialog-tabs vaadin-tab[selected] {
+    color: var(--fmai-green-dark);
+}
+
+.dialog-content {
+    min-height: 180px;
+    max-height: min(58vh, 600px);
+    box-sizing: border-box;
+    padding: 20px 2px 24px;
+    overflow: auto;
+}
+
+.filter-dialog-content {
+    min-height: min(420px, 52vh);
+}
+
+vaadin-button[theme~="primary"] {
+    --lumo-primary-color: var(--fmai-green);
+    --lumo-primary-text-color: #ffffff;
+    --lumo-primary-contrast-color: #ffffff;
+    background: var(--fmai-green);
+    color: #ffffff;
+}
+
+vaadin-button[theme~="primary"]:hover {
+    background: var(--fmai-green-dark);
+}
+
+.filter-form {
+    padding: 2px;
+}
+
+.filter-tab-content {
+    width: 100%;
+}
+
+.filter-dialog vaadin-text-field,
+.filter-dialog vaadin-integer-field,
+.filter-dialog vaadin-number-field,
+.filter-dialog vaadin-combo-box,
+.filter-dialog vaadin-select,
+.filter-dialog vaadin-date-picker {
+    width: 100%;
+}
+
+vaadin-text-field::part(input-field),
+vaadin-integer-field::part(input-field),
+vaadin-number-field::part(input-field),
+vaadin-combo-box::part(input-field),
+vaadin-date-picker::part(input-field),
+vaadin-select::part(input-field) {
+    border: 1px solid #d3dad6;
+    background: #ffffff;
+    box-shadow: inset 0 1px 1px rgba(23, 32, 28, 0.03);
+}
+
+vaadin-text-field:hover::part(input-field),
+vaadin-integer-field:hover::part(input-field),
+vaadin-number-field:hover::part(input-field),
+vaadin-combo-box:hover::part(input-field),
+vaadin-date-picker:hover::part(input-field),
+vaadin-select:hover::part(input-field) {
+    border-color: #aeb9b3;
+}
+
+.attribute-filter-grid {
+    min-width: 1140px;
+    padding: 2px 4px 12px;
+}
+
+.attribute-filter-column {
+    min-width: 0;
+    padding-left: 14px !important;
+    border-left: 1px solid var(--fmai-border);
+}
+
+.attribute-filter-column:first-child {
+    padding-left: 0 !important;
+    border-left: 0;
+}
+
+.attribute-filter-column > span:first-child {
+    width: 100%;
+    box-sizing: border-box;
+    color: #34413a;
+    font-size: 12px;
+    text-transform: uppercase;
+}
+
+.attribute-filter-column vaadin-integer-field {
+    --vaadin-input-field-label-color: var(--fmai-muted);
+}
+
+/* Player details */
+.detail-info {
+    width: 100%;
+}
+
+.detail-grid {
+    width: 100%;
+}
+
+.detail-field {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 4px;
+    padding: 9px 0 11px;
+    border-bottom: 1px solid #edf0ee;
+}
+
+.detail-label {
+    color: var(--fmai-muted);
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 1.2;
+    text-transform: uppercase;
+}
+
+.detail-value {
+    overflow-wrap: anywhere;
+    color: var(--fmai-ink);
+    font-size: 14px;
+    font-weight: 650;
+    line-height: 1.3;
+}
+
+.attribute-toolbar {
+    gap: 12px;
+    padding: 0 0 14px;
+    border-bottom: 1px solid var(--fmai-border);
+}
+
+.attribute-toolbar vaadin-combo-box {
+    min-width: 220px;
+}
+
+.attribute-panel {
+    padding-top: 4px;
+}
+
+.attribute-columns {
+    width: 100%;
+}
+
+.attribute-category {
+    min-width: 0;
+    padding-left: 12px;
+    border-left: 1px solid var(--fmai-border);
+}
+
+.attribute-category:first-child {
+    padding-left: 0;
+    border-left: 0;
+}
+
+.attribute-category > span:first-child {
+    color: #34413a;
+    font-size: 12px;
+    text-transform: uppercase;
+}
+
+.attribute-row {
+    min-height: 22px;
+    align-items: center;
+}
+
+.attribute-row:hover {
+    background: #f3f6f4;
+}
+
+.attribute-row.role-primary {
+    box-shadow: inset 3px 0 0 #43a77d;
+}
+
+.attribute-row.role-secondary {
+    box-shadow: inset 3px 0 0 #5d91c9;
+}
+
+.position-pitch {
+    box-shadow: 0 12px 28px rgba(22, 60, 45, 0.16);
+}
+
+.position-tile,
+.position-filter-tile {
+    transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.position-filter-tile:hover {
+    z-index: 2;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+}
+
+.settings-content {
+    padding: 20px 0 24px !important;
+}
+
+.settings-content vaadin-select {
+    width: 100%;
+}
+
+/* Loading state */
+.loading-content {
+    min-width: 330px;
+    gap: 10px;
+    padding: 30px !important;
+    text-align: center;
+}
+
+.loading-content > div:first-child {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 6px;
+    background: var(--fmai-green-soft);
+    color: var(--fmai-green-dark);
+}
+
+.loading-content > span:nth-of-type(1) {
+    font-size: 15px;
+    font-weight: 750;
+}
+
+.loading-content > span:nth-of-type(2) {
+    max-width: 310px;
+    color: var(--fmai-muted);
+    font-size: 12px;
+}
+
+.loading-progress {
+    width: 100%;
+    margin: 4px 0;
+}
+
+@media (max-width: 900px) {
+    .app-bar {
+        padding: 0 14px;
+    }
+
+    .app-status {
+        display: none;
+    }
+
+    .workspace-nav {
+        padding-right: 10px;
+    }
+
+    .workspace-tabs vaadin-tab {
+        min-width: auto;
+        padding: 0 12px;
+    }
+
+    .data-workspace {
+        padding: 8px;
+    }
+
+    vaadin-dialog-overlay[theme~="professional-dialog"]::part(header) {
+        padding-right: 16px;
+        padding-left: 16px;
+    }
+
+    vaadin-dialog-overlay[theme~="professional-dialog"]::part(content) {
+        padding: 0 16px;
+    }
+
+    vaadin-dialog-overlay[theme~="professional-dialog"]::part(footer) {
+        padding-right: 16px;
+        padding-left: 16px;
+    }
+
+    .attribute-toolbar {
+        flex-wrap: wrap;
+    }
+
+    .attribute-toolbar vaadin-checkbox {
+        width: 100%;
+    }
+}
+
+@media (max-width: 620px) {
+    .brand-descriptor {
+        display: none;
+    }
+
+    .brand-title {
+        font-size: 15px;
+    }
+
+    .app-bar .load-button {
+        min-width: 38px;
+        padding: 0 10px;
+        font-size: 0;
+    }
+
+    .app-bar .load-button vaadin-icon {
+        width: 18px;
+        height: 18px;
+        margin: 0;
+        color: #ffffff;
+    }
+
+    .workspace-tabs vaadin-tab {
+        min-width: 44px;
+        padding: 0 10px;
+        font-size: 0;
+    }
+
+    .workspace-tabs vaadin-tab vaadin-icon {
+        width: 18px;
+        height: 18px;
+    }
+
+    .filter-button {
+        min-width: 40px;
+        padding: 0 10px;
+        font-size: 0;
+    }
+
+    .filter-button vaadin-icon {
+        width: 17px;
+        height: 17px;
+        margin: 0;
+        color: #37423c;
+    }
+
+    .dialog-content {
+        max-height: calc(100vh - 190px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .position-tile,
+    .position-filter-tile {
+        transition: none;
+    }
+}
