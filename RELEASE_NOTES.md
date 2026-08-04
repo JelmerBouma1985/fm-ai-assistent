@@ -1,18 +1,15 @@
 # Release Notes
 
-## 0.2.0
+## 0.3.0
 
 ### Most important
 
-- Compatible with Windows.
+- Better AI responses which costs less tokens
 
 ### Other features
 
-- Improved support for injuries.
-- Improved support for loans and transfers.
+- complete new UI
 
 ### Bug fixes
 
-- Fixed youth intake players not shown when filtering
-- Fixed an app crash that could happen after several transfers.
-- Fixed an issue where the wrong game date could be shown or used.
+- Fixed youth intake players not shown when filtering (again)
