@@ -14,6 +14,10 @@ public interface ProcessMemoryReader extends AutoCloseable {
 
     int pid();
 
+    default Platform platform() {
+        return Platform.UNKNOWN;
+    }
+
     byte[] readBytes(long address, int size) throws IOException;
 
     List<MemoryRegion> maps() throws IOException;
@@ -89,4 +93,10 @@ public interface ProcessMemoryReader extends AutoCloseable {
 
     @Override
     void close() throws IOException;
+
+    enum Platform {
+        LINUX,
+        WINDOWS,
+        UNKNOWN
+    }
 }

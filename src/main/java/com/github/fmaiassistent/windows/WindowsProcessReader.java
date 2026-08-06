@@ -54,6 +54,11 @@ public final class WindowsProcessReader implements ProcessMemoryReader {
         return pid;
     }
 
+    @Override
+    public Platform platform() {
+        return Platform.WINDOWS;
+    }
+
     public static List<ProcessInfo> findProcesses(String query) {
         String needle = query.toLowerCase(Locale.ROOT);
         List<ProcessInfo> matches = ProcessHandle.allProcesses()

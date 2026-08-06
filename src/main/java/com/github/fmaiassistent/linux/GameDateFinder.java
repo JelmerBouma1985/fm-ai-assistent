@@ -20,9 +20,9 @@ import java.util.regex.Pattern;
 public class GameDateFinder {
     private static final byte[] SIGNATURE = "client_periodic_api_stats1".getBytes(StandardCharsets.US_ASCII);
     private static final int SIGNATURE_DATE_DELTA = 0xAE;
-    // +0x70 is FM's next processing date; +0x74 is the current date shown in-game.
-    private static final int LIVE_DATE_DAY_OFFSET = 0x74;
-    private static final int LIVE_DATE_YEAR_OFFSET = 0x76;
+    // The native Windows and Linux/Proton game-state layouts expose the live date in different fields.
+    private static final int WINDOWS_LIVE_DATE_DAY_OFFSET = 0x70;
+    private static final int LINUX_LIVE_DATE_DAY_OFFSET = 0x74;
     private static final int LIVE_DATE_DAY_MASK = 0x01FF;
     private static final List<String> MONTHS = Arrays.asList(
             "January", "February", "March", "April", "May", "June",
@@ -78,14 +78,17 @@ public class GameDateFinder {
             return Optional.empty();
         }
 
+        int dayOffset = reader.platform() == ProcessMemoryReader.Platform.WINDOWS
+                ? WINDOWS_LIVE_DATE_DAY_OFFSET
+                : LINUX_LIVE_DATE_DAY_OFFSET;
         for (long pointerRva : FmOffsets.orderedGameDatePointerRvas(build)) {
             try {
                 Optional<Long> gameState = reader.qwordOrNull(base + pointerRva);
                 if (gameState.isEmpty()) {
                     continue;
                 }
-                int day = reader.readU16(gameState.get() + LIVE_DATE_DAY_OFFSET) & LIVE_DATE_DAY_MASK;
-                int year = reader.readU16(gameState.get() + LIVE_DATE_YEAR_OFFSET);
+                int day = reader.readU16(gameState.get() + dayOffset) & LIVE_DATE_DAY_MASK;
+                int year = reader.readU16(gameState.get() + dayOffset + Short.BYTES);
                 if (year >= 2024 && validDayYear(day, year)) {
                     return Optional.of(dayYearToDate(day, year));
                 }

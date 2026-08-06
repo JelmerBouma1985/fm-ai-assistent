@@ -28,6 +28,11 @@ public class LinuxProcessReader implements ProcessMemoryReader {
         return pid;
     }
 
+    @Override
+    public Platform platform() {
+        return Platform.LINUX;
+    }
+
     public static List<ProcessInfo> findProcesses(String query) throws IOException {
         String needle = query.toLowerCase();
         List<ProcessInfo> matches = new ArrayList<>();
