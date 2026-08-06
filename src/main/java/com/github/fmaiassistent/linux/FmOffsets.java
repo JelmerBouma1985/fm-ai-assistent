@@ -75,6 +75,11 @@ public final class FmOffsets {
             Map.entry(0x238cf5, 0x4d562e0L)
     );
 
+    // Native Windows keeps the current in-game date directly in game_plugin.dll.
+    private static final Map<Integer, Long> BUILD_TO_WINDOWS_CURRENT_DATE_RVA = Map.of(
+            0x238bdd, 0x4df3c18L
+    );
+
     private static final Map<String, Long> SLOTS = new LinkedHashMap<>();
     private static final Map<String, Long> DETECTED_TABLE_BASES = new ConcurrentHashMap<>();
 
@@ -277,6 +282,10 @@ public final class FmOffsets {
                 .map(Map.Entry::getValue)
                 .forEach(rvas::add);
         return List.copyOf(rvas);
+    }
+
+    static Long windowsCurrentDateRva(int build) {
+        return BUILD_TO_WINDOWS_CURRENT_DATE_RVA.get(build);
     }
 
     public record Bounds(long start, long end) {

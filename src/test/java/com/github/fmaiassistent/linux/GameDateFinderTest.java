@@ -14,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class GameDateFinderTest {
     private static final long GAME_PLUGIN_BASE = 0x1000_0000L;
     private static final long BUILD_238BDD_DATE_RVA = 0x4e35f60L;
+    private static final long BUILD_238BDD_WINDOWS_CURRENT_DATE_RVA = 0x4df3c18L;
     private static final long GAME_STATE = 0x7000_0000L;
 
     @Test
@@ -44,6 +45,8 @@ class GameDateFinderTest {
     void readsWindowsCurrentDateFromNativeLayout() throws IOException {
         FakeReader reader = new FakeReader(ProcessMemoryReader.Platform.WINDOWS);
         reader.putU64(GAME_PLUGIN_BASE + BUILD_238BDD_DATE_RVA, GAME_STATE);
+        reader.putU16(GAME_PLUGIN_BASE + BUILD_238BDD_WINDOWS_CURRENT_DATE_RVA, 0x0200 | 295);
+        reader.putU16(GAME_PLUGIN_BASE + BUILD_238BDD_WINDOWS_CURRENT_DATE_RVA + 2, 2025);
         reader.putU16(GAME_STATE + 0x70, 0x0200 | 295);
         reader.putU16(GAME_STATE + 0x72, 2025);
         reader.putU16(GAME_STATE + 0x74, 0x1A00 | 188);
@@ -54,6 +57,24 @@ class GameDateFinderTest {
                 .orElseThrow();
 
         assertEquals(LocalDate.of(2025, 10, 22), date);
+    }
+
+    @Test
+    void readsWindowsCurrentDateInsteadOfNextProcessingDate() throws IOException {
+        FakeReader reader = new FakeReader(ProcessMemoryReader.Platform.WINDOWS);
+        reader.putU64(GAME_PLUGIN_BASE + BUILD_238BDD_DATE_RVA, GAME_STATE);
+        reader.putU16(GAME_PLUGIN_BASE + BUILD_238BDD_WINDOWS_CURRENT_DATE_RVA, 0x1A00 | 159);
+        reader.putU16(GAME_PLUGIN_BASE + BUILD_238BDD_WINDOWS_CURRENT_DATE_RVA + 2, 2026);
+        reader.putU16(GAME_STATE + 0x70, 0x1A00 | 166);
+        reader.putU16(GAME_STATE + 0x72, 2026);
+        reader.putU16(GAME_STATE + 0x74, 0x0000 | 156);
+        reader.putU16(GAME_STATE + 0x76, 2024);
+
+        LocalDate date = new GameDateFinder()
+                .find(reader, 0, 0x238bdd, GAME_PLUGIN_BASE)
+                .orElseThrow();
+
+        assertEquals(LocalDate.of(2026, 6, 8), date);
     }
 
     private static void putGameStateDates(FakeReader reader) {

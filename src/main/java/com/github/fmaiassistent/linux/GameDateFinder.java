@@ -20,8 +20,8 @@ import java.util.regex.Pattern;
 public class GameDateFinder {
     private static final byte[] SIGNATURE = "client_periodic_api_stats1".getBytes(StandardCharsets.US_ASCII);
     private static final int SIGNATURE_DATE_DELTA = 0xAE;
-    // The native Windows and Linux/Proton game-state layouts expose the live date in different fields.
-    private static final int WINDOWS_LIVE_DATE_DAY_OFFSET = 0x70;
+    // The game-state fields are retained as fallbacks when a direct build-specific date is unavailable.
+    private static final int WINDOWS_PROCESSING_DATE_DAY_OFFSET = 0x70;
     private static final int LINUX_LIVE_DATE_DAY_OFFSET = 0x74;
     private static final int LIVE_DATE_DAY_MASK = 0x01FF;
     private static final List<String> MONTHS = Arrays.asList(
@@ -78,8 +78,15 @@ public class GameDateFinder {
             return Optional.empty();
         }
 
+        if (reader.platform() == ProcessMemoryReader.Platform.WINDOWS) {
+            Optional<LocalDate> currentDate = findWindowsCurrentDate(reader, build, base);
+            if (currentDate.isPresent()) {
+                return currentDate;
+            }
+        }
+
         int dayOffset = reader.platform() == ProcessMemoryReader.Platform.WINDOWS
-                ? WINDOWS_LIVE_DATE_DAY_OFFSET
+                ? WINDOWS_PROCESSING_DATE_DAY_OFFSET
                 : LINUX_LIVE_DATE_DAY_OFFSET;
         for (long pointerRva : FmOffsets.orderedGameDatePointerRvas(build)) {
             try {
@@ -96,6 +103,22 @@ public class GameDateFinder {
             }
         }
         return Optional.empty();
+    }
+
+    private Optional<LocalDate> findWindowsCurrentDate(ProcessMemoryReader reader, int build, long gamePluginBase) {
+        Long dateRva = FmOffsets.windowsCurrentDateRva(build);
+        if (dateRva == null) {
+            return Optional.empty();
+        }
+        try {
+            int day = reader.readU16(gamePluginBase + dateRva) & LIVE_DATE_DAY_MASK;
+            int year = reader.readU16(gamePluginBase + dateRva + Short.BYTES);
+            return year >= 2024 && validDayYear(day, year)
+                    ? Optional.of(dayYearToDate(day, year))
+                    : Optional.empty();
+        } catch (IOException | RuntimeException ex) {
+            return Optional.empty();
+        }
     }
 
     private Optional<LocalDate> findTelemetryGameDate(ProcessMemoryReader reader, long expectedPlayerCount) throws IOException {
