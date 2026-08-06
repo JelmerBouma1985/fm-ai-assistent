@@ -99,7 +99,7 @@ public class PlayerExporter {
                 } catch (IOException | RuntimeException ignored) {
                 }
             }
-            LocalDate gameDate = gameDateFinder.find(reader, rows.size()).orElse(null);
+            LocalDate gameDate = gameDateFinder.find(reader, rows.size(), build, gamePluginBase).orElse(null);
             applyGameDate(rows, gameDate);
             rows.sort(Comparator.comparing(row -> String.valueOf(row.get("name")).toLowerCase()));
             return new ExportResult(gameDate == null ? "" : gameDate.toString(), rows);

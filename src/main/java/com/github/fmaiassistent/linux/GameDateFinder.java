@@ -20,6 +20,10 @@ import java.util.regex.Pattern;
 public class GameDateFinder {
     private static final byte[] SIGNATURE = "client_periodic_api_stats1".getBytes(StandardCharsets.US_ASCII);
     private static final int SIGNATURE_DATE_DELTA = 0xAE;
+    // +0x70 is FM's next processing date; +0x74 is the current date shown in-game.
+    private static final int LIVE_DATE_DAY_OFFSET = 0x74;
+    private static final int LIVE_DATE_YEAR_OFFSET = 0x76;
+    private static final int LIVE_DATE_DAY_MASK = 0x01FF;
     private static final List<String> MONTHS = Arrays.asList(
             "January", "February", "March", "April", "May", "June",
             "July", "August", "September", "October", "November", "December");
@@ -43,12 +47,52 @@ public class GameDateFinder {
     }
 
     public Optional<LocalDate> find(ProcessMemoryReader reader, long expectedPlayerCount) throws IOException {
+        return find(reader, expectedPlayerCount, FmOffsets.DEFAULT_BUILD, null);
+    }
+
+    public Optional<LocalDate> find(
+            ProcessMemoryReader reader,
+            long expectedPlayerCount,
+            int build,
+            Long gamePluginBase) throws IOException {
+        Optional<LocalDate> live = findLiveGameDate(reader, build, gamePluginBase);
+        if (live.isPresent()) {
+            return live;
+        }
         Optional<LocalDate> telemetry = findTelemetryGameDate(reader, expectedPlayerCount);
         if (telemetry.isPresent()) {
             return telemetry;
         }
         Optional<LocalDate> marker = findMarkerGameDate(reader);
         return marker.isPresent() ? marker : findRenderedGameDate(reader);
+    }
+
+    private Optional<LocalDate> findLiveGameDate(
+            ProcessMemoryReader reader,
+            int build,
+            Long gamePluginBase) {
+        final long base;
+        try {
+            base = gamePluginBase == null ? FmOffsets.findGamePluginBase(reader) : gamePluginBase;
+        } catch (IOException | RuntimeException ex) {
+            return Optional.empty();
+        }
+
+        for (long pointerRva : FmOffsets.orderedGameDatePointerRvas(build)) {
+            try {
+                Optional<Long> gameState = reader.qwordOrNull(base + pointerRva);
+                if (gameState.isEmpty()) {
+                    continue;
+                }
+                int day = reader.readU16(gameState.get() + LIVE_DATE_DAY_OFFSET) & LIVE_DATE_DAY_MASK;
+                int year = reader.readU16(gameState.get() + LIVE_DATE_YEAR_OFFSET);
+                if (year >= 2024 && validDayYear(day, year)) {
+                    return Optional.of(dayYearToDate(day, year));
+                }
+            } catch (IOException | RuntimeException ignored) {
+            }
+        }
+        return Optional.empty();
     }
 
     private Optional<LocalDate> findTelemetryGameDate(ProcessMemoryReader reader, long expectedPlayerCount) throws IOException {
