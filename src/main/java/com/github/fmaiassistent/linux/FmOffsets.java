@@ -7,7 +7,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -46,37 +45,8 @@ public final class FmOffsets {
             Map.entry(0x238bde, 0x4d81320L), Map.entry(0x238cf5, 0x4d69200L)
     );
 
-    // Build-specific global game-state pointer RVAs used by Genie 26.3.2.
-    private static final Map<Integer, Long> BUILD_TO_GAME_DATE_RVA = Map.ofEntries(
-            Map.entry(0x21eecd, 0x4deb948L), Map.entry(0x21f273, 0x4dde2a0L),
-            Map.entry(0x21f34c, 0x4d0d610L), Map.entry(0x21f739, 0x4ded988L),
-            Map.entry(0x21fe2e, 0x4ded988L), Map.entry(0x21ff70, 0x4ded988L),
-            Map.entry(0x2202d1, 0x4dee988L), Map.entry(0x2202da, 0x4def9b8L),
-            Map.entry(0x2202db, 0x4d26780L), Map.entry(0x220ca2, 0x4df4858L),
-            Map.entry(0x220ca3, 0x4d2c620L), Map.entry(0x22191e, 0x4e00868L),
-            Map.entry(0x22191f, 0x4d38670L), Map.entry(0x221920, 0x4d124f0L),
-            Map.entry(0x222a65, 0x4e08870L), Map.entry(0x222a9e, 0x4d28548L),
-            Map.entry(0x222ad7, 0x4e08870L), Map.entry(0x222ad8, 0x4d41678L),
-            Map.entry(0x2241d3, 0x4d66998L), Map.entry(0x2242f0, 0x4e46cb0L),
-            Map.entry(0x2243a4, 0x4e46cb0L), Map.entry(0x2243a5, 0x4d7fac8L),
-            Map.entry(0x224c5b, 0x4e4fe30L), Map.entry(0x224dbf, 0x4e51e30L),
-            Map.entry(0x224dc0, 0x4d8ac08L), Map.entry(0x226a5a, 0x4cfd928L),
-            Map.entry(0x226ba1, 0x4ddcc50L), Map.entry(0x226ba2, 0x4d15a58L),
-            Map.entry(0x228bdb, 0x4d087b0L), Map.entry(0x2291c7, 0x4de7420L),
-            Map.entry(0x2291c8, 0x4d208a0L), Map.entry(0x22973c, 0x4de7420L),
-            Map.entry(0x22973d, 0x4d218a0L), Map.entry(0x22b6ff, 0x4de8d78L),
-            Map.entry(0x22b700, 0x4d231f8L), Map.entry(0x22b701, 0x4d0a0f8L),
-            Map.entry(0x22bc1f, 0x4de8d78L), Map.entry(0x22bc20, 0x4d221f8L),
-            Map.entry(0x22d6e7, 0x4de68c0L), Map.entry(0x22d6e8, 0x4d1fd40L),
-            Map.entry(0x22d6e9, 0x4d06c40L), Map.entry(0x22e3ef, 0x4de68c0L),
-            Map.entry(0x22e5fd, 0x4d06c40L), Map.entry(0x235144, 0x4e33f60L),
-            Map.entry(0x235145, 0x4d6d3d0L), Map.entry(0x235d1d, 0x4d542e0L),
-            Map.entry(0x238bdd, 0x4e35f60L), Map.entry(0x238bde, 0x4d6e3d0L),
-            Map.entry(0x238cf5, 0x4d562e0L)
-    );
-
-    // Native Windows keeps the current in-game date directly in game_plugin.dll.
-    private static final Map<Integer, Long> BUILD_TO_WINDOWS_CURRENT_DATE_RVA = Map.of(
+    // FM's native game_plugin.dll layout is the same on Windows and under Proton.
+    private static final Map<Integer, Long> BUILD_TO_CURRENT_DATE_RVA = Map.of(
             0x238bdd, 0x4df3c18L
     );
 
@@ -271,21 +241,8 @@ public final class FmOffsets {
         return rva;
     }
 
-    static List<Long> orderedGameDatePointerRvas(int preferredBuild) {
-        LinkedHashSet<Long> rvas = new LinkedHashSet<>();
-        Long preferred = BUILD_TO_GAME_DATE_RVA.get(preferredBuild);
-        if (preferred != null) {
-            rvas.add(preferred);
-        }
-        BUILD_TO_GAME_DATE_RVA.entrySet().stream()
-                .sorted(Map.Entry.<Integer, Long>comparingByKey().reversed())
-                .map(Map.Entry::getValue)
-                .forEach(rvas::add);
-        return List.copyOf(rvas);
-    }
-
-    static Long windowsCurrentDateRva(int build) {
-        return BUILD_TO_WINDOWS_CURRENT_DATE_RVA.get(build);
+    static Long currentDateRva(int build) {
+        return BUILD_TO_CURRENT_DATE_RVA.get(build);
     }
 
     public record Bounds(long start, long end) {
