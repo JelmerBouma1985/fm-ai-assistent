@@ -52,6 +52,28 @@ http://127.0.0.1:8080
 
 Keep FM26 running with your save loaded. Start FM AI Assistent and Load data (not necessary but be wise with your tokens) before using the MCP tools.
 
+### Embedded Codex chat
+
+The **AI assistent** tab runs the locally installed `codex app-server`. It uses the Codex ChatGPT login and existing MCP configuration; it does not use or store an API key. On first use, select **Sign in with ChatGPT** in the tab and complete the browser flow.
+
+The terminal login command remains an optional alternative. The MCP configuration is still managed by Codex:
+
+```bash
+codex login
+codex mcp add fm-genie26 --url http://127.0.0.1:8080/mcp
+```
+
+Start FM AI Assistent normally, open `http://127.0.0.1:8080`, load the current FM26 save from RAM, and select **AI assistent**. Codex conversations are persisted by Codex and can be resumed from the conversation sidebar.
+
+The executable and workspace can be overridden without credentials:
+
+```properties
+app.codex.executable=codex
+app.codex.working-directory=.
+```
+
+Run `codex login status` and `codex mcp list` if the chat reports an authentication or MCP connectivity problem.
+
 ### Codex
 
 Add the MCP server in a terminal:

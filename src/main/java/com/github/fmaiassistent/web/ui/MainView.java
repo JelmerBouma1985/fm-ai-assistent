@@ -4,6 +4,7 @@ import com.github.fmaiassistent.domain.entity.ClubEntity;
 import com.github.fmaiassistent.domain.entity.CompetitionEntity;
 import com.github.fmaiassistent.domain.entity.PlayerEntity;
 import com.github.fmaiassistent.service.*;
+import com.github.fmaiassistent.codex.CodexConversationService;
 import com.github.fmaiassistent.domain.enums.MoneyCurrency;
 import com.github.fmaiassistent.repository.*;
 import com.github.fmaiassistent.player.AttributeDefinitions;
@@ -89,10 +90,12 @@ public class MainView extends VerticalLayout {
     private final Grid<PlayerEntity> playersGrid = new Grid<>();
     private final Grid<ClubEntity> clubsGrid = new Grid<>();
     private final Grid<CompetitionEntity> competitionsGrid = new Grid<>();
+    private final CodexChatView codexChat;
 
     private final Tab playersTab = new Tab("Players");
     private final Tab clubsTab = new Tab("Clubs");
     private final Tab competitionsTab = new Tab("Competitions");
+    private final Tab codexTab = new Tab("AI assistent");
     private PlayerFilterCriteria playerFilter = PlayerFilterCriteria.empty();
     private ClubFilterCriteria clubFilter = ClubFilterCriteria.empty();
     private CompetitionFilterCriteria competitionFilter = CompetitionFilterCriteria.empty();
@@ -103,12 +106,14 @@ public class MainView extends VerticalLayout {
             PlayerDatabaseService players,
             ClubDatabaseService clubs,
             CompetitionDatabaseService competitions,
-            AppSettingsService settings) {
+            AppSettingsService settings,
+            CodexConversationService codexConversations) {
         this.loadAll = loadAll;
         this.players = players;
         this.clubs = clubs;
         this.competitions = competitions;
         this.settings = settings;
+        this.codexChat = new CodexChatView(codexConversations);
         this.currency = settings.currency();
 
         setSizeFull();
@@ -181,12 +186,13 @@ public class MainView extends VerticalLayout {
     }
 
     private void configureTabs() {
-        tabs.add(playersTab, clubsTab, competitionsTab);
+        tabs.add(playersTab, clubsTab, competitionsTab, codexTab);
         tabs.setWidthFull();
         tabs.addClassName("workspace-tabs");
         playersTab.addComponentAsFirst(VaadinIcon.USERS.create());
         clubsTab.addComponentAsFirst(VaadinIcon.OFFICE.create());
         competitionsTab.addComponentAsFirst(VaadinIcon.TROPHY.create());
+        codexTab.addComponentAsFirst(VaadinIcon.CHAT.create());
         tabs.addSelectedChangeListener(event -> {
             filterButton.setVisible(event.getSelectedTab() == playersTab
                     || event.getSelectedTab() == clubsTab
@@ -195,8 +201,10 @@ public class MainView extends VerticalLayout {
                 showPlayers();
             } else if (event.getSelectedTab() == clubsTab) {
                 showClubs();
-            } else {
+            } else if (event.getSelectedTab() == competitionsTab) {
                 showCompetitions();
+            } else {
+                showCodex();
             }
         });
     }
@@ -267,9 +275,18 @@ public class MainView extends VerticalLayout {
             showPlayers();
         } else if (tabs.getSelectedTab() == clubsTab) {
             showClubs();
-        } else {
+        } else if (tabs.getSelectedTab() == competitionsTab) {
             showCompetitions();
+        } else {
+            showCodex();
         }
+    }
+
+    private void showCodex() {
+        content.removeAll();
+        content.removeClassName("data-workspace");
+        content.setSizeFull();
+        content.add(codexChat);
     }
 
     private void showPlayers() {
