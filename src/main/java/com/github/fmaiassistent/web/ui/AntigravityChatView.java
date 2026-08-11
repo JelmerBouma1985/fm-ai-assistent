@@ -9,6 +9,8 @@ import com.github.fmaiassistent.antigravity.AntigravityEvent;
 import com.github.fmaiassistent.antigravity.AntigravitySubscription;
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.DetachEvent;
+import com.vaadin.flow.component.Key;
+import com.vaadin.flow.component.Shortcuts;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -19,6 +21,7 @@ import com.vaadin.flow.component.messages.MessageList;
 import com.vaadin.flow.component.messages.MessageListItem;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.textfield.TextArea;
+import com.vaadin.flow.data.value.ValueChangeMode;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -134,20 +137,10 @@ final class AntigravityChatView extends Div {
         input.setMinRows(2);
         input.setMaxRows(9);
         input.setWidthFull();
+        input.setValueChangeMode(ValueChangeMode.EAGER);
         input.addClassName("codex-input");
         input.getElement().setAttribute("aria-label", "Message Antigravity");
-        input.getElement().addEventListener("antigravity-send", event -> sendMessage());
-        input.getElement().executeJs("""
-                if (!this.__antigravityEnterHandler) {
-                  this.__antigravityEnterHandler = (event) => {
-                    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
-                      event.preventDefault();
-                      this.dispatchEvent(new CustomEvent('antigravity-send'));
-                    }
-                  };
-                  this.addEventListener('keydown', this.__antigravityEnterHandler);
-                }
-                """);
+        Shortcuts.addShortcutListener(input, this::sendMessage, Key.ENTER).listenOn(input);
     }
 
     private void configureActions() {

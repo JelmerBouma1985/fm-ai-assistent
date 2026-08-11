@@ -10,6 +10,8 @@ import com.github.fmaiassistent.codex.CodexLogin;
 import com.github.fmaiassistent.codex.CodexSubscription;
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.DetachEvent;
+import com.vaadin.flow.component.Key;
+import com.vaadin.flow.component.Shortcuts;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -23,6 +25,7 @@ import com.vaadin.flow.component.messages.MessageListItem;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextArea;
+import com.vaadin.flow.data.value.ValueChangeMode;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -146,20 +149,10 @@ final class CodexChatView extends Div {
         input.setMinRows(2);
         input.setMaxRows(9);
         input.setWidthFull();
+        input.setValueChangeMode(ValueChangeMode.EAGER);
         input.addClassName("codex-input");
         input.getElement().setAttribute("aria-label", "Message Codex");
-        input.getElement().addEventListener("codex-send", event -> sendMessage());
-        input.getElement().executeJs("""
-                if (!this.__codexEnterHandler) {
-                  this.__codexEnterHandler = (event) => {
-                    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
-                      event.preventDefault();
-                      this.dispatchEvent(new CustomEvent('codex-send'));
-                    }
-                  };
-                  this.addEventListener('keydown', this.__codexEnterHandler);
-                }
-                """);
+        Shortcuts.addShortcutListener(input, this::sendMessage, Key.ENTER).listenOn(input);
     }
 
     private void configureActions() {
