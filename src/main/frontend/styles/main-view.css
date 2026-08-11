@@ -179,6 +179,11 @@ body {
     background: var(--fmai-surface);
 }
 
+.workspace-content {
+    min-height: 0;
+    overflow: hidden;
+}
+
 .workspace-tabs {
     min-width: 0;
     --lumo-contrast-60pct: var(--fmai-muted);

@@ -74,6 +74,75 @@ app.codex.working-directory=.
 
 Run `codex login status` and `codex mcp list` if the chat reports an authentication or MCP connectivity problem.
 
+### Embedded Antigravity chat
+
+The **Antigravity** tab runs the locally installed `agy` CLI in headless `stream-json` mode. It reuses Antigravity's Google login, MCP configuration, agent configuration, skills, and global permissions. FM AI Assistent does not read Google credentials or require a Gemini API key.
+
+First authenticate Antigravity normally from a terminal:
+
+```bash
+agy
+```
+
+Complete Google sign-in and approve the workspace if Antigravity asks. Exit Antigravity after authentication.
+
+Register the FM AI Assistent MCP server in Antigravity's user-level MCP configuration file:
+
+```text
+~/.gemini/config/mcp_config.json
+```
+
+The complete configuration is:
+
+```json
+{
+  "mcpServers": {
+    "fm-ai-assistent": {
+      "serverUrl": "http://127.0.0.1:8080/mcp"
+    }
+  }
+}
+```
+
+Antigravity headless mode cannot open an interactive approval prompt. Add explicit global permission grants for the application's six read-only MCP tools in:
+
+```text
+~/.gemini/antigravity-cli/settings.json
+```
+
+Merge the following entries into the existing `permissions.allow` array rather than replacing existing settings:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "mcp(fm-ai-assistent/fm26_find_clubs)",
+      "mcp(fm-ai-assistent/fm26_find_players)",
+      "mcp(fm-ai-assistent/fm26_get_club_context)",
+      "mcp(fm-ai-assistent/fm26_get_player_details)",
+      "mcp(fm-ai-assistent/fm26_get_role_attributes)",
+      "mcp(fm-ai-assistent/fm26_transfer_shortlist)"
+    ]
+  }
+}
+```
+
+Exact per-tool grants are used instead of `--dangerously-skip-permissions`. They are global Antigravity permissions and therefore apply whenever this MCP server is configured under the name `fm-ai-assistent`.
+
+Start FM AI Assistent before verifying the connection, then inspect the effective global grants without spending model quota:
+
+```bash
+agy -p "/permissions" --output-format json
+```
+
+For an end-to-end check, open the **Antigravity** tab and ask:
+
+```text
+What agents or FM26 tools are available in my application?
+```
+
+If Antigravity reports that the MCP server is unavailable, confirm that FM AI Assistent is running at `http://127.0.0.1:8080` and that the server name in `mcp_config.json` exactly matches the `fm-ai-assistent` name used by the permission rules.
+
 ### Codex
 
 Add the MCP server in a terminal:

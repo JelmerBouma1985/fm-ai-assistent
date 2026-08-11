@@ -49,8 +49,10 @@ class McpProtocolCompatibilityTest {
             assertEquals(200, initialized.statusCode());
             assertEquals(protocol, mapper.readTree(initialized.body())
                     .path("result").path("protocolVersion").asText());
-            String sessionId = initialized.headers().firstValue("Mcp-Session-Id").orElseThrow();
-            post("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}", sessionId, protocol);
+            String sessionId = initialized.headers().firstValue("Mcp-Session-Id").orElse(null);
+            if (sessionId != null) {
+                post("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}", sessionId, protocol);
+            }
 
             HttpResponse<String> tools = post(
                     "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}",

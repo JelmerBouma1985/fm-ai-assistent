@@ -13,3 +13,5 @@ src/main/frontend/generated/
 src/main/frontend/index.html
 
 /genie26_setup_26.3.1_b1530.exe
+/node_modules/
+/vite.generated.ts

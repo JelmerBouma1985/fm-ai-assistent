@@ -54,6 +54,7 @@ final class CodexChatView extends Div {
     private String selectedThreadId;
     private String activeTurnId;
     private boolean turnPending;
+    private boolean conversationSubscribed;
     private CodexLogin currentLogin;
 
     CodexChatView(CodexConversationService conversations) {
@@ -92,12 +93,16 @@ final class CodexChatView extends Div {
         if (conversations.availability().ready()) {
             refreshConversations();
         }
+        if (selectedThreadId != null) {
+            openConversation(selectedThreadId);
+        }
     }
 
     @Override
     protected void onDetach(DetachEvent detachEvent) {
         availabilitySubscription.close();
         conversationSubscription.close();
+        conversationSubscribed = false;
         availabilitySubscription = () -> { };
         conversationSubscription = () -> { };
         super.onDetach(detachEvent);
@@ -292,7 +297,7 @@ final class CodexChatView extends Div {
     }
 
     private void openConversation(String threadId) {
-        if (threadId.equals(selectedThreadId)) {
+        if (threadId.equals(selectedThreadId) && conversationSubscribed) {
             return;
         }
         conversations.openConversation(threadId)
@@ -305,6 +310,7 @@ final class CodexChatView extends Div {
 
     private void displaySnapshot(CodexConversationSnapshot snapshot) {
         conversationSubscription.close();
+        conversationSubscribed = false;
         selectedThreadId = snapshot.conversation().threadId();
         activeTurnId = snapshot.activeTurnId();
         messageItems.clear();
@@ -317,6 +323,7 @@ final class CodexChatView extends Div {
         conversationButtons.forEach((id, button) ->
                 button.getElement().getClassList().set("selected", id.equals(selectedThreadId)));
         conversationSubscription = conversations.subscribe(selectedThreadId, event -> access(() -> handleEvent(event)));
+        conversationSubscribed = true;
         setRunning(activeTurnId != null);
         input.focus();
     }
