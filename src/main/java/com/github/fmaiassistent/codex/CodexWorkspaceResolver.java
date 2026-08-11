@@ -1,9 +1,9 @@
 package com.github.fmaiassistent.codex;
 
 import com.github.fmaiassistent.FmAiAssistentApplication;
+import org.springframework.boot.system.ApplicationHome;
 import org.springframework.stereotype.Component;
 
-import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -24,20 +24,19 @@ class CodexWorkspaceResolver {
 
     private static Path applicationDirectory() {
         try {
-            var codeSource = FmAiAssistentApplication.class.getProtectionDomain().getCodeSource();
-            if (codeSource != null && codeSource.getLocation() != null) {
-                Path location = Path.of(codeSource.getLocation().toURI()).toAbsolutePath().normalize();
-                if (Files.isRegularFile(location)) {
-                    return location.getParent();
-                }
-                Path projectRoot = findProjectRoot(location);
-                if (projectRoot != null) {
-                    return projectRoot;
-                }
-                return location;
-            }
-        } catch (URISyntaxException | RuntimeException ignored) {
+            Path home = new ApplicationHome(FmAiAssistentApplication.class)
+                    .getDir()
+                    .toPath()
+                    .toAbsolutePath()
+                    .normalize();
+            Path project = findProjectRoot(home);
+            return project == null ? home : project;
+        } catch (RuntimeException ignored) {
+            return userDirectory();
         }
+    }
+
+    private static Path userDirectory() {
         return Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
     }
 
