@@ -20,7 +20,7 @@
         <java.version>25</java.version>
         <vaadin.version>25.1.6</vaadin.version>
         <vaadin.productionMode>true</vaadin.productionMode>
-        <spring-ai.version>2.0.0-M2</spring-ai.version>
+        <spring-ai.version>2.0.0</spring-ai.version>
         <jna.version>5.18.1</jna.version>
     </properties>
 
