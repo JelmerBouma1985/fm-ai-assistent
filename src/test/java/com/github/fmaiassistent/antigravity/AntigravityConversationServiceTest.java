@@ -1,5 +1,6 @@
 package com.github.fmaiassistent.antigravity;
 
+import com.github.fmaiassistent.ai.AiPromptContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
@@ -48,7 +49,7 @@ class AntigravityConversationServiceTest {
         AntigravityProperties properties = new AntigravityProperties(
                 true, "agy", ".", Duration.ofMinutes(15), Duration.ofSeconds(1),
                 null, null, null, false);
-        service = new AntigravityConversationService(client, properties);
+        service = new AntigravityConversationService(client, properties, AiPromptContext.none());
         service.initialize();
     }
 

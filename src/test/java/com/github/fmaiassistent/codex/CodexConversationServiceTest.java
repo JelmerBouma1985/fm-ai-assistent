@@ -1,5 +1,6 @@
 package com.github.fmaiassistent.codex;
 
+import com.github.fmaiassistent.ai.AiPromptContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -50,7 +51,7 @@ class CodexConversationServiceTest {
         CodexProperties properties = new CodexProperties(
                 true, "codex", ".",
                 Duration.ofSeconds(1), Duration.ofSeconds(1), Duration.ofSeconds(1));
-        service = new CodexConversationService(client, properties, mapper);
+        service = new CodexConversationService(client, properties, mapper, AiPromptContext.none());
         service.start();
         waitUntil(() -> service.availability().ready());
     }
@@ -175,7 +176,8 @@ class CodexConversationServiceTest {
         CodexProperties properties = new CodexProperties(
                 true, "codex", ".",
                 Duration.ofSeconds(1), Duration.ofSeconds(1), Duration.ofSeconds(1));
-        CodexConversationService failingService = new CodexConversationService(failingClient, properties, mapper);
+        CodexConversationService failingService = new CodexConversationService(
+                failingClient, properties, mapper, AiPromptContext.none());
 
         failingService.start();
 

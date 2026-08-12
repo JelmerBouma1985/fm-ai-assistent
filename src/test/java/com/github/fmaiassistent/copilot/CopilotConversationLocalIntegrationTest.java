@@ -1,5 +1,6 @@
 package com.github.fmaiassistent.copilot;
 
+import com.github.fmaiassistent.ai.AiPromptContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
@@ -17,7 +18,8 @@ class CopilotConversationLocalIntegrationTest {
         CopilotConversationService service = new CopilotConversationService(
                 properties,
                 new CopilotWorkspaceResolver(properties),
-                new CopilotExecutableResolver(properties));
+                new CopilotExecutableResolver(properties),
+                AiPromptContext.none());
         try {
             service.initialize();
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);

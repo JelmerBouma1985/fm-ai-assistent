@@ -1,5 +1,6 @@
 package com.github.fmaiassistent.antigravity;
 
+import com.github.fmaiassistent.ai.AiPromptContext;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,15 +25,20 @@ public class AntigravityConversationService {
 
     private final AntigravityCliClient client;
     private final AntigravityProperties properties;
+    private final AiPromptContext promptContext;
     private final Map<String, ConversationState> conversations = new ConcurrentHashMap<>();
     private final Map<String, CopyOnWriteArrayList<Consumer<AntigravityEvent>>> listeners = new ConcurrentHashMap<>();
     private final CopyOnWriteArrayList<Consumer<AntigravityAvailability>> availabilityListeners =
             new CopyOnWriteArrayList<>();
     private volatile AntigravityAvailability availability;
 
-    AntigravityConversationService(AntigravityCliClient client, AntigravityProperties properties) {
+    AntigravityConversationService(
+            AntigravityCliClient client,
+            AntigravityProperties properties,
+            AiPromptContext promptContext) {
         this.client = client;
         this.properties = properties;
+        this.promptContext = promptContext;
         availability = properties.enabled()
                 ? new AntigravityAvailability(AntigravityAvailability.State.READY, "Antigravity ready")
                 : new AntigravityAvailability(AntigravityAvailability.State.DISABLED, "Antigravity integration is disabled");
@@ -132,8 +138,9 @@ public class AntigravityConversationService {
         emit(new AntigravityEvent.TurnStarted(uiId, turnId));
 
         try {
+            String enrichedPrompt = promptContext.enrich("antigravity:" + uiId, text);
             AntigravityTurnHandle handle = client.start(
-                    turnId, antigravityId, text, event -> handleStreamEvent(state, turnId, event));
+                    turnId, antigravityId, enrichedPrompt, event -> handleStreamEvent(state, turnId, event));
             synchronized (state) {
                 if (turnId.equals(state.activeTurnId)) {
                     state.activeHandle = handle;

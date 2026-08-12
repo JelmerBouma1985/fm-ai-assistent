@@ -7,6 +7,7 @@ import com.github.fmaiassistent.service.*;
 import com.github.fmaiassistent.codex.CodexConversationService;
 import com.github.fmaiassistent.antigravity.AntigravityConversationService;
 import com.github.fmaiassistent.copilot.CopilotConversationService;
+import com.github.fmaiassistent.tactic.TacticContextService;
 import com.github.fmaiassistent.domain.enums.MoneyCurrency;
 import com.github.fmaiassistent.repository.*;
 import com.github.fmaiassistent.player.AttributeDefinitions;
@@ -111,13 +112,15 @@ public class MainView extends VerticalLayout {
             AppSettingsService settings,
             CodexConversationService codexConversations,
             AntigravityConversationService antigravityConversations,
-            CopilotConversationService copilotConversations) {
+            CopilotConversationService copilotConversations,
+            TacticContextService tacticContexts) {
         this.loadAll = loadAll;
         this.players = players;
         this.clubs = clubs;
         this.competitions = competitions;
         this.settings = settings;
-        this.aiAssistant = new AiAssistantView(codexConversations, antigravityConversations, copilotConversations);
+        this.aiAssistant = new AiAssistantView(
+                codexConversations, antigravityConversations, copilotConversations, tacticContexts);
         this.currency = settings.currency();
 
         setSizeFull();

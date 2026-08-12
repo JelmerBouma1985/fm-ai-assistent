@@ -1,5 +1,6 @@
 package com.github.fmaiassistent.codex;
 
+import com.github.fmaiassistent.ai.AiPromptContext;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +28,7 @@ public class CodexConversationService {
     private final CodexAppServerClient client;
     private final CodexProperties properties;
     private final ObjectMapper mapper;
+    private final AiPromptContext promptContext;
     private final Map<String, CopyOnWriteArrayList<Consumer<CodexEvent>>> listeners = new ConcurrentHashMap<>();
     private final CopyOnWriteArrayList<Consumer<CodexAvailability>> availabilityListeners = new CopyOnWriteArrayList<>();
     private final Map<String, String> activeTurns = new ConcurrentHashMap<>();
@@ -36,10 +38,15 @@ public class CodexConversationService {
     private volatile CodexAvailability availability;
     private volatile String activeLoginId;
 
-    CodexConversationService(CodexAppServerClient client, CodexProperties properties, ObjectMapper mapper) {
+    CodexConversationService(
+            CodexAppServerClient client,
+            CodexProperties properties,
+            ObjectMapper mapper,
+            AiPromptContext promptContext) {
         this.client = client;
         this.properties = properties;
         this.mapper = mapper;
+        this.promptContext = promptContext;
         availability = properties.enabled()
                 ? new CodexAvailability(CodexAvailability.State.STARTING, "Codex is starting")
                 : new CodexAvailability(CodexAvailability.State.DISABLED, "Codex integration is disabled");
@@ -106,7 +113,9 @@ public class CodexConversationService {
         if (activeTurns.putIfAbsent(threadId, reservation) != null) {
             return CompletableFuture.failedFuture(new CodexException("A turn is already active in this conversation"));
         }
-        CompletableFuture<String> turn = readyThen(() -> client.startTurn(threadId, text, messageId)).thenApply(result -> {
+        String enrichedPrompt = promptContext.enrich("codex:" + threadId, text);
+        CompletableFuture<String> turn = readyThen(
+                () -> client.startTurn(threadId, enrichedPrompt, messageId)).thenApply(result -> {
             String turnId = result.path("turn").path("id").asText();
             if (completedTurns.remove(turnId)) {
                 activeTurns.remove(threadId, reservation);

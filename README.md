@@ -52,6 +52,16 @@ http://127.0.0.1:8080
 
 Keep FM26 running with your save loaded. Start FM AI Assistent and Load data (not necessary but be wise with your tokens) before using the MCP tools.
 
+### FM26 tactic context
+
+The **AI assistent** tab has a collapsible **Tactic context** section. You can:
+
+- enter the location of a `.fmf` tactic file;
+- upload a `.fmf` tactic file; or
+- optionally select a folder containing an FMF plus extra screenshots/readable exports.
+
+The application reads the FM26 archive catalog, decrypts and decompresses the embedded tactic resource, and converts the tactic name, tactical style, mentality, in-possession roles/duties, and out-of-possession roles/duties into AI-readable text. The `.fmf` file is sufficient: screenshots and Football Manager Resource Archiver are not required. The resulting context is sent to the selected Codex, Antigravity, or GitHub Copilot conversation. The file is processed locally and is not uploaded to a separate conversion service.
+
 ### Embedded Codex chat
 
 The **AI assistent** tab runs the locally installed `codex app-server`. It uses the Codex ChatGPT login and existing MCP configuration; it does not use or store an API key. On first use, select **Sign in with ChatGPT** in the tab and complete the browser flow.

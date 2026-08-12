@@ -1,5 +1,6 @@
 package com.github.fmaiassistent.copilot;
 
+import com.github.fmaiassistent.ai.AiPromptContext;
 import com.github.copilot.CopilotClient;
 import com.github.copilot.CopilotSession;
 import com.github.copilot.generated.AssistantMessageEvent;
@@ -53,6 +54,7 @@ public class CopilotConversationService {
 
     private final CopilotProperties properties;
     private final CopilotExecutableResolver executableResolver;
+    private final AiPromptContext promptContext;
     private final Path workingDirectory;
     private final CopilotSdkEventMapper eventMapper = new CopilotSdkEventMapper();
     private final ExecutorService lifecycleExecutor = Executors.newSingleThreadExecutor(
@@ -69,10 +71,12 @@ public class CopilotConversationService {
     CopilotConversationService(
             CopilotProperties properties,
             CopilotWorkspaceResolver workspaceResolver,
-            CopilotExecutableResolver executableResolver) {
+            CopilotExecutableResolver executableResolver,
+            AiPromptContext promptContext) {
         this.properties = properties;
         this.workingDirectory = workspaceResolver.workingDirectory();
         this.executableResolver = executableResolver;
+        this.promptContext = promptContext;
         availability = properties.enabled()
                 ? new CopilotAvailability(CopilotAvailability.State.STARTING, "GitHub Copilot starting…", null, 0)
                 : new CopilotAvailability(CopilotAvailability.State.DISABLED, "GitHub Copilot is disabled", null, 0);
@@ -200,7 +204,9 @@ public class CopilotConversationService {
                     "user-" + turnId, CopilotConversationItem.Kind.USER, text, "completed", null));
         }
         emit(new CopilotEvent.TurnStarted(sessionId, turnId));
-        return ensureResumed(state).thenCompose(session -> session.send(new MessageOptions().setPrompt(text)))
+        String enrichedPrompt = promptContext.enrich("copilot:" + sessionId, text);
+        return ensureResumed(state).thenCompose(
+                        session -> session.send(new MessageOptions().setPrompt(enrichedPrompt)))
                 .thenApply(ignored -> turnId)
                 .whenComplete((ignored, error) -> {
                     if (error != null) {

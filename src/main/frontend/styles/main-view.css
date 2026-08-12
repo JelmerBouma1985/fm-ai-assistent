@@ -513,7 +513,7 @@ vaadin-select:hover::part(input-field) {
 .ai-assistant-view {
     display: grid;
     min-height: 0;
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
     overflow: hidden;
 }
 
@@ -539,6 +539,71 @@ vaadin-select:hover::part(input-field) {
 .ai-assistant-chat-host {
     min-height: 0;
     overflow: hidden;
+}
+
+.tactic-context-panel {
+    border: 0;
+    border-bottom: 1px solid var(--fmai-border);
+    border-radius: 0;
+    background: #fbfcfb;
+    font-size: 13px;
+}
+
+.tactic-context-panel::part(summary) {
+    min-height: 38px;
+    box-sizing: border-box;
+    padding: 7px 20px;
+    color: #46524c;
+    font-weight: 750;
+}
+
+.tactic-context-panel::part(content) {
+    padding: 0 20px 14px;
+}
+
+.tactic-context-help,
+.tactic-context-details {
+    color: var(--fmai-muted);
+    font-size: 12px;
+}
+
+.tactic-context-details {
+    white-space: pre-wrap;
+}
+
+.tactic-context-status {
+    color: var(--fmai-green-dark);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.tactic-context-controls {
+    gap: 8px;
+}
+
+.tactic-context-location {
+    min-width: 220px;
+}
+
+.tactic-context-upload {
+    min-width: max-content;
+}
+
+.tactic-context-preview-details {
+    width: 100%;
+    border: 1px solid var(--fmai-border);
+    font-size: 12px;
+}
+
+.tactic-context-preview {
+    max-height: 280px;
+    margin: 0;
+    padding: 10px;
+    overflow: auto;
+    background: #f4f6f5;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
+    white-space: pre-wrap;
 }
 
 .codex-chat {
@@ -868,6 +933,24 @@ vaadin-select:hover::part(input-field) {
     }
 
     .ai-provider-toolbar vaadin-select {
+        width: 100%;
+    }
+
+    .tactic-context-panel::part(summary) {
+        padding-right: 10px;
+        padding-left: 10px;
+    }
+
+    .tactic-context-panel::part(content) {
+        padding-right: 10px;
+        padding-left: 10px;
+    }
+
+    .tactic-context-controls {
+        flex-wrap: wrap;
+    }
+
+    .tactic-context-location {
         width: 100%;
     }
 

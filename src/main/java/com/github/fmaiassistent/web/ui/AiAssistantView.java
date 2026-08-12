@@ -3,6 +3,7 @@ package com.github.fmaiassistent.web.ui;
 import com.github.fmaiassistent.antigravity.AntigravityConversationService;
 import com.github.fmaiassistent.codex.CodexConversationService;
 import com.github.fmaiassistent.copilot.CopilotConversationService;
+import com.github.fmaiassistent.tactic.TacticContextService;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
@@ -19,7 +20,8 @@ final class AiAssistantView extends Div {
     AiAssistantView(
             CodexConversationService codexConversations,
             AntigravityConversationService antigravityConversations,
-            CopilotConversationService copilotConversations) {
+            CopilotConversationService copilotConversations,
+            TacticContextService tacticContexts) {
         codexChat = new CodexChatView(codexConversations);
         antigravityChat = new AntigravityChatView(antigravityConversations);
         copilotChat = new CopilotChatView(copilotConversations);
@@ -43,7 +45,7 @@ final class AiAssistantView extends Div {
         toolbar.setWidthFull();
         toolbar.addClassName("ai-provider-toolbar");
 
-        add(toolbar, chatHost);
+        add(toolbar, new TacticContextPanel(tacticContexts), chatHost);
         showProvider(provider.getValue());
     }
 
