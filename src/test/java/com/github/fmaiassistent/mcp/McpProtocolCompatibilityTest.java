@@ -19,6 +19,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {
                 "app.codex.enabled=false",
+                "app.ai.antigravity.enabled=false",
+                "app.ai.copilot.enabled=false",
                 "spring.datasource.url=jdbc:h2:mem:mcp-protocol-test;DB_CLOSE_DELAY=-1"
         })
 class McpProtocolCompatibilityTest {

@@ -509,7 +509,38 @@ vaadin-select:hover::part(input-field) {
     width: 100%;
 }
 
-/* Embedded Codex */
+/* Embedded AI assistants */
+.ai-assistant-view {
+    display: grid;
+    min-height: 0;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+}
+
+.ai-provider-toolbar {
+    min-height: 64px;
+    box-sizing: border-box;
+    gap: 20px;
+    padding: 8px 20px;
+    border-bottom: 1px solid var(--fmai-border);
+    background: #f8faf9;
+}
+
+.ai-provider-description {
+    align-self: center;
+    color: var(--fmai-muted);
+    font-size: 13px;
+}
+
+.ai-provider-toolbar vaadin-select {
+    width: 220px;
+}
+
+.ai-assistant-chat-host {
+    min-height: 0;
+    overflow: hidden;
+}
+
 .codex-chat {
     display: grid;
     min-height: 0;
@@ -826,6 +857,18 @@ vaadin-select:hover::part(input-field) {
 
     .dialog-content {
         max-height: calc(100vh - 190px);
+    }
+
+    .ai-provider-description {
+        display: none;
+    }
+
+    .ai-provider-toolbar {
+        padding: 8px 10px;
+    }
+
+    .ai-provider-toolbar vaadin-select {
+        width: 100%;
     }
 
     .codex-chat {

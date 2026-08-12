@@ -76,7 +76,7 @@ Run `codex login status` and `codex mcp list` if the chat reports an authenticat
 
 ### Embedded Antigravity chat
 
-The **Antigravity** tab runs the locally installed `agy` CLI in headless `stream-json` mode. It reuses Antigravity's Google login, MCP configuration, agent configuration, skills, and global permissions. FM AI Assistent does not read Google credentials or require a Gemini API key.
+Select **Antigravity** in the **AI assistent** tab. It runs the locally installed `agy` CLI in headless `stream-json` mode. It reuses Antigravity's Google login, MCP configuration, agent configuration, skills, and global permissions. FM AI Assistent does not read Google credentials or require a Gemini API key.
 
 First authenticate Antigravity normally from a terminal:
 
@@ -135,13 +135,53 @@ Start FM AI Assistent before verifying the connection, then inspect the effectiv
 agy -p "/permissions" --output-format json
 ```
 
-For an end-to-end check, open the **Antigravity** tab and ask:
+For an end-to-end check, open the **AI assistent** tab, select **Antigravity**, and ask:
 
 ```text
 What agents or FM26 tools are available in my application?
 ```
 
 If Antigravity reports that the MCP server is unavailable, confirm that FM AI Assistent is running at `http://127.0.0.1:8080` and that the server name in `mcp_config.json` exactly matches the `fm-ai-assistent` name used by the permission rules.
+
+### Embedded GitHub Copilot chat
+
+Select **GitHub Copilot** in the **AI assistent** tab. The application uses official GitHub Copilot Java SDK `1.0.9`, which owns one persistent local Copilot CLI process. Login credentials, instructions, skills, custom agents, session history, and MCP configuration remain owned by Copilot. FM AI Assistent does not read GitHub credentials or require a model API key.
+
+Install GitHub Copilot CLI and authenticate once:
+
+```bash
+copilot --version
+copilot login
+```
+
+Add FM AI Assistent's local HTTP MCP server to Copilot's normal user configuration:
+
+```bash
+copilot mcp add --transport http fm-ai-assistent http://127.0.0.1:8080/mcp
+copilot mcp list
+```
+
+If `copilot mcp list` already shows `fm-ai-assistent`, do not add it again. Start FM AI Assistent before testing MCP calls. Copilot permission requests appear in Vaadin with **Allow once** and **Deny** actions. Requests from the application's own `fm-ai-assistent` MCP server also offer **Always allow this MCP tool**. This persists an exact tool rule for the current workspace through Copilot's location-scoped permission API; it does not approve other MCP tools, shell commands, or file writes. The integration never uses `--allow-all` or `--yolo`.
+
+Optional runtime settings:
+
+```properties
+app.ai.copilot.enabled=true
+app.ai.copilot.executable=copilot
+app.ai.copilot.working-directory=.
+app.ai.copilot.startup-timeout=30s
+app.ai.copilot.permission-timeout=5m
+# app.ai.copilot.model=
+# app.ai.copilot.reasoning-effort=
+```
+
+For an end-to-end check, load FM26 data, select **GitHub Copilot**, then ask:
+
+```text
+What agents or FM26 tools are available in my application?
+```
+
+The web server binds to `127.0.0.1` by default. Keep this local: Copilot can run tools, access workspace files, and call the application MCP server.
 
 ### Codex
 

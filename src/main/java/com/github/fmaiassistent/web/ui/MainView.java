@@ -6,6 +6,7 @@ import com.github.fmaiassistent.domain.entity.PlayerEntity;
 import com.github.fmaiassistent.service.*;
 import com.github.fmaiassistent.codex.CodexConversationService;
 import com.github.fmaiassistent.antigravity.AntigravityConversationService;
+import com.github.fmaiassistent.copilot.CopilotConversationService;
 import com.github.fmaiassistent.domain.enums.MoneyCurrency;
 import com.github.fmaiassistent.repository.*;
 import com.github.fmaiassistent.player.AttributeDefinitions;
@@ -91,14 +92,12 @@ public class MainView extends VerticalLayout {
     private final Grid<PlayerEntity> playersGrid = new Grid<>();
     private final Grid<ClubEntity> clubsGrid = new Grid<>();
     private final Grid<CompetitionEntity> competitionsGrid = new Grid<>();
-    private final CodexChatView codexChat;
-    private final AntigravityChatView antigravityChat;
+    private final AiAssistantView aiAssistant;
 
     private final Tab playersTab = new Tab("Players");
     private final Tab clubsTab = new Tab("Clubs");
     private final Tab competitionsTab = new Tab("Competitions");
-    private final Tab codexTab = new Tab("AI assistent");
-    private final Tab antigravityTab = new Tab("Antigravity");
+    private final Tab aiAssistantTab = new Tab("AI assistent");
     private PlayerFilterCriteria playerFilter = PlayerFilterCriteria.empty();
     private ClubFilterCriteria clubFilter = ClubFilterCriteria.empty();
     private CompetitionFilterCriteria competitionFilter = CompetitionFilterCriteria.empty();
@@ -111,14 +110,14 @@ public class MainView extends VerticalLayout {
             CompetitionDatabaseService competitions,
             AppSettingsService settings,
             CodexConversationService codexConversations,
-            AntigravityConversationService antigravityConversations) {
+            AntigravityConversationService antigravityConversations,
+            CopilotConversationService copilotConversations) {
         this.loadAll = loadAll;
         this.players = players;
         this.clubs = clubs;
         this.competitions = competitions;
         this.settings = settings;
-        this.codexChat = new CodexChatView(codexConversations);
-        this.antigravityChat = new AntigravityChatView(antigravityConversations);
+        this.aiAssistant = new AiAssistantView(codexConversations, antigravityConversations, copilotConversations);
         this.currency = settings.currency();
 
         setSizeFull();
@@ -192,14 +191,13 @@ public class MainView extends VerticalLayout {
     }
 
     private void configureTabs() {
-        tabs.add(playersTab, clubsTab, competitionsTab, codexTab, antigravityTab);
+        tabs.add(playersTab, clubsTab, competitionsTab, aiAssistantTab);
         tabs.setWidthFull();
         tabs.addClassName("workspace-tabs");
         playersTab.addComponentAsFirst(VaadinIcon.USERS.create());
         clubsTab.addComponentAsFirst(VaadinIcon.OFFICE.create());
         competitionsTab.addComponentAsFirst(VaadinIcon.TROPHY.create());
-        codexTab.addComponentAsFirst(VaadinIcon.CHAT.create());
-        antigravityTab.addComponentAsFirst(VaadinIcon.AUTOMATION.create());
+        aiAssistantTab.addComponentAsFirst(VaadinIcon.CHAT.create());
         tabs.addSelectedChangeListener(event -> {
             filterButton.setVisible(event.getSelectedTab() == playersTab
                     || event.getSelectedTab() == clubsTab
@@ -210,10 +208,8 @@ public class MainView extends VerticalLayout {
                 showClubs();
             } else if (event.getSelectedTab() == competitionsTab) {
                 showCompetitions();
-            } else if (event.getSelectedTab() == codexTab) {
-                showCodex();
             } else {
-                showAntigravity();
+                showAiAssistant();
             }
         });
     }
@@ -286,25 +282,16 @@ public class MainView extends VerticalLayout {
             showClubs();
         } else if (tabs.getSelectedTab() == competitionsTab) {
             showCompetitions();
-        } else if (tabs.getSelectedTab() == codexTab) {
-            showCodex();
         } else {
-            showAntigravity();
+            showAiAssistant();
         }
     }
 
-    private void showCodex() {
+    private void showAiAssistant() {
         content.removeAll();
         content.removeClassName("data-workspace");
         content.setSizeFull();
-        content.add(codexChat);
-    }
-
-    private void showAntigravity() {
-        content.removeAll();
-        content.removeClassName("data-workspace");
-        content.setSizeFull();
-        content.add(antigravityChat);
+        content.add(aiAssistant);
     }
 
     private void showPlayers() {
