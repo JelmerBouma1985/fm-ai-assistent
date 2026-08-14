@@ -24,6 +24,13 @@
         <jna.version>5.18.1</jna.version>
         <copilot-sdk.version>1.0.9</copilot-sdk.version>
         <aircompressor.version>2.0.3</aircompressor.version>
+        <application.main.class>com.github.fmaiassistent.FmAiAssistentApplication</application.main.class>
+        <desktop.application.name>FM AI Assistent</desktop.application.name>
+        <desktop.application.vendor>FM AI Assistent</desktop.application.vendor>
+        <desktop.main.class>com.github.fmaiassistent.desktop.DesktopLauncher</desktop.main.class>
+        <desktop.input.directory>${project.build.directory}/desktop-input</desktop.input.directory>
+        <desktop.output.directory>${project.build.directory}/dist</desktop.output.directory>
+        <desktop.package.type>app-image</desktop.package.type>
     </properties>
 
     <dependencyManagement>
@@ -146,11 +153,185 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>${application.main.class}</mainClass>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.graalvm.buildtools</groupId>
                 <artifactId>native-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>${application.main.class}</mainClass>
+                </configuration>
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>desktop</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-enforcer-plugin</artifactId>
+                        <version>3.6.2</version>
+                        <executions>
+                            <execution>
+                                <id>require-jpackage</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>enforce</goal>
+                                </goals>
+                                <configuration>
+                                    <rules>
+                                        <requireFilesExist>
+                                            <message>Desktop packaging requires a full Java 25 JDK with jpackage. Run Maven with that JDK on Windows or Linux.</message>
+                                            <files>
+                                                <file>${desktop.jpackage.executable}</file>
+                                            </files>
+                                        </requireFilesExist>
+                                    </rules>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <version>3.6.1</version>
+                        <executions>
+                            <execution>
+                                <id>parse-desktop-version</id>
+                                <phase>validate</phase>
+                                <goals>
+                                    <goal>parse-version</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>copy-desktop-runtime-dependencies</id>
+                                <phase>prepare-package</phase>
+                                <goals>
+                                    <goal>copy-dependencies</goal>
+                                </goals>
+                                <configuration>
+                                    <includeScope>runtime</includeScope>
+                                    <outputDirectory>${desktop.input.directory}/lib</outputDirectory>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>desktop-launcher-jar</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                                <configuration>
+                                    <classifier>desktop</classifier>
+                                    <outputDirectory>${desktop.input.directory}</outputDirectory>
+                                    <archive>
+                                        <manifest>
+                                            <mainClass>${desktop.main.class}</mainClass>
+                                            <addClasspath>true</addClasspath>
+                                            <classpathPrefix>lib/</classpathPrefix>
+                                        </manifest>
+                                    </archive>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>3.6.2</version>
+                        <executions>
+                            <execution>
+                                <id>jpackage-desktop-app-image</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>${desktop.jpackage.executable}</executable>
+                                    <arguments>
+                                        <argument>--type</argument>
+                                        <argument>${desktop.package.type}</argument>
+                                        <argument>--name</argument>
+                                        <argument>${desktop.application.name}</argument>
+                                        <argument>--dest</argument>
+                                        <argument>${desktop.output.directory}</argument>
+                                        <argument>--input</argument>
+                                        <argument>${desktop.input.directory}</argument>
+                                        <argument>--main-jar</argument>
+                                        <argument>${project.build.finalName}-desktop.jar</argument>
+                                        <argument>--main-class</argument>
+                                        <argument>${desktop.main.class}</argument>
+                                        <argument>--app-version</argument>
+                                        <argument>${parsedVersion.majorVersion}.${parsedVersion.minorVersion}.${parsedVersion.incrementalVersion}</argument>
+                                        <argument>--vendor</argument>
+                                        <argument>${desktop.application.vendor}</argument>
+                                        <argument>--description</argument>
+                                        <argument>${project.description}</argument>
+                                        <argument>--add-modules</argument>
+                                        <argument>ALL-MODULE-PATH</argument>
+                                        <argument>--java-options</argument>
+                                        <argument>-Dfile.encoding=UTF-8</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>make-desktop-image-cleanable</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>java</goal>
+                                </goals>
+                                <configuration>
+                                    <mainClass>com.github.fmaiassistent.desktop.DesktopImageFinalizer</mainClass>
+                                    <arguments>
+                                        <argument>${desktop.output.directory}</argument>
+                                    </arguments>
+                                    <classpathScope>runtime</classpathScope>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <profile>
+            <id>desktop-windows</id>
+            <activation>
+                <os>
+                    <family>Windows</family>
+                </os>
+            </activation>
+            <properties>
+                <desktop.jpackage.executable>${java.home}/bin/jpackage.exe</desktop.jpackage.executable>
+            </properties>
+        </profile>
+
+        <profile>
+            <id>desktop-linux</id>
+            <activation>
+                <os>
+                    <name>Linux</name>
+                </os>
+            </activation>
+            <properties>
+                <desktop.jpackage.executable>${java.home}/bin/jpackage</desktop.jpackage.executable>
+            </properties>
+        </profile>
+    </profiles>
 </project>

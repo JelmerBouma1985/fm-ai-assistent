@@ -8,9 +8,40 @@ The app also includes a frontend where you can search and filter the data yourse
 
 ## How To Install
 
+### Desktop application package
+
+The desktop package starts Spring Boot and Vaadin in one bundled JVM. A small taskbar window shows loading progress while Spring Boot and Vaadin start. When the application is ready, the browser opens and the window minimizes to the taskbar. Restore it to use **Open** to reopen the browser or **Exit** to close the Spring application context and stop the embedded server gracefully. Closing the taskbar window with **X** uses the same graceful shutdown path. Closing the browser does not stop the application.
+
+Build the normal executable Spring Boot JAR:
+
+```bash
+mvn clean install
+```
+
+Build a self-contained desktop application image with a bundled Java runtime:
+
+```bash
+mvn clean install -Pdesktop
+```
+
+Run desktop packaging on the target operating system: Windows creates a Windows application and Linux creates a Linux application. Cross-platform native packaging is not supported. A full Java 25 JDK containing `jpackage` is required on the build machine; end users do not need Java installed.
+
+The generated application is located at:
+
+```text
+Windows: target/dist/FM AI Assistent/FM AI Assistent.exe
+Linux:   target/dist/FM AI Assistent/bin/FM AI Assistent
+```
+
+The initial package type is `app-image`, so no installer toolchain is required. To produce a platform installer later, override `desktop.package.type` with a format supported by the host and install that platform's packaging prerequisites, for example `-Ddesktop.package.type=msi` on Windows or `-Ddesktop.package.type=deb` on Linux. Installer output is also written beneath `target/dist`.
+
+Desktop mode listens on `127.0.0.1`, retains port 8080 for the configured local MCP clients, enables graceful server shutdown, and writes logs to `~/.fm-ai-assistent/fm-ai-assistent.log`. If a desktop window cannot be displayed, the backend and browser continue running; terminate the launcher normally from the desktop session or process manager. Starting a second copy while port 8080 is in use produces a startup error in the log instead of spawning another JVM.
+
 ### Option 1: Native Image
 
 Download the native image.
+
+To build it locally, run `mvn -Pnative native:compile` with GraalVM for Java 25. Windows native-image compilation also requires Visual Studio 2022 version 17.6 or newer with the **Desktop development with C++** workload.
 
 Make it executable:
 
