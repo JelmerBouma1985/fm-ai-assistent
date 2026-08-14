@@ -54,13 +54,9 @@ Keep FM26 running with your save loaded. Start FM AI Assistent and Load data (no
 
 ### FM26 tactic context
 
-The **AI assistent** tab has a collapsible **Tactic context** section. You can:
+The **AI assistent** tab has a clearly marked **AI tactic context** panel. Choose or drop one `.fmf` tactic file there to give the AI the details of your current tactic.
 
-- enter the location of a `.fmf` tactic file;
-- upload a `.fmf` tactic file; or
-- optionally select a folder containing an FMF plus extra screenshots/readable exports.
-
-The application reads the FM26 archive catalog, decrypts and decompresses the embedded tactic resource, and converts the tactic name, tactical style, mentality, in-possession roles/duties, and out-of-possession roles/duties into AI-readable text. The `.fmf` file is sufficient: screenshots and Football Manager Resource Archiver are not required. The resulting context is sent to the selected Codex, Antigravity, or GitHub Copilot conversation. The file is processed locally and is not uploaded to a separate conversion service.
+The application reads the uploaded FM26 archive catalog, decrypts and decompresses the embedded tactic resource, and converts the tactic name, tactical style, mentality, in-possession roles/duties, and out-of-possession roles/duties into AI-readable text. The resulting context is sent to the selected Codex, Antigravity, or GitHub Copilot conversation. The file is processed locally and is not uploaded to a separate conversion service.
 
 ### Embedded Codex chat
 

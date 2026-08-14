@@ -567,6 +567,12 @@ vaadin-select:hover::part(input-field) {
     font-size: 12px;
 }
 
+.tactic-context-heading {
+    color: var(--fmai-text);
+    font-size: 14px;
+    font-weight: 800;
+}
+
 .tactic-context-details {
     white-space: pre-wrap;
 }
@@ -581,12 +587,13 @@ vaadin-select:hover::part(input-field) {
     gap: 8px;
 }
 
-.tactic-context-location {
-    min-width: 220px;
-}
-
 .tactic-context-upload {
-    min-width: max-content;
+    box-sizing: border-box;
+    width: 100%;
+    padding: 12px;
+    border: 1px dashed var(--fmai-border);
+    border-radius: 8px;
+    background: #f5f8f6;
 }
 
 .tactic-context-preview-details {
@@ -948,10 +955,6 @@ vaadin-select:hover::part(input-field) {
 
     .tactic-context-controls {
         flex-wrap: wrap;
-    }
-
-    .tactic-context-location {
-        width: 100%;
     }
 
     .codex-chat {

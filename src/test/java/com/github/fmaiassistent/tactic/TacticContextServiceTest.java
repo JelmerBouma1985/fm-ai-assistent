@@ -1,29 +1,20 @@
 package com.github.fmaiassistent.tactic;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.springframework.util.unit.DataSize;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.time.Duration;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class TacticContextServiceTest {
-    @TempDir
-    Path temporaryDirectory;
-
     @Test
-    void pathImportDecodesFmfWithoutScreenshotsAndEnrichesAgentPrompt() throws Exception {
-        Path fmf = temporaryDirectory.resolve("tactic.fmf");
-        Files.write(fmf, FmfTacticParserTest.fmf("4-2-4-press"));
-        TacticContextService service = service((path, kind) -> {
-            throw new AssertionError("Screenshot OCR must not be needed for an FMF import");
-        });
+    void uploadedFmfIsDecodedAndEnrichesAgentPrompt() {
+        TacticContextService service = service();
 
-        TacticContext context = service.loadPath(fmf.toString());
+        TacticContext context = service.loadUploads(
+                Map.of("tactic.fmf", FmfTacticParserTest.fmf("4-2-4-press")));
 
         assertThat(context.title()).isEqualTo("4-2-4-press");
         assertThat(context.importedFiles()).containsExactly("tactic.fmf");
@@ -42,20 +33,31 @@ class TacticContextServiceTest {
     }
 
     @Test
-    void uploadedTextFromResourceArchiverBecomesContextAndCanBeCleared() {
-        TacticContextService service = service((path, kind) -> "unused");
+    void rejectsAnythingOtherThanOneFmfUpload() {
+        TacticContextService service = service();
 
-        TacticContext context = service.loadUploads(Map.of(
-                "tactic.xml", "<tactic><tempo>higher</tempo></tactic>".getBytes()));
+        assertThatThrownBy(() -> service.loadUploads(Map.of(
+                "tactic.xml", "<tactic/>".getBytes())))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Only a Football Manager .fmf tactic file can be uploaded");
+        assertThatThrownBy(() -> service.loadUploads(Map.of(
+                "one.fmf", new byte[]{1}, "two.fmf", new byte[]{2})))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Upload exactly one Football Manager .fmf tactic file");
+    }
 
-        assertThat(context.markdown()).contains("tempo", "higher");
+    @Test
+    void uploadedContextCanBeCleared() {
+        TacticContextService service = service();
+        service.loadUploads(Map.of("tactic.fmf", FmfTacticParserTest.fmf("press")));
+
         assertThat(service.clear().active()).isFalse();
         assertThat(service.enrich("copilot:session", "hello")).isEqualTo("hello");
     }
 
-    private static TacticContextService service(TacticImageTextExtractor extractor) {
+    private static TacticContextService service() {
         TacticContextProperties properties = new TacticContextProperties(
-                "tesseract", Duration.ofSeconds(5), DataSize.ofMegabytes(20), 16_000);
-        return new TacticContextService(new FmfTacticParser(), extractor, properties);
+                DataSize.ofMegabytes(20), 16_000);
+        return new TacticContextService(new FmfTacticParser(), properties);
     }
 }

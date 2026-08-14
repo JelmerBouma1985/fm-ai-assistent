@@ -2,7 +2,6 @@ package com.github.fmaiassistent.web.ui;
 
 import com.github.fmaiassistent.tactic.TacticContext;
 import com.github.fmaiassistent.tactic.TacticContextService;
-import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -13,7 +12,6 @@ import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.upload.Upload;
 import com.vaadin.flow.server.streams.UploadHandler;
 
@@ -25,8 +23,6 @@ final class TacticContextPanel extends Details {
     private static final int MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
     private final TacticContextService contexts;
-    private final TextField location = new TextField();
-    private final Button load = new Button("Load", VaadinIcon.FOLDER_OPEN.create());
     private final Button clear = new Button("Clear");
     private final Span status = new Span();
     private final Span details = new Span();
@@ -38,13 +34,8 @@ final class TacticContextPanel extends Details {
     TacticContextPanel(TacticContextService contexts) {
         this.contexts = contexts;
         addClassName("tactic-context-panel");
+        setOpened(true);
 
-        location.setPlaceholder("/path/to/tactic.fmf");
-        location.setClearButtonVisible(true);
-        location.addClassName("tactic-context-location");
-        location.addKeyPressListener(Key.ENTER, ignored -> loadPath());
-        load.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        load.addClickListener(ignored -> loadPath());
         clear.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
         clear.addClickListener(ignored -> {
             contexts.clear();
@@ -60,42 +51,42 @@ final class TacticContextPanel extends Details {
                 pendingUploads.put(name, bytes);
             }
         }));
-        upload.setUploadButton(new Button("Upload FMF", VaadinIcon.UPLOAD.create()));
-        upload.setAcceptedFileTypes(
-                ".fmf", ".png", ".jpg", ".jpeg", ".tac", ".aom", ".xml", ".json", ".txt", ".jsb");
+        Button uploadButton = new Button("Choose tactic file (.fmf)", VaadinIcon.UPLOAD.create());
+        uploadButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        upload.setUploadButton(uploadButton);
+        upload.setDropLabel(new Span("or drop your .fmf tactic file here"));
+        upload.setAcceptedFileTypes(".fmf");
         upload.setMaxFileSize(MAX_UPLOAD_BYTES);
-        upload.setMaxFiles(10);
-        upload.setDropAllowed(false);
+        upload.setMaxFiles(1);
+        upload.setDropAllowed(true);
+        upload.setWidthFull();
         upload.addClassName("tactic-context-upload");
         upload.addAllFinishedListener(ignored -> importUploads());
         upload.addFileRejectedListener(event -> Notification.show(event.getErrorMessage()));
 
+        Span heading = new Span("Let the AI understand your current tactic");
+        heading.addClassName("tactic-context-heading");
         Span help = new Span(
-                "Select or upload an FM26 .fmf tactic. The app decodes its tactical roles, "
-                        + "duties, mentality and style directly; screenshots are not required.");
+                "Upload one Football Manager 2026 .fmf tactic file. Its roles, duties, mentality "
+                        + "and tactical style will be added automatically to Codex, Antigravity and GitHub Copilot chats.");
         help.addClassName("tactic-context-help");
         status.addClassName("tactic-context-status");
         details.addClassName("tactic-context-details");
         preview.addClassName("tactic-context-preview");
         previewDetails.addClassName("tactic-context-preview-details");
 
-        HorizontalLayout controls = new HorizontalLayout(location, load, upload, clear);
-        controls.setAlignItems(HorizontalLayout.Alignment.END);
-        controls.expand(location);
+        HorizontalLayout controls = new HorizontalLayout(status, clear);
+        controls.setAlignItems(HorizontalLayout.Alignment.CENTER);
+        controls.expand(status);
         controls.setWidthFull();
         controls.addClassName("tactic-context-controls");
 
-        VerticalLayout body = new VerticalLayout(help, controls, status, details, previewDetails);
+        VerticalLayout body = new VerticalLayout(heading, help, upload, controls, details, previewDetails);
         body.setPadding(false);
         body.setSpacing(true);
         body.addClassName("tactic-context-body");
         add(body);
         refresh();
-    }
-
-    private void loadPath() {
-        String path = location.getValue();
-        runImport(() -> contexts.loadPath(path));
     }
 
     private void importUploads() {
@@ -138,10 +129,8 @@ final class TacticContextPanel extends Details {
     }
 
     private void setBusy(boolean busy) {
-        load.setEnabled(!busy);
         upload.setEnabled(!busy);
         clear.setEnabled(!busy);
-        location.setEnabled(!busy);
         if (busy) {
             status.setText("Reading tactic…");
         }
@@ -153,15 +142,15 @@ final class TacticContextPanel extends Details {
 
     private void refresh(TacticContext context) {
         if (!context.active()) {
-            setSummaryText("Tactic context · none");
-            status.setText("No tactic context is sent to the AI agent.");
+            setSummaryText("AI tactic context · upload a .fmf file");
+            status.setText("No tactic uploaded yet");
             details.setText("");
             preview.setText("");
             previewDetails.setVisible(false);
             clear.setVisible(false);
             return;
         }
-        setSummaryText("Tactic context · " + context.title());
+        setSummaryText("AI tactic context · " + context.title());
         status.setText("Active for Codex, Antigravity and GitHub Copilot");
         String imported = "Files: " + String.join(", ", context.importedFiles());
         if (!context.warnings().isEmpty()) {
