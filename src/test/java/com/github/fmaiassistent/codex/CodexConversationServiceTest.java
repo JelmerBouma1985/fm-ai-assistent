@@ -149,6 +149,41 @@ class CodexConversationServiceTest {
     }
 
     @Test
+    void exposesMcpToolApprovalAndAcceptsItForTheSession() {
+        List<CodexEvent> events = new CopyOnWriteArrayList<>();
+        service.subscribe("thread-1", events::add);
+        JsonNode requestId = mapper.getNodeFactory().numberNode(100);
+
+        serverRequests.accept(new CodexJsonRpcClient.ServerRequest(
+                requestId,
+                "mcpServer/elicitation/request",
+                mapper.createObjectNode()
+                        .put("threadId", "thread-1")
+                        .put("turnId", "turn-1")
+                        .put("serverName", "fmaiassistent")
+                        .put("mode", "form")
+                        .put("message", "Allow fmaiassistent to run fm26_get_role_attributes?")
+                        .set("_meta", mapper.createObjectNode()
+                                .put("codex_approval_kind", "mcp_tool_call")
+                                .put("tool_description", "Get positional role attributes")
+                                .set("tool_params", mapper.createObjectNode()
+                                        .put("roleName", "Central Outlet Midfielder")
+                                        .put("limit", 20)))));
+
+        CodexEvent.ApprovalRequested approval = (CodexEvent.ApprovalRequested) events.getFirst();
+        service.decideApproval(approval.requestKey(), CodexConversationService.ApprovalDecision.ALLOW_SESSION);
+
+        assertEquals(CodexEvent.ApprovalKind.MCP_TOOL, approval.kind());
+        assertTrue(approval.details().contains("fmaiassistent"));
+        assertTrue(approval.details().contains("Central Outlet Midfielder"));
+        ArgumentCaptor<JsonNode> response = ArgumentCaptor.forClass(JsonNode.class);
+        verify(client).respond(org.mockito.ArgumentMatchers.eq(requestId), response.capture());
+        assertEquals("accept", response.getValue().path("action").asText());
+        assertTrue(response.getValue().path("content").isObject());
+        assertEquals("session", response.getValue().path("_meta").path("persist").asText());
+    }
+
+    @Test
     void startsAndCompletesChatGptBrowserLogin() throws Exception {
         when(client.startChatGptLogin()).thenReturn(CompletableFuture.completedFuture(mapper.createObjectNode()
                 .put("type", "chatgpt")

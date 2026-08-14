@@ -500,6 +500,7 @@ final class CodexChatView extends Div {
             case COMMAND -> "Allow command?";
             case FILE_CHANGE -> "Allow file changes?";
             case PERMISSIONS -> "Grant permissions?";
+            case MCP_TOOL -> "Allow this MCP tool?";
         });
         dialog.setCloseOnEsc(false);
         dialog.setCloseOnOutsideClick(false);

@@ -1,25 +1,33 @@
 package com.github.fmaiassistent.codex;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class SystemCodexProcessLauncherTest {
+    @TempDir
+    Path temporaryDirectory;
+
     @Test
     void addsNvmBinDirectorySoEnvCanFindNode() {
+        Path nvmBin = temporaryDirectory.resolve("nvm/versions/node/v25/bin");
+        Path systemBin = temporaryDirectory.resolve("system-bin");
+        Path userBin = temporaryDirectory.resolve("user-bin");
         ProcessBuilder builder = new ProcessBuilder();
-        builder.environment().put("PATH", "/usr/local/bin:/usr/bin");
+        builder.environment().put("PATH", String.join(
+                File.pathSeparator, systemBin.toString(), userBin.toString()));
 
         SystemCodexProcessLauncher.prependExecutableDirectoryToPath(
-                builder, "/home/user/.nvm/versions/node/v25/bin/codex");
+                builder, nvmBin.resolve("codex").toString());
 
         assertEquals(String.join(File.pathSeparator, List.of(
-                "/home/user/.nvm/versions/node/v25/bin",
-                "/usr/local/bin",
-                "/usr/bin")), builder.environment().get("PATH"));
+                nvmBin.toString(), systemBin.toString(), userBin.toString())),
+                builder.environment().get("PATH"));
     }
 
     @Test

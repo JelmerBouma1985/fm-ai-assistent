@@ -153,7 +153,19 @@ public class CodexConversationService {
             throw new CodexException("This approval request is no longer active");
         }
         ObjectNode result;
-        if ("item/permissions/requestApproval".equals(pending.method())) {
+        if ("mcpServer/elicitation/request".equals(pending.method())) {
+            result = mapper.createObjectNode().put("action", switch (decision) {
+                case ALLOW_ONCE, ALLOW_SESSION -> "accept";
+                case DENY -> "decline";
+                case DENY_AND_STOP -> "cancel";
+            });
+            if (decision == ApprovalDecision.ALLOW_ONCE || decision == ApprovalDecision.ALLOW_SESSION) {
+                result.set("content", mapper.createObjectNode());
+            }
+            if (decision == ApprovalDecision.ALLOW_SESSION) {
+                result.set("_meta", mapper.createObjectNode().put("persist", "session"));
+            }
+        } else if ("item/permissions/requestApproval".equals(pending.method())) {
             JsonNode granted = decision == ApprovalDecision.ALLOW_ONCE
                     || decision == ApprovalDecision.ALLOW_SESSION
                     ? pending.params().path("permissions")
@@ -411,6 +423,10 @@ public class CodexConversationService {
         } else if ("item/permissions/requestApproval".equals(method)) {
             kind = CodexEvent.ApprovalKind.PERMISSIONS;
             summary = "Codex requests additional permissions";
+        } else if ("mcpServer/elicitation/request".equals(method)
+                && "mcp_tool_call".equals(params.path("_meta").path("codex_approval_kind").asText())) {
+            kind = CodexEvent.ApprovalKind.MCP_TOOL;
+            summary = params.path("message").asText("Codex wants to call an MCP tool");
         } else {
             client.respondError(request.id(), -32601,
                     "This client does not support the app-server request: " + method);
@@ -548,6 +564,16 @@ public class CodexConversationService {
         }
         if (!params.path("permissions").isMissingNode()) {
             details.add("Requested permissions: " + compactJson(params.path("permissions")));
+        }
+        JsonNode metadata = params.path("_meta");
+        if ("mcp_tool_call".equals(metadata.path("codex_approval_kind").asText())) {
+            details.add("MCP server: " + params.path("serverName").asText("unknown"));
+            if (!metadata.path("tool_description").asText().isBlank()) {
+                details.add(metadata.path("tool_description").asText());
+            }
+            if (!metadata.path("tool_params").isMissingNode()) {
+                details.add("Arguments: " + compactJson(metadata.path("tool_params")));
+            }
         }
         return String.join("\n", details);
     }

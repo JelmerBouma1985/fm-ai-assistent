@@ -53,6 +53,7 @@ public sealed interface CodexEvent {
     enum ApprovalKind {
         COMMAND,
         FILE_CHANGE,
-        PERMISSIONS
+        PERMISSIONS,
+        MCP_TOOL
     }
 }

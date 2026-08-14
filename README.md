@@ -73,6 +73,9 @@ codex login
 codex mcp add fm-genie26 --url http://127.0.0.1:8080/mcp
 ```
 
+When Codex needs approval for an MCP tool call, FM AI Assistent shows the request in a popup with
+**Allow once**, **Allow for session**, **Deny**, and **Deny & stop** actions.
+
 Start FM AI Assistent normally, open `http://127.0.0.1:8080`, load the current FM26 save from RAM, and select **AI assistent**. Codex conversations are persisted by Codex and can be resumed from the conversation sidebar.
 
 The executable and workspace can be overridden without credentials:
