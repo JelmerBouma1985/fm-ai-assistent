@@ -7,6 +7,7 @@ import com.github.fmaiassistent.service.*;
 import com.github.fmaiassistent.codex.CodexConversationService;
 import com.github.fmaiassistent.antigravity.AntigravityConversationService;
 import com.github.fmaiassistent.copilot.CopilotConversationService;
+import com.github.fmaiassistent.managedclub.ManagedClubContextService;
 import com.github.fmaiassistent.tactic.TacticContextService;
 import com.github.fmaiassistent.domain.enums.MoneyCurrency;
 import com.github.fmaiassistent.repository.*;
@@ -113,14 +114,16 @@ public class MainView extends VerticalLayout {
             CodexConversationService codexConversations,
             AntigravityConversationService antigravityConversations,
             CopilotConversationService copilotConversations,
-            TacticContextService tacticContexts) {
+            TacticContextService tacticContexts,
+            ManagedClubContextService managedClubContexts) {
         this.loadAll = loadAll;
         this.players = players;
         this.clubs = clubs;
         this.competitions = competitions;
         this.settings = settings;
         this.aiAssistant = new AiAssistantView(
-                codexConversations, antigravityConversations, copilotConversations, tacticContexts);
+                codexConversations, antigravityConversations, copilotConversations,
+                tacticContexts, managedClubContexts);
         this.currency = settings.currency();
 
         setSizeFull();
@@ -246,6 +249,7 @@ public class MainView extends VerticalLayout {
                 })
                 .thenAccept(result -> ui.access(() -> {
                     updateStatus(result);
+                    aiAssistant.refreshManagedClubContext();
                     refreshSelectedTab();
 
                     Notification.show(
@@ -256,6 +260,7 @@ public class MainView extends VerticalLayout {
                 }))
                 .exceptionally(ex -> {
                     ui.access(() -> {
+                        aiAssistant.refreshManagedClubContext();
                         Throwable cause = ex instanceof CompletionException && ex.getCause() != null
                                 ? ex.getCause()
                                 : ex;

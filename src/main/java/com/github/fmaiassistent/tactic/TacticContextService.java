@@ -1,6 +1,6 @@
 package com.github.fmaiassistent.tactic;
 
-import com.github.fmaiassistent.ai.AiPromptContext;
+import com.github.fmaiassistent.ai.AiPromptContextContributor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -11,11 +11,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Service
-public class TacticContextService implements AiPromptContext {
+public class TacticContextService implements AiPromptContextContributor {
     private static final Logger log = LoggerFactory.getLogger(TacticContextService.class);
 
     private final FmfTacticParser fmfParser;
@@ -24,6 +25,7 @@ public class TacticContextService implements AiPromptContext {
     private final AtomicReference<TacticContext> current =
             new AtomicReference<>(TacticContext.empty(0));
     private final ConcurrentMap<String, Long> deliveredVersions = new ConcurrentHashMap<>();
+    private final AtomicBoolean aiContextEnabled = new AtomicBoolean(true);
 
     TacticContextService(FmfTacticParser fmfParser, TacticContextProperties properties) {
         this.fmfParser = fmfParser;
@@ -32,6 +34,16 @@ public class TacticContextService implements AiPromptContext {
 
     public TacticContext current() {
         return current.get();
+    }
+
+    public boolean aiContextEnabled() {
+        return aiContextEnabled.get();
+    }
+
+    public void setAiContextEnabled(boolean enabled) {
+        if (aiContextEnabled.getAndSet(enabled) != enabled) {
+            deliveredVersions.clear();
+        }
     }
 
     public TacticContext loadUploads(Map<String, byte[]> uploads) {
@@ -64,26 +76,32 @@ public class TacticContextService implements AiPromptContext {
         return empty;
     }
 
-    @Override
     public String enrich(String conversationKey, String userMessage) {
+        String context = contextFor(conversationKey);
+        if (context.isBlank()) {
+            return userMessage;
+        }
+        return context + "\n\nUser message:\n" + userMessage;
+    }
+
+    @Override
+    public String contextFor(String conversationKey) {
+        if (!aiContextEnabled.get()) {
+            return "";
+        }
         TacticContext context = current.get();
         if (!context.active()) {
-            return userMessage;
+            return "";
         }
         Long previousVersion = deliveredVersions.put(conversationKey, context.version());
         if (previousVersion != null && previousVersion == context.version()) {
-            return userMessage;
+            return "";
         }
         return """
-                The following is the user's currently selected Football Manager 2026 tactic, decoded directly from its FMF file. Use it as factual context when the request concerns tactics, roles, squad fit, recruitment, or match analysis. Mention uncertainty instead of inventing details that are not present in the decoded context.
-
                 <fm26_tactic_context>
                 %s
                 </fm26_tactic_context>
-
-                User message:
-                %s
-                """.formatted(context.markdown(), userMessage);
+                """.formatted(context.markdown());
     }
 
     private TacticContext build(String fileName, byte[] data) {

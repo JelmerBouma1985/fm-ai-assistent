@@ -5,6 +5,7 @@ import com.github.fmaiassistent.tactic.TacticContextService;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.html.Pre;
 import com.vaadin.flow.component.html.Span;
@@ -23,16 +24,19 @@ final class TacticContextPanel extends Details {
     private static final int MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
     private final TacticContextService contexts;
+    private final Runnable contextChanged;
     private final Button clear = new Button("Clear");
     private final Span status = new Span();
     private final Span details = new Span();
+    private final Checkbox includeInAi = new Checkbox("Include in AI chats");
     private final Pre preview = new Pre();
     private final Details previewDetails = new Details("Preview AI context", preview);
     private final Upload upload;
     private final Map<String, byte[]> pendingUploads = new LinkedHashMap<>();
 
-    TacticContextPanel(TacticContextService contexts) {
+    TacticContextPanel(TacticContextService contexts, Runnable contextChanged) {
         this.contexts = contexts;
+        this.contextChanged = contextChanged;
         addClassName("tactic-context-panel");
         setOpened(true);
 
@@ -40,7 +44,15 @@ final class TacticContextPanel extends Details {
         clear.addClickListener(ignored -> {
             contexts.clear();
             refresh();
+            contextChanged.run();
         });
+        includeInAi.setValue(contexts.aiContextEnabled());
+        includeInAi.addValueChangeListener(event -> {
+            contexts.setAiContextEnabled(Boolean.TRUE.equals(event.getValue()));
+            refresh();
+            contextChanged.run();
+        });
+        includeInAi.addClassName("ai-context-toggle");
 
         upload = new Upload(UploadHandler.inMemory((metadata, bytes) -> {
             String name = metadata.fileName() == null ? "uploaded-tactic" : metadata.fileName();
@@ -75,7 +87,7 @@ final class TacticContextPanel extends Details {
         preview.addClassName("tactic-context-preview");
         previewDetails.addClassName("tactic-context-preview-details");
 
-        HorizontalLayout controls = new HorizontalLayout(status, clear);
+        HorizontalLayout controls = new HorizontalLayout(status, includeInAi, clear);
         controls.setAlignItems(HorizontalLayout.Alignment.CENTER);
         controls.expand(status);
         controls.setWidthFull();
@@ -114,6 +126,7 @@ final class TacticContextPanel extends Details {
                     ui.access(() -> {
                         setBusy(false);
                         refresh(context);
+                        contextChanged.run();
                     });
                 }
             } catch (RuntimeException exception) {
@@ -151,7 +164,9 @@ final class TacticContextPanel extends Details {
             return;
         }
         setSummaryText("AI tactic context · " + context.title());
-        status.setText("Active for Codex, Antigravity and GitHub Copilot");
+        status.setText(contexts.aiContextEnabled()
+                ? "Active for Codex, Antigravity and GitHub Copilot"
+                : "Loaded, but not included in AI chats");
         String imported = "Files: " + String.join(", ", context.importedFiles());
         if (!context.warnings().isEmpty()) {
             imported += "\nNotes: " + String.join(" · ", context.warnings());

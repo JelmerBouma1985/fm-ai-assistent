@@ -9,6 +9,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class FmOffsets {
@@ -48,6 +49,12 @@ public final class FmOffsets {
     // FM's native game_plugin.dll layout is the same on Windows and under Proton.
     private static final Map<Integer, Long> BUILD_TO_CURRENT_DATE_RVA = Map.of(
             0x238bdd, 0x4df3c18L
+    );
+
+    // Points at the current human manager person record. Keep this build-gated:
+    // accepting a stale pointer here could silently attach the wrong club context.
+    private static final Map<Integer, Long> BUILD_TO_CURRENT_HUMAN_MANAGER_RVA = Map.of(
+            0x238bdd, 0x4e37ca8L
     );
 
     private static final Map<String, Long> SLOTS = new LinkedHashMap<>();
@@ -243,6 +250,11 @@ public final class FmOffsets {
 
     static Long currentDateRva(int build) {
         return BUILD_TO_CURRENT_DATE_RVA.get(build);
+    }
+
+    public static OptionalLong currentHumanManagerRva(int build) {
+        Long rva = BUILD_TO_CURRENT_HUMAN_MANAGER_RVA.get(build);
+        return rva == null ? OptionalLong.empty() : OptionalLong.of(rva);
     }
 
     public record Bounds(long start, long end) {

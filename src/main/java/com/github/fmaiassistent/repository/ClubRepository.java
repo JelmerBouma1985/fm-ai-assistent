@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface ClubRepository extends JpaRepository<ClubEntity, Long>, JpaSpecificationExecutor<ClubEntity> {
 
@@ -19,6 +20,8 @@ public interface ClubRepository extends JpaRepository<ClubEntity, Long>, JpaSpec
                 order by c.name
             """)
     List<String> findDistinctNameByOrderByNameAsc();
+
+    Optional<ClubEntity> findFirstBySourceAddressOrderByReputationDesc(Long sourceAddress);
 
     @Cacheable(cacheNames = JCacheConfiguration.CLUB_CACHE)
     @Override

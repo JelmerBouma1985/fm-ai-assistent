@@ -55,6 +55,22 @@ class TacticContextServiceTest {
         assertThat(service.enrich("copilot:session", "hello")).isEqualTo("hello");
     }
 
+    @Test
+    void contextCanBeDisabledAndReenabledWithoutClearingTheTactic() {
+        TacticContextService service = service();
+        service.loadUploads(Map.of("tactic.fmf", FmfTacticParserTest.fmf("press")));
+        assertThat(service.enrich("codex:thread", "first")).contains("<fm26_tactic_context>");
+
+        service.setAiContextEnabled(false);
+        assertThat(service.current().active()).isTrue();
+        assertThat(service.enrich("codex:other", "disabled")).isEqualTo("disabled");
+
+        service.setAiContextEnabled(true);
+        assertThat(service.enrich("codex:thread", "enabled again"))
+                .contains("<fm26_tactic_context>")
+                .contains("enabled again");
+    }
+
     private static TacticContextService service() {
         TacticContextProperties properties = new TacticContextProperties(
                 DataSize.ofMegabytes(20), 16_000);

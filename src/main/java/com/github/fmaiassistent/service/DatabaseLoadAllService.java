@@ -3,8 +3,11 @@ package com.github.fmaiassistent.service;
 import com.github.fmaiassistent.config.JCacheConfiguration;
 import com.github.fmaiassistent.linux.FmOffsets;
 import com.github.fmaiassistent.linux.ProcessInfo;
+import com.github.fmaiassistent.managedclub.ManagedClubContextService;
 import com.github.fmaiassistent.memory.ProcessReaders;
 import com.github.fmaiassistent.repository.DatabaseService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
@@ -15,16 +18,24 @@ import java.util.Comparator;
 
 @Service
 public class DatabaseLoadAllService {
+    private static final Logger log = LoggerFactory.getLogger(DatabaseLoadAllService.class);
     private final PlayerDatabaseService players;
     private final ClubDatabaseService clubs;
     private final CompetitionDatabaseService competitions;
     private final DatabaseService databaseService;
+    private final ManagedClubContextService managedClubContexts;
 
-    public DatabaseLoadAllService(PlayerDatabaseService players, ClubDatabaseService clubs, CompetitionDatabaseService competitions, DatabaseService databaseService) {
+    public DatabaseLoadAllService(
+            PlayerDatabaseService players,
+            ClubDatabaseService clubs,
+            CompetitionDatabaseService competitions,
+            DatabaseService databaseService,
+            ManagedClubContextService managedClubContexts) {
         this.players = players;
         this.clubs = clubs;
         this.competitions = competitions;
         this.databaseService = databaseService;
+        this.managedClubContexts = managedClubContexts;
     }
 
     @Caching(evict = {
@@ -38,9 +49,19 @@ public class DatabaseLoadAllService {
     })
     @Transactional
     public LoadAllResult loadAll(Integer pid, int build, Long gamePluginBase) throws IOException {
+        managedClubContexts.markUnavailable("Managed club detection is waiting for the current RAM load");
         int resolvedPid = pid == null ? detectFmPid() : pid;
         databaseService.clearAllTables();
         PlayerDatabaseService.LoadResult playerResult = players.loadAllPlayers(resolvedPid, build, gamePluginBase);
+        try {
+            managedClubContexts.refresh(resolvedPid, build, gamePluginBase);
+        } catch (IOException | RuntimeException exception) {
+            String message = exception.getMessage() == null || exception.getMessage().isBlank()
+                    ? "The managed club could not be detected from FM26 RAM"
+                    : exception.getMessage();
+            managedClubContexts.markUnavailable(message);
+            log.warn("FM26 data loaded, but the current managed club could not be detected: {}", message);
+        }
         return new LoadAllResult(
                 resolvedPid,
                 playerResult.gameDate(),
