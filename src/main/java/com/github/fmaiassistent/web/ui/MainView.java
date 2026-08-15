@@ -85,7 +85,7 @@ public class MainView extends VerticalLayout {
 
     private final Dialog loadingDialog = new Dialog();
     private final ProgressBar spinner = new ProgressBar();
-    private final Button loadButton = new Button("Load from RAM", VaadinIcon.DATABASE.create());
+    private final Button loadButton = new Button("Load data", VaadinIcon.DATABASE.create());
     private final Button settingsButton = new Button(VaadinIcon.COG.create());
     private final Button filterButton = new Button("Filter", VaadinIcon.FILTER.create());
     private final Span status = new Span();
@@ -277,7 +277,7 @@ public class MainView extends VerticalLayout {
                 .whenComplete((result, ex) -> ui.access(() -> {
                     loadingDialog.close();
                     loadButton.setEnabled(true);
-                    loadButton.setText("Load from RAM");
+                    loadButton.setText("Load data");
                     loadButton.setIcon(VaadinIcon.DATABASE.create());
                     loadButton.removeClassName("is-loading");
                 }));

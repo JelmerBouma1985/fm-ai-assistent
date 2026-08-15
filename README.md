@@ -57,17 +57,17 @@ The application is available at [http://127.0.0.1:8080](http://127.0.0.1:8080). 
 1. Start Football Manager 2026 and load your save.
 2. Start FM AI Assistent as the same computer user as FM26.
 3. Open [http://127.0.0.1:8080](http://127.0.0.1:8080) if it did not open automatically.
-4. Select **Load from RAM**.
+4. Select **Load data**.
 5. Browse the **Players**, **Clubs** and **Competitions** tabs, or open **AI assistent**.
 
-Select **Load from RAM** again after opening another save, changing clubs or advancing to data you want the app to refresh.
+Select **Load data** again after opening another save, changing clubs or advancing to data you want the app to refresh.
 
 ## Use the AI assistant
 
 The embedded chat supports locally installed **Codex**, **Antigravity** and **GitHub Copilot**. You only need to install and sign in to the agent you want to use.
 
 1. Complete the one-time setup for your chosen agent below.
-2. Start FM26, load your save and select **Load from RAM**.
+2. Start FM26, load your save and select **Load data**.
 3. Open **AI assistent**.
 4. Choose the agent from the **Agent** list.
 5. Select **Context** to control what is included with your messages.
@@ -75,7 +75,7 @@ The embedded chat supports locally installed **Codex**, **Antigravity** and **Gi
 
 ### AI context
 
-The managed club is detected automatically when you select **Load from RAM**.
+The managed club is detected automatically when you select **Load data**.
 
 To add your tactic, select **Context** in the AI assistant, upload the `.fmf` tactic file exported by FM26, and close the context window. The app converts the tactic into information the AI can understand.
 
@@ -156,7 +156,7 @@ Do not add it again if `copilot mcp list` already shows `fm-ai-assistent`. Copil
 - Make sure FM26 is running and a save is fully loaded.
 - Run FM26 and FM AI Assistent as the same computer user.
 - On Windows, use the same administrator level for both applications.
-- Select **Load from RAM** again.
+- Select **Load data** again.
 
 ### An AI agent is unavailable
 
