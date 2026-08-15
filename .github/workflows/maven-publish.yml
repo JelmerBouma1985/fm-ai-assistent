@@ -207,7 +207,7 @@ jobs:
 
       - name: Build Linux Desktop Application
         run: |
-          mvn -B clean package -Pdesktop
+          mvn -B clean verify -Pdesktop
 
       - name: Collect Linux Desktop Package
         shell: bash
@@ -222,23 +222,9 @@ jobs:
 
           mkdir -p release
 
-          find target/dist \
-            -type f \
-            \( \
-              -name "*.deb" \
-              -o -name "*.rpm" \
-              -o -name "*.tar.gz" \
-              -o -name "*.zip" \
-            \) \
-            -exec cp {} release/ \;
-
-          if [ -z "$(ls -A release)" ]; then
-            echo "No installer archive found. Packaging app-image as tar.gz."
-
-            tar \
-              -czf release/desktop-linux-x64.tar.gz \
-              -C target/dist .
-          fi
+          tar \
+            -czf release/fm-ai-assistent-desktop-linux-x64.tar.gz \
+            -C target/dist .
 
           ls -lah release
 
@@ -275,7 +261,7 @@ jobs:
       - name: Build Windows Desktop Application
         shell: pwsh
         run: |
-          mvn -B clean package -Pdesktop
+          mvn -B clean verify -Pdesktop
 
       - name: Collect Windows Desktop Package
         shell: pwsh
@@ -289,25 +275,9 @@ jobs:
 
           New-Item -ItemType Directory -Force -Path release | Out-Null
 
-          $installers = Get-ChildItem target/dist `
-              -Recurse `
-              -File |
-              Where-Object {
-                  $_.Extension -in ".exe", ".msi", ".zip"
-              }
-
-          if ($installers.Count -gt 0) {
-              foreach ($file in $installers) {
-                  Copy-Item $file.FullName release/
-              }
-          }
-          else {
-              Write-Host "No installer found. Packaging app-image as ZIP."
-
-              Compress-Archive `
-                  -Path target/dist/* `
-                  -DestinationPath release/desktop-windows-x64.zip
-          }
+          Compress-Archive `
+              -Path "target/dist/FM AI Assistent" `
+              -DestinationPath release/fm-ai-assistent-desktop-windows-x64.zip
 
           Get-ChildItem release
 
@@ -339,18 +309,18 @@ jobs:
       - name: Verify release notes
         shell: bash
         run: |
-          if [ ! -f RELEASE_NOTES.MD ]; then
-            echo "RELEASE_NOTES.MD does not exist for tag ${{ github.ref_name }}"
+          if [ ! -f RELEASE_NOTES.md ]; then
+            echo "RELEASE_NOTES.md does not exist for tag ${{ github.ref_name }}"
             exit 1
           fi
 
-          if [ ! -s RELEASE_NOTES.MD ]; then
-            echo "RELEASE_NOTES.MD is empty"
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "RELEASE_NOTES.md is empty"
             exit 1
           fi
 
           echo "Using release notes:"
-          cat RELEASE_NOTES.MD
+          cat RELEASE_NOTES.md
 
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
@@ -388,5 +358,5 @@ jobs:
           gh release create "${{ github.ref_name }}" \
             release/* \
             --title "${{ github.ref_name }}" \
-            --notes-file RELEASE_NOTES.MD \
+            --notes-file RELEASE_NOTES.md \
             --verify-tag
