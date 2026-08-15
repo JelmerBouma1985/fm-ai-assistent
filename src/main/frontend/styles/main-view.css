@@ -645,6 +645,32 @@ vaadin-select:hover::part(input-field) {
     overflow: hidden;
 }
 
+.ai-provider-empty {
+    display: flex;
+    height: 100%;
+    box-sizing: border-box;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 6px;
+    padding: 32px;
+    background: var(--fmai-surface);
+    text-align: center;
+}
+
+.ai-provider-empty-heading {
+    color: var(--fmai-text);
+    font-size: 16px;
+    font-weight: 800;
+}
+
+.ai-provider-empty-help {
+    max-width: 460px;
+    color: var(--fmai-muted);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
 .tactic-context-panel {
     border: 0;
     border-bottom: 1px solid var(--fmai-border);
