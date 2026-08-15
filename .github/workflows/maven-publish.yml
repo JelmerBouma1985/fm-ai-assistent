@@ -1,0 +1,392 @@
+name: Maven Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  JAVA_VERSION: '25'
+
+jobs:
+
+  build-jar:
+    name: Build JAR
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up GraalVM 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: graalvm
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      - name: Show environment
+        run: |
+          java -version
+          mvn -version
+
+      - name: Build JAR
+        run: mvn -B clean package
+
+      - name: Collect JAR
+        shell: bash
+        run: |
+          mkdir -p release
+
+          find target -maxdepth 1 \
+            -type f \
+            -name "*.jar" \
+            ! -name "*-sources.jar" \
+            ! -name "*-javadoc.jar" \
+            ! -name "original-*.jar" \
+            -exec cp {} release/ \;
+
+          if [ -z "$(ls -A release)" ]; then
+            echo "No JAR artifact found."
+            exit 1
+          fi
+
+          echo "JAR artifacts:"
+          ls -lah release
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jar
+          path: release/*
+          if-no-files-found: error
+
+
+  build-native-linux:
+    name: Native Image - Linux
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up GraalVM 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: graalvm
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      - name: Show environment
+        run: |
+          java -version
+          native-image --version
+          mvn -version
+
+      - name: Build Linux Native Image
+        run: |
+          mvn -B clean package -Pnative native:compile
+
+      - name: Collect Linux Native Image
+        shell: bash
+        run: |
+          mkdir -p release
+
+          echo "Target contents:"
+          find target -maxdepth 2 -type f -print
+
+          find target -maxdepth 1 \
+            -type f \
+            -executable \
+            ! -name "*.jar" \
+            ! -name "*.so" \
+            -exec cp {} release/ \;
+
+          if [ -z "$(ls -A release)" ]; then
+            echo "No Linux native executable found."
+            exit 1
+          fi
+
+          for file in release/*; do
+            filename="$(basename "$file")"
+            mv "$file" "release/${filename}-linux-x64"
+          done
+
+          ls -lah release
+
+      - name: Upload Linux Native Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-linux
+          path: release/*
+          if-no-files-found: error
+
+
+  build-native-windows:
+    name: Native Image - Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up GraalVM 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: graalvm
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      - name: Show environment
+        shell: pwsh
+        run: |
+          java -version
+          native-image --version
+          mvn -version
+
+      - name: Build Windows Native Image
+        shell: pwsh
+        run: |
+          mvn -B clean package -Pnative native:compile
+
+      - name: Collect Windows Native Image
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+
+          Write-Host "Target contents:"
+          Get-ChildItem target -Recurse
+
+          $nativeExecutables = Get-ChildItem target -File -Filter *.exe
+
+          if ($nativeExecutables.Count -eq 0) {
+              throw "No Windows native executable found."
+          }
+
+          foreach ($file in $nativeExecutables) {
+              $name = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
+
+              Copy-Item `
+                  $file.FullName `
+                  "release/$name-windows-x64.exe"
+          }
+
+          Get-ChildItem release
+
+      - name: Upload Windows Native Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-windows
+          path: release/*
+          if-no-files-found: error
+
+
+  build-desktop-linux:
+    name: Desktop Application - Linux
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up GraalVM 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: graalvm
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      - name: Show environment
+        run: |
+          java -version
+          jpackage --version
+          mvn -version
+
+      - name: Build Linux Desktop Application
+        run: |
+          mvn -B clean package -Pdesktop
+
+      - name: Collect Linux Desktop Package
+        shell: bash
+        run: |
+          if [ ! -d target/dist ]; then
+            echo "target/dist does not exist"
+            exit 1
+          fi
+
+          echo "Desktop output:"
+          find target/dist -maxdepth 4 -type f -print
+
+          mkdir -p release
+
+          find target/dist \
+            -type f \
+            \( \
+              -name "*.deb" \
+              -o -name "*.rpm" \
+              -o -name "*.tar.gz" \
+              -o -name "*.zip" \
+            \) \
+            -exec cp {} release/ \;
+
+          if [ -z "$(ls -A release)" ]; then
+            echo "No installer archive found. Packaging app-image as tar.gz."
+
+            tar \
+              -czf release/desktop-linux-x64.tar.gz \
+              -C target/dist .
+          fi
+
+          ls -lah release
+
+      - name: Upload Linux Desktop Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-linux
+          path: release/*
+          if-no-files-found: error
+
+
+  build-desktop-windows:
+    name: Desktop Application - Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up GraalVM 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: graalvm
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+
+      - name: Show environment
+        shell: pwsh
+        run: |
+          java -version
+          jpackage --version
+          mvn -version
+
+      - name: Build Windows Desktop Application
+        shell: pwsh
+        run: |
+          mvn -B clean package -Pdesktop
+
+      - name: Collect Windows Desktop Package
+        shell: pwsh
+        run: |
+          if (!(Test-Path target/dist)) {
+              throw "target/dist does not exist"
+          }
+
+          Write-Host "Desktop output:"
+          Get-ChildItem target/dist -Recurse
+
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+
+          $installers = Get-ChildItem target/dist `
+              -Recurse `
+              -File |
+              Where-Object {
+                  $_.Extension -in ".exe", ".msi", ".zip"
+              }
+
+          if ($installers.Count -gt 0) {
+              foreach ($file in $installers) {
+                  Copy-Item $file.FullName release/
+              }
+          }
+          else {
+              Write-Host "No installer found. Packaging app-image as ZIP."
+
+              Compress-Archive `
+                  -Path target/dist/* `
+                  -DestinationPath release/desktop-windows-x64.zip
+          }
+
+          Get-ChildItem release
+
+      - name: Upload Windows Desktop Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-windows
+          path: release/*
+          if-no-files-found: error
+
+
+  publish-release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+
+    needs:
+      - build-jar
+      - build-native-linux
+      - build-native-windows
+      - build-desktop-linux
+      - build-desktop-windows
+
+    steps:
+      - name: Checkout tagged version
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Verify release notes
+        shell: bash
+        run: |
+          if [ ! -f RELEASE_NOTES.MD ]; then
+            echo "RELEASE_NOTES.MD does not exist for tag ${{ github.ref_name }}"
+            exit 1
+          fi
+
+          if [ ! -s RELEASE_NOTES.MD ]; then
+            echo "RELEASE_NOTES.MD is empty"
+            exit 1
+          fi
+
+          echo "Using release notes:"
+          cat RELEASE_NOTES.MD
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Show downloaded artifacts
+        shell: bash
+        run: |
+          find release-artifacts -type f -print
+
+      - name: Collect release files
+        shell: bash
+        run: |
+          mkdir -p release
+
+          find release-artifacts \
+            -type f \
+            -exec cp {} release/ \;
+
+          if [ -z "$(ls -A release)" ]; then
+            echo "No release artifacts found."
+            exit 1
+          fi
+
+          echo
+          echo "Final GitHub Release artifacts:"
+          ls -lah release
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            release/* \
+            --title "${{ github.ref_name }}" \
+            --notes-file RELEASE_NOTES.MD \
+            --verify-tag
