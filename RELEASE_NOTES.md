@@ -1,15 +1,14 @@
 # Release Notes
 
-## 0.3.0
+## 1.0.0
 
 ### Most important
 
-- Better AI responses which costs less tokens
-
-### Other features
-
-- complete new UI
+- Download the desktop app and start the app, no need for a commandline anymore!
+- Directly chat to Codex, Antigravity and Copilot from within the app using the `AI Assistent` tab
+- Give the AI tactical context by uploading the tactic .fmf file.
+- Give the AI managed club context automatically
 
 ### Bug fixes
 
-- Fixed youth intake players not shown when filtering (again)
+- In game date is now always correctly resolved when loading data
