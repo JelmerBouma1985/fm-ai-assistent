@@ -62,6 +62,8 @@ The application is available at [http://127.0.0.1:8080](http://127.0.0.1:8080). 
 
 Select **Load data** again after opening another save, changing clubs or advancing to data you want the app to refresh.
 
+![Player database after loading Football Manager 2026 data](screenshots/players_tab.png)
+
 ## Use the AI assistant
 
 The embedded chat supports locally installed **Codex**, **Antigravity** and **GitHub Copilot**. You only need to install and sign in to the agent you want to use.
@@ -73,6 +75,8 @@ The embedded chat supports locally installed **Codex**, **Antigravity** and **Gi
 5. Select **Context** to control what is included with your messages.
 6. Start a new chat and ask your question.
 
+![AI assistant with agent selection, conversations and chat input](screenshots/ai-assistent-tab.png)
+
 ### AI context
 
 The managed club is detected automatically when you select **Load data**.
@@ -80,6 +84,8 @@ The managed club is detected automatically when you select **Load data**.
 To add your tactic, select **Context** in the AI assistant, upload the `.fmf` tactic file exported by FM26, and close the context window. The app converts the tactic into information the AI can understand.
 
 Use the **Include in AI chats** checkboxes to enable or disable the managed-club and tactic context without removing them from the app.
+
+![AI context settings for the managed club and uploaded tactic](screenshots/ai-context.png)
 
 ## Set up an AI agent
 
