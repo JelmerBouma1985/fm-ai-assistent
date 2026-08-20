@@ -229,9 +229,9 @@ public final class PositionTextFormatter {
             out.put("MidfielderLeft", LEFT);
             out.put("MidfielderCentral", CENTRAL);
             out.put("MidfielderRight", RIGHT);
-            out.put("AttackingMidfielderLeft", RIGHT);
+            out.put("AttackingMidfielderLeft", LEFT);
             out.put("AttackingMidfielderCentral", CENTRAL);
-            out.put("AttackingMidfielderRight", LEFT);
+            out.put("AttackingMidfielderRight", RIGHT);
             return out;
         }
 
