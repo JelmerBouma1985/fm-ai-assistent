@@ -87,6 +87,10 @@ Use the **Include in AI chats** checkboxes to enable or disable the managed-club
 
 ![AI context settings for the managed club and uploaded tactic](screenshots/ai-context.png)
 
+### Create an FM26 player shortlist
+
+After the agent has found and discussed transfer targets, ask it to create an importable shortlist, for example: `Create an FM26 shortlist called Young centre-backs with these players.` The agent uses each player's FM Unique ID and writes a player-shortlist `.fmf` file directly to the detected FM26 `shortlists` folder.
+
 ## Set up an AI agent
 
 FM AI Assistent uses the agent's normal local login. It does not ask for a Codex, Gemini or GitHub API key.
@@ -119,7 +123,7 @@ Codex asks for approval in the app before using tools that require permission.
 }
 ```
 
-Antigravity cannot show an approval popup during a headless chat. Add the following read-only tool permissions to the existing `permissions.allow` list in `~/.gemini/antigravity-cli/settings.json`:
+Antigravity cannot show an approval popup during a headless chat. Add the following FM26 tool permissions to the existing `permissions.allow` list in `~/.gemini/antigravity-cli/settings.json`:
 
 ```json
 {
@@ -130,13 +134,14 @@ Antigravity cannot show an approval popup during a headless chat. Add the follow
       "mcp(fm-ai-assistent/fm26_get_club_context)",
       "mcp(fm-ai-assistent/fm26_get_player_details)",
       "mcp(fm-ai-assistent/fm26_get_role_attributes)",
-      "mcp(fm-ai-assistent/fm26_transfer_shortlist)"
+      "mcp(fm-ai-assistent/fm26_transfer_shortlist)",
+      "mcp(fm-ai-assistent/fm26_create_shortlist_file)"
     ]
   }
 }
 ```
 
-If the file already contains settings or permissions, merge these entries into it instead of replacing the complete file.
+If the file already contains settings or permissions, merge these entries into it instead of replacing the complete file. The create-shortlist tool writes one new `.fmf` file to the local FM26 shortlist folder; the other listed tools are read-only.
 
 ### GitHub Copilot
 

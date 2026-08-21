@@ -27,6 +27,8 @@ public class PlayerEntity {
     private String playerIndex;
     @Column(name = "record_address", length = 1024)
     private String recordAddress;
+    @Column(name = "unique_id")
+    private Long uniqueId;
     @Column(length = 1024)
     private String name;
     @Column(length = 1024)
@@ -314,6 +316,10 @@ public class PlayerEntity {
 
     public String getRecordAddress() {
         return recordAddress;
+    }
+
+    public Long getUniqueId() {
+        return uniqueId;
     }
 
     public String getGender() {

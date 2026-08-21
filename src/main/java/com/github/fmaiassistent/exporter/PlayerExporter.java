@@ -30,6 +30,7 @@ import static com.github.fmaiassistent.player.AttributeDefinitions.VISIBLE_FIELD
 import static com.github.fmaiassistent.player.AttributeDefinitions.WORLD_REPUTATION_REL;
 
 public class PlayerExporter {
+    private static final int UNIQUE_ID_REL = 0x0C;
     private static final int HEIGHT_CM_REL = -0x5A;
     private static final int JOINED_CLUB_DATE_REL = -0x38;
     private static final int INJURY_REFERENCE_REL = -0x190;
@@ -129,6 +130,7 @@ public class PlayerExporter {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("index", index);
         row.put("record", "0x" + Long.toHexString(record));
+        row.put("unique_id", reader.readU32(record + UNIQUE_ID_REL));
         row.put("name", FmMemoryStrings.playerName(reader, record).orElse("0x" + Long.toHexString(record)));
         row.put("gender", playerGender(reader, record));
         row.put("nationality", FmMemoryStrings.playerNationality(reader, record).orElse(""));
@@ -489,7 +491,7 @@ public class PlayerExporter {
 
     private static List<String> buildFieldNames() {
         List<String> names = new ArrayList<>(List.of(
-                "index", "record", "name", "gender", "nationality", "club", "playing_club", "loan_club", "is_loaned_out",
+                "index", "record", "unique_id", "name", "gender", "nationality", "club", "playing_club", "loan_club", "is_loaned_out",
                 "current_reputation", "home_reputation", "world_reputation", "ca", "pa",
                 "asking_price", "asking_price_raw", "joined_club_date", "transfer_listed", "listed_for_loan",
                 "transfer_agreed", "future_transfer_club", "future_transfer_date", "future_transfer_contract_end_date", "injured",

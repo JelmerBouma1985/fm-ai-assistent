@@ -1,14 +1,11 @@
 # Release Notes
 
-## 1.0.0
+## 1.1.0
 
 ### Most important
 
-- Download the desktop app and start the app, no need for a commandline anymore!
-- Directly chat to Codex, Antigravity and Copilot from within the app using the `AI Assistent` tab
-- Give the AI tactical context by uploading the tactic .fmf file.
-- Give the AI managed club context automatically
+- Ask the AI assistant to create FM26 player shortlist `.fmf` files from recommended players, ready to import directly into Football Manager 26
 
 ### Bug fixes
 
-- In game date is now always correctly resolved when loading data
+- UI now shows correct position AML and AMR which were inverted

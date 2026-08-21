@@ -6,6 +6,7 @@ import com.github.fmaiassistent.service.PlayerDatabaseService;
 import com.github.fmaiassistent.domain.entity.PlayerEntity;
 import com.github.fmaiassistent.player.AttributeDefinitions;
 import com.github.fmaiassistent.player.FieldDef;
+import com.github.fmaiassistent.shortlist.ShortlistFileService;
 import com.github.fmaiassistent.web.ui.PositionTextFormatter;
 import com.github.fmaiassistent.web.mapper.PlayerMapper;
 import org.springframework.ai.tool.annotation.Tool;
@@ -43,12 +44,19 @@ public class FmAiAssistentTools {
     private final ClubDatabaseService clubs;
     private final PlayerMapper playerMapper;
     private final JdbcTemplate jdbc;
+    private final ShortlistFileService shortlistFiles;
 
-    public FmAiAssistentTools(PlayerDatabaseService players, ClubDatabaseService clubs, PlayerMapper playerMapper, JdbcTemplate jdbc) {
+    public FmAiAssistentTools(
+            PlayerDatabaseService players,
+            ClubDatabaseService clubs,
+            PlayerMapper playerMapper,
+            JdbcTemplate jdbc,
+            ShortlistFileService shortlistFiles) {
         this.players = players;
         this.clubs = clubs;
         this.playerMapper = playerMapper;
         this.jdbc = jdbc;
+        this.shortlistFiles = shortlistFiles;
     }
 
     @Tool(name = "fm26_find_clubs", description = "Find FM26 clubs by name, nation, competition, reputation and finances. Money values are raw pounds.")
@@ -174,6 +182,15 @@ public class FmAiAssistentTools {
                         .toList()
                 : exact;
         return result("players", rows, safeLimit);
+    }
+
+    @Tool(
+            name = "fm26_create_shortlist_file",
+            description = "Create an importable FM26 player-shortlist .fmf file after recruitment candidates have been selected. Pass the UNIQUE_ID/player_unique_id values returned by the player and recruitment tools. This creates a shortlist, not a tactic.")
+    public Map<String, Object> createShortlistFile(
+            @ToolParam(description = "Name shown for the shortlist in FM26 and used for the output filename") String shortlistName,
+            @ToolParam(description = "FM26 player UNIQUE_ID values in the desired shortlist order") List<Long> playerUniqueIds) {
+        return shortlistFiles.create(shortlistName, playerUniqueIds).toMap();
     }
 
     @Tool(name = "fm26_get_role_attributes", description = "Get FM26 positional roles and the primary/secondary attributes that matter for each role. Use this for tactical fit and transfer advice.")
@@ -625,6 +642,7 @@ public class FmAiAssistentTools {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("rank", rank);
         out.put("score", candidate.decisionScore());
+        out.put("player_unique_id", player.getUniqueId());
         out.put("name", player.getName());
         out.put("age", asInteger(player.getAge()));
         out.put("nationality", player.getNationality());
@@ -817,6 +835,7 @@ public class FmAiAssistentTools {
     private Map<String, Object> playerSummaryMap(PlayerEntity player) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("id", player.getId());
+        out.put("unique_id", player.getUniqueId());
         out.put("name", player.getName());
         out.put("age", player.getAge());
         out.put("gender", player.getGender());

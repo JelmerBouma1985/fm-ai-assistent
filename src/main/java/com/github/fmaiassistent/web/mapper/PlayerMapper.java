@@ -34,6 +34,7 @@ public class PlayerMapper implements Function<PlayerEntity, Map<String, Object>>
         }
 
         out.put("PLAYER_INDEX", entity.getPlayerIndex());
+        out.put("UNIQUE_ID", entity.getUniqueId());
         out.put("GENDER", entity.getGender());
         out.put("RECORD_ADDRESS", entity.getRecordAddress());
         out.put("NAME", entity.getName());

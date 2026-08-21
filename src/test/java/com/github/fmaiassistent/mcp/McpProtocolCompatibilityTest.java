@@ -66,9 +66,19 @@ class McpProtocolCompatibilityTest {
                     .findFirst()
                     .orElse(tools.body());
             JsonNode listedTools = mapper.readTree(data).path("result").path("tools");
-            assertEquals(6, listedTools.size());
+            assertEquals(7, listedTools.size());
             assertTrue(listedTools.valueStream()
                     .anyMatch(tool -> "fm26_find_players".equals(tool.path("name").asText())));
+            assertTrue(listedTools.valueStream()
+                    .anyMatch(tool -> "fm26_create_shortlist_file".equals(tool.path("name").asText())));
+            JsonNode createShortlist = listedTools.valueStream()
+                    .filter(tool -> "fm26_create_shortlist_file".equals(tool.path("name").asText()))
+                    .findFirst()
+                    .orElseThrow();
+            assertEquals("string", createShortlist.path("inputSchema").path("properties")
+                    .path("shortlistName").path("type").asText());
+            assertEquals("array", createShortlist.path("inputSchema").path("properties")
+                    .path("playerUniqueIds").path("type").asText());
         }
     }
 
