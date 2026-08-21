@@ -59,7 +59,7 @@ public class FmAiAssistentTools {
         this.shortlistFiles = shortlistFiles;
     }
 
-    @Tool(name = "fm26_find_clubs", description = "Find FM26 clubs by name, nation, competition, reputation and finances. Money values are raw pounds.")
+    @Tool(name = "fm26_find_clubs", description = "Find FM26 clubs by name, nation, competition, reputation, facilities and finances. Facility ratings use FM's 0-20 scale. Money values are raw pounds.")
     @Transactional(readOnly = true)
     public Map<String, Object> findClubs(
             @ToolParam(required = false, description = "Club name contains filter, for example Feyenoord") String name,
@@ -82,7 +82,7 @@ public class FmAiAssistentTools {
         return result("clubs", rows, safeLimit);
     }
 
-    @Tool(name = "fm26_get_club_context", description = "Get a club profile, finances and squad snapshot for transfer advice. Money values are raw pounds.")
+    @Tool(name = "fm26_get_club_context", description = "Get a club profile, facility ratings, finances and squad snapshot for transfer advice. Facility ratings use FM's 0-20 scale. Money values are raw pounds.")
     @Transactional(readOnly = true)
     public Map<String, Object> getClubContext(
             @ToolParam(description = "Club name, for example Feyenoord") String clubName,
@@ -889,6 +889,11 @@ public class FmAiAssistentTools {
         out.put("COMPETITION", club.getCompetition());
         out.put("NATION", club.getNation());
         out.put("REPUTATION", club.getReputation());
+        out.put("TRAINING_FACILITIES", club.getTrainingFacilities());
+        out.put("YOUTH_FACILITIES", club.getYouthFacilities());
+        out.put("YOUTH_COACHING", club.getYouthCoaching());
+        out.put("YOUTH_RECRUITMENT", club.getYouthRecruitment());
+        out.put("CORPORATE_FACILITIES", club.getCorporateFacilities());
         out.put("BALANCE", club.getBalance());
         out.put("TRANSFER_BUDGET", club.getTransferBudget());
         out.put("PAYROLL_BUDGET", club.getPayrollBudget());

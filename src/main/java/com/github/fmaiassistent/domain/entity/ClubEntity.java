@@ -53,6 +53,21 @@ public class ClubEntity {
     @Column(name = "payroll_budget")
     private Long payrollBudget;
 
+    @Column(name = "training_facilities")
+    private Integer trainingFacilities;
+
+    @Column(name = "youth_facilities")
+    private Integer youthFacilities;
+
+    @Column(name = "youth_coaching")
+    private Integer youthCoaching;
+
+    @Column(name = "youth_recruitment")
+    private Integer youthRecruitment;
+
+    @Column(name = "corporate_facilities")
+    private Integer corporateFacilities;
+
     protected ClubEntity() {
     }
 
@@ -120,6 +135,26 @@ public class ClubEntity {
 
     public Long getPayrollBudget() {
         return payrollBudget;
+    }
+
+    public Integer getTrainingFacilities() {
+        return trainingFacilities;
+    }
+
+    public Integer getYouthFacilities() {
+        return youthFacilities;
+    }
+
+    public Integer getYouthCoaching() {
+        return youthCoaching;
+    }
+
+    public Integer getYouthRecruitment() {
+        return youthRecruitment;
+    }
+
+    public Integer getCorporateFacilities() {
+        return corporateFacilities;
     }
 
     private void setField(String fieldName, Object value) {

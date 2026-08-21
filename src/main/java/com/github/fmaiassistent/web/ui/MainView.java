@@ -59,7 +59,8 @@ public class MainView extends VerticalLayout {
     private static final Set<String> NUMERIC_SORT_COLUMNS = Set.of(
             "ID", "CLUB_ID", "PLAYING_CLUB_ID", "CURRENT_REPUTATION", "HOME_REPUTATION", "WORLD_REPUTATION",
             "CA", "PA", "ASKING_PRICE", "ASKING_PRICE_RAW", "SALARY_PA", "SALARY_WEEKLY_RAW", "AGE", "HEIGHT_CM",
-            "REPUTATION", "TRANSFER_BUDGET", "PAYROLL_BUDGET",
+            "REPUTATION", "TRANSFER_BUDGET", "PAYROLL_BUDGET", "TRAINING_FACILITIES", "YOUTH_FACILITIES",
+            "YOUTH_COACHING", "YOUTH_RECRUITMENT", "CORPORATE_FACILITIES",
             "GOALKEEPER", "DEFENDER_LEFT", "DEFENDER_CENTRAL", "DEFENDER_RIGHT", "WING_BACK_LEFT",
             "DEFENSIVE_MIDFIELDER", "WING_BACK_RIGHT", "MIDFIELDER_LEFT", "MIDFIELDER_CENTRAL",
             "MIDFIELDER_RIGHT", "ATTACKING_MIDFIELDER_LEFT", "ATTACKING_MIDFIELDER_CENTRAL",
@@ -344,6 +345,11 @@ public class MainView extends VerticalLayout {
                 new GridColumn("COMPETITION", "Competition"),
                 new GridColumn("NATION", "Nation"),
                 new GridColumn("REPUTATION", "Reputation"),
+                new GridColumn("TRAINING_FACILITIES", "Training Facilities"),
+                new GridColumn("YOUTH_FACILITIES", "Youth Facilities"),
+                new GridColumn("YOUTH_COACHING", "Youth Coaching"),
+                new GridColumn("YOUTH_RECRUITMENT", "Youth Recruitment"),
+                new GridColumn("CORPORATE_FACILITIES", "Corporate Facilities"),
                 new GridColumn("BALANCE", "Balance"),
                 new GridColumn("TRANSFER_BUDGET", "Transfer Budget"),
                 new GridColumn("PAYROLL_BUDGET", "Payroll Budget"));
@@ -1593,6 +1599,11 @@ public class MainView extends VerticalLayout {
             case "COMPETITION" -> club.getCompetition();
             case "NATION" -> club.getNation();
             case "REPUTATION" -> club.getReputation();
+            case "TRAINING_FACILITIES" -> club.getTrainingFacilities();
+            case "YOUTH_FACILITIES" -> club.getYouthFacilities();
+            case "YOUTH_COACHING" -> club.getYouthCoaching();
+            case "YOUTH_RECRUITMENT" -> club.getYouthRecruitment();
+            case "CORPORATE_FACILITIES" -> club.getCorporateFacilities();
             case "BALANCE" -> club.getBalance();
             case "TRANSFER_BUDGET" -> club.getTransferBudget();
             case "PAYROLL_BUDGET" -> club.getPayrollBudget();

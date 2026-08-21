@@ -366,4 +366,14 @@
             <column name="unique_id"/>
         </createIndex>
     </changeSet>
+
+    <changeSet id="004-club-facilities" author="codex">
+        <addColumn tableName="clubs">
+            <column name="training_facilities" type="INT"/>
+            <column name="youth_facilities" type="INT"/>
+            <column name="youth_coaching" type="INT"/>
+            <column name="youth_recruitment" type="INT"/>
+            <column name="corporate_facilities" type="INT"/>
+        </addColumn>
+    </changeSet>
 </databaseChangeLog>

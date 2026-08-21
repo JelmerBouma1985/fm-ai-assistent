@@ -14,17 +14,24 @@ import java.util.Map;
 
 public class ClubExporter {
     public static final List<String> FIELD_NAMES = List.of(
-            "sourceAddress", "name", "gender", "competition", "reputation", "nation", "balance", "transferBudget", "payrollBudget");
+            "sourceAddress", "name", "gender", "competition", "reputation", "nation", "balance", "transferBudget", "payrollBudget",
+            "trainingFacilities", "youthFacilities", "youthCoaching", "youthRecruitment", "corporateFacilities");
 
     private static final long TEAM_CLUB_REL = 0x30;
     private static final long TEAM_COMPETITION_REL = 0x50;
     private static final long TEAM_REPUTATION_REL = 0xA8;
     private static final long COMPETITION_GENDER_FLAG_REL = 0xF9;
     private static final long CLUB_FINANCE_BLOCK_REL = 0x150;
+    private static final long CLUB_FACILITIES_BLOCK_REL = 0x100;
     private static final List<Integer> CLUB_FINANCE_MARKERS = List.of(0xB318, 0xD2E8);
     private static final long CLUB_BALANCE_REL = 0x14;
     private static final long CLUB_TRANSFER_BUDGET_REL = 0x7CC;
     private static final long CLUB_PAYROLL_BUDGET_REL = 0x810;
+    private static final long CLUB_CORPORATE_FACILITIES_REL = 0x8B5;
+    private static final long CLUB_TRAINING_FACILITIES_REL = 0x118;
+    private static final long CLUB_YOUTH_FACILITIES_REL = 0x123;
+    private static final long CLUB_YOUTH_COACHING_REL = 0x124;
+    private static final long CLUB_YOUTH_RECRUITMENT_REL = 0x125;
 
     public ExportResult exportAllClubs(int pid, int build, Long gamePluginBase) throws IOException {
         try (ProcessMemoryReader reader = ProcessReaders.open(pid)) {
@@ -98,6 +105,12 @@ public class ClubExporter {
         row.put("balance", finance.balance());
         row.put("transferBudget", finance.transferBudget());
         row.put("payrollBudget", finance.payrollBudget());
+        Facilities facilities = readFacilities(reader, club);
+        row.put("trainingFacilities", facilities.training());
+        row.put("youthFacilities", facilities.youth());
+        row.put("youthCoaching", facilities.coaching());
+        row.put("youthRecruitment", facilities.recruitment());
+        row.put("corporateFacilities", facilities.corporate());
         return row;
     }
 
@@ -125,6 +138,36 @@ public class ClubExporter {
         long payrollRaw = reader.readI32(extra + CLUB_PAYROLL_BUDGET_REL);
         long payrollBudget = roundToNearest(payrollRaw, payrollRoundingStep(payrollRaw));
         return new Finance(balance, transferBudget, payrollBudget);
+    }
+
+    static Facilities readFacilities(ProcessMemoryReader reader, long club) throws IOException {
+        int training = 0;
+        int youth = 0;
+        int coaching = 0;
+        int recruitment = 0;
+        var facilitiesOpt = reader.qwordOrNull(club + CLUB_FACILITIES_BLOCK_REL);
+        if (facilitiesOpt.isPresent()) {
+            long facilities = facilitiesOpt.get();
+            training = facilityRating(reader, facilities + CLUB_TRAINING_FACILITIES_REL);
+            youth = facilityRating(reader, facilities + CLUB_YOUTH_FACILITIES_REL);
+            coaching = facilityRating(reader, facilities + CLUB_YOUTH_COACHING_REL);
+            recruitment = facilityRating(reader, facilities + CLUB_YOUTH_RECRUITMENT_REL);
+        }
+
+        int corporate = 0;
+        var extraOpt = reader.qwordOrNull(club + CLUB_FINANCE_BLOCK_REL);
+        if (extraOpt.isPresent()) {
+            long extra = extraOpt.get();
+            if (CLUB_FINANCE_MARKERS.contains(reader.readU16(extra))) {
+                corporate = facilityRating(reader, extra + CLUB_CORPORATE_FACILITIES_REL);
+            }
+        }
+        return new Facilities(training, youth, coaching, recruitment, corporate);
+    }
+
+    private static int facilityRating(ProcessMemoryReader reader, long address) throws IOException {
+        int rating = reader.readU8(address);
+        return rating <= 20 ? rating : 0;
     }
 
     private static long balanceRoundingStep(long value) {
@@ -186,5 +229,8 @@ public class ClubExporter {
     }
 
     private record Finance(long balance, long transferBudget, long payrollBudget) {
+    }
+
+    record Facilities(int training, int youth, int coaching, int recruitment, int corporate) {
     }
 }
