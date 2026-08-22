@@ -376,4 +376,23 @@
             <column name="corporate_facilities" type="INT"/>
         </addColumn>
     </changeSet>
+
+    <changeSet id="005-recruitment-case" author="codex">
+        <createTable tableName="recruitment_case">
+            <column name="player_unique_id" type="BIGINT">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="interest_status" type="VARCHAR(32)"/>
+            <column name="deal_stage" type="VARCHAR(32)"/>
+            <column name="quoted_fee" type="BIGINT"/>
+            <column name="quoted_weekly_wage" type="BIGINT"/>
+            <column name="note" type="VARCHAR(2048)"/>
+            <column name="source" type="VARCHAR(32)"/>
+            <column name="observed_game_date" type="VARCHAR(32)"/>
+            <column name="updated_at" type="VARCHAR(64)"/>
+        </createTable>
+        <createIndex indexName="idx_recruitment_case_stage" tableName="recruitment_case">
+            <column name="deal_stage"/>
+        </createIndex>
+    </changeSet>
 </databaseChangeLog>

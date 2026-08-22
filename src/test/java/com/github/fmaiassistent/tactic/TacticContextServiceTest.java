@@ -19,6 +19,12 @@ class TacticContextServiceTest {
         assertThat(context.title()).isEqualTo("4-2-4-press");
         assertThat(context.importedFiles()).containsExactly("tactic.fmf");
         assertThat(context.warnings()).isEmpty();
+        assertThat(context.definition()).isNotNull();
+        assertThat(context.definition().slots()).hasSize(1);
+        assertThat(context.definition().slots().getFirst().inPossession().role())
+                .isEqualTo("Ball-Playing Goalkeeper");
+        assertThat(context.definition().slots().getFirst().outOfPossession().role())
+                .isEqualTo("Sweeper Keeper");
         assertThat(context.markdown())
                 .contains("4-2-4-press.tac")
                 .contains("Ball-Playing Goalkeeper (Support)")

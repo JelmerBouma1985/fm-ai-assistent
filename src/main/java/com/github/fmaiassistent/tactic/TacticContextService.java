@@ -130,7 +130,7 @@ public class TacticContextService implements AiPromptContextContributor {
 
         TacticContext context = new TacticContext(
                 versions.incrementAndGet(), title, "browser upload", markdown,
-                List.of(fileName), warnings);
+                List.of(fileName), warnings, TacticDefinition.from(metadata.tactic()));
         current.set(context);
         log.info("Loaded uploaded FM26 tactic context title={} file={} warnings={}",
                 title, fileName, warnings.size());

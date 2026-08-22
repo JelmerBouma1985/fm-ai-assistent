@@ -9,6 +9,7 @@ import com.github.fmaiassistent.antigravity.AntigravityConversationService;
 import com.github.fmaiassistent.copilot.CopilotConversationService;
 import com.github.fmaiassistent.managedclub.ManagedClubContextService;
 import com.github.fmaiassistent.tactic.TacticContextService;
+import com.github.fmaiassistent.snapshot.SnapshotStatusService;
 import com.github.fmaiassistent.domain.enums.MoneyCurrency;
 import com.github.fmaiassistent.repository.*;
 import com.github.fmaiassistent.player.AttributeDefinitions;
@@ -83,10 +84,12 @@ public class MainView extends VerticalLayout {
     private final ClubDatabaseService clubs;
     private final CompetitionDatabaseService competitions;
     private final AppSettingsService settings;
+    private final SnapshotStatusService snapshots;
 
     private final Dialog loadingDialog = new Dialog();
     private final ProgressBar spinner = new ProgressBar();
     private final Button loadButton = new Button("Load data", VaadinIcon.DATABASE.create());
+    private final Button freshnessButton = new Button(VaadinIcon.CLOCK.create());
     private final Button settingsButton = new Button(VaadinIcon.COG.create());
     private final Button filterButton = new Button("Filter", VaadinIcon.FILTER.create());
     private final Span status = new Span();
@@ -112,6 +115,7 @@ public class MainView extends VerticalLayout {
             ClubDatabaseService clubs,
             CompetitionDatabaseService competitions,
             AppSettingsService settings,
+            SnapshotStatusService snapshots,
             CodexConversationService codexConversations,
             AntigravityConversationService antigravityConversations,
             CopilotConversationService copilotConversations,
@@ -122,6 +126,7 @@ public class MainView extends VerticalLayout {
         this.clubs = clubs;
         this.competitions = competitions;
         this.settings = settings;
+        this.snapshots = snapshots;
         this.aiAssistant = new AiAssistantView(
                 codexConversations, antigravityConversations, copilotConversations,
                 tacticContexts, managedClubContexts);
@@ -147,10 +152,14 @@ public class MainView extends VerticalLayout {
 
     private Component header() {
         loadButton.addClickListener(event -> loadAllData());
+        freshnessButton.addClickListener(event -> checkSnapshotFreshness());
         settingsButton.addClickListener(event -> openSettingsDialog());
         filterButton.addClickListener(event -> openFilterDialog());
         loadButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         loadButton.addClassName("load-button");
+        freshnessButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
+        freshnessButton.setTooltipText("Check whether the loaded FM26 data is current");
+        freshnessButton.getElement().setAttribute("aria-label", "Check data freshness");
         filterButton.addClassName("filter-button");
         settingsButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
         settingsButton.addClassName("icon-button");
@@ -171,7 +180,7 @@ public class MainView extends VerticalLayout {
         brand.setSpacing(false);
         brand.addClassName("brand");
 
-        HorizontalLayout actions = new HorizontalLayout(status, loadButton, settingsButton);
+        HorizontalLayout actions = new HorizontalLayout(status, freshnessButton, loadButton, settingsButton);
         actions.setAlignItems(Alignment.CENTER);
         actions.setSpacing(false);
         actions.addClassName("app-actions");
@@ -282,6 +291,41 @@ public class MainView extends VerticalLayout {
                     loadButton.setIcon(VaadinIcon.DATABASE.create());
                     loadButton.removeClassName("is-loading");
                 }));
+    }
+
+    private void checkSnapshotFreshness() {
+        freshnessButton.setEnabled(false);
+        UI ui = UI.getCurrent();
+        CompletableFuture.supplyAsync(() -> snapshots.status(true))
+                .thenAccept(snapshot -> ui.access(() -> {
+                    Boolean stale = (Boolean) snapshot.get("stale");
+                    String liveDate = Objects.toString(snapshot.get("live_game_date"), "unknown");
+                    String loadedDate = Objects.toString(snapshot.get("game_date"), "unknown");
+                    if (Boolean.TRUE.equals(stale)) {
+                        status.setText("Data stale | Loaded " + loadedDate + " | FM " + liveDate);
+                        Notification.show(
+                                "FM26 has changed since the last load. Select Load data before asking for decisions.",
+                                7000,
+                                Notification.Position.TOP_CENTER);
+                    } else if (Boolean.FALSE.equals(stale)) {
+                        status.setText("Data current | Game date " + loadedDate);
+                        Notification.show("Loaded FM26 snapshot is current", 2500, Notification.Position.TOP_CENTER);
+                    } else {
+                        status.setText("Data freshness unverified | Loaded " + loadedDate);
+                        Notification.show(
+                                "Could not verify the live FM26 game date. The loaded snapshot was left unchanged.",
+                                5000,
+                                Notification.Position.TOP_CENTER);
+                    }
+                }))
+                .exceptionally(exception -> {
+                    ui.access(() -> Notification.show(
+                            "Freshness check failed: " + exception.getMessage(),
+                            5000,
+                            Notification.Position.TOP_CENTER));
+                    return null;
+                })
+                .whenComplete((ignored, exception) -> ui.access(() -> freshnessButton.setEnabled(true)));
     }
 
     private void refreshSelectedTab() {

@@ -5,7 +5,6 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -34,16 +33,13 @@ public class DatabaseService {
             @CacheEvict(cacheNames = JCacheConfiguration.CLUB_CACHE, allEntries = true),
             @CacheEvict(cacheNames = JCacheConfiguration.PLAYER_MAPPING_CACHE, allEntries = true)
     })
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public void clearAllTables() {
-
-        try {
-            jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY FALSE");
-            for(String table : TABLES_TO_TRUNCATE) {
-                jdbcTemplate.execute("TRUNCATE TABLE " + quote(table) + " RESTART IDENTITY");
-            }
-        } finally {
-            jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY TRUE");
+        // DELETE is intentionally used instead of TRUNCATE. The complete RAM load runs in
+        // one transaction, so a failed read can roll back and leave the previous snapshot
+        // available to the UI and MCP clients.
+        for (String table : TABLES_TO_TRUNCATE) {
+            jdbcTemplate.execute("DELETE FROM " + quote(table));
         }
     }
 

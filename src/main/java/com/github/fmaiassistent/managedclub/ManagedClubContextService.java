@@ -78,6 +78,12 @@ public class ManagedClubContextService implements AiPromptContextContributor {
         return context;
     }
 
+    public void restore(ManagedClubContext context) {
+        if (context != null) {
+            current.set(context);
+        }
+    }
+
     @Override
     public String contextFor(String conversationKey) {
         if (!aiContextEnabled.get()) {

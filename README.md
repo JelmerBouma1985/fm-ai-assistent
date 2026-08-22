@@ -11,6 +11,9 @@ It reads your loaded FM26 save directly from memory so you can:
 
 Your FM data and tactic file are processed locally. FM AI Assistent does not require or store an AI API key.
 
+The assistant can also diagnose tactic-specific squad depth, compare finalists, find replacements,
+model incoming and outgoing moves, and retain verified recruitment evidence between RAM refreshes.
+
 ## Install
 
 Download the latest version from [GitHub Releases](https://github.com/JelmerBouma1985/fm-ai-assistent/releases/latest).
@@ -91,6 +94,19 @@ Use the **Include in AI chats** checkboxes to enable or disable the managed-club
 
 After the agent has found and discussed transfer targets, ask it to create an importable shortlist, for example: `Create an FM26 shortlist called Young centre-backs with these players.` The agent uses each player's FM Unique ID and writes a player-shortlist `.fmf` file directly to the detected FM26 `shortlists` folder.
 
+### Decision workflow
+
+For faster and more reproducible answers, the agent can now use task-level tools instead of assembling every conclusion from raw player rows:
+
+1. Check `fm26_get_data_status` and refresh stale data with `fm26_refresh_data`.
+2. Diagnose depth and the two phases of the loaded tactic with `fm26_analyze_squad`.
+3. Search with `fm26_transfer_shortlist` or match a known player with `fm26_find_replacements`.
+4. Compare finalists by FM Unique ID with `fm26_compare_players`.
+5. Record agent-enquiry or in-game evidence with `fm26_update_recruitment_case`.
+6. Test the depth and financial effect of moves with `fm26_plan_squad_moves` before acting in FM26.
+
+Decision responses include the snapshot identity. Unknown asking prices, wage demands and sale proceeds remain explicit rather than being treated as zero. The recruitment board survives RAM data refreshes so verified refusals and agreed deals continue to guide later searches.
+
 ## Set up an AI agent
 
 FM AI Assistent uses the agent's normal local login. It does not ask for a Codex, Gemini or GitHub API key.
@@ -135,13 +151,21 @@ Antigravity cannot show an approval popup during a headless chat. Add the follow
       "mcp(fm-ai-assistent/fm26_get_player_details)",
       "mcp(fm-ai-assistent/fm26_get_role_attributes)",
       "mcp(fm-ai-assistent/fm26_transfer_shortlist)",
+      "mcp(fm-ai-assistent/fm26_get_data_status)",
+      "mcp(fm-ai-assistent/fm26_analyze_squad)",
+      "mcp(fm-ai-assistent/fm26_compare_players)",
+      "mcp(fm-ai-assistent/fm26_find_replacements)",
+      "mcp(fm-ai-assistent/fm26_plan_squad_moves)",
+      "mcp(fm-ai-assistent/fm26_get_recruitment_board)",
+      "mcp(fm-ai-assistent/fm26_update_recruitment_case)",
+      "mcp(fm-ai-assistent/fm26_refresh_data)",
       "mcp(fm-ai-assistent/fm26_create_shortlist_file)"
     ]
   }
 }
 ```
 
-If the file already contains settings or permissions, merge these entries into it instead of replacing the complete file. The create-shortlist tool writes one new `.fmf` file to the local FM26 shortlist folder; the other listed tools are read-only.
+If the file already contains settings or permissions, merge these entries into it instead of replacing the complete file. `fm26_create_shortlist_file` writes one new `.fmf` file, `fm26_update_recruitment_case` writes local decision evidence, and `fm26_refresh_data` replaces the app's local data snapshot. None of these tools writes to the FM26 process; the other listed tools are read-only.
 
 ### GitHub Copilot
 

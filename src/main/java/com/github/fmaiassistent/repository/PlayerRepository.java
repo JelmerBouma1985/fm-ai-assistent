@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface PlayerRepository extends JpaRepository<PlayerEntity, Long>, JpaSpecificationExecutor<PlayerEntity> {
 
@@ -24,5 +25,7 @@ public interface PlayerRepository extends JpaRepository<PlayerEntity, Long>, Jpa
             left join fetch c.competitionEntity
             """)
     List<PlayerEntity> findAllWithClubs();
+
+    Optional<PlayerEntity> findFirstByUniqueId(Long uniqueId);
 
 }

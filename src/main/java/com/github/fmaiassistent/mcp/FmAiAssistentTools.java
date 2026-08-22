@@ -4,9 +4,12 @@ import com.github.fmaiassistent.service.ClubDatabaseService;
 import com.github.fmaiassistent.domain.entity.ClubEntity;
 import com.github.fmaiassistent.service.PlayerDatabaseService;
 import com.github.fmaiassistent.domain.entity.PlayerEntity;
+import com.github.fmaiassistent.domain.entity.RecruitmentCaseEntity;
 import com.github.fmaiassistent.player.AttributeDefinitions;
 import com.github.fmaiassistent.player.FieldDef;
 import com.github.fmaiassistent.shortlist.ShortlistFileService;
+import com.github.fmaiassistent.recruitment.RecruitmentCaseService;
+import com.github.fmaiassistent.snapshot.SnapshotStatusService;
 import com.github.fmaiassistent.web.ui.PositionTextFormatter;
 import com.github.fmaiassistent.web.mapper.PlayerMapper;
 import org.springframework.ai.tool.annotation.Tool;
@@ -28,6 +31,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Predicate;
 
 @Service
@@ -45,18 +49,24 @@ public class FmAiAssistentTools {
     private final PlayerMapper playerMapper;
     private final JdbcTemplate jdbc;
     private final ShortlistFileService shortlistFiles;
+    private final RecruitmentCaseService recruitmentCases;
+    private final SnapshotStatusService snapshots;
 
     public FmAiAssistentTools(
             PlayerDatabaseService players,
             ClubDatabaseService clubs,
             PlayerMapper playerMapper,
             JdbcTemplate jdbc,
-            ShortlistFileService shortlistFiles) {
+            ShortlistFileService shortlistFiles,
+            RecruitmentCaseService recruitmentCases,
+            SnapshotStatusService snapshots) {
         this.players = players;
         this.clubs = clubs;
         this.playerMapper = playerMapper;
         this.jdbc = jdbc;
         this.shortlistFiles = shortlistFiles;
+        this.recruitmentCases = recruitmentCases;
+        this.snapshots = snapshots;
     }
 
     @Tool(name = "fm26_find_clubs", description = "Find FM26 clubs by name, nation, competition, reputation, facilities and finances. Facility ratings use FM's 0-20 scale. Money values are raw pounds.")
@@ -66,6 +76,10 @@ public class FmAiAssistentTools {
             @ToolParam(required = false, description = "Nation exact filter, for example Netherlands") String nation,
             @ToolParam(required = false, description = "Competition exact filter, for example Eredivisie") String competition,
             @ToolParam(required = false, description = "Minimum club reputation") Integer reputationMin,
+            @ToolParam(required = false, description = "Minimum training-facilities rating, 0-20") Integer trainingFacilitiesMin,
+            @ToolParam(required = false, description = "Minimum youth-facilities rating, 0-20") Integer youthFacilitiesMin,
+            @ToolParam(required = false, description = "Minimum youth-coaching rating, 0-20") Integer youthCoachingMin,
+            @ToolParam(required = false, description = "Minimum youth-recruitment rating, 0-20") Integer youthRecruitmentMin,
             @ToolParam(required = false, description = "Maximum number of clubs to return") Integer limit) {
         int safeLimit = safeLimit(limit);
         List<Map<String, Object>> rows = allClubs().stream()
@@ -73,13 +87,17 @@ public class FmAiAssistentTools {
                 .filter(club -> blank(nation) || equalsIgnoreCase(club.getNation(), nation))
                 .filter(club -> blank(competition) || equalsIgnoreCase(club.getCompetition(), competition))
                 .filter(club -> reputationMin == null || value(club.getReputation()) >= reputationMin)
+                .filter(club -> trainingFacilitiesMin == null || value(club.getTrainingFacilities()) >= trainingFacilitiesMin)
+                .filter(club -> youthFacilitiesMin == null || value(club.getYouthFacilities()) >= youthFacilitiesMin)
+                .filter(club -> youthCoachingMin == null || value(club.getYouthCoaching()) >= youthCoachingMin)
+                .filter(club -> youthRecruitmentMin == null || value(club.getYouthRecruitment()) >= youthRecruitmentMin)
                 .sorted(Comparator
                         .comparing((ClubEntity club) -> value(club.getReputation())).reversed()
                         .thenComparing(ClubEntity::getName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
                 .limit(safeLimit)
                 .map(this::clubMap)
                 .toList();
-        return result("clubs", rows, safeLimit);
+        return withSnapshot(result("clubs", rows, safeLimit));
     }
 
     @Tool(name = "fm26_get_club_context", description = "Get a club profile, facility ratings, finances and squad snapshot for transfer advice. Facility ratings use FM's 0-20 scale. Money values are raw pounds.")
@@ -101,7 +119,7 @@ public class FmAiAssistentTools {
                 .limit(safeLimit(squadLimit))
                 .map(this::playerSummaryMap)
                 .toList());
-        return out;
+        return withSnapshot(out);
     }
 
     @Tool(name = "fm26_find_players", description = "Search FM26 players using the same data available in the UI. Money values are raw pounds.")
@@ -128,8 +146,21 @@ public class FmAiAssistentTools {
             @ToolParam(required = false, description = "Transfer-agreed filter. Use true for players who already agreed a future move, false to exclude them.") Boolean transferAgreed,
             @ToolParam(required = false, description = "Future transfer destination club exact filter.") String futureTransferClub,
             @ToolParam(required = false, description = "Injury filter. Use true for only injured players, false for only currently fit players.") Boolean injured,
+            @ToolParam(required = false, description = "Position code such as GK, DL, DC, DR, DMC, MC, AML, AMR or ST.") String position,
+            @ToolParam(required = false, description = "Minimum position ability, 1-20. Defaults to 15 when position is supplied.") Integer minimumPositionScore,
+            @ToolParam(required = false, description = "Preferred stronger foot: left, right or either.") String preferredFoot,
+            @ToolParam(required = false, description = "Minimum player attributes keyed by MCP column name, for example {PASSING:14, DECISIONS:13}.") Map<String, Integer> minimumAttributes,
+            @ToolParam(required = false, description = "Sort by pa, ca, asking_price, salary, age or name. Defaults to pa.") String sortBy,
+            @ToolParam(required = false, description = "Sort direction: asc or desc. Defaults to desc.") String sortDirection,
+            @ToolParam(required = false, description = "Number of matching players to skip. Defaults to 0.") Integer offset,
+            @ToolParam(required = false, description = "compact or full. Defaults to compact; use full only when attributes are needed.") String detailLevel,
             @ToolParam(required = false, description = "Maximum players to return") Integer limit) {
         int safeLimit = safeLimit(limit);
+        PositionSpec positionSpec = resolvePosition(position);
+        int safePositionMinimum = positionSpec == null ? 1
+                : Math.max(1, Math.min(20, minimumPositionScore == null ? DEFAULT_MIN_POSITION_SCORE : minimumPositionScore));
+        int safeOffset = Math.max(0, offset == null ? 0 : offset);
+        validatePlayerSearchOptions(preferredFoot, minimumAttributes, sortDirection, detailLevel);
         Predicate<PlayerEntity> filter = player ->
                 contains(player.getName(), name)
                         && (blank(gender) || equalsIgnoreCase(player.getGender(), gender))
@@ -147,25 +178,43 @@ public class FmAiAssistentTools {
                         && matchesBoolean(player.getListedForLoan(), listedForLoan)
                         && matchesBoolean(player.getTransferAgreed(), transferAgreed)
                         && (blank(futureTransferClub) || equalsIgnoreCase(player.getFutureTransferClub(), futureTransferClub))
-                        && matchesBoolean(player.getInjured(), injured);
-        List<Map<String, Object>> rows = allPlayers().stream()
-                .filter(filter)
-                .sorted(Comparator
-                        .comparing((PlayerEntity player) -> value(player.getPa())).reversed()
-                        .thenComparing((PlayerEntity player) -> value(player.getCa())).reversed()
-                        .thenComparing(PlayerEntity::getName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+                        && matchesBoolean(player.getInjured(), injured)
+                        && (positionSpec == null || positionScore(player, positionSpec) >= safePositionMinimum)
+                        && matchesPreferredFoot(player, preferredFoot)
+                        && matchesMinimumAttributes(player, minimumAttributes);
+        List<PlayerEntity> matches = allPlayers().stream().filter(filter).toList();
+        boolean full = "full".equalsIgnoreCase(detailLevel);
+        List<Map<String, Object>> rows = matches.stream()
+                .sorted(playerComparator(sortBy, sortDirection))
+                .skip(safeOffset)
                 .limit(safeLimit)
-                .map(this::playerFullMap)
+                .map(full ? this::playerFullMap : this::playerSummaryMap)
                 .toList();
-        return result("players", rows, safeLimit);
+        Map<String, Object> out = result("players", rows, safeLimit);
+        out.put("total_matches", matches.size());
+        out.put("offset", safeOffset);
+        out.put("detail_level", full ? "full" : "compact");
+        return withSnapshot(out);
     }
 
     @Tool(name = "fm26_get_player_details", description = "Get full player details including attributes, positions, CA/PA, reputation, contract and club data.")
     @Transactional(readOnly = true)
     public Map<String, Object> getPlayerDetails(
-            @ToolParam(description = "Player name. Exact match is preferred; contains match is used as fallback.") String name,
+            @ToolParam(required = false, description = "Player name. Exact match is preferred; contains match is used as fallback.") String name,
+            @ToolParam(required = false, description = "Preferred authoritative FM26 UNIQUE_ID/player_unique_id.") Long playerUniqueId,
             @ToolParam(required = false, description = "Maximum matching players to return") Integer limit) {
         int safeLimit = safeLimit(limit);
+        if (playerUniqueId != null) {
+            List<Map<String, Object>> rows = allPlayers().stream()
+                    .filter(player -> Objects.equals(player.getUniqueId(), playerUniqueId))
+                    .limit(safeLimit)
+                    .map(this::playerFullMap)
+                    .toList();
+            return withSnapshot(result("players", rows, safeLimit));
+        }
+        if (blank(name)) {
+            throw new IllegalArgumentException("name or playerUniqueId is required");
+        }
         String normalized = normalize(name);
         List<Map<String, Object>> exact = allPlayers().stream()
                 .filter(player -> normalize(player.getName()).equals(normalized))
@@ -181,7 +230,7 @@ public class FmAiAssistentTools {
                         .map(this::playerFullMap)
                         .toList()
                 : exact;
-        return result("players", rows, safeLimit);
+        return withSnapshot(result("players", rows, safeLimit));
     }
 
     @Tool(
@@ -190,7 +239,7 @@ public class FmAiAssistentTools {
     public Map<String, Object> createShortlistFile(
             @ToolParam(description = "Name shown for the shortlist in FM26 and used for the output filename") String shortlistName,
             @ToolParam(description = "FM26 player UNIQUE_ID values in the desired shortlist order") List<Long> playerUniqueIds) {
-        return shortlistFiles.create(shortlistName, playerUniqueIds).toMap();
+        return withSnapshot(new LinkedHashMap<>(shortlistFiles.create(shortlistName, playerUniqueIds).toMap()));
     }
 
     @Tool(name = "fm26_get_role_attributes", description = "Get FM26 positional roles and the primary/secondary attributes that matter for each role. Use this for tactical fit and transfer advice.")
@@ -228,7 +277,7 @@ public class FmAiAssistentTools {
         out.put("filters", filters);
         out.put("usage", "Compare a player's ATTRIBUTES from fm26_get_player_details with primary_attributes and secondary_attributes. Primary attributes matter most for the role.");
         out.put("roles", roles);
-        return out;
+        return withSnapshot(out);
     }
 
     @Tool(name = "fm26_transfer_shortlist", description = "Primary recruitment tool. Returns a compact ranked shortlist using squad strength, position and role fit, CA/PA, price, wage, reputation, source club, availability and time at club. Call this before broad player searches or player details.")
@@ -246,6 +295,7 @@ public class FmAiAssistentTools {
             @ToolParam(required = false, description = "Maximum current weekly salary in pounds. Omit to score wage fit without excluding players.") Integer maxWeeklySalary,
             @ToolParam(required = false, description = "Extra player reputation above club reputation considered plausible. Defaults to 750.") Integer reputationMargin,
             @ToolParam(required = false, description = "Minimum time at current club. ISO-8601 period like P1Y or plain days like 365. Defaults to P1Y.") String minimumTimeAtCurrentClub,
+            @ToolParam(required = false, description = "Minimum estimated willingness: high, medium or low. Defaults to low so eligible players are not silently discarded.") String minimumEstimatedWillingness,
             @ToolParam(required = false, description = "Transfer-listed filter. true=only listed, false=exclude listed.") Boolean transferListed,
             @ToolParam(required = false, description = "Loan-listed filter. true=only loan-listed, false=exclude loan-listed.") Boolean listedForLoan,
             @ToolParam(required = false, description = "Transfer-agreed filter. Defaults to false because agreed players are unavailable.") Boolean transferAgreed,
@@ -271,15 +321,20 @@ public class FmAiAssistentTools {
         long budget = Math.max(0L, value(club.getTransferBudget()));
         int safeReputationMargin = reputationMargin == null ? DEFAULT_REPUTATION_MARGIN : Math.max(0, reputationMargin);
         Period minimumTime = parsePeriod(minimumTimeAtCurrentClub, Period.ofYears(1));
-        long priceCap = maxAskingPrice == null ? budget : Math.min(Math.max(0L, maxAskingPrice), budget);
+        long priceCap = maxAskingPrice == null ? budget : Math.max(0L, maxAskingPrice);
         long wageCeiling = maxWeeklySalary == null
                 ? inferredWeeklyWageCeiling(squad, club)
                 : Math.max(0L, maxWeeklySalary);
         int benchmarkCa = firstTeamAverageCa(positionSquad);
         int shortlistLimit = limit == null ? DEFAULT_SHORTLIST_LIMIT : Math.max(1, Math.min(limit, MAX_SHORTLIST_LIMIT));
         Boolean effectiveTransferAgreed = transferAgreed == null ? Boolean.FALSE : transferAgreed;
+        Willingness minimumWillingness = parseWillingness(minimumEstimatedWillingness, Willingness.LOW);
+        Map<Long, RecruitmentCaseEntity> evidenceByPlayer = recruitmentCases.byPlayerUniqueId();
 
         List<ScoredCandidate> candidatePool = new ArrayList<>();
+        int excludedByVerifiedEvidence = 0;
+        int excludedByWillingness = 0;
+        int excludedByPrice = 0;
         for (PlayerEntity player : allPlayers) {
             if (belongsToClub(player, club.getName())
                     || !sameGender(player.getGender(), club.getGender())
@@ -301,6 +356,7 @@ public class FmAiAssistentTools {
             boolean priceKnown = askingPrice > 0;
             boolean freeAgent = blank(player.getClub());
             if (priceKnown && askingPrice > priceCap) {
+                excludedByPrice++;
                 continue;
             }
             if (maxWeeklySalary != null && value(player.getSalaryWeeklyRaw()) > maxWeeklySalary) {
@@ -308,8 +364,16 @@ public class FmAiAssistentTools {
             }
 
             ClubEntity sourceClub = clubsByName.get(normalize(player.getClub()));
-            Willingness willingness = willingness(player, club, sourceClub, safeReputationMargin, minimumTime);
-            if (willingness == Willingness.LOW) {
+            RecruitmentCaseEntity evidence = evidenceByPlayer.get(player.getUniqueId());
+            if (RecruitmentCaseService.excludesCandidate(evidence)) {
+                excludedByVerifiedEvidence++;
+                continue;
+            }
+            Willingness willingness = RecruitmentCaseService.verifiedInterest(evidence)
+                    ? Willingness.HIGH
+                    : willingness(player, club, sourceClub, safeReputationMargin, minimumTime);
+            if (willingness.ordinal() > minimumWillingness.ordinal()) {
+                excludedByWillingness++;
                 continue;
             }
 
@@ -332,6 +396,7 @@ public class FmAiAssistentTools {
                     willingness,
                     priceKnown,
                     freeAgent,
+                    evidence,
                     score));
         }
 
@@ -363,9 +428,11 @@ public class FmAiAssistentTools {
         putIfNotNull(criteria, "min_ca", minCurrentAbility);
         putIfNotNull(criteria, "min_pa", minPotentialAbility);
         criteria.put("max_asking_price", priceCap);
+        criteria.put("club_transfer_budget", budget);
         criteria.put("weekly_wage_ceiling", wageCeiling);
         criteria.put("reputation_margin", safeReputationMargin);
         criteria.put("minimum_time_at_current_club", minimumTime.toString());
+        criteria.put("minimum_estimated_willingness", minimumWillingness.name().toLowerCase(Locale.ROOT));
         putIfNotNull(criteria, "transfer_listed", transferListed);
         putIfNotNull(criteria, "listed_for_loan", listedForLoan);
         criteria.put("transfer_agreed", effectiveTransferAgreed);
@@ -379,10 +446,14 @@ public class FmAiAssistentTools {
             out.put("role_model", roleProfile.toMap());
         }
         out.put("candidate_pool_count", candidatePool.size());
+        out.put("exclusions", Map.of(
+                "over_price_ceiling", excludedByPrice,
+                "below_estimated_willingness", excludedByWillingness,
+                "verified_recruitment_blocker", excludedByVerifiedEvidence));
         out.put("returned", candidates.size());
         out.put("candidates", candidates);
-        out.put("guidance", "Ranked estimates, not guaranteed transfers. asking_price=null means unknown, not free. Call fm26_get_player_details only for finalists needing full attributes.");
-        return out;
+        out.put("guidance", "Ranked estimates, not guaranteed transfers. An explicit max_asking_price is literal and may return players who require sales. asking_price=null means unknown, not free. Current salary is not an expected wage demand. Verified recruitment-board evidence overrides heuristic willingness.");
+        return withSnapshot(out);
     }
 
     private List<PlayerEntity> allPlayers() {
@@ -621,7 +692,8 @@ public class FmAiAssistentTools {
         double wage = value(player.getSalaryWeeklyRaw()) == 0 ? 1.0 : wageCeiling <= 0
                 ? 0.35
                 : clamp(wageCeiling / (double) value(player.getSalaryWeeklyRaw()));
-        double willingnessScore = willingness == Willingness.HIGH ? 1.0 : 0.6;
+        double willingnessScore = willingness == Willingness.HIGH ? 1.0
+                : willingness == Willingness.MEDIUM ? 0.6 : 0.25;
 
         if (roleFit.score() != null) {
             return round1(position * 15 + ca * 20 + futureQuality * 10 + improvement * 15 + growth * 5 + age * 5
@@ -642,6 +714,7 @@ public class FmAiAssistentTools {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("rank", rank);
         out.put("score", candidate.decisionScore());
+        out.put("score_components", decisionScoreComponents(candidate, benchmarkCa, priceCap, wageCeiling));
         out.put("player_unique_id", player.getUniqueId());
         out.put("name", player.getName());
         out.put("age", asInteger(player.getAge()));
@@ -659,11 +732,18 @@ public class FmAiAssistentTools {
             out.put("role_gaps", candidate.roleFit().gaps());
         }
         out.put("asking_price", candidate.priceKnown() ? player.getAskingPrice() : null);
+        long clubBudget = Math.max(0L, value(managingClub.getTransferBudget()));
         out.put("price_fit", candidate.freeAgent() ? "free_agent" : !candidate.priceKnown() ? "unknown"
-                : value(player.getAskingPrice()) <= priceCap ? "within_budget" : "over_budget");
+                : value(player.getAskingPrice()) <= clubBudget ? "within_budget"
+                : value(player.getAskingPrice()) <= priceCap ? "requires_sales" : "over_ceiling");
         out.put("salary_weekly", player.getSalaryWeeklyRaw());
         out.put("wage_fit", value(player.getSalaryWeeklyRaw()) <= wageCeiling);
+        out.put("estimated_willingness", candidate.willingness().name().toLowerCase(Locale.ROOT));
         out.put("willingness", candidate.willingness().name().toLowerCase(Locale.ROOT));
+        out.put("willingness_source", RecruitmentCaseService.verifiedInterest(candidate.evidence())
+                ? "verified_recruitment_case" : "heuristic");
+        out.put("willingness_confidence", RecruitmentCaseService.verifiedInterest(candidate.evidence()) ? "high" : "low");
+        out.put("recruitment_evidence", recruitmentEvidenceMap(candidate.evidence()));
         out.put("player_reputation", highestReputation(player));
         out.put("reputation_gap", highestReputation(player) - value(managingClub.getReputation()));
         out.put("source_club_reputation", candidate.sourceClub() == null ? null : candidate.sourceClub().getReputation());
@@ -673,6 +753,55 @@ public class FmAiAssistentTools {
         out.put("loan_listed", player.getListedForLoan());
         out.put("injured", player.getInjured());
         out.put("signals", candidateSignals(candidate, benchmarkCa));
+        return out;
+    }
+
+    private static Map<String, Object> decisionScoreComponents(
+            ScoredCandidate candidate,
+            int benchmarkCa,
+            long priceCap,
+            long wageCeiling) {
+        PlayerEntity player = candidate.player();
+        double position = clamp(candidate.positionScore() / 20.0);
+        double ca = clamp(value(player.getCa()) / 200.0);
+        double futureQuality = clamp(effectivePotential(player) / 200.0);
+        double improvement = benchmarkCa <= 0 ? 1.0 : clamp((value(player.getCa()) - benchmarkCa + 25.0) / 50.0);
+        double growth = clamp((effectivePotential(player) - value(player.getCa())) / 50.0);
+        double age = ageScore(player);
+        double price = candidate.freeAgent() ? 1.0 : !candidate.priceKnown() ? 0.35 : priceCap <= 0
+                ? 0.0 : clamp(1.0 - value(player.getAskingPrice()) / (double) priceCap);
+        double wage = value(player.getSalaryWeeklyRaw()) == 0 ? 1.0 : wageCeiling <= 0
+                ? 0.35 : clamp(wageCeiling / (double) value(player.getSalaryWeeklyRaw()));
+        double willingness = candidate.willingness() == Willingness.HIGH ? 1.0
+                : candidate.willingness() == Willingness.MEDIUM ? 0.6 : 0.25;
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("position", round1(position * (candidate.roleFit().score() == null ? 20 : 15)));
+        out.put("current_ability", round1(ca * (candidate.roleFit().score() == null ? 25 : 20)));
+        out.put("future_quality", round1(futureQuality * 10));
+        out.put("squad_improvement", round1(improvement * 15));
+        out.put("growth", round1(growth * (candidate.roleFit().score() == null ? 10 : 5)));
+        out.put("age", round1(age * (candidate.roleFit().score() == null ? 10 : 5)));
+        if (candidate.roleFit().score() != null) {
+            out.put("role_fit", round1(clamp(candidate.roleFit().score() / 20.0) * 20));
+        }
+        out.put("price_and_current_wage", round1(((price + wage) / 2.0) * 5));
+        out.put("estimated_willingness", round1(willingness * 5));
+        return out;
+    }
+
+    private static Map<String, Object> recruitmentEvidenceMap(RecruitmentCaseEntity evidence) {
+        if (evidence == null) {
+            return Map.of("available", false);
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("available", true);
+        out.put("interest_status", evidence.getInterestStatus());
+        out.put("deal_stage", evidence.getDealStage());
+        out.put("quoted_fee", evidence.getQuotedFee());
+        out.put("quoted_weekly_wage", evidence.getQuotedWeeklyWage());
+        out.put("source", evidence.getSource());
+        out.put("observed_game_date", evidence.getObservedGameDate());
+        out.put("updated_at", evidence.getUpdatedAt());
         return out;
     }
 
@@ -922,6 +1051,11 @@ public class FmAiAssistentTools {
         return out;
     }
 
+    private Map<String, Object> withSnapshot(Map<String, Object> out) {
+        out.put("snapshot", snapshots.reference());
+        return out;
+    }
+
     private static Map<String, Object> positionMap(PlayerEntity player) {
         Map<String, Object> out = new LinkedHashMap<>();
         for (FieldDef field : AttributeDefinitions.POSITION_FIELDS) {
@@ -1004,6 +1138,17 @@ public class FmAiAssistentTools {
         }
     }
 
+    private static Willingness parseWillingness(String value, Willingness fallback) {
+        if (blank(value)) {
+            return fallback;
+        }
+        try {
+            return Willingness.valueOf(value.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("minimumEstimatedWillingness must be high, medium or low");
+        }
+    }
+
     private static LocalDate parseDate(String value) {
         if (blank(value)) {
             return null;
@@ -1050,6 +1195,92 @@ public class FmAiAssistentTools {
 
     private static boolean matchesBoolean(Boolean value, Boolean expected) {
         return expected == null || Objects.equals(Boolean.TRUE.equals(value), expected);
+    }
+
+    private static boolean matchesPreferredFoot(PlayerEntity player, String preferredFoot) {
+        if (blank(preferredFoot) || "either".equalsIgnoreCase(preferredFoot)) {
+            return true;
+        }
+        int left = value(player.getLeftFoot());
+        int right = value(player.getRightFoot());
+        if ("left".equalsIgnoreCase(preferredFoot)) {
+            return left > right;
+        }
+        if ("right".equalsIgnoreCase(preferredFoot)) {
+            return right > left;
+        }
+        return false;
+    }
+
+    private static void validatePlayerSearchOptions(
+            String preferredFoot,
+            Map<String, Integer> minimumAttributes,
+            String sortDirection,
+            String detailLevel) {
+        if (!blank(preferredFoot)
+                && !Set.of("left", "right", "either").contains(preferredFoot.trim().toLowerCase(Locale.ROOT))) {
+            throw new IllegalArgumentException("preferredFoot must be left, right or either");
+        }
+        if (!blank(sortDirection)
+                && !Set.of("asc", "desc").contains(sortDirection.trim().toLowerCase(Locale.ROOT))) {
+            throw new IllegalArgumentException("sortDirection must be asc or desc");
+        }
+        if (!blank(detailLevel)
+                && !Set.of("compact", "full").contains(detailLevel.trim().toLowerCase(Locale.ROOT))) {
+            throw new IllegalArgumentException("detailLevel must be compact or full");
+        }
+        if (minimumAttributes == null) {
+            return;
+        }
+        Set<String> supported = AttributeDefinitions.VISIBLE_FIELDS.stream()
+                .map(FmAiAssistentTools::columnName)
+                .collect(java.util.stream.Collectors.toSet());
+        minimumAttributes.forEach((name, value) -> {
+            if (blank(name) || value == null) {
+                throw new IllegalArgumentException("minimumAttributes requires non-null attribute names and values");
+            }
+            String column = name.trim().toUpperCase(Locale.ROOT).replace(' ', '_');
+            if (!supported.contains(column)) {
+                throw new IllegalArgumentException("unsupported minimum attribute: " + name);
+            }
+            if (value < 1 || value > 20) {
+                throw new IllegalArgumentException("minimum attribute values must be between 1 and 20");
+            }
+        });
+    }
+
+    private static boolean matchesMinimumAttributes(PlayerEntity player, Map<String, Integer> minimums) {
+        if (minimums == null || minimums.isEmpty()) {
+            return true;
+        }
+        for (Map.Entry<String, Integer> minimum : minimums.entrySet()) {
+            if (blank(minimum.getKey()) || minimum.getValue() == null) {
+                throw new IllegalArgumentException("minimumAttributes requires non-null attribute names and values");
+            }
+            String column = minimum.getKey().trim().toUpperCase(Locale.ROOT).replace(' ', '_');
+            Object raw = player.getColumnValue(column);
+            if (!(raw instanceof Number number) || number.intValue() < minimum.getValue()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static Comparator<PlayerEntity> playerComparator(String sortBy, String sortDirection) {
+        String key = blank(sortBy) ? "pa" : normalize(sortBy).replace(' ', '_');
+        Comparator<PlayerEntity> comparator = switch (key) {
+            case "ca", "current_ability" -> Comparator.comparingInt(player -> value(player.getCa()));
+            case "asking_price", "price" -> Comparator.comparingLong(player -> value(player.getAskingPrice()));
+            case "salary", "weekly_salary", "wage" -> Comparator.comparingInt(player -> value(player.getSalaryWeeklyRaw()));
+            case "age" -> Comparator.comparingInt(player -> Optional.ofNullable(asInteger(player.getAge())).orElse(999));
+            case "name" -> Comparator.comparing(PlayerEntity::getName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER));
+            case "pa", "potential_ability" -> Comparator.comparingInt(player -> value(player.getPa()));
+            default -> throw new IllegalArgumentException("sortBy must be pa, ca, asking_price, salary, age or name");
+        };
+        if (!"asc".equalsIgnoreCase(sortDirection)) {
+            comparator = comparator.reversed();
+        }
+        return comparator.thenComparing(PlayerEntity::getName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER));
     }
 
     private static Integer asInteger(String value) {
@@ -1146,6 +1377,7 @@ public class FmAiAssistentTools {
             Willingness willingness,
             boolean priceKnown,
             boolean freeAgent,
+            RecruitmentCaseEntity evidence,
             double decisionScore) {
     }
 
