@@ -1,6 +1,7 @@
 package com.github.fmaiassistent.mcp;
 
 import com.github.fmaiassistent.decision.RoleFitService;
+import com.github.fmaiassistent.decision.LineupOptimizerService;
 import com.github.fmaiassistent.domain.entity.ClubEntity;
 import com.github.fmaiassistent.domain.entity.PlayerEntity;
 import com.github.fmaiassistent.domain.entity.RecruitmentCaseEntity;
@@ -18,10 +19,12 @@ import com.github.fmaiassistent.tactic.TacticDefinition;
 import com.github.fmaiassistent.web.ui.PositionTextFormatter;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.Period;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -33,6 +36,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -49,15 +53,18 @@ public class FmDecisionTools {
     private final ManagedClubContextService managedClubs;
     private final TacticContextService tactics;
     private final RoleFitService roleFits;
+    private final LineupOptimizerService lineups;
     private final RecruitmentCaseService recruitmentCases;
     private final SnapshotStatusService snapshots;
 
+    @Autowired
     public FmDecisionTools(
             PlayerDatabaseService players,
             ClubDatabaseService clubs,
             ManagedClubContextService managedClubs,
             TacticContextService tactics,
             RoleFitService roleFits,
+            LineupOptimizerService lineups,
             RecruitmentCaseService recruitmentCases,
             SnapshotStatusService snapshots) {
         this.players = players;
@@ -65,8 +72,275 @@ public class FmDecisionTools {
         this.managedClubs = managedClubs;
         this.tactics = tactics;
         this.roleFits = roleFits;
+        this.lineups = lineups;
         this.recruitmentCases = recruitmentCases;
         this.snapshots = snapshots;
+    }
+
+    FmDecisionTools(
+            PlayerDatabaseService players,
+            ClubDatabaseService clubs,
+            ManagedClubContextService managedClubs,
+            TacticContextService tactics,
+            RoleFitService roleFits,
+            RecruitmentCaseService recruitmentCases,
+            SnapshotStatusService snapshots) {
+        this(players, clubs, managedClubs, tactics, roleFits,
+                new LineupOptimizerService(roleFits), recruitmentCases, snapshots);
+    }
+
+    @Tool(name = "fm26_optimize_lineup", description = "Build the globally best unique XI for every slot of the loaded two-phase FM26 tactic. One player can fill only one slot; unfilled slots and disruptive alternatives are explicit.")
+    @Transactional(readOnly = true)
+    public Map<String, Object> optimizeLineup(
+            @ToolParam(required = false, description = "Club name. Defaults to the club managed by the human manager.") String managingClub,
+            @ToolParam(required = false, description = "Minimum positional ability in every present tactic phase, 1-20. Defaults to 15.") Integer minimumPositionScore,
+            @ToolParam(required = false, description = "Include injured players in automatic selection. Defaults to false; explicit locks are still honored with a warning.") Boolean includeInjured,
+            @ToolParam(required = false, description = "Player UNIQUE_ID values to exclude from selection.") List<Long> unavailablePlayerUniqueIds,
+            @ToolParam(required = false, description = "Assignments that must be used, each containing tacticSlot and playerUniqueId.") List<LineupOptimizerService.LockedAssignment> lockedAssignments,
+            @ToolParam(required = false, description = "Alternatives per tactic slot. Defaults to 3, maximum 10.") Integer alternativeLimit) {
+        String clubName = resolveManagingClub(managingClub);
+        List<PlayerEntity> squad = currentSquad(players.findAllPlayerEntities(), clubName);
+        TacticContext tactic = requireTactic();
+        Map<String, Object> snapshot = snapshots.reference();
+        LineupOptimizerService.Constraints constraints = lineupConstraints(
+                minimumPositionScore, includeInjured, unavailablePlayerUniqueIds,
+                lockedAssignments, alternativeLimit, snapshot, tactic);
+        LineupOptimizerService.Result result = lineups.optimize(squad, tactic.definition(), constraints);
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("snapshot", snapshot);
+        out.put("club", clubName);
+        out.put("tactic", tactic.title());
+        out.put("tactic_fingerprint", tactic.fingerprint());
+        out.put("constraints", constraintsMap(constraints));
+        out.putAll(lineupMap(result));
+        out.put("limitations", List.of(
+                "Condition, morale, match sharpness and suspensions are not available.",
+                "This is an attribute-and-availability XI, not a match-day prediction."));
+        return out;
+    }
+
+    @Tool(name = "fm26_recruit_for_tactic_slot", description = "Recruit for one loaded-tactic slot using both phases, literal hard filters and the projected improvement to a globally re-optimized unique XI.")
+    @Transactional(readOnly = true)
+    public Map<String, Object> recruitForTacticSlot(
+            @ToolParam(description = "One-based slot in the loaded tactic.") Integer tacticSlot,
+            @ToolParam(required = false, description = "Managing club. Defaults to the detected human-managed club.") String managingClub,
+            @ToolParam(required = false, description = "Minimum position score in both tactic phases. Defaults to 15.") Integer minimumPositionScore,
+            @ToolParam(required = false, description = "Maximum candidate age.") Integer maxAge,
+            @ToolParam(required = false, description = "Minimum current ability.") Integer minCurrentAbility,
+            @ToolParam(required = false, description = "Minimum potential ability.") Integer minPotentialAbility,
+            @ToolParam(required = false, description = "Literal maximum known asking price in pounds. Unknown prices remain explicitly unknown.") Long maxAskingPrice,
+            @ToolParam(required = false, description = "Maximum current weekly salary in pounds.") Integer maxWeeklySalary,
+            @ToolParam(required = false, description = "Preferred stronger foot: left, right or either.") String preferredFoot,
+            @ToolParam(required = false, description = "Minimum visible attributes keyed by MCP column name, for example {PASSING:14}.") Map<String, Integer> minimumAttributes,
+            @ToolParam(required = false, description = "Minimum estimated willingness: high, medium or low. Defaults to low.") String minimumEstimatedWillingness,
+            @ToolParam(required = false, description = "Player reputation above the club considered plausible. Defaults to 750.") Integer reputationMargin,
+            @ToolParam(required = false, description = "Minimum time at current club, ISO period or plain days. Defaults to P1Y.") String minimumTimeAtCurrentClub,
+            @ToolParam(required = false, description = "Transfer-listed filter.") Boolean transferListed,
+            @ToolParam(required = false, description = "Loan-listed filter.") Boolean listedForLoan,
+            @ToolParam(required = false, description = "Maximum finalists. Defaults to 8, maximum 30.") Integer limit) {
+        String clubName = resolveManagingClub(managingClub);
+        ClubEntity club = requireClub(clubName);
+        TacticContext tacticContext = requireTactic();
+        TacticDefinition.TacticSlot slot = resolveSlot(tacticContext.definition(), tacticSlot);
+        int minimum = clamp(minimumPositionScore == null ? 15 : minimumPositionScore, 1, 20);
+        int safeLimit = clamp(limit == null ? DEFAULT_LIMIT : limit, 1, MAX_LIMIT);
+        validateRecruitmentFilters(preferredFoot, minimumAttributes, minimumEstimatedWillingness);
+        Period minimumTime = parsePeriod(minimumTimeAtCurrentClub, Period.ofYears(1));
+        int safeReputationMargin = Math.max(0, reputationMargin == null ? 750 : reputationMargin);
+        RecruitmentWillingness minimumWillingness = recruitmentWillingness(
+                minimumEstimatedWillingness, RecruitmentWillingness.LOW);
+
+        Map<String, Object> snapshot = snapshots.reference();
+        List<PlayerEntity> all = players.findAllPlayerEntities();
+        List<PlayerEntity> squad = currentSquad(all, clubName);
+        Map<Long, RecruitmentCaseEntity> evidenceByPlayer = recruitmentCases.byPlayerUniqueId();
+        LineupOptimizerService.Constraints baseConstraints = lineupConstraints(
+                minimum, false, List.of(), List.of(), 0, snapshot, tacticContext);
+        LineupOptimizerService.Result baseline = lineups.optimize(
+                squad, tacticContext.definition(), baseConstraints);
+        LineupOptimizerService.Assignment incumbent = baseline.assignmentFor(slot.index());
+
+        List<TacticalCandidateSeed> viableSeeds = new ArrayList<>();
+        int excludedByEvidence = 0;
+        for (PlayerEntity player : all) {
+            if (player.getUniqueId() == null
+                    || belongsToClub(player, clubName)
+                    || !sameGender(player, club)
+                    || (maxAge != null && age(player) > maxAge)
+                    || (minCurrentAbility != null && value(player.getCa()) < minCurrentAbility)
+                    || (minPotentialAbility != null && value(player.getPa()) < minPotentialAbility)
+                    || Boolean.TRUE.equals(player.getTransferAgreed())
+                    || Boolean.TRUE.equals(player.getInjured())
+                    || (transferListed != null && Boolean.TRUE.equals(player.getTransferListed()) != transferListed)
+                    || (listedForLoan != null && Boolean.TRUE.equals(player.getListedForLoan()) != listedForLoan)
+                    || (maxAskingPrice != null && value(player.getAskingPrice()) > 0
+                        && value(player.getAskingPrice()) > Math.max(0, maxAskingPrice))
+                    || (maxWeeklySalary != null && value(player.getSalaryWeeklyRaw()) > Math.max(0, maxWeeklySalary))
+                    || !matchesPreferredFoot(player, preferredFoot)
+                    || !matchesMinimumAttributes(player, minimumAttributes)) {
+                continue;
+            }
+            Double pairedPosition = pairedPositionAverage(player, slot, minimum);
+            if (pairedPosition == null) continue;
+            RecruitmentCaseEntity evidence = evidenceByPlayer.get(player.getUniqueId());
+            if (RecruitmentCaseService.excludesCandidate(evidence)) {
+                excludedByEvidence++;
+                continue;
+            }
+            RecruitmentWillingness willingness = RecruitmentCaseService.verifiedInterest(evidence)
+                    ? RecruitmentWillingness.HIGH
+                    : estimatedWillingness(player, club, safeReputationMargin, minimumTime);
+            if (willingness.ordinal() > minimumWillingness.ordinal()) continue;
+            viableSeeds.add(new TacticalCandidateSeed(
+                    player, evidence, willingness,
+                    preliminaryTacticalUpperBound(player, pairedPosition, club, willingness)));
+        }
+        Comparator<TacticalCandidate> candidateRanking = Comparator
+                .comparingDouble(TacticalCandidate::preliminaryScore).reversed()
+                .thenComparing(Comparator.comparingInt(
+                        (TacticalCandidate value) -> value(value.player().getCa())).reversed())
+                .thenComparing(value -> value.player().getUniqueId());
+        viableSeeds.sort(Comparator.comparingDouble(TacticalCandidateSeed::upperBound).reversed()
+                .thenComparing(seed -> seed.player().getUniqueId()));
+        PriorityQueue<TacticalCandidate> bestCandidates = new PriorityQueue<>(30, candidateRanking.reversed());
+        for (TacticalCandidateSeed seed : viableSeeds) {
+            if (bestCandidates.size() == 30
+                    && seed.upperBound() < bestCandidates.peek().preliminaryScore()) {
+                break;
+            }
+            RoleFitService.SlotFit fit = lineups.fit(seed.player(), slot, baseConstraints);
+            TacticalCandidate candidate = new TacticalCandidate(
+                    seed.player(), fit, seed.evidence(), seed.willingness(),
+                    preliminaryTacticalScore(seed.player(), fit, club, seed.willingness()));
+            if (bestCandidates.size() < 30) {
+                bestCandidates.add(candidate);
+            } else if (candidateRanking.compare(candidate, bestCandidates.peek()) < 0) {
+                bestCandidates.poll();
+                bestCandidates.add(candidate);
+            }
+        }
+        List<TacticalCandidate> pool = bestCandidates.stream().sorted(candidateRanking).toList();
+
+        List<TacticalCandidate> simulatedCandidates = pool;
+        LineupOptimizerService.Result projectionTemplate = simulatedCandidates.isEmpty() ? null
+                : projectedLineup(squad, tacticContext, baseConstraints, slot, simulatedCandidates.getFirst());
+        List<Map<String, Object>> finalists = simulatedCandidates.stream().map(candidate -> {
+            LineupOptimizerService.Result projected = candidate == simulatedCandidates.getFirst()
+                    ? projectionTemplate
+                    : replaceProjectedCandidate(projectionTemplate, tacticContext.definition(), slot, candidate);
+            double delta = round1(projected.totalScore() - baseline.totalScore());
+            double score = tacticalRecruitmentScore(candidate, club, delta);
+            Map<String, Object> row = new LinkedHashMap<>(compactPlayer(candidate.player()));
+            row.put("decision_score", score);
+            row.put("paired_slot_fit", candidate.fit().toMap());
+            row.put("optimized_team_score_delta", delta);
+            row.put("projected_team_score", projected.totalScore());
+            row.put("displaced_player", incumbent == null ? null : compactPlayer(incumbent.player()));
+            row.put("starter_changes", starterChanges(baseline, projected));
+            row.put("price_fit", priceFit(candidate.player(), club, maxAskingPrice));
+            row.put("estimated_willingness", candidate.willingness().name().toLowerCase(Locale.ROOT));
+            row.put("willingness_source", RecruitmentCaseService.verifiedInterest(candidate.evidence())
+                    ? "verified_recruitment_case" : "heuristic");
+            row.put("willingness_confidence", RecruitmentCaseService.verifiedInterest(candidate.evidence())
+                    ? "high" : "low");
+            row.put("recruitment_evidence", evidenceMap(candidate.evidence()));
+            row.put("score_components", tacticalRecruitmentComponents(candidate, club, delta));
+            return row;
+        }).sorted(Comparator.comparingDouble(row -> -((Number) row.get("decision_score")).doubleValue()))
+                .limit(safeLimit).toList();
+
+        Map<String, Object> criteria = new LinkedHashMap<>();
+        criteria.put("tactic_slot", slot.index());
+        criteria.put("minimum_position_score", minimum);
+        criteria.put("max_age", maxAge);
+        criteria.put("min_ca", minCurrentAbility);
+        criteria.put("min_pa", minPotentialAbility);
+        criteria.put("max_asking_price", maxAskingPrice);
+        criteria.put("max_weekly_salary", maxWeeklySalary);
+        criteria.put("preferred_foot", preferredFoot);
+        criteria.put("minimum_attributes", minimumAttributes == null ? Map.of() : minimumAttributes);
+        criteria.put("minimum_estimated_willingness", minimumWillingness.name().toLowerCase(Locale.ROOT));
+        criteria.put("transfer_listed", transferListed);
+        criteria.put("listed_for_loan", listedForLoan);
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("snapshot", snapshot);
+        out.put("club", clubName);
+        out.put("tactic", tacticContext.title());
+        out.put("tactic_fingerprint", tacticContext.fingerprint());
+        out.put("slot", Map.of(
+                "tactic_slot", slot.index(),
+                "in_possession", phaseRoleMap(slot.inPossession()),
+                "out_of_possession", phaseRoleMap(slot.outOfPossession())));
+        out.put("baseline_lineup", lineupMap(baseline));
+        out.put("criteria", criteria);
+        out.put("candidate_pool_count", viableSeeds.size());
+        out.put("simulated_finalists", simulatedCandidates.size());
+        out.put("excluded_by_effective_recruitment_evidence", excludedByEvidence);
+        out.put("returned", finalists.size());
+        out.put("candidates", finalists);
+        out.put("hard_constraints_relaxed", false);
+        out.put("guidance", "Both tactic phases and all supplied filters are hard requirements. Willingness is heuristic unless current-career evidence says otherwise; obtain an agent enquiry before bidding.");
+        return out;
+    }
+
+    private LineupOptimizerService.Result projectedLineup(
+            List<PlayerEntity> squad,
+            TacticContext tactic,
+            LineupOptimizerService.Constraints baseConstraints,
+            TacticDefinition.TacticSlot slot,
+            TacticalCandidate candidate) {
+        List<PlayerEntity> simulatedSquad = new ArrayList<>(squad);
+        simulatedSquad.add(candidate.player());
+        LineupOptimizerService.Constraints constraints = new LineupOptimizerService.Constraints(
+                baseConstraints.minimumPositionScore(),
+                baseConstraints.includeInjured(),
+                baseConstraints.unavailablePlayerUniqueIds(),
+                List.of(new LineupOptimizerService.LockedAssignment(
+                        slot.index(), candidate.player().getUniqueId())),
+                0,
+                baseConstraints.snapshotId(),
+                baseConstraints.tacticFingerprint());
+        return lineups.optimize(simulatedSquad, tactic.definition(), constraints);
+    }
+
+    /**
+     * With an external recruit locked to the requested slot, the optimal assignment
+     * of the existing squad to every other slot is candidate-independent. Reuse that
+     * single residual solve and replace only the locked candidate.
+     */
+    private static LineupOptimizerService.Result replaceProjectedCandidate(
+            LineupOptimizerService.Result template,
+            TacticDefinition tactic,
+            TacticDefinition.TacticSlot targetSlot,
+            TacticalCandidate candidate) {
+        List<LineupOptimizerService.Assignment> assignments = template.assignments().stream()
+                .map(assignment -> assignment.slot().index() == targetSlot.index()
+                        ? new LineupOptimizerService.Assignment(
+                                targetSlot, candidate.player(), candidate.fit(), true)
+                        : assignment)
+                .toList();
+        double total = round1(assignments.stream()
+                .mapToDouble(assignment -> assignment.fit().overall()).sum());
+        Map<Integer, LineupOptimizerService.Assignment> bySlot = assignments.stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        assignment -> assignment.slot().index(), Function.identity()));
+        List<Integer> bottlenecks = tactic.slots().stream()
+                .filter(slot -> bySlot.get(slot.index()) == null
+                        || bySlot.get(slot.index()).fit().overall() < 70.0)
+                .sorted(Comparator.comparingDouble(slot -> bySlot.get(slot.index()) == null
+                        ? -1 : bySlot.get(slot.index()).fit().overall()))
+                .map(TacticDefinition.TacticSlot::index)
+                .toList();
+        return new LineupOptimizerService.Result(
+                assignments,
+                template.unfilledSlots(),
+                template.alternatives(),
+                total,
+                round1(total / tactic.slots().size()),
+                bottlenecks,
+                template.warnings());
     }
 
     @Tool(name = "fm26_analyze_squad", description = "Analyze squad depth, both phases of the loaded FM26 tactic, contracts, age, injuries, loans and future transfers. Use this to decide which positions need recruitment before searching for players.")
@@ -81,20 +355,28 @@ public class FmDecisionTools {
         List<PlayerEntity> all = players.findAllPlayerEntities();
         List<PlayerEntity> squad = currentSquad(all, clubName);
         TacticContext tactic = tactics.current();
+        Map<String, Object> snapshot = snapshots.reference();
 
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("snapshot", snapshots.reference());
+        out.put("snapshot", snapshot);
         out.put("club", clubName);
         out.put("squad_size", squad.size());
         out.put("tactic", tactic.active() ? tactic.title() : null);
         out.put("tactic_loaded", tactic.active() && tactic.definition() != null);
+        out.put("tactic_fingerprint", tactic.fingerprint());
         out.put("position_depth", positionDepth(squad, minimum));
 
         List<Map<String, Object>> slotRows = tactic.definition() == null
                 ? List.of()
                 : tacticSlots(squad, tactic.definition(), minimum);
         out.put("tactic_slots", slotRows);
-        out.put("recruitment_priorities", recruitmentPriorities(slotRows));
+        LineupOptimizerService.Result optimized = tactic.definition() == null ? null
+                : lineups.optimize(squad, tactic.definition(), lineupConstraints(
+                        minimum, false, List.of(), List.of(), 3, snapshot, tactic));
+        out.put("optimized_lineup", optimized == null ? null : lineupMap(optimized));
+        out.put("recruitment_priorities", optimized == null
+                ? recruitmentPriorities(slotRows)
+                : recruitmentPriorities(slotRows, optimized));
         out.put("contract_risks", contractRisks(squad, horizon));
         out.put("age_risks", squad.stream().filter(player -> parsedAge(player) != null && age(player) >= 30)
                 .sorted(Comparator.comparingInt(FmDecisionTools::age).reversed())
@@ -135,20 +417,49 @@ public class FmDecisionTools {
         ClubEntity club = requireClub(clubName);
         List<PlayerEntity> all = players.findAllPlayerEntities();
         Map<Long, PlayerEntity> byId = byUniqueId(all);
-        TacticDefinition tactic = tactics.current().definition();
+        TacticContext tacticContext = tactics.current();
+        TacticDefinition tactic = tacticContext.definition();
         TacticDefinition.TacticSlot requestedSlot = resolveSlot(tactic, tacticSlot);
-        int squadBenchmark = firstTeamAverageCa(currentSquad(all, clubName));
+        List<PlayerEntity> squad = currentSquad(all, clubName);
+        int squadBenchmark = firstTeamAverageCa(squad);
+        Map<String, Object> snapshot = snapshots.reference();
+        LineupOptimizerService.Constraints baseConstraints = requestedSlot == null ? null : lineupConstraints(
+                15, false, List.of(), List.of(), 0, snapshot, tacticContext);
+        LineupOptimizerService.Result baseline = requestedSlot == null ? null
+                : lineups.optimize(squad, tactic, baseConstraints);
 
         List<Map<String, Object>> comparisons = ids.stream()
                 .map(id -> requirePlayer(byId, id))
-                .map(player -> comparisonMap(player, club, tactic, requestedSlot, squadBenchmark))
+                .map(player -> {
+                    Map<String, Object> row = comparisonMap(player, club, tactic, requestedSlot, squadBenchmark);
+                    if (requestedSlot != null) {
+                        List<PlayerEntity> simulated = new ArrayList<>(squad);
+                        if (simulated.stream().noneMatch(value -> Objects.equals(
+                                value.getUniqueId(), player.getUniqueId()))) simulated.add(player);
+                        LineupOptimizerService.Constraints locked = lineupConstraints(
+                                15, false, List.of(),
+                                List.of(new LineupOptimizerService.LockedAssignment(
+                                        requestedSlot.index(), player.getUniqueId())),
+                                0, snapshot, tacticContext);
+                        LineupOptimizerService.Result projected = lineups.optimize(simulated, tactic, locked);
+                        LineupOptimizerService.Assignment incumbent = baseline.assignmentFor(requestedSlot.index());
+                        Map<String, Object> impact = new LinkedHashMap<>();
+                        impact.put("optimized_team_score_delta", round1(
+                                projected.totalScore() - baseline.totalScore()));
+                        impact.put("current_starter", incumbent == null ? null : compactPlayer(incumbent.player()));
+                        impact.put("starter_changes", starterChanges(baseline, projected));
+                        row.put("lineup_impact", impact);
+                    }
+                    return row;
+                })
                 .sorted(Comparator.comparingDouble(row -> -((Number) row.get("decision_score")).doubleValue()))
                 .toList();
 
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("snapshot", snapshots.reference());
+        out.put("snapshot", snapshot);
         out.put("club", clubName);
         out.put("tactic", tactic == null ? null : tactic.name());
+        out.put("tactic_fingerprint", tacticContext.fingerprint());
         out.put("requested_slot", tacticSlot);
         out.put("players", comparisons);
         out.put("recommendation", comparisons.isEmpty() ? null : comparisons.getFirst().get("name"));
@@ -156,7 +467,7 @@ public class FmDecisionTools {
         return out;
     }
 
-    @Tool(name = "fm26_find_replacements", description = "Find players with a similar attribute and positional profile to a reference player, then rank them for the managing club and loaded tactic.")
+    @Tool(name = "fm26_find_replacements", description = "Find replacements for an explicitly supplied deployed position or loaded-tactic slot. The tool never guesses the incumbent's position from his highest position rating.")
     @Transactional(readOnly = true)
     public Map<String, Object> findReplacements(
             @ToolParam(description = "FM26 UNIQUE_ID of the player to replace or emulate.") Long referencePlayerUniqueId,
@@ -164,13 +475,20 @@ public class FmDecisionTools {
             @ToolParam(required = false, description = "Maximum candidate age.") Integer maxAge,
             @ToolParam(required = false, description = "Literal maximum asking price in pounds; it is not silently capped to the club budget.") Long maxAskingPrice,
             @ToolParam(required = false, description = "Minimum current ability.") Integer minCurrentAbility,
-            @ToolParam(required = false, description = "Minimum ability at the reference player's best position. Defaults to 15.") Integer minimumPositionScore,
+            @ToolParam(required = false, description = "Literal deployed position such as DC or AMR. Supply exactly one of actualPosition or tacticSlot.") String actualPosition,
+            @ToolParam(required = false, description = "One-based loaded-tactic slot using both phases. Supply exactly one of actualPosition or tacticSlot.") Integer tacticSlot,
+            @ToolParam(required = false, description = "Minimum ability at the explicit position in every applicable phase. Defaults to 15.") Integer minimumPositionScore,
             @ToolParam(required = false, description = "Maximum candidates. Defaults to 8, maximum 30.") Integer limit) {
+        if (blank(actualPosition) == (tacticSlot == null)) {
+            throw new IllegalArgumentException("supply exactly one of actualPosition or tacticSlot");
+        }
         String clubName = resolveManagingClub(managingClub);
         ClubEntity club = requireClub(clubName);
         List<PlayerEntity> all = players.findAllPlayerEntities();
         PlayerEntity reference = requirePlayer(byUniqueId(all), referencePlayerUniqueId);
-        String position = bestPosition(reference);
+        TacticDefinition tactic = tactics.current().definition();
+        TacticDefinition.TacticSlot slot = tacticSlot == null ? null : resolveSlot(tactic, tacticSlot);
+        String position = slot == null ? normalizedPosition(actualPosition) : primaryPosition(slot);
         int minimum = clamp(minimumPositionScore == null ? 15 : minimumPositionScore, 1, 20);
         int safeLimit = clamp(limit == null ? DEFAULT_LIMIT : limit, 1, MAX_LIMIT);
         long budget = Math.max(0, value(club.getTransferBudget()));
@@ -182,12 +500,14 @@ public class FmDecisionTools {
                 .filter(player -> !belongsToClub(player, clubName))
                 .filter(player -> maxAge == null || age(player) <= maxAge)
                 .filter(player -> minCurrentAbility == null || value(player.getCa()) >= minCurrentAbility)
-                .filter(player -> roleFits.positionScore(player, position) >= minimum)
+                .filter(player -> slot == null
+                        ? roleFits.positionScore(player, position) >= minimum
+                        : LineupOptimizerService.viable(roleFits.slotFit(player, slot), minimum))
                 .filter(player -> maxAskingPrice == null || value(player.getAskingPrice()) == 0
                         || value(player.getAskingPrice()) <= Math.max(0, maxAskingPrice))
                 .filter(player -> !Boolean.TRUE.equals(player.getTransferAgreed()))
                 .filter(player -> !RecruitmentCaseService.excludesCandidate(evidenceByPlayer.get(player.getUniqueId())))
-                .map(player -> replacementMap(reference, player, club, position, budget,
+                .map(player -> replacementMap(reference, player, club, position, slot, budget,
                         evidenceByPlayer.get(player.getUniqueId())))
                 .sorted(Comparator.comparingDouble(row -> -((Number) row.get("replacement_score")).doubleValue()))
                 .limit(safeLimit)
@@ -197,7 +517,11 @@ public class FmDecisionTools {
         out.put("snapshot", snapshots.reference());
         out.put("club", clubName);
         out.put("reference", compactPlayer(reference));
-        out.put("reference_position", position);
+        out.put("actual_position", slot == null ? position : null);
+        out.put("tactic_slot", slot == null ? null : slot.index());
+        out.put("paired_roles", slot == null ? null : Map.of(
+                "in_possession", phaseRoleMap(slot.inPossession()),
+                "out_of_possession", phaseRoleMap(slot.outOfPossession())));
         out.put("criteria", Map.of(
                 "minimum_position_score", minimum,
                 "max_age", maxAge == null ? "none" : maxAge,
@@ -255,10 +579,12 @@ public class FmDecisionTools {
         Map<Long, PlayerQuote> quoteMap = Optional.ofNullable(quotes).orElse(List.of()).stream()
                 .collect(java.util.stream.Collectors.toMap(PlayerQuote::playerUniqueId, Function.identity(), (left, right) -> right));
         FinancialProjection finances = finances(club, incoming, outgoing, quoteMap);
-        TacticDefinition tactic = tactics.current().definition();
+        TacticContext tacticContext = tactics.current();
+        TacticDefinition tactic = tacticContext.definition();
+        Map<String, Object> snapshot = snapshots.reference();
 
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("snapshot", snapshots.reference());
+        out.put("snapshot", snapshot);
         out.put("club", clubName);
         out.put("incoming", incoming.stream().map(this::compactPlayer).toList());
         out.put("outgoing", outgoing.stream().map(this::compactPlayer).toList());
@@ -268,6 +594,14 @@ public class FmDecisionTools {
         if (tactic != null) {
             out.put("tactic_coverage_before", coverageSummary(tacticSlots(before, tactic, 15)));
             out.put("tactic_coverage_after", coverageSummary(tacticSlots(after, tactic, 15)));
+            LineupOptimizerService.Constraints constraints = lineupConstraints(
+                    15, false, List.of(), List.of(), 0, snapshot, tacticContext);
+            LineupOptimizerService.Result beforeLineup = lineups.optimize(before, tactic, constraints);
+            LineupOptimizerService.Result afterLineup = lineups.optimize(after, tactic, constraints);
+            out.put("optimized_lineup_before", lineupMap(beforeLineup));
+            out.put("optimized_lineup_after", lineupMap(afterLineup));
+            out.put("optimized_team_score_delta", round1(afterLineup.totalScore() - beforeLineup.totalScore()));
+            out.put("starter_changes", starterChanges(beforeLineup, afterLineup));
         }
         out.put("warnings", scenarioWarnings(incoming, outgoing, finances));
         return out;
@@ -282,11 +616,12 @@ public class FmDecisionTools {
             @ToolParam(required = false, description = "Verified or quoted weekly wage in pounds.") Long quotedWeeklyWage,
             @ToolParam(required = false, description = "Short supporting note.") String note,
             @ToolParam(required = false, description = "user, agent_enquiry, game or heuristic. Defaults to user.") String source,
-            @ToolParam(required = false, description = "FM game date when observed, YYYY-MM-DD. Defaults to loaded game date.") String observedGameDate) {
+            @ToolParam(required = false, description = "FM game date when observed, YYYY-MM-DD. Defaults to the current loaded game date even when updating an existing case.") String observedGameDate,
+            @ToolParam(required = false, description = "Last FM game date on which this evidence is authoritative, YYYY-MM-DD. Defaults to 30 in-game days after observation.") String validUntilGameDate) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("snapshot", snapshots.reference());
         out.put("case", recruitmentCases.update(playerUniqueId, interestStatus, dealStage,
-                quotedFee, quotedWeeklyWage, note, source, observedGameDate));
+                quotedFee, quotedWeeklyWage, note, source, observedGameDate, validUntilGameDate));
         return out;
     }
 
@@ -348,6 +683,130 @@ public class FmDecisionTools {
                             ? "no viable option across both phases" : "only one viable option");
                     return out;
                 }).toList();
+    }
+
+    private static List<Map<String, Object>> recruitmentPriorities(
+            List<Map<String, Object>> slotRows,
+            LineupOptimizerService.Result optimized) {
+        Map<Integer, Map<String, Object>> bySlot = new LinkedHashMap<>();
+        slotRows.forEach(row -> bySlot.put(((Number) row.get("slot")).intValue(), row));
+        LinkedHashMap<Integer, Map<String, Object>> priorities = new LinkedHashMap<>();
+        for (Integer slotIndex : optimized.bottleneckSlots()) {
+            Map<String, Object> source = bySlot.get(slotIndex);
+            if (source == null) continue;
+            LineupOptimizerService.Assignment assignment = optimized.assignmentFor(slotIndex);
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("slot", slotIndex);
+            row.put("coverage", source.get("coverage"));
+            row.put("in_possession", source.get("in_possession"));
+            row.put("out_of_possession", source.get("out_of_possession"));
+            row.put("optimized_starter_fit", assignment == null ? null : assignment.fit().overall());
+            row.put("reason", assignment == null
+                    ? "no unique viable player can fill this slot"
+                    : "globally selected starter has a sub-70 two-phase fit");
+            priorities.put(slotIndex, row);
+        }
+        for (Map<String, Object> row : recruitmentPriorities(slotRows)) {
+            int slotIndex = ((Number) row.get("slot")).intValue();
+            priorities.putIfAbsent(slotIndex, row);
+        }
+        return List.copyOf(priorities.values());
+    }
+
+    private Map<String, Object> lineupMap(LineupOptimizerService.Result result) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("filled_slots", result.assignments().size());
+        out.put("team_score_total", result.totalScore());
+        out.put("team_score_average", result.averageScore());
+        out.put("lineup", result.assignments().stream().map(assignment -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("tactic_slot", assignment.slot().index());
+            row.put("in_possession", phaseRoleMap(assignment.slot().inPossession()));
+            row.put("out_of_possession", phaseRoleMap(assignment.slot().outOfPossession()));
+            row.put("player", compactPlayer(assignment.player()));
+            row.put("fit", assignment.fit().toMap());
+            row.put("locked", assignment.locked());
+            row.put("alternatives", result.alternatives().getOrDefault(
+                    assignment.slot().index(), List.of()).stream().map(this::alternativeMap).toList());
+            return row;
+        }).toList());
+        out.put("unfilled_slots", result.unfilledSlots().stream().map(slot -> Map.of(
+                "tactic_slot", slot.index(),
+                "in_possession", phaseRoleMap(slot.inPossession()),
+                "out_of_possession", phaseRoleMap(slot.outOfPossession()),
+                "alternatives", result.alternatives().getOrDefault(slot.index(), List.of()).stream()
+                        .map(this::alternativeMap).toList())).toList());
+        out.put("bottleneck_slots", result.bottleneckSlots());
+        out.put("warnings", result.warnings());
+        return out;
+    }
+
+    private Map<String, Object> alternativeMap(LineupOptimizerService.Alternative alternative) {
+        Map<String, Object> out = new LinkedHashMap<>(compactPlayer(alternative.player()));
+        out.put("fit", alternative.fit().toMap());
+        out.put("assigned_tactic_slot", alternative.assignedTacticSlot());
+        out.put("disrupts_another_slot", alternative.disruptsAnotherSlot());
+        return out;
+    }
+
+    private LineupOptimizerService.Constraints lineupConstraints(
+            Integer minimumPositionScore,
+            Boolean includeInjured,
+            List<Long> unavailablePlayerUniqueIds,
+            List<LineupOptimizerService.LockedAssignment> lockedAssignments,
+            Integer alternativeLimit,
+            Map<String, Object> snapshot,
+            TacticContext tactic) {
+        return new LineupOptimizerService.Constraints(
+                clamp(minimumPositionScore == null ? 15 : minimumPositionScore, 1, 20),
+                Boolean.TRUE.equals(includeInjured),
+                Set.copyOf(optionalIds(unavailablePlayerUniqueIds)),
+                lockedAssignments == null ? List.of() : lockedAssignments,
+                clamp(alternativeLimit == null ? 3 : alternativeLimit, 0, 10),
+                Objects.toString(snapshot.get("snapshot_id"), null),
+                tactic.fingerprint());
+    }
+
+    private static Map<String, Object> constraintsMap(LineupOptimizerService.Constraints constraints) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("minimum_position_score", constraints.minimumPositionScore());
+        out.put("include_injured", constraints.includeInjured());
+        out.put("unavailable_player_unique_ids", constraints.unavailablePlayerUniqueIds());
+        out.put("locked_assignments", constraints.lockedAssignments());
+        out.put("alternative_limit", constraints.alternativeLimit());
+        return out;
+    }
+
+    private TacticContext requireTactic() {
+        TacticContext tactic = tactics.current();
+        if (!tactic.active() || tactic.definition() == null) {
+            throw new IllegalArgumentException("no structured tactic is loaded; upload an FM26 tactic first");
+        }
+        return tactic;
+    }
+
+    private static List<Map<String, Object>> starterChanges(
+            LineupOptimizerService.Result before,
+            LineupOptimizerService.Result after) {
+        List<Map<String, Object>> changes = new ArrayList<>();
+        Set<Integer> slots = new HashSet<>();
+        before.assignments().forEach(assignment -> slots.add(assignment.slot().index()));
+        after.assignments().forEach(assignment -> slots.add(assignment.slot().index()));
+        for (Integer slot : slots.stream().sorted().toList()) {
+            LineupOptimizerService.Assignment left = before.assignmentFor(slot);
+            LineupOptimizerService.Assignment right = after.assignmentFor(slot);
+            Long leftId = left == null ? null : left.player().getUniqueId();
+            Long rightId = right == null ? null : right.player().getUniqueId();
+            if (Objects.equals(leftId, rightId)) continue;
+            Map<String, Object> change = new LinkedHashMap<>();
+            change.put("tactic_slot", slot);
+            change.put("before_player_unique_id", leftId);
+            change.put("before_name", left == null ? null : left.player().getName());
+            change.put("after_player_unique_id", rightId);
+            change.put("after_name", right == null ? null : right.player().getName());
+            changes.add(change);
+        }
+        return changes;
     }
 
     private List<Map<String, Object>> positionDepth(List<PlayerEntity> squad, int minimum) {
@@ -437,9 +896,12 @@ public class FmDecisionTools {
             PlayerEntity candidate,
             ClubEntity club,
             String position,
+            TacticDefinition.TacticSlot slot,
             long budget,
             RecruitmentCaseEntity evidence) {
-        double similarity = attributeSimilarity(reference, candidate);
+        double similarity = slot == null
+                ? roleFits.profileSimilarity(reference, candidate, position)
+                : roleFits.profileSimilarity(reference, candidate, slot);
         double ca = clamp01((value(candidate.getCa()) - value(reference.getCa()) + 40.0) / 80.0) * 100;
         double potential = Math.min(100, value(candidate.getPa()) / 2.0);
         double affordability = affordabilityScore(candidate, budget);
@@ -454,6 +916,7 @@ public class FmDecisionTools {
         out.put("attribute_similarity", round1(similarity));
         out.put("position", position);
         out.put("position_score", roleFits.positionScore(candidate, position));
+        if (slot != null) out.put("tactic_fit", roleFits.slotFit(candidate, slot).toMap());
         out.put("ca_vs_reference", value(candidate.getCa()) - value(reference.getCa()));
         out.put("pa_vs_reference", value(candidate.getPa()) - value(reference.getPa()));
         out.put("affordability", affordability(candidate, budget));
@@ -582,6 +1045,22 @@ public class FmDecisionTools {
         return out;
     }
 
+    private Double pairedPositionAverage(
+            PlayerEntity player,
+            TacticDefinition.TacticSlot slot,
+            int minimum) {
+        List<TacticDefinition.PhaseRole> phases = List.of(
+                        slot.inPossession(), slot.outOfPossession()).stream()
+                .filter(Objects::nonNull)
+                .toList();
+        if (phases.isEmpty()) return null;
+        List<Integer> scores = phases.stream()
+                .map(phase -> roleFits.positionScore(player, phase.position()))
+                .toList();
+        if (scores.stream().anyMatch(score -> score < minimum)) return null;
+        return scores.stream().mapToInt(Integer::intValue).average().orElse(0);
+    }
+
     private static Map<String, Object> evidenceMap(RecruitmentCaseEntity evidence) {
         if (evidence == null) return Map.of("available", false);
         Map<String, Object> out = new LinkedHashMap<>();
@@ -592,6 +1071,8 @@ public class FmDecisionTools {
         out.put("quoted_weekly_wage", evidence.getQuotedWeeklyWage());
         out.put("source", evidence.getSource());
         out.put("observed_game_date", evidence.getObservedGameDate());
+        out.put("valid_until_game_date", evidence.getValidUntilGameDate());
+        out.put("career_key", evidence.getCareerKey());
         out.put("updated_at", evidence.getUpdatedAt());
         return out;
     }
@@ -613,23 +1094,164 @@ public class FmDecisionTools {
         return round1(Math.max(0, Math.min(100, (1.0 - price / (double) budget) * 100)));
     }
 
-    private static double attributeSimilarity(PlayerEntity left, PlayerEntity right) {
-        double difference = 0;
-        int fields = 0;
-        for (FieldDef field : AttributeDefinitions.VISIBLE_FIELDS) {
-            int leftValue = number(left, columnName(field));
-            int rightValue = number(right, columnName(field));
-            difference += Math.abs(leftValue - rightValue);
-            fields++;
-        }
-        return fields == 0 ? 0 : Math.max(0, 100 * (1 - difference / (fields * 19.0)));
+    private static double preliminaryTacticalScore(
+            PlayerEntity player,
+            RoleFitService.SlotFit fit,
+            ClubEntity club,
+            RecruitmentWillingness willingness) {
+        return round1(fit.overall() * 0.75
+                + Math.min(100, value(player.getCa()) / 2.0) * 0.10
+                + Math.min(100, value(player.getPa()) / 2.0) * 0.05
+                + affordabilityScore(player, Math.max(0, value(club.getTransferBudget()))) * 0.05
+                + willingnessScore(willingness) * 0.05);
     }
 
-    private static String bestPosition(PlayerEntity player) {
-        return POSITIONS.stream().max(Comparator.comparingInt(position -> {
-            String column = RoleFitService.positionColumn(position);
-            return column == null ? 0 : number(player, column);
-        })).orElse("ST");
+    /** Maximum possible preliminary score for the known position fit. */
+    private static double preliminaryTacticalUpperBound(
+            PlayerEntity player,
+            double pairedPosition,
+            ClubEntity club,
+            RecruitmentWillingness willingness) {
+        double maximumSlotFit = pairedPosition / 20.0 * 35.0
+                + 45.0
+                + Math.min(1.0, value(player.getCa()) / 200.0) * 20.0;
+        return round1(maximumSlotFit * 0.75
+                + Math.min(100, value(player.getCa()) / 2.0) * 0.10
+                + Math.min(100, value(player.getPa()) / 2.0) * 0.05
+                + affordabilityScore(player, Math.max(0, value(club.getTransferBudget()))) * 0.05
+                + willingnessScore(willingness) * 0.05);
+    }
+
+    private static double tacticalRecruitmentScore(
+            TacticalCandidate candidate,
+            ClubEntity club,
+            double lineupDelta) {
+        return round1(tacticalRecruitmentComponents(candidate, club, lineupDelta).values().stream()
+                .mapToDouble(Number::doubleValue).sum());
+    }
+
+    private static Map<String, Number> tacticalRecruitmentComponents(
+            TacticalCandidate candidate,
+            ClubEntity club,
+            double lineupDelta) {
+        PlayerEntity player = candidate.player();
+        Map<String, Number> out = new LinkedHashMap<>();
+        out.put("paired_slot_fit", round1(candidate.fit().overall() / 100.0 * 55));
+        out.put("global_xi_improvement", round1(clamp01(Math.max(0, lineupDelta) / 30.0) * 20));
+        out.put("current_ability", round1(clamp01(value(player.getCa()) / 200.0) * 10));
+        out.put("potential_and_development", round1(clamp01(value(player.getPa()) / 200.0) * 5));
+        out.put("affordability", round1(affordabilityScore(
+                player, Math.max(0, value(club.getTransferBudget()))) / 100.0 * 5));
+        out.put("willingness", round1(willingnessScore(candidate.willingness()) / 100.0 * 5));
+        return out;
+    }
+
+    private static String priceFit(PlayerEntity player, ClubEntity club, Long explicitCeiling) {
+        if (blank(player.getClub())) return "free_agent";
+        long price = value(player.getAskingPrice());
+        if (price <= 0) return "unknown";
+        long budget = Math.max(0, value(club.getTransferBudget()));
+        if (price <= budget) return "within_budget";
+        if (explicitCeiling != null && price <= explicitCeiling) return "requires_sales";
+        return explicitCeiling == null ? "requires_sales" : "over_ceiling";
+    }
+
+    private static RecruitmentWillingness estimatedWillingness(
+            PlayerEntity player,
+            ClubEntity managingClub,
+            int reputationMargin,
+            Period minimumTimeAtCurrentClub) {
+        int managingReputation = value(managingClub.getReputation());
+        int playerGap = highestReputation(player) - managingReputation;
+        ClubEntity source = player.getClubEntity();
+        int sourceGap = source == null ? 0 : value(source.getReputation()) - managingReputation;
+        boolean listed = Boolean.TRUE.equals(player.getTransferListed())
+                || Boolean.TRUE.equals(player.getListedForLoan());
+        boolean recentlyJoined = recentlyJoinedCurrentClub(player, minimumTimeAtCurrentClub);
+        if (playerGap > reputationMargin + (listed ? 500 : 0)
+                || (sourceGap > 1000 && !listed)
+                || (recentlyJoined && !listed)) {
+            return RecruitmentWillingness.LOW;
+        }
+        if (playerGap > 0 || sourceGap > 250 || recentlyJoined) return RecruitmentWillingness.MEDIUM;
+        return RecruitmentWillingness.HIGH;
+    }
+
+    private static boolean recentlyJoinedCurrentClub(PlayerEntity player, Period minimumTime) {
+        LocalDate joined = date(player.getJoinedClubDate());
+        LocalDate gameDate = date(player.getAgeAsOf());
+        return joined != null && gameDate != null && joined.isAfter(gameDate.minus(minimumTime));
+    }
+
+    private static int highestReputation(PlayerEntity player) {
+        return Math.max(value(player.getCurrentReputation()),
+                Math.max(value(player.getHomeReputation()), value(player.getWorldReputation())));
+    }
+
+    private static double willingnessScore(RecruitmentWillingness willingness) {
+        return willingness == RecruitmentWillingness.HIGH ? 100
+                : willingness == RecruitmentWillingness.MEDIUM ? 60 : 25;
+    }
+
+    private static RecruitmentWillingness recruitmentWillingness(
+            String raw,
+            RecruitmentWillingness fallback) {
+        if (blank(raw)) return fallback;
+        try {
+            return RecruitmentWillingness.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("minimumEstimatedWillingness must be high, medium or low");
+        }
+    }
+
+    private static Period parsePeriod(String raw, Period fallback) {
+        if (blank(raw)) return fallback;
+        try {
+            return raw.trim().matches("\\d+")
+                    ? Period.ofDays(Integer.parseInt(raw.trim()))
+                    : Period.parse(raw.trim().toUpperCase(Locale.ROOT));
+        } catch (RuntimeException exception) {
+            throw new IllegalArgumentException(
+                    "minimumTimeAtCurrentClub must be an ISO period such as P1Y or plain days");
+        }
+    }
+
+    private static void validateRecruitmentFilters(
+            String preferredFoot,
+            Map<String, Integer> minimumAttributes,
+            String minimumEstimatedWillingness) {
+        if (!blank(preferredFoot) && !Set.of("left", "right", "either")
+                .contains(preferredFoot.trim().toLowerCase(Locale.ROOT))) {
+            throw new IllegalArgumentException("preferredFoot must be left, right or either");
+        }
+        recruitmentWillingness(minimumEstimatedWillingness, RecruitmentWillingness.LOW);
+        if (minimumAttributes == null) return;
+        Set<String> supported = AttributeDefinitions.VISIBLE_FIELDS.stream()
+                .map(FmDecisionTools::columnName).collect(java.util.stream.Collectors.toSet());
+        minimumAttributes.forEach((name, minimum) -> {
+            String column = name == null ? "" : name.trim().toUpperCase(Locale.ROOT).replace(' ', '_');
+            if (!supported.contains(column)) {
+                throw new IllegalArgumentException("unsupported minimum attribute: " + name);
+            }
+            if (minimum == null || minimum < 1 || minimum > 20) {
+                throw new IllegalArgumentException("minimum attribute values must be between 1 and 20");
+            }
+        });
+    }
+
+    private static boolean matchesPreferredFoot(PlayerEntity player, String preferredFoot) {
+        if (blank(preferredFoot) || "either".equalsIgnoreCase(preferredFoot)) return true;
+        int left = value(player.getLeftFoot());
+        int right = value(player.getRightFoot());
+        return "left".equalsIgnoreCase(preferredFoot) ? left > right : right > left;
+    }
+
+    private static boolean matchesMinimumAttributes(PlayerEntity player, Map<String, Integer> minimums) {
+        if (minimums == null || minimums.isEmpty()) return true;
+        return minimums.entrySet().stream().allMatch(entry -> {
+            String column = entry.getKey().trim().toUpperCase(Locale.ROOT).replace(' ', '_');
+            return number(player, column) >= entry.getValue();
+        });
     }
 
     private static int bestPositionScore(PlayerEntity player) {
@@ -676,6 +1298,24 @@ public class FmDecisionTools {
         if (tactic == null) throw new IllegalArgumentException("no structured tactic is loaded");
         return tactic.slots().stream().filter(slot -> slot.index() == index).findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("tacticSlot must be between 1 and " + tactic.slots().size()));
+    }
+
+    private static String normalizedPosition(String raw) {
+        String column = RoleFitService.positionColumn(raw);
+        if (column == null) throw new IllegalArgumentException(
+                "actualPosition must be one of GK, DL, DC, DR, WBL, DMC, WBR, ML, MC, MR, AML, AMC, AMR or ST");
+        return POSITIONS.stream().filter(position -> column.equals(RoleFitService.positionColumn(position)))
+                .findFirst().orElseThrow();
+    }
+
+    private static String primaryPosition(TacticDefinition.TacticSlot slot) {
+        if (slot.inPossession() != null && !blank(slot.inPossession().position())) {
+            return slot.inPossession().position();
+        }
+        if (slot.outOfPossession() != null && !blank(slot.outOfPossession().position())) {
+            return slot.outOfPossession().position();
+        }
+        throw new IllegalArgumentException("tactic slot " + slot.index() + " has no position");
     }
 
     private static Map<Long, PlayerEntity> byUniqueId(List<PlayerEntity> players) {
@@ -767,6 +1407,27 @@ public class FmDecisionTools {
     private static double round1(double value) { return Math.round(value * 10.0) / 10.0; }
 
     private record SlotCandidate(PlayerEntity player, RoleFitService.SlotFit fit) {}
+
+    private record TacticalCandidate(
+            PlayerEntity player,
+            RoleFitService.SlotFit fit,
+            RecruitmentCaseEntity evidence,
+            RecruitmentWillingness willingness,
+            double preliminaryScore) {
+    }
+
+    private record TacticalCandidateSeed(
+            PlayerEntity player,
+            RecruitmentCaseEntity evidence,
+            RecruitmentWillingness willingness,
+            double upperBound) {
+    }
+
+    private enum RecruitmentWillingness {
+        HIGH,
+        MEDIUM,
+        LOW
+    }
 
     private record DevelopmentOutlook(
             double score,

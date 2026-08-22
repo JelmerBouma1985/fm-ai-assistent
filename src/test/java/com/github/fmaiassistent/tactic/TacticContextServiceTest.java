@@ -1,12 +1,19 @@
 package com.github.fmaiassistent.tactic;
 
+import com.github.fmaiassistent.domain.entity.TacticContextEntity;
+import com.github.fmaiassistent.repository.TacticContextRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.util.unit.DataSize;
 
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class TacticContextServiceTest {
     @Test
@@ -77,9 +84,53 @@ class TacticContextServiceTest {
                 .contains("enabled again");
     }
 
+    @Test
+    void persistsFingerprintAndRestoresTheUploadedTactic() {
+        TacticContextRepository repository = mock(TacticContextRepository.class);
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        TacticContextService first = service(repository);
+
+        TacticContext loaded = first.loadUploads(Map.of(
+                "persistent.fmf", FmfTacticParserTest.fmf("persistent-press")));
+
+        assertThat(loaded.fingerprint()).hasSize(64);
+        var captor = org.mockito.ArgumentCaptor.forClass(TacticContextEntity.class);
+        verify(repository).save(captor.capture());
+        when(repository.findById(1)).thenReturn(Optional.of(captor.getValue()));
+        TacticContextService restarted = service(repository);
+        restarted.restorePersistedTactic();
+
+        assertThat(restarted.current().active()).isTrue();
+        assertThat(restarted.current().title()).isEqualTo("persistent-press");
+        assertThat(restarted.current().fingerprint()).isEqualTo(loaded.fingerprint());
+
+        restarted.clear();
+        verify(repository).deleteById(1);
+    }
+
+    @Test
+    void corruptPersistedTacticFailsClosedWithoutBreakingStartup() {
+        TacticContextRepository repository = mock(TacticContextRepository.class);
+        when(repository.findById(1)).thenReturn(Optional.of(
+                new TacticContextEntity("broken.fmf", new byte[] {1, 2, 3}, "old-fingerprint")));
+        TacticContextService service = service(repository);
+
+        service.restorePersistedTactic();
+
+        assertThat(service.current().active()).isFalse();
+        assertThat(service.current().warnings()).singleElement()
+                .asString().contains("upload it again");
+    }
+
     private static TacticContextService service() {
         TacticContextProperties properties = new TacticContextProperties(
                 DataSize.ofMegabytes(20), 16_000);
         return new TacticContextService(new FmfTacticParser(), properties);
+    }
+
+    private static TacticContextService service(TacticContextRepository repository) {
+        TacticContextProperties properties = new TacticContextProperties(
+                DataSize.ofMegabytes(20), 16_000);
+        return new TacticContextService(new FmfTacticParser(), properties, repository);
     }
 }

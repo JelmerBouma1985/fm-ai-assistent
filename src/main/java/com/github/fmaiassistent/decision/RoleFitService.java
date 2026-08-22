@@ -16,6 +16,7 @@ import java.util.Map;
 public class RoleFitService {
     private final JdbcTemplate jdbc;
     private volatile List<RoleAttribute> cachedRoleAttributes;
+    private volatile Map<RoleKey, Map<String, Integer>> cachedRoleWeights;
 
     public RoleFitService(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
@@ -35,24 +36,17 @@ public class RoleFitService {
             return Fit.unavailable();
         }
         String group = positionGroup(position);
-        List<RoleAttribute> all = roleAttributes();
-        List<RoleAttribute> exact = all.stream()
-                .filter(row -> blank(group) || equalsText(row.positionGroup(), group))
-                .filter(row -> blank(phase) || equalsText(row.phase(), phase))
-                .filter(row -> equalsText(row.roleName(), roleName))
-                .toList();
-        List<RoleAttribute> rows = exact.isEmpty() ? all.stream()
-                .filter(row -> blank(group) || equalsText(row.positionGroup(), group))
-                .filter(row -> blank(phase) || equalsText(row.phase(), phase))
-                .filter(row -> normalize(row.roleName()).contains(normalize(roleName)))
-                .toList() : exact;
-        if (rows.isEmpty()) {
-            return Fit.unavailable();
+        Map<String, Integer> weights = new LinkedHashMap<>(exactRoleWeights(group, phase, roleName));
+        if (weights.isEmpty()) {
+            List<RoleAttribute> rows = roleAttributes().stream()
+                    .filter(row -> blank(group) || equalsText(row.positionGroup(), group))
+                    .filter(row -> blank(phase) || equalsText(row.phase(), phase))
+                    .filter(row -> normalize(row.roleName()).contains(normalize(roleName)))
+                    .toList();
+            rows.forEach(row -> weights.merge(attributeKey(row.attributeName()),
+                    "primary".equals(row.priority()) ? 2 : 1, Math::max));
         }
-
-        Map<String, Integer> weights = new LinkedHashMap<>();
-        rows.forEach(row -> weights.merge(attributeKey(row.attributeName()),
-                "primary".equals(row.priority()) ? 2 : 1, Math::max));
+        if (weights.isEmpty()) return Fit.unavailable();
         List<AttributeScore> scores = weights.entrySet().stream()
                 .map(entry -> new AttributeScore(entry.getKey(), attribute(player, entry.getKey()), entry.getValue()))
                 .toList();
@@ -82,6 +76,111 @@ public class RoleFitService {
                 + Math.min(1.0, ca / 200.0) * 20.0);
         boolean viable = !phases.isEmpty() && phases.stream().allMatch(value -> value.positionScore() >= 15);
         return new SlotFit(slot.index(), round1(position), role, overall, viable, in, out);
+    }
+
+    /** Similarity using only attributes relevant to the requested paired tactic roles. */
+    public double profileSimilarity(
+            PlayerEntity reference,
+            PlayerEntity candidate,
+            TacticDefinition.TacticSlot slot) {
+        Map<String, Integer> weights = new LinkedHashMap<>();
+        addRoleWeights(weights, slot.inPossession(), "In Possession");
+        addRoleWeights(weights, slot.outOfPossession(), "Out of Possession");
+        if (weights.isEmpty()) {
+            String position = slot.inPossession() != null
+                    ? slot.inPossession().position()
+                    : slot.outOfPossession() == null ? null : slot.outOfPossession().position();
+            weights.putAll(positionAttributeWeights(position));
+        }
+        return weightedSimilarity(reference, candidate, weights);
+    }
+
+    /** Similarity using a literal deployed position rather than the player's inferred best position. */
+    public double profileSimilarity(PlayerEntity reference, PlayerEntity candidate, String position) {
+        return weightedSimilarity(reference, candidate, positionAttributeWeights(position));
+    }
+
+    private void addRoleWeights(
+            Map<String, Integer> target,
+            TacticDefinition.PhaseRole role,
+            String phase) {
+        if (role == null || blank(role.role())) return;
+        String group = positionGroup(role.position());
+        Map<String, Integer> exact = exactRoleWeights(group, phase, role.role());
+        if (!exact.isEmpty()) {
+            exact.forEach((attribute, weight) -> target.merge(attribute, weight, Math::max));
+            return;
+        }
+        roleAttributes().stream()
+                .filter(row -> blank(group) || equalsText(row.positionGroup(), group))
+                .filter(row -> equalsText(row.phase(), phase))
+                .filter(row -> normalize(row.roleName()).contains(normalize(role.role())))
+                .forEach(row -> target.merge(attributeKey(row.attributeName()),
+                        "primary".equals(row.priority()) ? 2 : 1, Math::max));
+    }
+
+    private Map<String, Integer> exactRoleWeights(String group, String phase, String roleName) {
+        Map<RoleKey, Map<String, Integer>> local = cachedRoleWeights;
+        if (local == null) {
+            synchronized (this) {
+                if (cachedRoleWeights == null) {
+                    Map<RoleKey, Map<String, Integer>> profiles = new LinkedHashMap<>();
+                    for (RoleAttribute row : roleAttributes()) {
+                        RoleKey key = new RoleKey(
+                                normalize(row.positionGroup()), normalize(row.phase()), normalize(row.roleName()));
+                        profiles.computeIfAbsent(key, ignored -> new LinkedHashMap<>())
+                                .merge(attributeKey(row.attributeName()),
+                                        "primary".equals(row.priority()) ? 2 : 1, Math::max);
+                    }
+                    Map<RoleKey, Map<String, Integer>> immutable = new LinkedHashMap<>();
+                    profiles.forEach((key, weights) -> immutable.put(key, Map.copyOf(weights)));
+                    cachedRoleWeights = Map.copyOf(immutable);
+                }
+                local = cachedRoleWeights;
+            }
+        }
+        return local.getOrDefault(
+                new RoleKey(normalize(group), normalize(phase), normalize(roleName)), Map.of());
+    }
+
+    private static Map<String, Integer> positionAttributeWeights(String position) {
+        String column = positionColumn(position);
+        if (column == null) return Map.of();
+        List<String> attributes = switch (column) {
+            case "GOALKEEPER" -> List.of("handling", "aerial_ability", "command_of_area", "communication",
+                    "one_on_ones", "positioning", "reflexes", "kicking", "throwing", "decisions");
+            case "DEFENDER_CENTRAL" -> List.of("marking", "tackling", "heading", "positioning", "anticipation",
+                    "concentration", "decisions", "strength", "jumping_reach", "pace");
+            case "DEFENDER_LEFT", "DEFENDER_RIGHT", "WING_BACK_LEFT", "WING_BACK_RIGHT" -> List.of(
+                    "marking", "tackling", "positioning", "crossing", "passing", "work_rate", "stamina",
+                    "acceleration", "pace", "decisions");
+            case "DEFENSIVE_MIDFIELDER", "MIDFIELDER_CENTRAL" -> List.of("passing", "first_touch", "technique",
+                    "vision", "decisions", "positioning", "tackling", "teamwork", "work_rate", "stamina");
+            case "MIDFIELDER_LEFT", "MIDFIELDER_RIGHT", "ATTACKING_MIDFIELDER_LEFT", "ATTACKING_MIDFIELDER_RIGHT" -> List.of(
+                    "dribbling", "crossing", "first_touch", "technique", "off_the_ball", "acceleration",
+                    "pace", "agility", "work_rate", "stamina");
+            case "ATTACKING_MIDFIELDER_CENTRAL" -> List.of("passing", "vision", "first_touch", "technique",
+                    "dribbling", "off_the_ball", "decisions", "anticipation", "agility", "composure");
+            case "STRIKER" -> List.of("finishing", "off_the_ball", "anticipation", "composure", "first_touch",
+                    "technique", "acceleration", "pace", "strength", "heading");
+            default -> List.of();
+        };
+        Map<String, Integer> weights = new LinkedHashMap<>();
+        attributes.forEach(attribute -> weights.put(attribute, 1));
+        return weights;
+    }
+
+    private static double weightedSimilarity(
+            PlayerEntity reference,
+            PlayerEntity candidate,
+            Map<String, Integer> weights) {
+        int totalWeight = weights.values().stream().mapToInt(Integer::intValue).sum();
+        if (totalWeight == 0) return 0;
+        double difference = weights.entrySet().stream()
+                .mapToDouble(entry -> Math.abs(attribute(reference, entry.getKey())
+                        - attribute(candidate, entry.getKey())) * entry.getValue())
+                .sum();
+        return round1(Math.max(0, 100 * (1 - difference / (totalWeight * 19.0))));
     }
 
     private PhaseFit phaseFit(PlayerEntity player, TacticDefinition.PhaseRole role, String phase) {
@@ -199,6 +298,7 @@ public class RoleFitService {
     private static double round1(double value) { return Math.round(value * 10.0) / 10.0; }
 
     private record RoleAttribute(String positionGroup, String roleName, String phase, String priority, String attributeName) {}
+    private record RoleKey(String positionGroup, String phase, String roleName) {}
     private record AttributeScore(String name, int score, int weight) {
         String compact() { return name + ":" + score; }
     }

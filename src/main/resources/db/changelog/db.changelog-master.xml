@@ -395,4 +395,41 @@
             <column name="deal_stage"/>
         </createIndex>
     </changeSet>
+
+    <changeSet id="006-tactic-and-career-evidence" author="codex">
+        <createTable tableName="tactic_context">
+            <column name="id" type="INT">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="file_name" type="VARCHAR(512)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="fmf_data" type="BLOB">
+                <constraints nullable="false"/>
+            </column>
+            <column name="fingerprint" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="uploaded_at" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addColumn tableName="recruitment_case">
+            <column name="career_key" type="VARCHAR(256)" defaultValue="legacy">
+                <constraints nullable="false"/>
+            </column>
+            <column name="valid_until_game_date" type="VARCHAR(32)"/>
+        </addColumn>
+        <dropPrimaryKey tableName="recruitment_case"/>
+        <addPrimaryKey tableName="recruitment_case"
+                       columnNames="career_key, player_unique_id"
+                       constraintName="pk_recruitment_case"/>
+        <createIndex indexName="idx_recruitment_case_player" tableName="recruitment_case">
+            <column name="player_unique_id"/>
+        </createIndex>
+    </changeSet>
 </databaseChangeLog>

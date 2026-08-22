@@ -75,13 +75,22 @@ public class DatabaseLoadAllService {
             String snapshotId = UUID.randomUUID().toString();
             long clubCount = clubs.countClubs();
             long competitionCount = competitions.countCompetitions();
-            metadata.saveAll(List.of(
+            List<LoadMetadataEntity> snapshotMetadata = new java.util.ArrayList<>(List.of(
                     new LoadMetadataEntity("snapshot_id", snapshotId),
                     new LoadMetadataEntity("fm_pid", String.valueOf(resolvedPid)),
                     new LoadMetadataEntity("fm_build", String.valueOf(build)),
                     new LoadMetadataEntity("players_count", String.valueOf(playerResult.count())),
                     new LoadMetadataEntity("clubs_count", String.valueOf(clubCount)),
                     new LoadMetadataEntity("competitions_count", String.valueOf(competitionCount))));
+            ManagedClubContext managedClub = managedClubContexts.current();
+            if (managedClub.managerUniqueId() != null) {
+                snapshotMetadata.add(new LoadMetadataEntity(
+                        "manager_unique_id", String.valueOf(managedClub.managerUniqueId())));
+            }
+            if (managedClub.careerKey() != null) {
+                snapshotMetadata.add(new LoadMetadataEntity("career_key", managedClub.careerKey()));
+            }
+            metadata.saveAll(snapshotMetadata);
             return new LoadAllResult(
                     resolvedPid,
                     playerResult.gameDate(),

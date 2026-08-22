@@ -53,6 +53,7 @@ public class ManagedClubContextService implements AiPromptContextContributor {
                 versions.incrementAndGet(),
                 ManagedClubContext.State.AVAILABLE,
                 identity.managerName(),
+                identity.managerUniqueId(),
                 identity.clubName(),
                 club == null ? "" : value(club.getCompetition()),
                 club == null ? "" : value(club.getNation()),
@@ -84,6 +85,10 @@ public class ManagedClubContextService implements AiPromptContextContributor {
         }
     }
 
+    public String currentCareerKey() {
+        return current.get().careerKey();
+    }
+
     @Override
     public String contextFor(String conversationKey) {
         if (!aiContextEnabled.get()) {
@@ -100,6 +105,7 @@ public class ManagedClubContextService implements AiPromptContextContributor {
         return """
                 <fm26_managed_club_context>
                 Human manager: %s
+                Human manager FM Unique ID: %s
                 Managed club: %s
                 Competition: %s
                 Nation: %s
@@ -111,7 +117,7 @@ public class ManagedClubContextService implements AiPromptContextContributor {
                 Data source: live FM26 RAM at the most recent application load
                 </fm26_managed_club_context>
                 """.formatted(
-                context.managerName(), context.clubName(), unknown(context.competition()),
+                context.managerName(), unknown(context.managerUniqueId()), context.clubName(), unknown(context.competition()),
                 unknown(context.nation()), unknown(context.gender()), unknown(context.reputation()),
                 pounds(context.balance()), pounds(context.transferBudget()), pounds(context.payrollBudget()));
     }

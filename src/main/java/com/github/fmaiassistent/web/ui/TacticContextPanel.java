@@ -155,12 +155,15 @@ final class TacticContextPanel extends Details {
 
     private void refresh(TacticContext context) {
         if (!context.active()) {
-            setSummaryText("AI tactic context · upload a .fmf file");
-            status.setText("No tactic uploaded yet");
-            details.setText("");
+            boolean restoreFailed = !context.warnings().isEmpty();
+            setSummaryText(restoreFailed
+                    ? "AI tactic context · saved tactic unavailable"
+                    : "AI tactic context · upload a .fmf file");
+            status.setText(restoreFailed ? "Saved tactic could not be restored" : "No tactic uploaded yet");
+            details.setText(restoreFailed ? String.join(" · ", context.warnings()) : "");
             preview.setText("");
             previewDetails.setVisible(false);
-            clear.setVisible(false);
+            clear.setVisible(restoreFailed);
             return;
         }
         setSummaryText("AI tactic context · " + context.title());
@@ -168,6 +171,9 @@ final class TacticContextPanel extends Details {
                 ? "Active for Codex, Antigravity and GitHub Copilot"
                 : "Loaded, but not included in AI chats");
         String imported = "Files: " + String.join(", ", context.importedFiles());
+        if (context.fingerprint() != null) {
+            imported += "\nFingerprint: " + context.fingerprint();
+        }
         if (!context.warnings().isEmpty()) {
             imported += "\nNotes: " + String.join(" · ", context.warnings());
         }

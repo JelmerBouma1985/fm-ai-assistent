@@ -1,11 +1,18 @@
 package com.github.fmaiassistent.tactic;
 
 import com.github.fmaiassistent.ai.AiPromptContextContributor;
+import com.github.fmaiassistent.domain.entity.TacticContextEntity;
+import com.github.fmaiassistent.repository.TacticContextRepository;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -21,15 +28,45 @@ public class TacticContextService implements AiPromptContextContributor {
 
     private final FmfTacticParser fmfParser;
     private final TacticContextProperties properties;
+    private final TacticContextRepository repository;
     private final AtomicLong versions = new AtomicLong();
     private final AtomicReference<TacticContext> current =
             new AtomicReference<>(TacticContext.empty(0));
     private final ConcurrentMap<String, Long> deliveredVersions = new ConcurrentHashMap<>();
     private final AtomicBoolean aiContextEnabled = new AtomicBoolean(true);
 
-    TacticContextService(FmfTacticParser fmfParser, TacticContextProperties properties) {
+    @Autowired
+    TacticContextService(
+            FmfTacticParser fmfParser,
+            TacticContextProperties properties,
+            TacticContextRepository repository) {
         this.fmfParser = fmfParser;
         this.properties = properties;
+        this.repository = repository;
+    }
+
+    TacticContextService(FmfTacticParser fmfParser, TacticContextProperties properties) {
+        this(fmfParser, properties, null);
+    }
+
+    @PostConstruct
+    void restorePersistedTactic() {
+        if (repository == null) {
+            return;
+        }
+        repository.findById(1).filter(TacticContextEntity::isEnabled).ifPresent(saved -> {
+            try {
+                TacticContext restored = build(saved.getFileName(), saved.getFmfData(), false);
+                log.info("Restored FM26 tactic context title={} fingerprint={}",
+                        restored.title(), restored.fingerprint());
+            } catch (RuntimeException exception) {
+                String warning = "Saved tactic could not be restored; upload it again: " + safeMessage(exception);
+                current.set(new TacticContext(
+                        versions.incrementAndGet(), "Saved tactic unavailable", "local database",
+                        null, List.of(saved.getFileName()), List.of(warning), null, saved.getFingerprint()));
+                log.warn(warning);
+            }
+        });
     }
 
     public TacticContext current() {
@@ -67,10 +104,13 @@ public class TacticContextService implements AiPromptContextContributor {
             throw new IllegalArgumentException("Tactic file is too large: " + fileName);
         }
 
-        return build(fileName, data.clone());
+        return build(fileName, data.clone(), true);
     }
 
     public TacticContext clear() {
+        if (repository != null) {
+            repository.deleteById(1);
+        }
         TacticContext empty = TacticContext.empty(versions.incrementAndGet());
         current.set(empty);
         return empty;
@@ -104,7 +144,7 @@ public class TacticContextService implements AiPromptContextContributor {
                 """.formatted(context.markdown());
     }
 
-    private TacticContext build(String fileName, byte[] data) {
+    private TacticContext build(String fileName, byte[] data, boolean persist) {
         FmfTacticParser.FmfMetadata metadata = fmfParser.parse(data);
         String title = metadata.tactic().name();
         if (title == null || title.isBlank()) {
@@ -128,13 +168,31 @@ public class TacticContextService implements AiPromptContextContributor {
                     + properties.maxContextCharacters() + " characters");
         }
 
+        String fingerprint = sha256(data);
         TacticContext context = new TacticContext(
                 versions.incrementAndGet(), title, "browser upload", markdown,
-                List.of(fileName), warnings, TacticDefinition.from(metadata.tactic()));
+                List.of(fileName), warnings, TacticDefinition.from(metadata.tactic()), fingerprint);
+        if (persist && repository != null) {
+            repository.save(new TacticContextEntity(fileName, data, fingerprint));
+        }
         current.set(context);
         log.info("Loaded uploaded FM26 tactic context title={} file={} warnings={}",
                 title, fileName, warnings.size());
         return context;
+    }
+
+    private static String sha256(byte[] data) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(data));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
+    }
+
+    private static String safeMessage(Throwable throwable) {
+        return throwable.getMessage() == null || throwable.getMessage().isBlank()
+                ? throwable.getClass().getSimpleName()
+                : throwable.getMessage();
     }
 
     private static String safeFileName(String name) {

@@ -48,6 +48,7 @@ public class SnapshotStatusService {
         out.put("snapshot_id", values.get("snapshot_id"));
         out.put("game_date", values.get("game_date"));
         out.put("loaded_at", values.get("loaded_at"));
+        out.put("career_key", values.get("career_key"));
         out.put("state", values.containsKey("snapshot_id") ? "loaded" : "not_loaded");
         Boolean stale = lastKnownStale.get();
         out.put("stale", stale);
@@ -72,6 +73,7 @@ public class SnapshotStatusService {
         TacticContext tactic = tactics.current();
         out.put("tactic", tactic.active() ? tactic.title() : null);
         out.put("tactic_version", tactic.version());
+        out.put("tactic_fingerprint", tactic.fingerprint());
         out.put("tactic_definition", tactic.definition() == null ? null : tactic.definition().toMap());
 
         if (!probeLive) {

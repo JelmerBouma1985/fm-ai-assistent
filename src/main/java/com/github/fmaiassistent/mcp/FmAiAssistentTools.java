@@ -801,6 +801,8 @@ public class FmAiAssistentTools {
         out.put("quoted_weekly_wage", evidence.getQuotedWeeklyWage());
         out.put("source", evidence.getSource());
         out.put("observed_game_date", evidence.getObservedGameDate());
+        out.put("valid_until_game_date", evidence.getValidUntilGameDate());
+        out.put("career_key", evidence.getCareerKey());
         out.put("updated_at", evidence.getUpdatedAt());
         return out;
     }

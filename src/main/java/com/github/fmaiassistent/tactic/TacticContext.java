@@ -9,7 +9,8 @@ public record TacticContext(
         String markdown,
         List<String> importedFiles,
         List<String> warnings,
-        TacticDefinition definition) {
+        TacticDefinition definition,
+        String fingerprint) {
 
     public TacticContext {
         importedFiles = List.copyOf(importedFiles);
@@ -23,7 +24,18 @@ public record TacticContext(
             String markdown,
             List<String> importedFiles,
             List<String> warnings) {
-        this(version, title, source, markdown, importedFiles, warnings, null);
+        this(version, title, source, markdown, importedFiles, warnings, null, null);
+    }
+
+    public TacticContext(
+            long version,
+            String title,
+            String source,
+            String markdown,
+            List<String> importedFiles,
+            List<String> warnings,
+            TacticDefinition definition) {
+        this(version, title, source, markdown, importedFiles, warnings, definition, null);
     }
 
     public boolean active() {
@@ -31,6 +43,6 @@ public record TacticContext(
     }
 
     static TacticContext empty(long version) {
-        return new TacticContext(version, "No tactic loaded", null, null, List.of(), List.of(), null);
+        return new TacticContext(version, "No tactic loaded", null, null, List.of(), List.of(), null, null);
     }
 }

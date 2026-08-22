@@ -107,7 +107,7 @@ class McpProtocolCompatibilityTest {
                     .findFirst()
                     .orElse(tools.body());
             JsonNode listedTools = mapper.readTree(data).path("result").path("tools");
-            assertEquals(15, listedTools.size());
+            assertEquals(17, listedTools.size());
             Set<String> names = listedTools.valueStream()
                     .map(tool -> tool.path("name").asText())
                     .collect(Collectors.toSet());
@@ -122,6 +122,8 @@ class McpProtocolCompatibilityTest {
                     "fm26_get_data_status",
                     "fm26_refresh_data",
                     "fm26_analyze_squad",
+                    "fm26_optimize_lineup",
+                    "fm26_recruit_for_tactic_slot",
                     "fm26_compare_players",
                     "fm26_find_replacements",
                     "fm26_plan_squad_moves",
@@ -143,6 +145,15 @@ class McpProtocolCompatibilityTest {
                     .path("quotes").path("type").asText());
             assertEquals("integer", scenario.path("inputSchema").path("properties")
                     .path("quotes").path("items").path("properties")
+                    .path("playerUniqueId").path("type").asText());
+            JsonNode optimizer = listedTools.valueStream()
+                    .filter(tool -> "fm26_optimize_lineup".equals(tool.path("name").asText()))
+                    .findFirst()
+                    .orElseThrow();
+            assertEquals("array", optimizer.path("inputSchema").path("properties")
+                    .path("lockedAssignments").path("type").asText());
+            assertEquals("integer", optimizer.path("inputSchema").path("properties")
+                    .path("lockedAssignments").path("items").path("properties")
                     .path("playerUniqueId").path("type").asText());
         }
     }

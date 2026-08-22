@@ -17,7 +17,7 @@ class ManagedClubContextServiceTest {
         ClubRepository clubs = mock(ClubRepository.class);
         ClubEntity club = mock(ClubEntity.class);
         when(memory.read(42, 0x238bdd, null)).thenReturn(new ManagedClubIdentity(
-                0x1000, "Jelmer Bouma", 0x2000, 0x3000, "sc Heerenveen"));
+                0x1000, 4242L, "Jelmer Bouma", 0x2000, 0x3000, "sc Heerenveen"));
         when(clubs.findFirstBySourceAddressOrderByReputationDesc(0x3000L)).thenReturn(Optional.of(club));
         when(club.getCompetition()).thenReturn("Eredivisie");
         when(club.getNation()).thenReturn("Netherlands");
@@ -31,6 +31,7 @@ class ManagedClubContextServiceTest {
         ManagedClubContext detected = service.refresh(42, 0x238bdd, null);
 
         assertThat(detected.managerName()).isEqualTo("Jelmer Bouma");
+        assertThat(detected.careerKey()).isEqualTo("4242:jelmer-bouma");
         assertThat(detected.clubName()).isEqualTo("sc Heerenveen");
         assertThat(service.enrich("codex:one", "Assess my squad"))
                 .contains("<fm26_managed_club_context>")

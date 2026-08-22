@@ -100,12 +100,14 @@ For faster and more reproducible answers, the agent can now use task-level tools
 
 1. Check `fm26_get_data_status` and refresh stale data with `fm26_refresh_data`.
 2. Diagnose depth and the two phases of the loaded tactic with `fm26_analyze_squad`.
-3. Search with `fm26_transfer_shortlist` or match a known player with `fm26_find_replacements`.
-4. Compare finalists by FM Unique ID with `fm26_compare_players`.
-5. Record agent-enquiry or in-game evidence with `fm26_update_recruitment_case`.
-6. Test the depth and financial effect of moves with `fm26_plan_squad_moves` before acting in FM26.
+3. Build a globally optimized unique XI with `fm26_optimize_lineup`; one player is never assigned to two slots.
+4. Recruit against both roles of a weak slot with `fm26_recruit_for_tactic_slot`, or use `fm26_transfer_shortlist` for a literal single position/role.
+5. Match a known incumbent with `fm26_find_replacements`, supplying the actual deployed position or tactic slot explicitly.
+6. Compare finalists by FM Unique ID with `fm26_compare_players`.
+7. Record agent-enquiry or in-game evidence with `fm26_update_recruitment_case`.
+8. Test the optimized-XI, depth and financial effect of moves with `fm26_plan_squad_moves` before acting in FM26.
 
-Decision responses include the snapshot identity. Unknown asking prices, wage demands and sale proceeds remain explicit rather than being treated as zero. The recruitment board survives RAM data refreshes so verified refusals and agreed deals continue to guide later searches.
+Decision responses include the snapshot identity and loaded-tactic fingerprint. Unknown asking prices, wage demands and sale proceeds remain explicit rather than being treated as zero. The tactic and recruitment board are stored in the local application database. Recruitment evidence is isolated by FM career and authoritative for 30 in-game days by default; expired, other-career and legacy evidence remains visible but cannot override current decisions.
 
 ## Set up an AI agent
 
@@ -153,6 +155,8 @@ Antigravity cannot show an approval popup during a headless chat. Add the follow
       "mcp(fm-ai-assistent/fm26_transfer_shortlist)",
       "mcp(fm-ai-assistent/fm26_get_data_status)",
       "mcp(fm-ai-assistent/fm26_analyze_squad)",
+      "mcp(fm-ai-assistent/fm26_optimize_lineup)",
+      "mcp(fm-ai-assistent/fm26_recruit_for_tactic_slot)",
       "mcp(fm-ai-assistent/fm26_compare_players)",
       "mcp(fm-ai-assistent/fm26_find_replacements)",
       "mcp(fm-ai-assistent/fm26_plan_squad_moves)",

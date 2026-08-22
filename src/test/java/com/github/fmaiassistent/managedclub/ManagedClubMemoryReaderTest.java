@@ -31,6 +31,7 @@ class ManagedClubMemoryReaderTest {
                 .read(memory, FmOffsets.DEFAULT_BUILD, PLUGIN);
 
         assertThat(identity.managerAddress()).isEqualTo(MANAGER);
+        assertThat(identity.managerUniqueId()).isEqualTo(4242L);
         assertThat(identity.managerName()).isEqualTo("Jelmer Bouma");
         assertThat(identity.teamAddress()).isEqualTo(TEAM);
         assertThat(identity.clubAddress()).isEqualTo(CLUB);
@@ -59,6 +60,7 @@ class ManagedClubMemoryReaderTest {
         long managerRva = FmOffsets.currentHumanManagerRva(FmOffsets.DEFAULT_BUILD).orElseThrow();
         FakeMemory memory = new FakeMemory();
         memory.putLong(PLUGIN + managerRva, MANAGER);
+        memory.putInt(MANAGER + 0x0C, 4242);
         memory.putFmStringReference(MANAGER + 0x40, 0x6000_0000L, "Jelmer Bouma");
         memory.putLong(MANAGER + 0xA8, EMPLOYMENT);
         memory.putLong(EMPLOYMENT + 0x10, TEAM);
@@ -74,6 +76,13 @@ class ManagedClubMemoryReaderTest {
             put(address, ByteBuffer.allocate(Long.BYTES)
                     .order(ByteOrder.LITTLE_ENDIAN)
                     .putLong(value)
+                    .array());
+        }
+
+        void putInt(long address, int value) {
+            put(address, ByteBuffer.allocate(Integer.BYTES)
+                    .order(ByteOrder.LITTLE_ENDIAN)
+                    .putInt(value)
                     .array());
         }
 
