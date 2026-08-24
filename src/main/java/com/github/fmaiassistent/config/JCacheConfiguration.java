@@ -12,6 +12,7 @@ public class JCacheConfiguration {
 
     public static final String PLAYERS_CACHE = "players";
     public static final String PLAYERS_WITH_CLUBS_CACHE = "players_with_clubs";
+    public static final String STAFF_WITH_CLUBS_CACHE = "staff_with_clubs";
     public static final String NATIONS_CACHE = "nations";
     public static final String COMPETITIONS_CACHE = "competitions";
     public static final String CLUB_NAMES_CACHE = "club_names";
@@ -23,6 +24,7 @@ public class JCacheConfiguration {
         CaffeineCacheManager cacheManager = new CaffeineCacheManager(
                 PLAYERS_CACHE,
                 PLAYERS_WITH_CLUBS_CACHE,
+                STAFF_WITH_CLUBS_CACHE,
                 NATIONS_CACHE,
                 COMPETITIONS_CACHE,
                 CLUB_NAMES_CACHE,

@@ -5,6 +5,11 @@ import com.github.fmaiassistent.domain.entity.ClubEntity;
 import com.github.fmaiassistent.service.PlayerDatabaseService;
 import com.github.fmaiassistent.domain.entity.PlayerEntity;
 import com.github.fmaiassistent.domain.entity.RecruitmentCaseEntity;
+import com.github.fmaiassistent.domain.entity.StaffEntity;
+import com.github.fmaiassistent.repository.StaffFilterCriteria;
+import com.github.fmaiassistent.service.StaffDatabaseService;
+import com.github.fmaiassistent.staff.StaffAttributeDefinitions;
+import com.github.fmaiassistent.staff.StaffRoleRatingCalculator;
 import com.github.fmaiassistent.player.AttributeDefinitions;
 import com.github.fmaiassistent.player.FieldDef;
 import com.github.fmaiassistent.shortlist.ShortlistFileService;
@@ -46,6 +51,7 @@ public class FmAiAssistentTools {
 
     private final PlayerDatabaseService players;
     private final ClubDatabaseService clubs;
+    private final StaffDatabaseService staff;
     private final PlayerMapper playerMapper;
     private final JdbcTemplate jdbc;
     private final ShortlistFileService shortlistFiles;
@@ -55,6 +61,7 @@ public class FmAiAssistentTools {
     public FmAiAssistentTools(
             PlayerDatabaseService players,
             ClubDatabaseService clubs,
+            StaffDatabaseService staff,
             PlayerMapper playerMapper,
             JdbcTemplate jdbc,
             ShortlistFileService shortlistFiles,
@@ -62,6 +69,7 @@ public class FmAiAssistentTools {
             SnapshotStatusService snapshots) {
         this.players = players;
         this.clubs = clubs;
+        this.staff = staff;
         this.playerMapper = playerMapper;
         this.jdbc = jdbc;
         this.shortlistFiles = shortlistFiles;
@@ -231,6 +239,123 @@ public class FmAiAssistentTools {
                         .toList()
                 : exact;
         return withSnapshot(result("players", rows, safeLimit));
+    }
+
+    @Tool(name = "fm26_find_staff", description = "Search FM26 staff by identity, job, club, ability, reputation, contract, salary, attributes and calculated coaching-role stars. Staff attributes use FM's 0-20 scale; money values are raw pounds.")
+    @Transactional(readOnly = true)
+    public Map<String, Object> findStaff(
+            @ToolParam(required = false, description = "Staff name contains filter") String name,
+            @ToolParam(required = false, description = "Gender exact filter: male or female") String gender,
+            @ToolParam(required = false, description = "Nationality exact filter") String nationality,
+            @ToolParam(required = false, description = "Current club exact filter") String club,
+            @ToolParam(required = false, description = "Division exact filter") String division,
+            @ToolParam(required = false, description = "Job exact filter, for example Coach, Scout or Head of Youth Development") String job,
+            @ToolParam(required = false, description = "Minimum age") Integer ageMin,
+            @ToolParam(required = false, description = "Maximum age") Integer ageMax,
+            @ToolParam(required = false, description = "Minimum current ability") Integer caMin,
+            @ToolParam(required = false, description = "Maximum current ability") Integer caMax,
+            @ToolParam(required = false, description = "Minimum potential ability") Integer paMin,
+            @ToolParam(required = false, description = "Maximum potential ability") Integer paMax,
+            @ToolParam(required = false, description = "Minimum current reputation") Integer currentReputationMin,
+            @ToolParam(required = false, description = "Minimum world reputation") Integer worldReputationMin,
+            @ToolParam(required = false, description = "Maximum current weekly salary in pounds") Long salaryWeeklyMax,
+            @ToolParam(required = false, description = "Earliest contract end date, ISO-8601 yyyy-MM-dd") String contractEndFrom,
+            @ToolParam(required = false, description = "Latest contract end date, ISO-8601 yyyy-MM-dd") String contractEndTo,
+            @ToolParam(required = false, description = "Minimum staff attributes keyed by English snake_case name, for example {judging_player_ability:16, judging_player_potential:17}") Map<String, Integer> minimumAttributes,
+            @ToolParam(required = false, description = "FM26 coaching assignment key, for example attacking_technical, defending_tactical, possession_technical, goalkeeping, fitness or set_pieces") String coachingRole,
+            @ToolParam(required = false, description = "Minimum calculated coaching rating from 0.5 to 5 stars. Uses the selected coachingRole, or the staff member's best role when coachingRole is omitted") Double minimumCoachingStars,
+            @ToolParam(required = false, description = "Sort by ca, pa, age, salary, world_reputation, name, an English staff attribute or a coaching assignment key. Defaults to ca") String sortBy,
+            @ToolParam(required = false, description = "Sort direction: asc or desc. Defaults to desc") String sortDirection,
+            @ToolParam(required = false, description = "Number of matching staff to skip. Defaults to 0") Integer offset,
+            @ToolParam(required = false, description = "Maximum staff members to return") Integer limit) {
+        validateStaffAttributes(minimumAttributes);
+        String normalizedRole = StaffRoleRatingCalculator.normalizeRoleKey(coachingRole);
+        if (!normalizedRole.isBlank() && !StaffRoleRatingCalculator.BY_KEY.containsKey(normalizedRole)) {
+            throw new IllegalArgumentException("unsupported coachingRole: " + coachingRole);
+        }
+        if (minimumCoachingStars != null && (minimumCoachingStars < 0.5 || minimumCoachingStars > 5.0)) {
+            throw new IllegalArgumentException("minimumCoachingStars must be between 0.5 and 5");
+        }
+        if (!blank(sortDirection) && !"asc".equalsIgnoreCase(sortDirection) && !"desc".equalsIgnoreCase(sortDirection)) {
+            throw new IllegalArgumentException("sortDirection must be asc or desc");
+        }
+        int safeLimit = safeLimit(limit);
+        int safeOffset = Math.max(0, offset == null ? 0 : offset);
+        LocalDate contractFrom = parseDate(contractEndFrom, "contractEndFrom");
+        LocalDate contractTo = parseDate(contractEndTo, "contractEndTo");
+        if (contractFrom != null && contractTo != null && contractFrom.isAfter(contractTo)) {
+            throw new IllegalArgumentException("contractEndFrom must be on or before contractEndTo");
+        }
+        Map<String, Integer> normalizedAttributes = normalizedStaffAttributes(minimumAttributes);
+        StaffFilterCriteria filter = new StaffFilterCriteria(
+                name, gender, nationality, club, division, job, ageMin, ageMax, caMin, caMax, paMin, paMax,
+                currentReputationMin, worldReputationMin, salaryWeeklyMax,
+                contractFrom, contractTo, normalizedAttributes, normalizedRole, minimumCoachingStars, Map.of());
+        List<StaffEntity> matches = staff.findStaff(filter);
+        List<Map<String, Object>> rows = matches.stream().sorted(staffComparator(sortBy, sortDirection))
+                .skip(safeOffset).limit(safeLimit)
+                .map(value -> staffSearchMap(value, normalizedAttributes, normalizedRole)).toList();
+        Map<String, Object> out = result("staff", rows, safeLimit);
+        out.put("total_matches", matches.size());
+        out.put("offset", safeOffset);
+        return withSnapshot(out);
+    }
+
+    @Tool(name = "fm26_get_staff_details", description = "Get a full FM26 staff profile including authoritative Unique ID, job, CA/PA, reputation, contract, English attributes and all nine calculated coaching-role ratings with their weighted attributes.")
+    @Transactional(readOnly = true)
+    public Map<String, Object> getStaffDetails(
+            @ToolParam(required = false, description = "Staff name. Exact match is preferred; contains match is used as fallback") String name,
+            @ToolParam(required = false, description = "Preferred authoritative FM26 staff_unique_id") Long staffUniqueId,
+            @ToolParam(required = false, description = "Maximum matching staff members to return") Integer limit) {
+        int safeLimit = safeLimit(limit);
+        if (staffUniqueId != null) {
+            List<Map<String, Object>> rows = staff.findByUniqueId(staffUniqueId).stream().map(StaffEntity::toApiMap).toList();
+            return withSnapshot(result("staff", rows, safeLimit));
+        }
+        if (blank(name)) {
+            throw new IllegalArgumentException("name or staffUniqueId is required");
+        }
+        String wanted = normalize(name);
+        List<StaffEntity> candidates = staff.findStaff(new StaffFilterCriteria(
+                name, "", "", "", "", "", null, null, null, null, null, null,
+                null, null, null, null, null, Map.of(), "", null, Map.of()));
+        List<StaffEntity> exact = candidates.stream().filter(value -> normalize(value.getName()).equals(wanted)).toList();
+        List<Map<String, Object>> rows = (exact.isEmpty() ? candidates : exact).stream()
+                .sorted(Comparator.comparing(StaffEntity::getName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+                .limit(safeLimit).map(StaffEntity::toApiMap).toList();
+        return withSnapshot(result("staff", rows, safeLimit));
+    }
+
+    @Tool(name = "fm26_get_staff_coaching_roles", description = "List the nine FM26 training assignments, their role-specific attribute weights, common mental attributes and the 0-20 quality scale used by staff search results.")
+    public Map<String, Object> getStaffCoachingRoles() {
+        List<Map<String, Object>> roles = StaffRoleRatingCalculator.ROLES.stream().map(role -> {
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("role", role.key());
+            out.put("label", role.label());
+            List<Map<String, Object>> attributes = role.weights().entrySet().stream().map(weighted -> {
+                Map<String, Object> attribute = new LinkedHashMap<>();
+                attribute.put("key", weighted.getKey());
+                attribute.put("label", StaffAttributeDefinitions.BY_KEY.get(weighted.getKey()).label());
+                attribute.put("weight", weighted.getValue());
+                return attribute;
+            }).toList();
+            out.put("attributes", attributes);
+            return out;
+        }).toList();
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("roles", roles);
+        out.put("score_formula", "sum(attribute * weight) / 15");
+        out.put("star_formula", "FM26 weighted score rounded to the nearest half star, 0.5 to 5.0");
+        out.put("quality_scale", List.of(
+                Map.of("quality", "Elite", "minimum", 20, "maximum", 20),
+                Map.of("quality", "Outstanding", "minimum", 18, "maximum", 19),
+                Map.of("quality", "Very Good", "minimum", 15, "maximum", 17),
+                Map.of("quality", "Good", "minimum", 12, "maximum", 14),
+                Map.of("quality", "Average", "minimum", 10, "maximum", 11),
+                Map.of("quality", "Competent", "minimum", 7, "maximum", 9),
+                Map.of("quality", "Reasonable", "minimum", 4, "maximum", 6),
+                Map.of("quality", "Unsuited", "minimum", 1, "maximum", 3)));
+        return withSnapshot(out);
     }
 
     @Tool(
@@ -1283,6 +1408,102 @@ public class FmAiAssistentTools {
             comparator = comparator.reversed();
         }
         return comparator.thenComparing(PlayerEntity::getName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER));
+    }
+
+    private static Map<String, Object> staffSummaryMap(StaffEntity staff) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("staff_unique_id", staff.getUniqueId());
+        out.put("name", staff.getName());
+        out.put("job", staff.getJob());
+        out.put("club", staff.getClub());
+        out.put("division", staff.getDivision());
+        out.put("nationality", staff.getNationality());
+        out.put("age", staff.getAge());
+        out.put("ca", staff.getCa());
+        out.put("pa", staff.getPa());
+        out.put("world_reputation", staff.getWorldReputation());
+        out.put("salary_weekly", staff.getSalaryWeeklyRaw());
+        out.put("contract_end_date", staff.getContractEndDate());
+        StaffRoleRatingCalculator.bestRating(staff)
+                .ifPresent(rating -> out.put("best_coaching_role", rating.toApiMap()));
+        return out;
+    }
+
+    private static Map<String, Object> staffSearchMap(StaffEntity staff, Map<String, Integer> requestedAttributes,
+                                                       String coachingRole) {
+        Map<String, Object> out = staffSummaryMap(staff);
+        if (!requestedAttributes.isEmpty()) {
+            Map<String, Object> attributes = new LinkedHashMap<>();
+            requestedAttributes.keySet().forEach(key -> attributes.put(key, staff.value(key)));
+            out.put("matching_attributes", attributes);
+        }
+        if (coachingRole != null && !coachingRole.isBlank()) {
+            StaffRoleRatingCalculator.rating(staff, coachingRole)
+                    .ifPresent(rating -> out.put("coaching_role_rating", rating.toApiMap()));
+        }
+        return out;
+    }
+
+    private static Comparator<StaffEntity> staffComparator(String sortBy, String sortDirection) {
+        String key = blank(sortBy) ? "ca" : normalize(sortBy).replace(' ', '_');
+        Comparator<StaffEntity> comparator;
+        if ("name".equals(key)) {
+            comparator = Comparator.comparing(StaffEntity::getName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER));
+        } else {
+            Set<String> supported = new java.util.LinkedHashSet<>(StaffAttributeDefinitions.BY_KEY.keySet());
+            supported.addAll(StaffRoleRatingCalculator.BY_KEY.keySet());
+            supported.addAll(List.of("ca", "pa", "age", "salary", "salary_weekly", "world_reputation", "current_reputation"));
+            if (!supported.contains(key)) {
+                throw new IllegalArgumentException("unsupported staff sortBy: " + sortBy);
+            }
+            if (StaffRoleRatingCalculator.BY_KEY.containsKey(key)) {
+                comparator = Comparator.comparingDouble(value -> StaffRoleRatingCalculator.rating(value, key)
+                        .map(StaffRoleRatingCalculator.RoleRating::score20).orElse(Double.NEGATIVE_INFINITY));
+            } else {
+                String valueKey = "salary".equals(key) ? "salary_weekly" : key;
+                comparator = Comparator.comparingLong(value -> {
+                    Object raw = value.value(valueKey);
+                    return raw instanceof Number number ? number.longValue() : Long.MIN_VALUE;
+                });
+            }
+        }
+        if (!"asc".equalsIgnoreCase(sortDirection)) {
+            comparator = comparator.reversed();
+        }
+        return comparator.thenComparing(StaffEntity::getName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER));
+    }
+
+    private static void validateStaffAttributes(Map<String, Integer> attributes) {
+        if (attributes == null) return;
+        attributes.forEach((key, value) -> {
+            String normalized = normalizeStaffAttribute(key);
+            if (!StaffAttributeDefinitions.BY_KEY.containsKey(normalized)) {
+                throw new IllegalArgumentException("unsupported staff attribute: " + key);
+            }
+            if (value == null || value < 1 || value > 20) {
+                throw new IllegalArgumentException("staff attribute minimums must be between 1 and 20");
+            }
+        });
+    }
+
+    private static Map<String, Integer> normalizedStaffAttributes(Map<String, Integer> attributes) {
+        if (attributes == null || attributes.isEmpty()) return Map.of();
+        Map<String, Integer> out = new LinkedHashMap<>();
+        attributes.forEach((key, value) -> out.put(normalizeStaffAttribute(key), value));
+        return out;
+    }
+
+    private static String normalizeStaffAttribute(String key) {
+        return key == null ? "" : normalize(key).replace(' ', '_').replace('-', '_');
+    }
+
+    private static LocalDate parseDate(String raw, String parameter) {
+        if (blank(raw)) return null;
+        try {
+            return LocalDate.parse(raw);
+        } catch (DateTimeParseException exception) {
+            throw new IllegalArgumentException(parameter + " must use ISO-8601 yyyy-MM-dd");
+        }
     }
 
     private static Integer asInteger(String value) {

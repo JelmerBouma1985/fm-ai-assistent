@@ -3,6 +3,9 @@ package com.github.fmaiassistent.web.ui;
 import com.github.fmaiassistent.domain.entity.ClubEntity;
 import com.github.fmaiassistent.domain.entity.CompetitionEntity;
 import com.github.fmaiassistent.domain.entity.PlayerEntity;
+import com.github.fmaiassistent.domain.entity.StaffEntity;
+import com.github.fmaiassistent.staff.StaffAttributeDefinitions;
+import com.github.fmaiassistent.staff.StaffRoleRatingCalculator;
 import com.github.fmaiassistent.service.*;
 import com.github.fmaiassistent.codex.CodexConversationService;
 import com.github.fmaiassistent.antigravity.AntigravityConversationService;
@@ -38,6 +41,7 @@ import com.vaadin.flow.component.select.Select;
 import com.vaadin.flow.component.tabs.Tab;
 import com.vaadin.flow.component.tabs.Tabs;
 import com.vaadin.flow.component.textfield.IntegerField;
+import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.router.PageTitle;
@@ -81,6 +85,7 @@ public class MainView extends VerticalLayout {
 
     private final DatabaseLoadAllService loadAll;
     private final PlayerDatabaseService players;
+    private final StaffDatabaseService staff;
     private final ClubDatabaseService clubs;
     private final CompetitionDatabaseService competitions;
     private final AppSettingsService settings;
@@ -96,15 +101,18 @@ public class MainView extends VerticalLayout {
     private final Tabs tabs = new Tabs();
     private final Div content = new Div();
     private final Grid<PlayerEntity> playersGrid = new Grid<>();
+    private final Grid<StaffEntity> staffGrid = new Grid<>();
     private final Grid<ClubEntity> clubsGrid = new Grid<>();
     private final Grid<CompetitionEntity> competitionsGrid = new Grid<>();
     private final AiAssistantView aiAssistant;
 
     private final Tab playersTab = new Tab("Players");
+    private final Tab staffTab = new Tab("Staff");
     private final Tab clubsTab = new Tab("Clubs");
     private final Tab competitionsTab = new Tab("Competitions");
     private final Tab aiAssistantTab = new Tab("AI assistent");
     private PlayerFilterCriteria playerFilter = PlayerFilterCriteria.empty();
+    private StaffFilterCriteria staffFilter = StaffFilterCriteria.empty();
     private ClubFilterCriteria clubFilter = ClubFilterCriteria.empty();
     private CompetitionFilterCriteria competitionFilter = CompetitionFilterCriteria.empty();
     private MoneyCurrency currency;
@@ -112,6 +120,7 @@ public class MainView extends VerticalLayout {
     public MainView(
             DatabaseLoadAllService loadAll,
             PlayerDatabaseService players,
+            StaffDatabaseService staff,
             ClubDatabaseService clubs,
             CompetitionDatabaseService competitions,
             AppSettingsService settings,
@@ -123,6 +132,7 @@ public class MainView extends VerticalLayout {
             ManagedClubContextService managedClubContexts) {
         this.loadAll = loadAll;
         this.players = players;
+        this.staff = staff;
         this.clubs = clubs;
         this.competitions = competitions;
         this.settings = settings;
@@ -142,10 +152,12 @@ public class MainView extends VerticalLayout {
         expand(content);
         configureTabs();
         configureGrid(playersGrid);
+        configureGrid(staffGrid);
         configureGrid(clubsGrid);
         configureGrid(competitionsGrid);
         configureLoadingDialog();
         playersGrid.addItemClickListener(event -> openPlayerDetailsDialog(event.getItem()));
+        staffGrid.addItemClickListener(event -> openStaffDetailsDialog(event.getItem()));
         updateStatus(null);
         showPlayers();
     }
@@ -207,19 +219,23 @@ public class MainView extends VerticalLayout {
     }
 
     private void configureTabs() {
-        tabs.add(playersTab, clubsTab, competitionsTab, aiAssistantTab);
+        tabs.add(playersTab, staffTab, clubsTab, competitionsTab, aiAssistantTab);
         tabs.setWidthFull();
         tabs.addClassName("workspace-tabs");
         playersTab.addComponentAsFirst(VaadinIcon.USERS.create());
+        staffTab.addComponentAsFirst(VaadinIcon.USER_STAR.create());
         clubsTab.addComponentAsFirst(VaadinIcon.OFFICE.create());
         competitionsTab.addComponentAsFirst(VaadinIcon.TROPHY.create());
         aiAssistantTab.addComponentAsFirst(VaadinIcon.CHAT.create());
         tabs.addSelectedChangeListener(event -> {
             filterButton.setVisible(event.getSelectedTab() == playersTab
+                    || event.getSelectedTab() == staffTab
                     || event.getSelectedTab() == clubsTab
                     || event.getSelectedTab() == competitionsTab);
             if (event.getSelectedTab() == playersTab) {
                 showPlayers();
+            } else if (event.getSelectedTab() == staffTab) {
+                showStaff();
             } else if (event.getSelectedTab() == clubsTab) {
                 showClubs();
             } else if (event.getSelectedTab() == competitionsTab) {
@@ -331,6 +347,8 @@ public class MainView extends VerticalLayout {
     private void refreshSelectedTab() {
         if (tabs.getSelectedTab() == playersTab) {
             showPlayers();
+        } else if (tabs.getSelectedTab() == staffTab) {
+            showStaff();
         } else if (tabs.getSelectedTab() == clubsTab) {
             showClubs();
         } else if (tabs.getSelectedTab() == competitionsTab) {
@@ -380,6 +398,29 @@ public class MainView extends VerticalLayout {
         setFilterActive(!playerFilter.isEmpty());
         if (!playerFilter.isEmpty()) {
             status.setText("Filtered players " + rows.size() + " | Total players " + players.countPlayers());
+        }
+    }
+
+    private void showStaff() {
+        List<StaffColumn> columns = new ArrayList<>();
+        columns.add(new StaffColumn("NAME", "Name", StaffEntity::getName));
+        columns.add(new StaffColumn("JOB", "Job", StaffEntity::getJob));
+        columns.add(new StaffColumn("BEST_COACHING_ROLE", "Best Coaching Role", MainView::bestStaffRoleLabel));
+        columns.add(new StaffColumn("BEST_COACHING_STARS", "Best Stars", MainView::bestStaffRoleStars));
+        columns.add(new StaffColumn("CLUB", "Club", StaffEntity::getClub));
+        columns.add(new StaffColumn("DIVISION", "Division", StaffEntity::getDivision));
+        columns.add(new StaffColumn("NATIONALITY", "Nationality", StaffEntity::getNationality));
+        columns.add(new StaffColumn("AGE", "Age", StaffEntity::getAge));
+        columns.add(new StaffColumn("CA", "Current Ability", StaffEntity::getCa));
+        columns.add(new StaffColumn("PA", "Potential Ability", StaffEntity::getPa));
+        columns.add(new StaffColumn("SALARY_WEEKLY_RAW", "Salary Weekly", StaffEntity::getSalaryWeeklyRaw));
+        columns.add(new StaffColumn("CONTRACT_END_DATE", "Contract End Date", StaffEntity::getContractEndDate));
+        columns.add(new StaffColumn("WORLD_REPUTATION", "World Reputation", StaffEntity::getWorldReputation));
+        List<StaffEntity> rows = staffFilter.isEmpty() ? staff.findAllStaff() : staff.findStaff(staffFilter);
+        setStaffGrid(columns, rows);
+        setFilterActive(!staffFilter.isEmpty());
+        if (!staffFilter.isEmpty()) {
+            status.setText("Filtered staff " + rows.size() + " | Total staff " + staff.countStaff());
         }
     }
 
@@ -434,6 +475,20 @@ public class MainView extends VerticalLayout {
         content.removeAll();
         content.setSizeFull();
         content.add(clubsGrid);
+        content.addClassName("data-workspace");
+    }
+
+    private void setStaffGrid(List<StaffColumn> columns, List<StaffEntity> rows) {
+        staffGrid.removeAllColumns();
+        for (StaffColumn column : columns) {
+            staffGrid.addColumn(value -> displayColumn(column.key(), column.value(value)))
+                    .setKey(column.key()).setHeader(column.header()).setAutoWidth(true).setResizable(true)
+                    .setComparator((left, right) -> compareStaffColumn(left, right, column)).setSortable(true);
+        }
+        staffGrid.setItems(rows);
+        content.removeAll();
+        content.setSizeFull();
+        content.add(staffGrid);
         content.addClassName("data-workspace");
     }
 
@@ -503,7 +558,7 @@ public class MainView extends VerticalLayout {
                 new Div(VaadinIcon.DATABASE.create()),
                 spinner,
                 new Span("Reading Football Manager memory"),
-                new Span("Players, clubs and competitions will refresh automatically.")
+                new Span("Players, staff, clubs and competitions will refresh automatically.")
         );
         content.setAlignItems(FlexComponent.Alignment.CENTER);
         content.setPadding(true);
@@ -602,8 +657,81 @@ public class MainView extends VerticalLayout {
         dialog.open();
     }
 
+    private void openStaffDetailsDialog(StaffEntity staffMember) {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle(display(staffMember.getName()));
+        dialog.setWidth("1000px");
+        dialog.setMaxWidth("calc(100vw - 32px)");
+        dialog.getElement().getThemeList().add("professional-dialog");
+
+        VerticalLayout info = new VerticalLayout(detailLayout(List.of(
+                new DetailField("Staff Unique ID", staffMember.getUniqueId()),
+                new DetailField("Job", staffMember.getJob()),
+                new DetailField("Club", staffMember.getClub()),
+                new DetailField("Division", staffMember.getDivision()),
+                new DetailField("Nationality", staffMember.getNationality()),
+                new DetailField("Gender", staffMember.getGender()),
+                new DetailField("Age", staffMember.getAge()),
+                new DetailField("Date of Birth", staffMember.getDateOfBirth()),
+                new DetailField("Salary Weekly", salaryWeeklyDisplay(staffMember.getSalaryWeeklyRaw())),
+                new DetailField("Contract End Date", staffMember.getContractEndDate()),
+                new DetailField("Current Ability", staffMember.getCa()),
+                new DetailField("Potential Ability", staffMember.getPa()),
+                new DetailField("Current Reputation", staffMember.getCurrentReputation()),
+                new DetailField("Home Reputation", staffMember.getHomeReputation()),
+                new DetailField("World Reputation", staffMember.getWorldReputation()))));
+        info.setPadding(false);
+
+        List<DetailField> attributeDetails = StaffAttributeDefinitions.ALL.stream()
+                .map(attribute -> {
+                    Object value = staffMember.value(attribute.key());
+                    String display = value instanceof Number number
+                            ? number.intValue() + " - " + StaffRoleRatingCalculator.quality(number.doubleValue())
+                            : "-";
+                    return new DetailField(attribute.label(), display);
+                })
+                .toList();
+        VerticalLayout attributes = new VerticalLayout(detailLayout(attributeDetails));
+        attributes.setPadding(false);
+
+        Grid<StaffRoleRatingCalculator.RoleRating> roleGrid = new Grid<>();
+        roleGrid.addColumn(StaffRoleRatingCalculator.RoleRating::label).setHeader("Training assignment")
+                .setWidth("180px").setFlexGrow(0);
+        roleGrid.addColumn(value -> starsDisplay(value.stars())).setHeader("Stars")
+                .setWidth("75px").setFlexGrow(0);
+        roleGrid.addColumn(StaffRoleRatingCalculator.RoleRating::score20).setHeader("Score / 20")
+                .setWidth("90px").setFlexGrow(0);
+        roleGrid.addColumn(StaffRoleRatingCalculator.RoleRating::quality).setHeader("Quality")
+                .setWidth("125px").setFlexGrow(0);
+        roleGrid.addComponentColumn(MainView::roleAttributesComponent).setHeader("Role-specific attributes")
+                .setWidth("480px").setFlexGrow(1);
+        roleGrid.setItems(StaffRoleRatingCalculator.ratings(staffMember));
+        roleGrid.setHeight("min(520px, 55vh)");
+        roleGrid.addThemeVariants(GridVariant.LUMO_NO_BORDER, GridVariant.LUMO_ROW_STRIPES);
+        roleGrid.setWidthFull();
+
+        Tab infoTab = new Tab("Info");
+        Tab attributesTab = new Tab("Attributes");
+        Tab rolesTab = new Tab("Coaching roles");
+        Tabs detailTabs = new Tabs(infoTab, attributesTab, rolesTab);
+        Div detailContent = new Div(info);
+        detailContent.setWidthFull();
+        detailTabs.addSelectedChangeListener(event -> {
+            detailContent.removeAll();
+            detailContent.add(event.getSelectedTab() == attributesTab ? attributes
+                    : event.getSelectedTab() == rolesTab ? roleGrid : info);
+        });
+        Button close = new Button("Close", VaadinIcon.CLOSE_SMALL.create(), event -> dialog.close());
+        close.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        dialog.add(detailTabs, detailContent);
+        dialog.getFooter().add(close);
+        dialog.open();
+    }
+
     private void openFilterDialog() {
-        if (tabs.getSelectedTab() == clubsTab) {
+        if (tabs.getSelectedTab() == staffTab) {
+            openStaffFilterDialog();
+        } else if (tabs.getSelectedTab() == clubsTab) {
             openClubFilterDialog();
         } else if (tabs.getSelectedTab() == competitionsTab) {
             openCompetitionFilterDialog();
@@ -809,6 +937,137 @@ public class MainView extends VerticalLayout {
         dialog.open();
     }
 
+    private void openStaffFilterDialog() {
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle("Staff filter");
+        dialog.setWidth("1200px");
+        dialog.setMaxWidth("calc(100vw - 32px)");
+        dialog.getElement().getThemeList().add("professional-dialog");
+        dialog.getElement().getThemeList().add("filter-dialog");
+
+        TextField name = new TextField("Name contains");
+        name.setValue(nullSafeValue(staffFilter.name()));
+        Select<String> gender = new Select<>();
+        gender.setLabel("Gender");
+        gender.setItems("", "male", "female");
+        gender.setItemLabelGenerator(value -> value == null || value.isBlank() ? "Any" : value);
+        gender.setValue(nullSafeValue(staffFilter.gender()));
+        List<StaffEntity> staffRows = staff.findAllStaff();
+        ComboBox<String> nationality = comboBox("Nationality", distinctStaffValues(staffRows, "nationality"), staffFilter.nationality());
+        ComboBox<String> club = comboBox("Club", distinctStaffValues(staffRows, "club"), staffFilter.club());
+        ComboBox<String> division = comboBox("Division", distinctStaffValues(staffRows, "division"), staffFilter.division());
+        ComboBox<String> job = comboBox("Job", distinctStaffValues(staffRows, "job"), staffFilter.job());
+        IntegerField ageMin = intField("Age min", staffFilter.ageMin(), 16, 100);
+        IntegerField ageMax = intField("Age max", staffFilter.ageMax(), 16, 100);
+        IntegerField caMin = intField("CA min", staffFilter.caMin(), 1, 200);
+        IntegerField caMax = intField("CA max", staffFilter.caMax(), 1, 200);
+        IntegerField paMin = intField("PA min", staffFilter.paMin(), 1, 200);
+        IntegerField paMax = intField("PA max", staffFilter.paMax(), 1, 200);
+        IntegerField currentRepMin = intField("Current reputation min", staffFilter.currentReputationMin(), 1, 10000);
+        IntegerField worldRepMin = intField("World reputation min", staffFilter.worldReputationMin(), 1, 10000);
+        LongField salaryMax = new LongField("Weekly salary max", staffFilter.salaryWeeklyMax());
+        DatePicker contractFrom = new DatePicker("Contract end from");
+        contractFrom.setValue(staffFilter.contractEndDateFrom());
+        DatePicker contractTo = new DatePicker("Contract end to");
+        contractTo.setValue(staffFilter.contractEndDateTo());
+
+        FormLayout basic = new FormLayout(name, gender, nationality, club, division, job,
+                ageMin, ageMax, caMin, caMax, paMin, paMax, currentRepMin, worldRepMin,
+                salaryMax.field(), contractFrom, contractTo);
+        basic.setResponsiveSteps(new FormLayout.ResponsiveStep("0", 1), new FormLayout.ResponsiveStep("720px", 2));
+
+        Map<String, IntegerField> attributeFields = new LinkedHashMap<>();
+        Div attributeLayout = new Div();
+        attributeLayout.setWidthFull();
+        attributeLayout.getStyle().set("display", "grid")
+                .set("grid-template-columns", "repeat(auto-fit, minmax(220px, 1fr))").set("gap", "16px");
+        for (StaffAttributeDefinitions.StaffAttribute attribute : StaffAttributeDefinitions.ALL) {
+            IntegerField field = intField(attribute.label() + " min", staffFilter.attributeMinimums().get(attribute.key()), 1, 20);
+            field.setWidthFull();
+            attributeFields.put(attribute.key(), field);
+            attributeLayout.add(field);
+        }
+
+        Map<String, Select<String>> coachingRoleFields = new LinkedHashMap<>();
+        Div coachingRoleLayout = new Div();
+        coachingRoleLayout.setWidthFull();
+        coachingRoleLayout.getStyle().set("display", "grid")
+                .set("grid-template-columns", "repeat(auto-fit, minmax(240px, 1fr))").set("gap", "16px");
+        List<String> starChoices = List.of("", "0.5", "1.0", "1.5", "2.0", "2.5", "3.0", "3.5", "4.0", "4.5", "5.0");
+        for (StaffRoleRatingCalculator.RoleDefinition role : StaffRoleRatingCalculator.ROLES) {
+            Select<String> field = new Select<>();
+            field.setLabel(role.label());
+            field.setItems(starChoices);
+            field.setItemLabelGenerator(value -> value == null || value.isBlank() ? "Any rating"
+                    : value + " stars or better");
+            Double selected = staffFilter.coachingRoleMinimumStars().get(role.key());
+            field.setValue(selected == null ? "" : String.format(Locale.ROOT, "%.1f", selected));
+            coachingRoleFields.put(role.key(), field);
+            coachingRoleLayout.add(field);
+        }
+        Span coachingRoleExplanation = new Span(
+                "Set a minimum for one or more assignments. A coach must meet every selected minimum.");
+        coachingRoleExplanation.addClassName("filter-help-text");
+        VerticalLayout coachingRoles = new VerticalLayout(coachingRoleExplanation, coachingRoleLayout);
+        coachingRoles.setPadding(false);
+        coachingRoles.setSpacing(true);
+
+        Tab filtersTab = new Tab("Filters");
+        Tab attributesTab = new Tab("Attributes");
+        Tab coachingRolesTab = new Tab("Coaching roles");
+        Tabs dialogTabs = new Tabs(filtersTab, attributesTab, coachingRolesTab);
+        dialogTabs.addClassName("dialog-tabs");
+        Div dialogContent = new Div(basic);
+        dialogContent.setWidthFull();
+        dialogContent.addClassName("dialog-content");
+        dialogContent.addClassName("filter-dialog-content");
+        dialogTabs.addSelectedChangeListener(event -> {
+            dialogContent.removeAll();
+            dialogContent.add(event.getSelectedTab() == attributesTab ? attributeLayout
+                    : event.getSelectedTab() == coachingRolesTab ? coachingRoles : basic);
+        });
+
+        Button apply = new Button("Apply filters", VaadinIcon.CHECK.create(), event -> {
+            if (!validRange("Age", ageMin.getValue(), ageMax.getValue())
+                    || !validRange("CA", caMin.getValue(), caMax.getValue())
+                    || !validRange("PA", paMin.getValue(), paMax.getValue())
+                    || contractFrom.getValue() != null && contractTo.getValue() != null
+                    && contractFrom.getValue().isAfter(contractTo.getValue())) {
+                if (contractFrom.getValue() != null && contractTo.getValue() != null
+                        && contractFrom.getValue().isAfter(contractTo.getValue())) {
+                    Notification.show("Contract end from must be on or before contract end to", 5000, Notification.Position.TOP_CENTER);
+                }
+                return;
+            }
+            Map<String, Integer> minimums = new LinkedHashMap<>();
+            attributeFields.forEach((key, field) -> { if (field.getValue() != null) minimums.put(key, field.getValue()); });
+            Map<String, Double> roleMinimums = new LinkedHashMap<>();
+            coachingRoleFields.forEach((key, field) -> {
+                if (field.getValue() != null && !field.getValue().isBlank()) {
+                    roleMinimums.put(key, Double.parseDouble(field.getValue()));
+                }
+            });
+            staffFilter = new StaffFilterCriteria(name.getValue(), gender.getValue(), nationality.getValue(),
+                    club.getValue(), division.getValue(), job.getValue(), ageMin.getValue(), ageMax.getValue(),
+                    caMin.getValue(), caMax.getValue(), paMin.getValue(), paMax.getValue(), currentRepMin.getValue(),
+                    worldRepMin.getValue(), salaryMax.value(), contractFrom.getValue(), contractTo.getValue(), minimums,
+                    "", null, roleMinimums);
+            showStaff();
+            dialog.close();
+        });
+        apply.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        Button clear = new Button("Clear", VaadinIcon.TRASH.create(), event -> {
+            staffFilter = StaffFilterCriteria.empty();
+            showStaff();
+            updateStatus(null);
+            dialog.close();
+        });
+        Button cancel = new Button("Cancel", VaadinIcon.CLOSE_SMALL.create(), event -> dialog.close());
+        dialog.add(dialogTabs, dialogContent);
+        dialog.getFooter().add(clear, cancel, apply);
+        dialog.open();
+    }
+
     private void openClubFilterDialog() {
         Dialog dialog = new Dialog();
         dialog.setHeaderTitle("Club filter");
@@ -944,6 +1203,7 @@ public class MainView extends VerticalLayout {
     private void updateStatus(DatabaseLoadAllService.LoadAllResult result) {
         if (result == null) {
             status.setText("Players " + players.countPlayers()
+                    + " | Staff " + staff.countStaff()
                     + " | Clubs " + clubs.countClubs()
                     + " | Competitions " + competitions.countCompetitions());
             return;
@@ -951,6 +1211,7 @@ public class MainView extends VerticalLayout {
         status.setText("PID " + result.pid()
                 + " | Game date " + nullSafe(result.gameDate())
                 + " | Players " + result.players()
+                + " | Staff " + result.staff()
                 + " | Clubs " + result.clubs()
                 + " | Competitions " + result.competitions());
     }
@@ -1381,6 +1642,43 @@ public class MainView extends VerticalLayout {
         return display(column.value(left)).compareToIgnoreCase(display(column.value(right)));
     }
 
+    private static int compareStaffColumn(StaffEntity left, StaffEntity right, StaffColumn column) {
+        Object leftValue = column.value(left);
+        Object rightValue = column.value(right);
+        if (leftValue instanceof Number || rightValue instanceof Number) {
+            double leftNumber = leftValue instanceof Number number ? number.doubleValue() : Double.NEGATIVE_INFINITY;
+            double rightNumber = rightValue instanceof Number number ? number.doubleValue() : Double.NEGATIVE_INFINITY;
+            return Double.compare(leftNumber, rightNumber);
+        }
+        return display(leftValue).compareToIgnoreCase(display(rightValue));
+    }
+
+    private static String bestStaffRoleLabel(StaffEntity staff) {
+        return StaffRoleRatingCalculator.bestRating(staff)
+                .map(StaffRoleRatingCalculator.RoleRating::label).orElse("-");
+    }
+
+    private static Double bestStaffRoleStars(StaffEntity staff) {
+        return StaffRoleRatingCalculator.bestRating(staff)
+                .map(StaffRoleRatingCalculator.RoleRating::stars).orElse(null);
+    }
+
+    private static String starsDisplay(double stars) {
+        return String.format(Locale.ROOT, "%.1f ★", stars);
+    }
+
+    private static String roleAttributesDisplay(StaffRoleRatingCalculator.RoleRating role) {
+        return role.attributes().stream()
+                .map(attribute -> attribute.label() + " " + attribute.value() + " (" + attribute.quality() + ", ×" + attribute.weight() + ")")
+                .collect(java.util.stream.Collectors.joining(", "));
+    }
+
+    private static Component roleAttributesComponent(StaffRoleRatingCalculator.RoleRating role) {
+        Span attributes = new Span(roleAttributesDisplay(role));
+        attributes.getStyle().set("white-space", "normal").set("line-height", "1.35");
+        return attributes;
+    }
+
     private static Long roundedDisplayedWeeklySalary(Object value) {
         Long pounds = sortableLong(value);
         return pounds == null ? null : roundDisplayedWeeklySalary(pounds);
@@ -1637,6 +1935,11 @@ public class MainView extends VerticalLayout {
                 .toList();
     }
 
+    private static List<String> distinctStaffValues(List<StaffEntity> rows, String key) {
+        return rows.stream().map(row -> display(row.value(key))).filter(value -> !value.isBlank())
+                .distinct().sorted(String.CASE_INSENSITIVE_ORDER).toList();
+    }
+
     private static Object clubColumnValue(ClubEntity club, String column) {
         return switch (column) {
             case "NAME" -> club.getName();
@@ -1724,6 +2027,10 @@ public class MainView extends VerticalLayout {
         private Object value(PlayerEntity player) {
             return valueProvider.apply(player);
         }
+    }
+
+    private record StaffColumn(String key, String header, Function<StaffEntity, Object> valueProvider) {
+        private Object value(StaffEntity staff) { return valueProvider.apply(staff); }
     }
 
     private record GridColumn(String key, String header) {

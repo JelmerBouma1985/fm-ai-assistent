@@ -64,6 +64,7 @@ public class SnapshotStatusService {
         putNumber(out, "fm_pid", values.get("fm_pid"));
         putNumber(out, "fm_build", values.get("fm_build"));
         putNumber(out, "players", values.get("players_count"));
+        putNumber(out, "staff", values.get("staff_count"));
         putNumber(out, "clubs", values.get("clubs_count"));
         putNumber(out, "competitions", values.get("competitions_count"));
 
@@ -129,6 +130,7 @@ public class SnapshotStatusService {
         out.put("pid", result.pid());
         out.put("game_date", result.gameDate());
         out.put("players", result.players());
+        out.put("staff", result.staff());
         out.put("clubs", result.clubs());
         out.put("competitions", result.competitions());
         out.put("snapshot", reference());

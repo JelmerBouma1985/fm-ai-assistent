@@ -107,7 +107,7 @@ class McpProtocolCompatibilityTest {
                     .findFirst()
                     .orElse(tools.body());
             JsonNode listedTools = mapper.readTree(data).path("result").path("tools");
-            assertEquals(17, listedTools.size());
+            assertEquals(20, listedTools.size());
             Set<String> names = listedTools.valueStream()
                     .map(tool -> tool.path("name").asText())
                     .collect(Collectors.toSet());
@@ -116,6 +116,9 @@ class McpProtocolCompatibilityTest {
                     "fm26_find_players",
                     "fm26_get_club_context",
                     "fm26_get_player_details",
+                    "fm26_find_staff",
+                    "fm26_get_staff_details",
+                    "fm26_get_staff_coaching_roles",
                     "fm26_get_role_attributes",
                     "fm26_transfer_shortlist",
                     "fm26_create_shortlist_file",
@@ -137,6 +140,20 @@ class McpProtocolCompatibilityTest {
                     .path("shortlistName").path("type").asText());
             assertEquals("array", createShortlist.path("inputSchema").path("properties")
                     .path("playerUniqueIds").path("type").asText());
+            JsonNode findStaff = listedTools.valueStream()
+                    .filter(tool -> "fm26_find_staff".equals(tool.path("name").asText()))
+                    .findFirst()
+                    .orElseThrow();
+            assertEquals("object", findStaff.path("inputSchema").path("properties")
+                    .path("minimumAttributes").path("type").asText());
+            assertEquals("number", findStaff.path("inputSchema").path("properties")
+                    .path("minimumCoachingStars").path("type").asText());
+            JsonNode staffDetails = listedTools.valueStream()
+                    .filter(tool -> "fm26_get_staff_details".equals(tool.path("name").asText()))
+                    .findFirst()
+                    .orElseThrow();
+            assertEquals("integer", staffDetails.path("inputSchema").path("properties")
+                    .path("staffUniqueId").path("type").asText());
             JsonNode scenario = listedTools.valueStream()
                     .filter(tool -> "fm26_plan_squad_moves".equals(tool.path("name").asText()))
                     .findFirst()

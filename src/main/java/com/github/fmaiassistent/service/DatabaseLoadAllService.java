@@ -27,6 +27,7 @@ public class DatabaseLoadAllService {
     private final PlayerDatabaseService players;
     private final ClubDatabaseService clubs;
     private final CompetitionDatabaseService competitions;
+    private final StaffDatabaseService staff;
     private final DatabaseService databaseService;
     private final ManagedClubContextService managedClubContexts;
     private final LoadMetadataRepository metadata;
@@ -35,12 +36,14 @@ public class DatabaseLoadAllService {
             PlayerDatabaseService players,
             ClubDatabaseService clubs,
             CompetitionDatabaseService competitions,
+            StaffDatabaseService staff,
             DatabaseService databaseService,
             ManagedClubContextService managedClubContexts,
             LoadMetadataRepository metadata) {
         this.players = players;
         this.clubs = clubs;
         this.competitions = competitions;
+        this.staff = staff;
         this.databaseService = databaseService;
         this.managedClubContexts = managedClubContexts;
         this.metadata = metadata;
@@ -49,6 +52,7 @@ public class DatabaseLoadAllService {
     @Caching(evict = {
             @CacheEvict(cacheNames = JCacheConfiguration.PLAYERS_CACHE, allEntries = true),
             @CacheEvict(cacheNames = JCacheConfiguration.PLAYERS_WITH_CLUBS_CACHE, allEntries = true),
+            @CacheEvict(cacheNames = JCacheConfiguration.STAFF_WITH_CLUBS_CACHE, allEntries = true),
             @CacheEvict(cacheNames = JCacheConfiguration.NATIONS_CACHE, allEntries = true),
             @CacheEvict(cacheNames = JCacheConfiguration.COMPETITIONS_CACHE, allEntries = true),
             @CacheEvict(cacheNames = JCacheConfiguration.CLUB_NAMES_CACHE, allEntries = true),
@@ -63,6 +67,7 @@ public class DatabaseLoadAllService {
             int resolvedPid = pid == null ? detectFmPid() : pid;
             databaseService.clearAllTables();
             PlayerDatabaseService.LoadResult playerResult = players.loadAllPlayers(resolvedPid, build, gamePluginBase);
+            StaffDatabaseService.LoadResult staffResult = staff.loadAllStaff(resolvedPid, build, gamePluginBase);
             try {
                 managedClubContexts.refresh(resolvedPid, build, gamePluginBase);
             } catch (IOException | RuntimeException exception) {
@@ -80,6 +85,7 @@ public class DatabaseLoadAllService {
                     new LoadMetadataEntity("fm_pid", String.valueOf(resolvedPid)),
                     new LoadMetadataEntity("fm_build", String.valueOf(build)),
                     new LoadMetadataEntity("players_count", String.valueOf(playerResult.count())),
+                    new LoadMetadataEntity("staff_count", String.valueOf(staffResult.count())),
                     new LoadMetadataEntity("clubs_count", String.valueOf(clubCount)),
                     new LoadMetadataEntity("competitions_count", String.valueOf(competitionCount))));
             ManagedClubContext managedClub = managedClubContexts.current();
@@ -95,6 +101,7 @@ public class DatabaseLoadAllService {
                     resolvedPid,
                     playerResult.gameDate(),
                     playerResult.count(),
+                    staffResult.count(),
                     clubCount,
                     competitionCount,
                     snapshotId);
@@ -136,6 +143,7 @@ public class DatabaseLoadAllService {
             int pid,
             String gameDate,
             long players,
+            long staff,
             long clubs,
             long competitions,
             String snapshotId) {

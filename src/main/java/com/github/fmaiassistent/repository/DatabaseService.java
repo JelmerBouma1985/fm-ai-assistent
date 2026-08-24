@@ -14,6 +14,7 @@ public class DatabaseService {
 
     private final List<String> TABLES_TO_TRUNCATE = List.of(
             "PLAYERS",
+            "STAFF",
             "CLUBS",
             "COMPETITIONS",
             "LOAD_METADATA"
@@ -27,6 +28,7 @@ public class DatabaseService {
     @Caching(evict = {
             @CacheEvict(cacheNames = JCacheConfiguration.PLAYERS_CACHE, allEntries = true),
             @CacheEvict(cacheNames = JCacheConfiguration.PLAYERS_WITH_CLUBS_CACHE, allEntries = true),
+            @CacheEvict(cacheNames = JCacheConfiguration.STAFF_WITH_CLUBS_CACHE, allEntries = true),
             @CacheEvict(cacheNames = JCacheConfiguration.NATIONS_CACHE, allEntries = true),
             @CacheEvict(cacheNames = JCacheConfiguration.COMPETITIONS_CACHE, allEntries = true),
             @CacheEvict(cacheNames = JCacheConfiguration.CLUB_NAMES_CACHE, allEntries = true),

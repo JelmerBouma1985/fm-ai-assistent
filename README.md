@@ -4,7 +4,7 @@ FM AI Assistent is a local companion app for **Football Manager 2026** on Window
 
 It reads your loaded FM26 save directly from memory so you can:
 
-- search and compare players, clubs and competitions;
+- search and compare players, staff, clubs and competitions;
 - inspect attributes, positions, contracts, wages and budgets;
 - ask an AI assistant for recruitment, squad and tactical advice;
 - give the AI extra context about your managed club and an exported `.fmf` tactic.
@@ -61,7 +61,11 @@ The application is available at [http://127.0.0.1:8080](http://127.0.0.1:8080). 
 2. Start FM AI Assistent as the same computer user as FM26.
 3. Open [http://127.0.0.1:8080](http://127.0.0.1:8080) if it did not open automatically.
 4. Select **Load data**.
-5. Browse the **Players**, **Clubs** and **Competitions** tabs, or open **AI assistent**.
+5. Browse the **Players**, **Staff**, **Clubs** and **Competitions** tabs, or open **AI assistent**.
+
+The **Staff** tab includes job, club, division, ability, reputation, salary, contract and English attribute filters. Its dedicated **Coaching roles** filter tab lists all nine assignments and lets you set an independent minimum star rating for each one; a staff member must satisfy every selected role threshold. The table shows every staff member's best training assignment. Select a staff member to inspect all nine FM26 coaching ratings, their role-specific weighted attributes, the calculated 0-20 score and its English quality tier.
+
+For agent-driven staff recruitment, call `fm26_get_staff_coaching_roles` to discover the supported assignment keys and formula, then pass `coachingRole` and `minimumCoachingStars` to `fm26_find_staff`. Use `fm26_get_staff_details` with the returned FM Unique ID to compare the complete attribute and role-rating breakdown.
 
 Select **Load data** again after opening another save, changing clubs or advancing to data you want the app to refresh.
 
@@ -151,6 +155,9 @@ Antigravity cannot show an approval popup during a headless chat. Add the follow
       "mcp(fm-ai-assistent/fm26_find_players)",
       "mcp(fm-ai-assistent/fm26_get_club_context)",
       "mcp(fm-ai-assistent/fm26_get_player_details)",
+      "mcp(fm-ai-assistent/fm26_find_staff)",
+      "mcp(fm-ai-assistent/fm26_get_staff_details)",
+      "mcp(fm-ai-assistent/fm26_get_staff_coaching_roles)",
       "mcp(fm-ai-assistent/fm26_get_role_attributes)",
       "mcp(fm-ai-assistent/fm26_transfer_shortlist)",
       "mcp(fm-ai-assistent/fm26_get_data_status)",

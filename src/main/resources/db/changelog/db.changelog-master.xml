@@ -432,4 +432,68 @@
             <column name="player_unique_id"/>
         </createIndex>
     </changeSet>
+
+    <changeSet id="007-staff" author="codex">
+        <createTable tableName="staff">
+            <column name="id" type="BIGINT" autoIncrement="true"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="staff_index" type="INT"/>
+            <column name="record_address" type="VARCHAR(32)"/>
+            <column name="unique_id" type="BIGINT"/>
+            <column name="name" type="VARCHAR(1024)"/>
+            <column name="gender" type="VARCHAR(16)"/>
+            <column name="nationality" type="VARCHAR(1024)"/>
+            <column name="club" type="VARCHAR(1024)"/>
+            <column name="club_id" type="BIGINT"/>
+            <column name="division" type="VARCHAR(1024)"/>
+            <column name="job_id" type="INT"/>
+            <column name="job" type="VARCHAR(128)"/>
+            <column name="date_of_birth" type="VARCHAR(32)"/>
+            <column name="age" type="INT"/>
+            <column name="age_as_of" type="VARCHAR(32)"/>
+            <column name="salary_weekly_raw" type="BIGINT"/>
+            <column name="contract_end_date" type="VARCHAR(32)"/>
+            <column name="home_reputation" type="INT"/>
+            <column name="current_reputation" type="INT"/>
+            <column name="world_reputation" type="INT"/>
+            <column name="ca" type="INT"/>
+            <column name="pa" type="INT"/>
+            <column name="attacking" type="INT"/>
+            <column name="defending" type="INT"/>
+            <column name="fitness" type="INT"/>
+            <column name="possession" type="INT"/>
+            <column name="technical" type="INT"/>
+            <column name="tactical" type="INT"/>
+            <column name="set_pieces" type="INT"/>
+            <column name="determination" type="INT"/>
+            <column name="people_management" type="INT"/>
+            <column name="motivating" type="INT"/>
+            <column name="judging_player_ability" type="INT"/>
+            <column name="judging_player_potential" type="INT"/>
+            <column name="judging_staff_ability" type="INT"/>
+            <column name="negotiating" type="INT"/>
+            <column name="tactical_knowledge" type="INT"/>
+            <column name="physiotherapy" type="INT"/>
+            <column name="sports_science" type="INT"/>
+            <column name="data_analysis" type="INT"/>
+            <column name="working_with_youngsters" type="INT"/>
+            <column name="goalkeeping_distribution" type="INT"/>
+            <column name="goalkeeping_handling" type="INT"/>
+            <column name="goalkeeping_shot_stopping" type="INT"/>
+        </createTable>
+        <createIndex indexName="idx_staff_unique_id" tableName="staff"><column name="unique_id"/></createIndex>
+        <createIndex indexName="idx_staff_name" tableName="staff"><column name="name"/></createIndex>
+        <createIndex indexName="idx_staff_club" tableName="staff"><column name="club"/></createIndex>
+        <createIndex indexName="idx_staff_job" tableName="staff"><column name="job"/></createIndex>
+        <createIndex indexName="idx_staff_club_id" tableName="staff"><column name="club_id"/></createIndex>
+        <addForeignKeyConstraint baseTableName="staff" baseColumnNames="club_id"
+                                 referencedTableName="clubs" referencedColumnNames="id"
+                                 constraintName="fk_staff_club" onDelete="SET NULL"/>
+    </changeSet>
+
+    <changeSet id="008-fm26-staff-role-attributes" author="codex">
+        <addColumn tableName="staff">
+            <column name="authority" type="INT"/>
+            <column name="goalkeeping" type="INT"/>
+        </addColumn>
+    </changeSet>
 </databaseChangeLog>
