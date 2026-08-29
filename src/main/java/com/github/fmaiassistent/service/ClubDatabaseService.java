@@ -42,8 +42,16 @@ public class ClubDatabaseService {
     @Transactional
     public LoadResult loadAllClubs(int pid, int build, Long gamePluginBase) throws IOException {
         competitionDatabaseService.loadAllCompetitions(pid, build, gamePluginBase);
+        return saveAllClubs(exportAllClubs(pid, build, gamePluginBase));
+    }
+
+    public ClubExporter.ExportResult exportAllClubs(int pid, int build, Long gamePluginBase) throws IOException {
+        return exporter.exportAllClubs(pid, build, gamePluginBase);
+    }
+
+    @Transactional
+    public LoadResult saveAllClubs(ClubExporter.ExportResult result) {
         Map<Long, CompetitionEntity> competitionsByAddress = competitionsByAddress();
-        ClubExporter.ExportResult result = exporter.exportAllClubs(pid, build, gamePluginBase);
         clubs.saveAll(result.rows().stream()
                 .map(row -> clubEntity(row, competitionsByAddress))
                 .toList());

@@ -46,8 +46,16 @@ public class PlayerDatabaseService {
     @Transactional
     public LoadResult loadAllPlayers(int pid, int build, Long gamePluginBase) throws IOException {
         clubDatabaseService.loadAllClubs(pid, build, gamePluginBase);
+        return saveAllPlayers(exportAllPlayers(pid, build, gamePluginBase));
+    }
+
+    public PlayerExporter.ExportResult exportAllPlayers(int pid, int build, Long gamePluginBase) throws IOException {
+        return exporter.exportAllPlayers(pid, build, gamePluginBase);
+    }
+
+    @Transactional
+    public LoadResult saveAllPlayers(PlayerExporter.ExportResult result) {
         Map<Long, ClubEntity> clubsByAddress = clubsByAddress();
-        PlayerExporter.ExportResult result = exporter.exportAllPlayers(pid, build, gamePluginBase);
         players.saveAll(result.rows().stream()
                 .map(row -> playerEntity(row, clubsByAddress))
                 .toList());

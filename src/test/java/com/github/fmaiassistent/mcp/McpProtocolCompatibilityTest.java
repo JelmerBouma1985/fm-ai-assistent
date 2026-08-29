@@ -1,6 +1,11 @@
 package com.github.fmaiassistent.mcp;
 
+import com.github.fmaiassistent.exporter.ClubExporter;
+import com.github.fmaiassistent.exporter.CompetitionExporter;
+import com.github.fmaiassistent.exporter.PlayerExporter;
+import com.github.fmaiassistent.exporter.StaffExporter;
 import com.github.fmaiassistent.repository.DatabaseService;
+import com.github.fmaiassistent.service.SnapshotDatabaseWriter;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,6 +20,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -46,7 +53,43 @@ class McpProtocolCompatibilityTest {
     private DatabaseService database;
 
     @Autowired
+    private SnapshotDatabaseWriter snapshotWriter;
+
+    @Autowired
     private PlatformTransactionManager transactions;
+
+    @Test
+    void batchSnapshotWriterPersistsFieldsAndRelationships() {
+        database.clearAllTables();
+        Map<Long, Long> competitions = snapshotWriter.saveCompetitions(new CompetitionExporter.ExportResult(List.of(
+                Map.of("sourceAddress", 100L, "name", "Test League", "nation", "Netherlands",
+                        "reputation", 150, "gender", "male"))));
+        Map<Long, Long> clubs = snapshotWriter.saveClubs(new ClubExporter.ExportResult(List.of(
+                Map.of("sourceAddress", 200L, "_competition_address", 100L, "name", "Test Club",
+                        "gender", "male", "competition", "Test League", "reputation", 7000,
+                        "nation", "Netherlands"))), competitions);
+        snapshotWriter.savePlayers(new PlayerExporter.ExportResult("2033-06-23", List.of(
+                Map.of("index", "7", "record", "0x123", "unique_id", 300L, "name", "Test Player",
+                        "club", "Test Club", "playing_club", "Test Club", "ca", 150, "pa", 170,
+                        "_club_address", 200L, "_playing_club_address", 200L))), clubs);
+        snapshotWriter.saveStaff(new StaffExporter.ExportResult("2033-06-23", List.of(
+                Map.of("staff_index", 8, "record_address", "0x456", "unique_id", 400L,
+                        "name", "Test Coach", "club", "Test Club", "ca", 160, "pa", 165,
+                        "attacking", 18, "_club_address", 200L))), clubs);
+
+        assertEquals(1, jdbc.queryForObject("""
+                SELECT COUNT(*) FROM players p
+                JOIN clubs c ON c.id = p.club_id
+                JOIN competitions co ON co.id = c.competition_id
+                WHERE p.unique_id = 300 AND c.name = 'Test Club' AND co.name = 'Test League'
+                """, Integer.class));
+        assertEquals(18, jdbc.queryForObject("""
+                SELECT s.attacking FROM staff s
+                JOIN clubs c ON c.id = s.club_id
+                WHERE s.unique_id = 400 AND c.name = 'Test Club'
+                """, Integer.class));
+        database.clearAllTables();
+    }
 
     @Test
     void failedSnapshotReplacementRollsBackAndPreservesRecruitmentEvidence() {
@@ -57,11 +100,16 @@ class McpProtocolCompatibilityTest {
         assertThrows(IllegalStateException.class, () -> new TransactionTemplate(transactions)
                 .executeWithoutResult(status -> {
                     database.clearAllTables();
+                    snapshotWriter.saveCompetitions(new CompetitionExporter.ExportResult(List.of(
+                            Map.of("sourceAddress", 999L, "name", "Uncommitted League",
+                                    "nation", "Netherlands", "reputation", 100, "gender", "male"))));
                     throw new IllegalStateException("simulated RAM read failure");
                 }));
 
         assertEquals(1, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM competitions WHERE name = 'Rollback League'", Integer.class));
+        assertEquals(0, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM competitions WHERE name = 'Uncommitted League'", Integer.class));
         assertEquals(1, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM recruitment_case WHERE player_unique_id = 2099999999", Integer.class));
 

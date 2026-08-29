@@ -7,6 +7,7 @@
 - Calculates FM26 ratings for all nine training assignments from their exact role-specific attribute weights, including the new Authority and singular Goalkeeping attributes
 - Shows each staff member's best coaching assignment in the Staff table and a complete role breakdown with 0-20 score, quality tier, stars and weighted attributes in their profile
 - Adds `fm26_find_staff`, `fm26_get_staff_details` and `fm26_get_staff_coaching_roles` MCP tools so AI agents can search, rank and explain staff decisions by authoritative FM Unique ID and coaching-role fit
+- Speeds up data refreshes by extracting players, staff, clubs and competitions from FM26 RAM concurrently and replacing Hibernate's per-entity snapshot writes with bounded JDBC batches, while retaining rollback-safe atomic replacement
 
 ## 1.1.0
 ### Most important

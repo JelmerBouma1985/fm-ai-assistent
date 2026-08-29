@@ -67,7 +67,7 @@ The **Staff** tab includes job, club, division, ability, reputation, salary, con
 
 For agent-driven staff recruitment, call `fm26_get_staff_coaching_roles` to discover the supported assignment keys and formula, then pass `coachingRole` and `minimumCoachingStars` to `fm26_find_staff`. Use `fm26_get_staff_details` with the returned FM Unique ID to compare the complete attribute and role-rating breakdown.
 
-Select **Load data** again after opening another save, changing clubs or advancing to data you want the app to refresh.
+Select **Load data** again after opening another save, changing clubs or advancing to data you want the app to refresh. Player, staff, club and competition data is extracted from RAM concurrently and written with bounded database batches; the completed results are committed as one atomic local snapshot, so a failed reader or database write leaves the previous snapshot available.
 
 ![Player database after loading Football Manager 2026 data](screenshots/players_tab.png)
 
@@ -146,7 +146,7 @@ Codex asks for approval in the app before using tools that require permission.
 ```
 
 Antigravity cannot show an approval popup during a headless chat. Add the following FM26 tool permissions to the existing `permissions.allow` list in `~/.gemini/antigravity-cli/settings.json`:
-
+``
 ```json
 {
   "permissions": {

@@ -1,6 +1,10 @@
 package com.github.fmaiassistent.service;
 
 import com.github.fmaiassistent.config.JCacheConfiguration;
+import com.github.fmaiassistent.exporter.ClubExporter;
+import com.github.fmaiassistent.exporter.CompetitionExporter;
+import com.github.fmaiassistent.exporter.PlayerExporter;
+import com.github.fmaiassistent.exporter.StaffExporter;
 import com.github.fmaiassistent.linux.FmOffsets;
 import com.github.fmaiassistent.linux.ProcessInfo;
 import com.github.fmaiassistent.managedclub.ManagedClubContext;
@@ -15,11 +19,20 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.io.IOException;
+import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class DatabaseLoadAllService {
@@ -29,6 +42,7 @@ public class DatabaseLoadAllService {
     private final CompetitionDatabaseService competitions;
     private final StaffDatabaseService staff;
     private final DatabaseService databaseService;
+    private final SnapshotDatabaseWriter snapshotWriter;
     private final ManagedClubContextService managedClubContexts;
     private final LoadMetadataRepository metadata;
 
@@ -38,6 +52,7 @@ public class DatabaseLoadAllService {
             CompetitionDatabaseService competitions,
             StaffDatabaseService staff,
             DatabaseService databaseService,
+            SnapshotDatabaseWriter snapshotWriter,
             ManagedClubContextService managedClubContexts,
             LoadMetadataRepository metadata) {
         this.players = players;
@@ -45,6 +60,7 @@ public class DatabaseLoadAllService {
         this.competitions = competitions;
         this.staff = staff;
         this.databaseService = databaseService;
+        this.snapshotWriter = snapshotWriter;
         this.managedClubContexts = managedClubContexts;
         this.metadata = metadata;
     }
@@ -65,9 +81,25 @@ public class DatabaseLoadAllService {
         try {
             managedClubContexts.markUnavailable("Managed club detection is waiting for the current RAM load");
             int resolvedPid = pid == null ? detectFmPid() : pid;
+            RamSnapshot ram = readRamInParallel(resolvedPid, build, gamePluginBase);
+            long persistenceStarted = System.nanoTime();
+            logAfterCommit(persistenceStarted);
+            long stepStarted = System.nanoTime();
             databaseService.clearAllTables();
-            PlayerDatabaseService.LoadResult playerResult = players.loadAllPlayers(resolvedPid, build, gamePluginBase);
-            StaffDatabaseService.LoadResult staffResult = staff.loadAllStaff(resolvedPid, build, gamePluginBase);
+            log.info("FM26 database clear completed in {} ms", elapsedMillis(stepStarted));
+            stepStarted = System.nanoTime();
+            Map<Long, Long> competitionIds = snapshotWriter.saveCompetitions(ram.competitions());
+            log.info("FM26 competition persistence completed in {} ms", elapsedMillis(stepStarted));
+            stepStarted = System.nanoTime();
+            Map<Long, Long> clubIds = snapshotWriter.saveClubs(ram.clubs(), competitionIds);
+            log.info("FM26 club persistence completed in {} ms", elapsedMillis(stepStarted));
+            stepStarted = System.nanoTime();
+            snapshotWriter.savePlayers(ram.players(), clubIds);
+            log.info("FM26 player persistence completed in {} ms", elapsedMillis(stepStarted));
+            stepStarted = System.nanoTime();
+            snapshotWriter.saveStaff(ram.staff(), clubIds);
+            log.info("FM26 staff persistence completed in {} ms", elapsedMillis(stepStarted));
+            stepStarted = System.nanoTime();
             try {
                 managedClubContexts.refresh(resolvedPid, build, gamePluginBase);
             } catch (IOException | RuntimeException exception) {
@@ -77,17 +109,26 @@ public class DatabaseLoadAllService {
                 managedClubContexts.markUnavailable(message);
                 log.warn("FM26 data loaded, but the current managed club could not be detected: {}", message);
             }
+            log.info("FM26 managed-club finalization completed in {} ms", elapsedMillis(stepStarted));
+            stepStarted = System.nanoTime();
             String snapshotId = UUID.randomUUID().toString();
-            long clubCount = clubs.countClubs();
-            long competitionCount = competitions.countCompetitions();
+            long playerCount = ram.players().rows().size();
+            long staffCount = ram.staff().rows().size();
+            long clubCount = ram.clubs().rows().size();
+            long competitionCount = ram.competitions().rows().size();
+            String loadedAt = OffsetDateTime.now().toString();
             List<LoadMetadataEntity> snapshotMetadata = new java.util.ArrayList<>(List.of(
                     new LoadMetadataEntity("snapshot_id", snapshotId),
                     new LoadMetadataEntity("fm_pid", String.valueOf(resolvedPid)),
                     new LoadMetadataEntity("fm_build", String.valueOf(build)),
-                    new LoadMetadataEntity("players_count", String.valueOf(playerResult.count())),
-                    new LoadMetadataEntity("staff_count", String.valueOf(staffResult.count())),
+                    new LoadMetadataEntity("players_count", String.valueOf(playerCount)),
+                    new LoadMetadataEntity("staff_count", String.valueOf(staffCount)),
                     new LoadMetadataEntity("clubs_count", String.valueOf(clubCount)),
-                    new LoadMetadataEntity("competitions_count", String.valueOf(competitionCount))));
+                    new LoadMetadataEntity("competitions_count", String.valueOf(competitionCount)),
+                    new LoadMetadataEntity("game_date", ram.players().gameDate()),
+                    new LoadMetadataEntity("loaded_at", loadedAt),
+                    new LoadMetadataEntity("clubs_loaded_at", loadedAt),
+                    new LoadMetadataEntity("competitions_loaded_at", loadedAt)));
             ManagedClubContext managedClub = managedClubContexts.current();
             if (managedClub.managerUniqueId() != null) {
                 snapshotMetadata.add(new LoadMetadataEntity(
@@ -97,11 +138,14 @@ public class DatabaseLoadAllService {
                 snapshotMetadata.add(new LoadMetadataEntity("career_key", managedClub.careerKey()));
             }
             metadata.saveAll(snapshotMetadata);
+            log.info("FM26 snapshot metadata persistence completed in {} ms", elapsedMillis(stepStarted));
+            log.info("FM26 database replacement and finalization prepared for commit in {} ms",
+                    elapsedMillis(persistenceStarted));
             return new LoadAllResult(
                     resolvedPid,
-                    playerResult.gameDate(),
-                    playerResult.count(),
-                    staffResult.count(),
+                    ram.players().gameDate(),
+                    playerCount,
+                    staffCount,
                     clubCount,
                     competitionCount,
                     snapshotId);
@@ -117,6 +161,82 @@ public class DatabaseLoadAllService {
                 .filter(process -> processScore(process) > 0)
                 .map(ProcessInfo::pid)
                 .orElseThrow(() -> new IllegalStateException("fm.exe process not found"));
+    }
+
+    private RamSnapshot readRamInParallel(int pid, int build, Long gamePluginBase) throws IOException {
+        long started = System.nanoTime();
+        ExecutorService executor = Executors.newFixedThreadPool(
+                4, Thread.ofPlatform().name("fm-ram-loader-", 0).factory());
+        Future<PlayerExporter.ExportResult> playerFuture = executor.submit(
+                () -> timedRamRead("players", () -> players.exportAllPlayers(pid, build, gamePluginBase)));
+        Future<StaffExporter.ExportResult> staffFuture = executor.submit(
+                () -> timedRamRead("staff", () -> staff.exportAllStaff(pid, build, gamePluginBase)));
+        Future<ClubExporter.ExportResult> clubFuture = executor.submit(
+                () -> timedRamRead("clubs", () -> clubs.exportAllClubs(pid, build, gamePluginBase)));
+        Future<CompetitionExporter.ExportResult> competitionFuture = executor.submit(
+                () -> timedRamRead("competitions", () -> competitions.exportAllCompetitions(pid, build, gamePluginBase)));
+        List<Future<?>> futures = List.of(playerFuture, staffFuture, clubFuture, competitionFuture);
+        try {
+            RamSnapshot snapshot = new RamSnapshot(
+                    await(playerFuture, "players"),
+                    await(staffFuture, "staff"),
+                    await(clubFuture, "clubs"),
+                    await(competitionFuture, "competitions"));
+            log.info("Parallel FM26 RAM extraction completed in {} ms", elapsedMillis(started));
+            return snapshot;
+        } catch (IOException | RuntimeException exception) {
+            futures.forEach(future -> future.cancel(true));
+            throw exception;
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private static <T> T timedRamRead(String dataType, IoSupplier<T> reader) throws IOException {
+        long started = System.nanoTime();
+        try {
+            T result = reader.get();
+            log.info("FM26 {} RAM extraction completed in {} ms", dataType, elapsedMillis(started));
+            return result;
+        } catch (IOException | RuntimeException exception) {
+            log.warn("FM26 {} RAM extraction failed after {} ms: {}",
+                    dataType, elapsedMillis(started), exception.getMessage());
+            throw exception;
+        }
+    }
+
+    private static <T> T await(Future<T> future, String dataType) throws IOException {
+        try {
+            return future.get();
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted while reading FM26 " + dataType + " data", exception);
+        } catch (ExecutionException exception) {
+            Throwable cause = exception.getCause();
+            if (cause instanceof IOException ioException) {
+                throw ioException;
+            }
+            if (cause instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            throw new IOException("Could not read FM26 " + dataType + " data", cause);
+        }
+    }
+
+    private static long elapsedMillis(long started) {
+        return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
+    }
+
+    private static void logAfterCommit(long started) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                log.info("FM26 database replacement and finalization committed in {} ms", elapsedMillis(started));
+            }
+        });
     }
 
     private static int processScore(ProcessInfo process) {
@@ -137,6 +257,18 @@ public class DatabaseLoadAllService {
             score -= 100;
         }
         return score;
+    }
+
+    @FunctionalInterface
+    private interface IoSupplier<T> {
+        T get() throws IOException;
+    }
+
+    private record RamSnapshot(
+            PlayerExporter.ExportResult players,
+            StaffExporter.ExportResult staff,
+            ClubExporter.ExportResult clubs,
+            CompetitionExporter.ExportResult competitions) {
     }
 
     public record LoadAllResult(

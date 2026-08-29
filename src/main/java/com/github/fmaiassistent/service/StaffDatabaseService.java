@@ -32,8 +32,16 @@ public class StaffDatabaseService {
 
     @Transactional
     public LoadResult loadAllStaff(int pid, int build, Long gamePluginBase) throws IOException {
+        return saveAllStaff(exportAllStaff(pid, build, gamePluginBase));
+    }
+
+    public StaffExporter.ExportResult exportAllStaff(int pid, int build, Long gamePluginBase) throws IOException {
+        return exporter.exportAllStaff(pid, build, gamePluginBase);
+    }
+
+    @Transactional
+    public LoadResult saveAllStaff(StaffExporter.ExportResult result) {
         Map<Long, ClubEntity> clubsByAddress = clubsByAddress();
-        StaffExporter.ExportResult result = exporter.exportAllStaff(pid, build, gamePluginBase);
         staff.saveAll(result.rows().stream().map(row -> entity(row, clubsByAddress)).toList());
         return new LoadResult(result.gameDate(), result.rows().size());
     }
