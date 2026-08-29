@@ -7,6 +7,8 @@ import com.github.fmaiassistent.memory.ProcessReaders;
 import com.github.fmaiassistent.player.AttributeDefinitions;
 import com.github.fmaiassistent.player.FieldDef;
 import com.github.fmaiassistent.linux.GameDateFinder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.time.DateTimeException;
@@ -16,6 +18,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static com.github.fmaiassistent.player.AttributeDefinitions.CURRENT_ABILITY_REL;
 import static com.github.fmaiassistent.player.AttributeDefinitions.CURRENT_REPUTATION_REL;
@@ -30,6 +33,7 @@ import static com.github.fmaiassistent.player.AttributeDefinitions.VISIBLE_FIELD
 import static com.github.fmaiassistent.player.AttributeDefinitions.WORLD_REPUTATION_REL;
 
 public class PlayerExporter {
+    private static final Logger log = LoggerFactory.getLogger(PlayerExporter.class);
     private static final int UNIQUE_ID_REL = 0x0C;
     private static final int HEIGHT_CM_REL = -0x5A;
     private static final int JOINED_CLUB_DATE_REL = -0x38;
@@ -44,7 +48,6 @@ public class PlayerExporter {
     private static final int FUTURE_TRANSFER_CONTRACT_END_DATE_REL = 0x110;
     private static final int FUTURE_TRANSFER_ACTIVE_REL = 0x100;
     private static final int FUTURE_TRANSFER_SENTINEL_REL = 0x104;
-    private static final int DUAL_PLAYER_STAFF_SHIFT = 0xF8;
     private static final int MAX_SOURCE_OFFSET = Math.max(
             POSITION_FIELDS.stream().mapToInt(FieldDef::offset).max().orElseThrow(),
             VISIBLE_FIELDS.stream().mapToInt(FieldDef::offset).max().orElseThrow())
@@ -68,7 +71,9 @@ public class PlayerExporter {
     public ExportResult exportAllPlayers(int pid, int build, Long gamePluginBase) throws IOException {
         try (ProcessMemoryReader reader = ProcessReaders.open(pid)) {
             FmOffsets.Bounds bounds = FmOffsets.peopleBounds(reader, build, gamePluginBase);
+            PersonMemoryClassifier classifier = new PersonMemoryClassifier(reader);
             List<Map<String, Object>> rows = new ArrayList<>();
+            PlayerExportDiagnostics diagnostics = new PlayerExportDiagnostics();
             for (long index = 0; index < bounds.count(); index++) {
                 long slotAddress = bounds.start() + index * 8;
                 var recordOpt = reader.qwordOrNull(slotAddress);
@@ -77,6 +82,16 @@ public class PlayerExporter {
                 }
                 long record = recordOpt.get();
                 try {
+                    PersonMemoryClassifier.Classification classification = classifier.classify(record);
+                    if (!classification.type().hasPlayerData()) {
+                        diagnostics.rejected(classification.type());
+                        continue;
+                    }
+                    Optional<PlayerMemoryLayout> layout = playerMemoryLayout(reader, record, classification.type());
+                    if (layout.isEmpty()) {
+                        diagnostics.invalidPlayerBlock++;
+                        continue;
+                    }
                     var contractedClubAddress = currentClubAddress(reader, record);
                     var playingClubAddress = playingClubAddress(reader, record);
                     if (playingClubAddress.isEmpty()) {
@@ -88,7 +103,8 @@ public class PlayerExporter {
                         contractedClubAddress = playingClubAddress;
                         contractedClub = playingClub;
                     }
-                    Map<String, Object> row = decodeRow(reader, (int) index, record, contractedClub, playingClub, null);
+                    Map<String, Object> row = decodeRow(
+                            reader, (int) index, record, contractedClub, playingClub, null, layout.get());
                     contractedClubAddress.ifPresent(value -> row.put("_club_address", value));
                     playingClubAddress.ifPresent(value -> row.put("_playing_club_address", value));
                     int ca = ((Number) row.get("ca")).intValue();
@@ -97,9 +113,21 @@ public class PlayerExporter {
                         continue;
                     }
                     rows.add(row);
+                    diagnostics.accepted(classification.type());
                 } catch (IOException | RuntimeException ignored) {
+                    diagnostics.unreadable++;
                 }
             }
+            log.info(
+                    "FM26 player classification: pure={}, playerStaff={}, rejectedStaff={}, "
+                            + "rejectedHumanManagers={}, rejectedUnknown={}, invalidPlayerBlocks={}, unreadable={}",
+                    diagnostics.purePlayers,
+                    diagnostics.playerStaff,
+                    diagnostics.rejectedStaff,
+                    diagnostics.rejectedHumanManagers,
+                    diagnostics.rejectedUnknown,
+                    diagnostics.invalidPlayerBlock,
+                    diagnostics.unreadable);
             LocalDate gameDate = gameDateFinder.find(reader, rows.size(), build, gamePluginBase).orElse(null);
             applyGameDate(rows, gameDate);
             rows.sort(Comparator.comparing(row -> String.valueOf(row.get("name")).toLowerCase()));
@@ -119,7 +147,20 @@ public class PlayerExporter {
             String club,
             String playingClub,
             LocalDate gameDate) throws IOException {
-        PlayerMemoryLayout layout = playerMemoryLayout(reader, record);
+        PersonMemoryClassifier.PersonType type = new PersonMemoryClassifier(reader).classify(record).type();
+        PlayerMemoryLayout layout = playerMemoryLayout(reader, record, type)
+                .orElseThrow(() -> new IOException("Person record is not a valid player: " + type));
+        return decodeRow(reader, index, record, club, playingClub, gameDate, layout);
+    }
+
+    private Map<String, Object> decodeRow(
+            ProcessMemoryReader reader,
+            int index,
+            long record,
+            String club,
+            String playingClub,
+            LocalDate gameDate,
+            PlayerMemoryLayout layout) throws IOException {
         byte[] data = reader.readBytes(record + layout.historyCopySourceRel(), MAX_SOURCE_OFFSET + 1);
 
         String loanClub = !club.isBlank() && !playingClub.equalsIgnoreCase(club) ? playingClub : "";
@@ -184,20 +225,26 @@ public class PlayerExporter {
         return row;
     }
 
-    private static PlayerMemoryLayout playerMemoryLayout(ProcessMemoryReader reader, long record) throws IOException {
-        int ca = reader.readI16(record + CURRENT_ABILITY_REL);
-        int pa = reader.readI16(record + POTENTIAL_ABILITY_REL);
-        if (validAbility(ca) && validAbility(pa)) {
-            return new PlayerMemoryLayout(0, HISTORY_COPY_SOURCE_REL, ca, pa);
+    static Optional<PlayerMemoryLayout> playerMemoryLayout(
+            ProcessMemoryReader reader,
+            long record,
+            PersonMemoryClassifier.PersonType type) throws IOException {
+        if (!type.hasPlayerData()) {
+            return Optional.empty();
         }
-
-        int alternateCa = reader.readI16(record + CURRENT_ABILITY_REL - DUAL_PLAYER_STAFF_SHIFT);
-        int alternatePa = reader.readI16(record + POTENTIAL_ABILITY_REL - DUAL_PLAYER_STAFF_SHIFT);
-        int alternateSourceRel = HISTORY_COPY_SOURCE_REL - DUAL_PLAYER_STAFF_SHIFT;
-        if (validAbility(alternateCa) && validAbility(alternatePa) && plausiblePlayerBlock(reader, record + alternateSourceRel)) {
-            return new PlayerMemoryLayout(-DUAL_PLAYER_STAFF_SHIFT, alternateSourceRel, alternateCa, alternatePa);
+        int shift = type == PersonMemoryClassifier.PersonType.PLAYER_STAFF
+                ? PersonMemoryClassifier.PLAYER_STAFF_SHIFT
+                : 0;
+        int relativeShift = -shift;
+        int sourceRel = HISTORY_COPY_SOURCE_REL + relativeShift;
+        int ca = reader.readI16(record + CURRENT_ABILITY_REL + relativeShift);
+        int pa = reader.readI16(record + POTENTIAL_ABILITY_REL + relativeShift);
+        if (!validAbility(ca)
+                || !validAbility(pa)
+                || !plausiblePlayerBlock(reader, record + sourceRel)) {
+            return Optional.empty();
         }
-        return new PlayerMemoryLayout(0, HISTORY_COPY_SOURCE_REL, ca, pa);
+        return Optional.of(new PlayerMemoryLayout(relativeShift, sourceRel, ca, pa));
     }
 
     private static boolean validAbility(int value) {
@@ -211,11 +258,14 @@ public class PlayerExporter {
                     .mapToInt(field -> data[field.offset() - SOURCE_OBJECT_BASE_OFFSET] & 0xff)
                     .filter(value -> value <= 20)
                     .count();
+            boolean hasPlayablePosition = POSITION_FIELDS.stream()
+                    .mapToInt(field -> data[field.offset() - SOURCE_OBJECT_BASE_OFFSET] & 0xff)
+                    .anyMatch(value -> value >= 1 && value <= 20);
             long plausibleAttributes = VISIBLE_FIELDS.stream()
                     .mapToInt(field -> data[field.offset() - SOURCE_OBJECT_BASE_OFFSET] & 0xff)
                     .filter(value -> value >= 1 && value <= 100)
                     .count();
-            return plausiblePositions >= 12 && plausibleAttributes >= 25;
+            return plausiblePositions >= 12 && hasPlayablePosition && plausibleAttributes >= 25;
         } catch (IOException | RuntimeException ex) {
             return false;
         }
@@ -531,9 +581,36 @@ public class PlayerExporter {
     private record FutureTransfer(boolean transferAgreed, String club, String date, String contractEndDate) {
     }
 
-    private record PlayerMemoryLayout(int recordRelShift, int historyCopySourceRel, int ca, int pa) {
-        private int relative(int rel) {
+    record PlayerMemoryLayout(int recordRelShift, int historyCopySourceRel, int ca, int pa) {
+        int relative(int rel) {
             return rel + recordRelShift;
+        }
+    }
+
+    private static final class PlayerExportDiagnostics {
+        private long purePlayers;
+        private long playerStaff;
+        private long rejectedStaff;
+        private long rejectedHumanManagers;
+        private long rejectedUnknown;
+        private long invalidPlayerBlock;
+        private long unreadable;
+
+        private void accepted(PersonMemoryClassifier.PersonType type) {
+            if (type == PersonMemoryClassifier.PersonType.PLAYER) {
+                purePlayers++;
+            } else if (type == PersonMemoryClassifier.PersonType.PLAYER_STAFF) {
+                playerStaff++;
+            }
+        }
+
+        private void rejected(PersonMemoryClassifier.PersonType type) {
+            switch (type) {
+                case STAFF -> rejectedStaff++;
+                case HUMAN_MANAGER -> rejectedHumanManagers++;
+                case UNKNOWN -> rejectedUnknown++;
+                default -> { }
+            }
         }
     }
 }

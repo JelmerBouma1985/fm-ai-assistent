@@ -12,7 +12,6 @@ import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -20,8 +19,6 @@ import java.util.Map;
 import java.util.Set;
 
 public class StaffExporter {
-    static final int STAFF_DYNAMIC_OFFSET = 0x100;
-    static final int HUMAN_MANAGER_DYNAMIC_OFFSET = 0x450;
     private static final int UNIQUE_ID_REL = 0x0C;
     private static final int STAFF_CA_REL = 0xDA;
     private static final int STAFF_PA_REL = 0xDC;
@@ -34,7 +31,7 @@ public class StaffExporter {
     public ExportResult exportAllStaff(int pid, int build, Long gamePluginBase) throws IOException {
         try (ProcessMemoryReader reader = ProcessReaders.open(pid)) {
             FmOffsets.Bounds bounds = FmOffsets.peopleBounds(reader, build, gamePluginBase);
-            Map<Long, Integer> dynamicOffsets = new HashMap<>();
+            PersonMemoryClassifier classifier = new PersonMemoryClassifier(reader);
             Set<Long> seenUniqueIds = new LinkedHashSet<>();
             List<Map<String, Object>> rows = new ArrayList<>();
             for (long index = 0; index < bounds.count(); index++) {
@@ -43,11 +40,12 @@ public class StaffExporter {
                     continue;
                 }
                 try {
-                    int dynamicOffset = dynamicOffset(reader, person.get(), dynamicOffsets);
-                    if (dynamicOffset != STAFF_DYNAMIC_OFFSET && dynamicOffset != HUMAN_MANAGER_DYNAMIC_OFFSET) {
+                    PersonMemoryClassifier.Classification classification = classifier.classify(person.get());
+                    if (!classification.type().hasStandaloneStaffData()) {
                         continue;
                     }
-                    Map<String, Object> row = decodeRow(reader, Math.toIntExact(index), person.get(), dynamicOffset);
+                    Map<String, Object> row = decodeRow(
+                            reader, Math.toIntExact(index), person.get(), classification.dynamicOffset());
                     long uniqueId = ((Number) row.get("unique_id")).longValue();
                     int ca = ((Number) row.get("ca")).intValue();
                     int pa = ((Number) row.get("pa")).intValue();
@@ -105,18 +103,6 @@ public class StaffExporter {
             row.put(attribute.key(), staffAttribute(attribute, attributes[attribute.offset()] & 0xff));
         }
         return row;
-    }
-
-    private static int dynamicOffset(ProcessMemoryReader reader, long person, Map<Long, Integer> cache) throws IOException {
-        long vtable = reader.readU64(person);
-        Integer cached = cache.get(vtable);
-        if (cached != null) {
-            return cached;
-        }
-        long metadata = reader.readU64(vtable - Long.BYTES);
-        int value = reader.readI32(metadata + 4);
-        cache.put(vtable, value);
-        return value;
     }
 
     private static String division(ProcessMemoryReader reader, Long team) {
