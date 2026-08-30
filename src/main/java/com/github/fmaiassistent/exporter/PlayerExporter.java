@@ -1,14 +1,10 @@
 package com.github.fmaiassistent.exporter;
 
 import com.github.fmaiassistent.linux.FmMemoryStrings;
-import com.github.fmaiassistent.linux.FmOffsets;
 import com.github.fmaiassistent.memory.ProcessMemoryReader;
-import com.github.fmaiassistent.memory.ProcessReaders;
 import com.github.fmaiassistent.player.AttributeDefinitions;
 import com.github.fmaiassistent.player.FieldDef;
 import com.github.fmaiassistent.linux.GameDateFinder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.time.DateTimeException;
@@ -33,7 +29,6 @@ import static com.github.fmaiassistent.player.AttributeDefinitions.VISIBLE_FIELD
 import static com.github.fmaiassistent.player.AttributeDefinitions.WORLD_REPUTATION_REL;
 
 public class PlayerExporter {
-    private static final Logger log = LoggerFactory.getLogger(PlayerExporter.class);
     private static final int UNIQUE_ID_REL = 0x0C;
     private static final int HEIGHT_CM_REL = -0x5A;
     private static final int JOINED_CLUB_DATE_REL = -0x38;
@@ -55,8 +50,6 @@ public class PlayerExporter {
 
     public static final List<String> FIELD_NAMES = buildFieldNames();
 
-    private final GameDateFinder gameDateFinder = new GameDateFinder();
-
     public ExportResult exportClub(int pid, String club, int build, Long gamePluginBase) throws IOException {
         ExportResult allPlayers = exportAllPlayers(pid, build, gamePluginBase);
         String target = club.toLowerCase();
@@ -69,70 +62,36 @@ public class PlayerExporter {
     }
 
     public ExportResult exportAllPlayers(int pid, int build, Long gamePluginBase) throws IOException {
-        try (ProcessMemoryReader reader = ProcessReaders.open(pid)) {
-            FmOffsets.Bounds bounds = FmOffsets.peopleBounds(reader, build, gamePluginBase);
-            PersonMemoryClassifier classifier = new PersonMemoryClassifier(reader);
-            List<Map<String, Object>> rows = new ArrayList<>();
-            PlayerExportDiagnostics diagnostics = new PlayerExportDiagnostics();
-            for (long index = 0; index < bounds.count(); index++) {
-                long slotAddress = bounds.start() + index * 8;
-                var recordOpt = reader.qwordOrNull(slotAddress);
-                if (recordOpt.isEmpty()) {
-                    continue;
-                }
-                long record = recordOpt.get();
-                try {
-                    PersonMemoryClassifier.Classification classification = classifier.classify(record);
-                    if (!classification.type().hasPlayerData()) {
-                        diagnostics.rejected(classification.type());
-                        continue;
-                    }
-                    Optional<PlayerMemoryLayout> layout = playerMemoryLayout(reader, record, classification.type());
-                    if (layout.isEmpty()) {
-                        diagnostics.invalidPlayerBlock++;
-                        continue;
-                    }
-                    var contractedClubAddress = currentClubAddress(reader, record);
-                    var playingClubAddress = playingClubAddress(reader, record);
-                    if (playingClubAddress.isEmpty()) {
-                        playingClubAddress = contractedClubAddress;
-                    }
-                    String contractedClub = contractedClubAddress.flatMap(value -> FmMemoryStrings.clubDisplayName(reader, value)).orElse("");
-                    String playingClub = playingClubAddress.flatMap(value -> FmMemoryStrings.clubDisplayName(reader, value)).orElse(contractedClub);
-                    if (contractedClub.isBlank() && !playingClub.isBlank() && playingClubAddress.isPresent()) {
-                        contractedClubAddress = playingClubAddress;
-                        contractedClub = playingClub;
-                    }
-                    Map<String, Object> row = decodeRow(
-                            reader, (int) index, record, contractedClub, playingClub, null, layout.get());
-                    contractedClubAddress.ifPresent(value -> row.put("_club_address", value));
-                    playingClubAddress.ifPresent(value -> row.put("_playing_club_address", value));
-                    int ca = ((Number) row.get("ca")).intValue();
-                    int pa = ((Number) row.get("pa")).intValue();
-                    if (ca <= 0 || ca > 200 || pa <= 0 || pa > 200) {
-                        continue;
-                    }
-                    rows.add(row);
-                    diagnostics.accepted(classification.type());
-                } catch (IOException | RuntimeException ignored) {
-                    diagnostics.unreadable++;
-                }
-            }
-            log.info(
-                    "FM26 player classification: pure={}, playerStaff={}, rejectedStaff={}, "
-                            + "rejectedHumanManagers={}, rejectedUnknown={}, invalidPlayerBlocks={}, unreadable={}",
-                    diagnostics.purePlayers,
-                    diagnostics.playerStaff,
-                    diagnostics.rejectedStaff,
-                    diagnostics.rejectedHumanManagers,
-                    diagnostics.rejectedUnknown,
-                    diagnostics.invalidPlayerBlock,
-                    diagnostics.unreadable);
-            LocalDate gameDate = gameDateFinder.find(reader, rows.size(), build, gamePluginBase).orElse(null);
-            applyGameDate(rows, gameDate);
-            rows.sort(Comparator.comparing(row -> String.valueOf(row.get("name")).toLowerCase()));
-            return new ExportResult(gameDate == null ? "" : gameDate.toString(), rows);
+        return new PeopleExporter().exportAllPlayers(pid, build, gamePluginBase);
+    }
+
+    static Optional<Map<String, Object>> decodeClassifiedRow(
+            ProcessMemoryReader reader,
+            int index,
+            long record,
+            PersonMemoryClassifier.PersonType type) throws IOException {
+        Optional<PlayerMemoryLayout> layout = playerMemoryLayout(reader, record, type);
+        if (layout.isEmpty()) {
+            return Optional.empty();
         }
+        var contractedClubAddress = currentClubAddress(reader, record);
+        var playingClubAddress = playingClubAddress(reader, record);
+        if (playingClubAddress.isEmpty()) {
+            playingClubAddress = contractedClubAddress;
+        }
+        String contractedClub = contractedClubAddress
+                .flatMap(value -> FmMemoryStrings.clubDisplayName(reader, value)).orElse("");
+        String playingClub = playingClubAddress
+                .flatMap(value -> FmMemoryStrings.clubDisplayName(reader, value)).orElse(contractedClub);
+        if (contractedClub.isBlank() && !playingClub.isBlank() && playingClubAddress.isPresent()) {
+            contractedClubAddress = playingClubAddress;
+            contractedClub = playingClub;
+        }
+        Map<String, Object> row = decodeRow(
+                reader, index, record, contractedClub, playingClub, null, layout.get());
+        contractedClubAddress.ifPresent(value -> row.put("_club_address", value));
+        playingClubAddress.ifPresent(value -> row.put("_playing_club_address", value));
+        return Optional.of(row);
     }
 
     public Map<String, Object> decodeRow(ProcessMemoryReader reader, int index, long record, String club, LocalDate gameDate) throws IOException {
@@ -153,7 +112,7 @@ public class PlayerExporter {
         return decodeRow(reader, index, record, club, playingClub, gameDate, layout);
     }
 
-    private Map<String, Object> decodeRow(
+    private static Map<String, Object> decodeRow(
             ProcessMemoryReader reader,
             int index,
             long record,
@@ -451,7 +410,7 @@ public class PlayerExporter {
         return age;
     }
 
-    private static void applyGameDate(List<Map<String, Object>> rows, LocalDate gameDate) {
+    static void applyGameDate(List<Map<String, Object>> rows, LocalDate gameDate) {
         for (Map<String, Object> row : rows) {
             String dobValue = String.valueOf(row.getOrDefault("date_of_birth", ""));
             if (gameDate == null || dobValue.isBlank()) {
@@ -587,30 +546,4 @@ public class PlayerExporter {
         }
     }
 
-    private static final class PlayerExportDiagnostics {
-        private long purePlayers;
-        private long playerStaff;
-        private long rejectedStaff;
-        private long rejectedHumanManagers;
-        private long rejectedUnknown;
-        private long invalidPlayerBlock;
-        private long unreadable;
-
-        private void accepted(PersonMemoryClassifier.PersonType type) {
-            if (type == PersonMemoryClassifier.PersonType.PLAYER) {
-                purePlayers++;
-            } else if (type == PersonMemoryClassifier.PersonType.PLAYER_STAFF) {
-                playerStaff++;
-            }
-        }
-
-        private void rejected(PersonMemoryClassifier.PersonType type) {
-            switch (type) {
-                case STAFF -> rejectedStaff++;
-                case HUMAN_MANAGER -> rejectedHumanManagers++;
-                case UNKNOWN -> rejectedUnknown++;
-                default -> { }
-            }
-        }
-    }
 }

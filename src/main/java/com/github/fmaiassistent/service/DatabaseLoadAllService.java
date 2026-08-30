@@ -3,6 +3,7 @@ package com.github.fmaiassistent.service;
 import com.github.fmaiassistent.config.JCacheConfiguration;
 import com.github.fmaiassistent.exporter.ClubExporter;
 import com.github.fmaiassistent.exporter.CompetitionExporter;
+import com.github.fmaiassistent.exporter.PeopleExporter;
 import com.github.fmaiassistent.exporter.PlayerExporter;
 import com.github.fmaiassistent.exporter.StaffExporter;
 import com.github.fmaiassistent.linux.FmOffsets;
@@ -37,28 +38,25 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class DatabaseLoadAllService {
     private static final Logger log = LoggerFactory.getLogger(DatabaseLoadAllService.class);
-    private final PlayerDatabaseService players;
     private final ClubDatabaseService clubs;
     private final CompetitionDatabaseService competitions;
-    private final StaffDatabaseService staff;
+    private final PeopleExporter peopleExporter;
     private final DatabaseService databaseService;
     private final SnapshotDatabaseWriter snapshotWriter;
     private final ManagedClubContextService managedClubContexts;
     private final LoadMetadataRepository metadata;
 
     public DatabaseLoadAllService(
-            PlayerDatabaseService players,
             ClubDatabaseService clubs,
             CompetitionDatabaseService competitions,
-            StaffDatabaseService staff,
+            PeopleExporter peopleExporter,
             DatabaseService databaseService,
             SnapshotDatabaseWriter snapshotWriter,
             ManagedClubContextService managedClubContexts,
             LoadMetadataRepository metadata) {
-        this.players = players;
         this.clubs = clubs;
         this.competitions = competitions;
-        this.staff = staff;
+        this.peopleExporter = peopleExporter;
         this.databaseService = databaseService;
         this.snapshotWriter = snapshotWriter;
         this.managedClubContexts = managedClubContexts;
@@ -166,20 +164,19 @@ public class DatabaseLoadAllService {
     private RamSnapshot readRamInParallel(int pid, int build, Long gamePluginBase) throws IOException {
         long started = System.nanoTime();
         ExecutorService executor = Executors.newFixedThreadPool(
-                4, Thread.ofPlatform().name("fm-ram-loader-", 0).factory());
-        Future<PlayerExporter.ExportResult> playerFuture = executor.submit(
-                () -> timedRamRead("players", () -> players.exportAllPlayers(pid, build, gamePluginBase)));
-        Future<StaffExporter.ExportResult> staffFuture = executor.submit(
-                () -> timedRamRead("staff", () -> staff.exportAllStaff(pid, build, gamePluginBase)));
+                3, Thread.ofPlatform().name("fm-ram-loader-", 0).factory());
+        Future<PeopleExporter.ExportResult> peopleFuture = executor.submit(
+                () -> timedRamRead("people", () -> peopleExporter.exportAllPeople(pid, build, gamePluginBase)));
         Future<ClubExporter.ExportResult> clubFuture = executor.submit(
                 () -> timedRamRead("clubs", () -> clubs.exportAllClubs(pid, build, gamePluginBase)));
         Future<CompetitionExporter.ExportResult> competitionFuture = executor.submit(
                 () -> timedRamRead("competitions", () -> competitions.exportAllCompetitions(pid, build, gamePluginBase)));
-        List<Future<?>> futures = List.of(playerFuture, staffFuture, clubFuture, competitionFuture);
+        List<Future<?>> futures = List.of(peopleFuture, clubFuture, competitionFuture);
         try {
+            PeopleExporter.ExportResult people = await(peopleFuture, "people");
             RamSnapshot snapshot = new RamSnapshot(
-                    await(playerFuture, "players"),
-                    await(staffFuture, "staff"),
+                    people.players(),
+                    people.staff(),
                     await(clubFuture, "clubs"),
                     await(competitionFuture, "competitions"));
             log.info("Parallel FM26 RAM extraction completed in {} ms", elapsedMillis(started));

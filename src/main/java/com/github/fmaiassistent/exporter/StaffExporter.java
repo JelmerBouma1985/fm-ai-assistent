@@ -1,22 +1,17 @@
 package com.github.fmaiassistent.exporter;
 
 import com.github.fmaiassistent.linux.FmMemoryStrings;
-import com.github.fmaiassistent.linux.FmOffsets;
 import com.github.fmaiassistent.linux.GameDateFinder;
 import com.github.fmaiassistent.memory.ProcessMemoryReader;
-import com.github.fmaiassistent.memory.ProcessReaders;
 import com.github.fmaiassistent.staff.StaffAttributeDefinitions;
 
 import java.io.IOException;
 import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public class StaffExporter {
     private static final int UNIQUE_ID_REL = 0x0C;
@@ -29,42 +24,7 @@ public class StaffExporter {
     public static final List<String> FIELD_NAMES = buildFieldNames();
 
     public ExportResult exportAllStaff(int pid, int build, Long gamePluginBase) throws IOException {
-        try (ProcessMemoryReader reader = ProcessReaders.open(pid)) {
-            FmOffsets.Bounds bounds = FmOffsets.peopleBounds(reader, build, gamePluginBase);
-            PersonMemoryClassifier classifier = new PersonMemoryClassifier(reader);
-            Set<Long> seenUniqueIds = new LinkedHashSet<>();
-            List<Map<String, Object>> rows = new ArrayList<>();
-            for (long index = 0; index < bounds.count(); index++) {
-                var person = reader.qwordOrNull(bounds.start() + index * Long.BYTES);
-                if (person.isEmpty()) {
-                    continue;
-                }
-                try {
-                    PersonMemoryClassifier.Classification classification = classifier.classify(person.get());
-                    if (!classification.type().hasStandaloneStaffData()) {
-                        continue;
-                    }
-                    Map<String, Object> row = decodeRow(
-                            reader, Math.toIntExact(index), person.get(), classification.dynamicOffset());
-                    long uniqueId = ((Number) row.get("unique_id")).longValue();
-                    int ca = ((Number) row.get("ca")).intValue();
-                    int pa = ((Number) row.get("pa")).intValue();
-                    String name = String.valueOf(row.get("name"));
-                    if (uniqueId <= 0 || name.isBlank() || !validAbility(ca) || !validAbility(pa)
-                            || !seenUniqueIds.add(uniqueId)) {
-                        continue;
-                    }
-                    rows.add(row);
-                } catch (IOException | RuntimeException ignored) {
-                    // FM collections contain several person subtypes. A single unreadable
-                    // object must not prevent the rest of the snapshot from loading.
-                }
-            }
-            LocalDate gameDate = new GameDateFinder().find(reader, rows.size(), build, gamePluginBase).orElse(null);
-            applyAges(rows, gameDate);
-            rows.sort(Comparator.comparing(row -> String.valueOf(row.get("name")), String.CASE_INSENSITIVE_ORDER));
-            return new ExportResult(gameDate == null ? "" : gameDate.toString(), rows);
-        }
+        return new PeopleExporter().exportAllStaff(pid, build, gamePluginBase);
     }
 
     Map<String, Object> decodeRow(ProcessMemoryReader reader, int index, long person, int dynamicOffset) throws IOException {
@@ -127,7 +87,7 @@ public class StaffExporter {
         return Math.max(0, Math.min(20, value));
     }
 
-    private static boolean validAbility(int value) {
+    static boolean validAbility(int value) {
         return value > 0 && value <= 200;
     }
 
@@ -158,7 +118,7 @@ public class StaffExporter {
         }
     }
 
-    private static void applyAges(List<Map<String, Object>> rows, LocalDate gameDate) {
+    static void applyAges(List<Map<String, Object>> rows, LocalDate gameDate) {
         for (Map<String, Object> row : rows) {
             String dob = String.valueOf(row.get("date_of_birth"));
             if (gameDate == null || dob.isBlank()) {

@@ -3,6 +3,7 @@ package com.github.fmaiassistent.service;
 import com.github.fmaiassistent.domain.entity.LoadMetadataEntity;
 import com.github.fmaiassistent.exporter.ClubExporter;
 import com.github.fmaiassistent.exporter.CompetitionExporter;
+import com.github.fmaiassistent.exporter.PeopleExporter;
 import com.github.fmaiassistent.exporter.PlayerExporter;
 import com.github.fmaiassistent.exporter.StaffExporter;
 import com.github.fmaiassistent.managedclub.ManagedClubContext;
@@ -33,17 +34,13 @@ class DatabaseLoadAllServiceTest {
     @Test
     void extractsIndependentRamTablesConcurrentlyBeforeAtomicPersistence() throws Exception {
         Fixture fixture = new Fixture();
-        CountDownLatch readersStarted = new CountDownLatch(4);
+        CountDownLatch readersStarted = new CountDownLatch(3);
         AtomicBoolean databaseCleared = new AtomicBoolean(false);
         List<String> persistenceOrder = Collections.synchronizedList(new ArrayList<>());
 
-        when(fixture.players.exportAllPlayers(123, 1530, null)).thenAnswer(invocation -> {
+        when(fixture.people.exportAllPeople(123, 1530, null)).thenAnswer(invocation -> {
             awaitOtherReaders(readersStarted, databaseCleared);
-            return new PlayerExporter.ExportResult("2033-06-10", Collections.nCopies(2, Map.of()));
-        });
-        when(fixture.staff.exportAllStaff(123, 1530, null)).thenAnswer(invocation -> {
-            awaitOtherReaders(readersStarted, databaseCleared);
-            return new StaffExporter.ExportResult("2033-06-10", List.of(Map.of()));
+            return peopleResult(2, 1);
         });
         when(fixture.clubs.exportAllClubs(123, 1530, null)).thenAnswer(invocation -> {
             awaitOtherReaders(readersStarted, databaseCleared);
@@ -89,11 +86,25 @@ class DatabaseLoadAllServiceTest {
     @Test
     void ramFailureDoesNotClearThePreviousSnapshot() throws Exception {
         Fixture fixture = new Fixture();
-        IOException failure = new IOException("staff RAM unavailable");
-        when(fixture.players.exportAllPlayers(123, 1530, null))
-                .thenReturn(new PlayerExporter.ExportResult("2033-06-10", List.of()));
-        when(fixture.staff.exportAllStaff(123, 1530, null)).thenThrow(failure);
+        IOException failure = new IOException("people RAM unavailable");
+        when(fixture.people.exportAllPeople(123, 1530, null)).thenThrow(failure);
         when(fixture.clubs.exportAllClubs(123, 1530, null)).thenReturn(new ClubExporter.ExportResult(List.of()));
+        when(fixture.competitions.exportAllCompetitions(123, 1530, null))
+                .thenReturn(new CompetitionExporter.ExportResult(List.of()));
+
+        assertThatThrownBy(() -> fixture.service.loadAll(123, 1530, null))
+                .isSameAs(failure);
+
+        verify(fixture.database, never()).clearAllTables();
+        verify(fixture.managedClubs).restore(fixture.previousContext);
+    }
+
+    @Test
+    void independentTableFailureAlsoPreventsPersistence() throws Exception {
+        Fixture fixture = new Fixture();
+        IOException failure = new IOException("club RAM unavailable");
+        when(fixture.people.exportAllPeople(123, 1530, null)).thenReturn(peopleResult(0, 0));
+        when(fixture.clubs.exportAllClubs(123, 1530, null)).thenThrow(failure);
         when(fixture.competitions.exportAllCompetitions(123, 1530, null))
                 .thenReturn(new CompetitionExporter.ExportResult(List.of()));
 
@@ -111,11 +122,22 @@ class DatabaseLoadAllServiceTest {
         assertThat(readersStarted.await(2, TimeUnit.SECONDS)).isTrue();
     }
 
+    private static PeopleExporter.ExportResult peopleResult(int players, int staff) {
+        return new PeopleExporter.ExportResult(
+                new PlayerExporter.ExportResult("2033-06-10", Collections.nCopies(players, Map.of())),
+                new StaffExporter.ExportResult("2033-06-10", Collections.nCopies(staff, Map.of())),
+                new PeopleExporter.Diagnostics(0, 0, 0, 0, 0, 0, 0, 0),
+                16,
+                12,
+                players + staff,
+                1,
+                1);
+    }
+
     private static final class Fixture {
-        private final PlayerDatabaseService players = mock(PlayerDatabaseService.class);
         private final ClubDatabaseService clubs = mock(ClubDatabaseService.class);
         private final CompetitionDatabaseService competitions = mock(CompetitionDatabaseService.class);
-        private final StaffDatabaseService staff = mock(StaffDatabaseService.class);
+        private final PeopleExporter people = mock(PeopleExporter.class);
         private final DatabaseService database = mock(DatabaseService.class);
         private final SnapshotDatabaseWriter writer = mock(SnapshotDatabaseWriter.class);
         private final ManagedClubContextService managedClubs = mock(ManagedClubContextService.class);
@@ -127,7 +149,7 @@ class DatabaseLoadAllServiceTest {
             when(managedClubs.current()).thenReturn(previousContext);
             when(managedClubs.refresh(123, 1530, null)).thenReturn(previousContext);
             service = new DatabaseLoadAllService(
-                    players, clubs, competitions, staff, database, writer, managedClubs, metadata);
+                    clubs, competitions, people, database, writer, managedClubs, metadata);
         }
     }
 }
