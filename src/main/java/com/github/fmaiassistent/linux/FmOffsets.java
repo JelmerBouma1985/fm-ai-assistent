@@ -1,6 +1,8 @@
 package com.github.fmaiassistent.linux;
 
 import com.github.fmaiassistent.memory.ProcessMemoryReader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -13,6 +15,7 @@ import java.util.OptionalLong;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class FmOffsets {
+    private static final Logger log = LoggerFactory.getLogger(FmOffsets.class);
     public static final int DEFAULT_BUILD = 0x238bdd;
     public static final String PEOPLE_SLOT = "PeopleOffset";
     private static final long MAX_SCAN_REGION_SIZE = 80_000_000L;
@@ -111,10 +114,16 @@ public final class FmOffsets {
         Long knownRva = BUILD_TO_TABLE_RVA.get(build);
         if (knownRva != null) {
             long candidate = gamePluginBase + knownRva;
-            if (tableScore(reader, candidate) >= MIN_VALID_TABLE_SCORE) {
+            int score = tableScore(reader, candidate);
+            if (score >= MIN_VALID_TABLE_SCORE) {
                 DETECTED_TABLE_BASES.put(cacheKey, candidate);
                 return candidate;
             }
+            log.info("FM offset lookup: known RVA for build 0x{} scored {} (minimum {}), falling back to scan",
+                    Integer.toHexString(build), score, MIN_VALID_TABLE_SCORE);
+        } else {
+            log.info("FM offset lookup: build 0x{} has no known RVA entry, scanning game_plugin.dll",
+                    Integer.toHexString(build));
         }
 
         long detected = scanOffsetTableBase(reader, gamePluginBase);
@@ -127,23 +136,31 @@ public final class FmOffsets {
                 .filter(MemoryRegion::readable)
                 .sorted(Comparator.comparingLong(MemoryRegion::start))
                 .toList();
-        List<MemoryRegion> pluginRegions = maps.stream()
+        List<MemoryRegion> candidateRegions = maps.stream()
                 .filter(region -> region.start() >= gamePluginBase)
                 .filter(region -> region.start() < gamePluginBase + GAME_PLUGIN_SCAN_RANGE)
+                .toList();
+        List<MemoryRegion> pluginRegions = candidateRegions.stream()
                 .filter(region -> region.size() <= MAX_SCAN_REGION_SIZE)
                 .sorted(Comparator
                         .comparing(MemoryRegion::writable).reversed()
                         .thenComparingLong(MemoryRegion::size))
                 .toList();
+        long largestCandidateSize = candidateRegions.stream().mapToLong(MemoryRegion::size).max().orElse(0);
+        log.info("FM offset scan: {} readable regions near game_plugin.dll base 0x{}, {} within size cap ({} skipped as oversized, largest {} bytes, cap {})",
+                candidateRegions.size(), Long.toHexString(gamePluginBase), pluginRegions.size(),
+                candidateRegions.size() - pluginRegions.size(), largestCandidateSize, MAX_SCAN_REGION_SIZE);
 
         long bestTable = 0;
         int bestScore = 0;
+        int unreadableRegions = 0;
         long maxSlot = SLOTS.values().stream().mapToLong(Long::longValue).max().orElseThrow();
         for (MemoryRegion region : pluginRegions) {
             byte[] data;
             try {
                 data = reader.readBytes(region.start(), Math.toIntExact(region.size()));
             } catch (IOException | ArithmeticException ex) {
+                unreadableRegions++;
                 continue;
             }
             ByteBuffer buffer = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN);
@@ -166,6 +183,8 @@ public final class FmOffsets {
             }
         }
         if (bestScore < MIN_VALID_TABLE_SCORE) {
+            log.warn("FM offset scan: best candidate scored {} (minimum {}) at 0x{}, {} regions failed to read",
+                    bestScore, MIN_VALID_TABLE_SCORE, Long.toHexString(bestTable), unreadableRegions);
             throw new IllegalStateException("FM offset table not found for game_plugin.dll base 0x"
                     + Long.toHexString(gamePluginBase));
         }
@@ -180,14 +199,14 @@ public final class FmOffsets {
         int score = 0;
         score += scoreExact(counts.get("ContinentOffset"), 7, 10);
         score += scoreExact(counts.get("RegionOffset"), 28, 10);
-        score += scoreRange(counts.get("PeopleOffset"), 30_000, 120_000, 5);
-        score += scoreRange(counts.get("TeamOffset"), 30_000, 90_000, 4);
-        score += scoreRange(counts.get("ClubOffset"), 10_000, 50_000, 4);
-        score += scoreRange(counts.get("CompetitionOffset"), 1_000, 20_000, 3);
+        score += scoreRange(counts.get("PeopleOffset"), 30_000, 500_000, 5);
+        score += scoreRange(counts.get("TeamOffset"), 30_000, 200_000, 4);
+        score += scoreRange(counts.get("ClubOffset"), 10_000, 100_000, 4);
+        score += scoreRange(counts.get("CompetitionOffset"), 1_000, 50_000, 3);
         score += scoreRange(counts.get("NationOffset"), 150, 400, 3);
         score += scoreRange(counts.get("CurrencyOffset"), 50, 300, 2);
-        score += scoreRange(counts.get("CityOffset"), 30_000, 120_000, 3);
-        score += scoreRange(counts.get("StadiumOffset"), 5_000, 50_000, 2);
+        score += scoreRange(counts.get("CityOffset"), 30_000, 300_000, 3);
+        score += scoreRange(counts.get("StadiumOffset"), 5_000, 150_000, 2);
         score += scoreRange(counts.get("AgreementOffset"), 0, 1_000, 1);
         return score;
     }
@@ -204,7 +223,7 @@ public final class FmOffsets {
                     return Map.of();
                 }
                 long count = (end - start) / 8;
-                if (count < 0 || count > 200_000) {
+                if (count < 0 || count > 500_000) {
                     return Map.of();
                 }
                 counts.put(slot.getKey(), count);
