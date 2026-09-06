@@ -1,6 +1,7 @@
 package com.github.fmaiassistent.linux;
 
 import com.github.fmaiassistent.memory.ProcessMemoryReader;
+import com.github.fmaiassistent.memory.MemoryRegion;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -61,39 +62,70 @@ public class LinuxProcessReader implements ProcessMemoryReader {
 
     public byte[] readBytes(long address, int size) throws IOException {
         if (size < 0) {
-            throw new IllegalArgumentException("size must be non-negative");
+            throw new IllegalArgumentException("size must not be negative");
         }
-        ByteBuffer buffer = ByteBuffer.allocate(size);
-        int total = 0;
-        while (total < size) {
+        byte[] result = new byte[size];
+        readInto(address, result, 0, size);
+        return result;
+    }
+
+    @Override
+    public void readInto(long address, byte[] target, int offset, int length) throws IOException {
+        ProcessMemoryReader.validateRead(address, target, offset, length);
+        ByteBuffer buffer = ByteBuffer.wrap(target, offset, length);
+        int startPosition = buffer.position();
+        while (buffer.hasRemaining()) {
+            int total = buffer.position() - startPosition;
             int n = mem.read(buffer, address + total);
             if (n < 0) {
                 break;
             }
-            total += n;
+            if (n == 0) {
+                throw new IOException("zero-byte read at 0x" + Long.toHexString(address + total));
+            }
         }
-        if (total != size) {
+        if (buffer.hasRemaining()) {
             throw new IOException("short read at 0x" + Long.toHexString(address));
         }
-        return buffer.array();
     }
 
     public List<MemoryRegion> maps() throws IOException {
+        return parseMaps(Files.readString(Path.of("/proc", Integer.toString(pid), "maps")));
+    }
+
+    static List<MemoryRegion> parseMaps(String contents) {
         List<MemoryRegion> regions = new ArrayList<>();
-        for (String line : Files.readString(Path.of("/proc", Integer.toString(pid), "maps")).split("\\R")) {
+        for (String line : contents.split("\\R")) {
             String[] parts = line.split("\\s+", 6);
             if (parts.length < 5) {
                 continue;
             }
             String[] range = parts[0].split("-", 2);
-            regions.add(new MemoryRegion(
-                    Long.parseUnsignedLong(range[0], 16),
-                    Long.parseUnsignedLong(range[1], 16),
-                    parts[1],
-                    Long.parseUnsignedLong(parts[2], 16),
-                    parts[3],
-                    parts[4],
-                    parts.length == 6 ? parts[5] : ""));
+            if (range.length != 2) {
+                continue;
+            }
+            try {
+                long start = Long.parseUnsignedLong(range[0], 16);
+                long end = Long.parseUnsignedLong(range[1], 16);
+                // /proc/<pid>/maps includes kernel-space entries such as
+                // ffffffffff600000-ffffffffff601000 [vsyscall]. Those unsigned
+                // addresses cannot be represented as positive Java longs and are
+                // outside the user-space range this reader can access.
+                if (start < 0 || end < 0 || start > ProcessMemoryReader.MAX_USER_ADDRESS || end <= start) {
+                    continue;
+                }
+                regions.add(new MemoryRegion(
+                        start,
+                        end,
+                        parts[1],
+                        Long.parseUnsignedLong(parts[2], 16),
+                        parts[3],
+                        parts[4],
+                        parts.length == 6 ? parts[5] : ""));
+            } catch (NumberFormatException ignored) {
+                // A concurrently exiting process can expose an incomplete line.
+                // Keep the valid snapshot entries instead of aborting every scan.
+            }
         }
         return regions;
     }

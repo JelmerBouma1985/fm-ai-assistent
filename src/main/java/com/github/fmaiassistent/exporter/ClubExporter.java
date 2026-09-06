@@ -36,14 +36,13 @@ public class ClubExporter {
     public ExportResult exportAllClubs(int pid, int build, Long gamePluginBase) throws IOException {
         try (ProcessMemoryReader reader = ProcessReaders.open(pid)) {
             FmOffsets.Bounds bounds = FmOffsets.tableBounds(reader, build, gamePluginBase, "TeamOffset");
+            PointerTable teams = PointerTable.read(reader, bounds, "Team");
             Map<String, Map<String, Object>> byClub = new LinkedHashMap<>();
-            for (long index = 0; index < bounds.count(); index++) {
-                long slotAddress = bounds.start() + index * 8;
-                var teamOpt = reader.qwordOrNull(slotAddress);
-                if (teamOpt.isEmpty()) {
+            for (int index = 0; index < teams.size(); index++) {
+                long team = teams.pointerAt(index);
+                if (team <= 0 || team > ProcessMemoryReader.MAX_USER_ADDRESS) {
                     continue;
                 }
-                long team = teamOpt.get();
                 try {
                     Map<String, Object> row = decodeTeamClub(reader, team);
                     if (row.isEmpty()) {

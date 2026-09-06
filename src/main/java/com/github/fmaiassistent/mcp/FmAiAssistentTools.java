@@ -15,8 +15,8 @@ import com.github.fmaiassistent.player.FieldDef;
 import com.github.fmaiassistent.shortlist.ShortlistFileService;
 import com.github.fmaiassistent.recruitment.RecruitmentCaseService;
 import com.github.fmaiassistent.snapshot.SnapshotStatusService;
-import com.github.fmaiassistent.web.ui.PositionTextFormatter;
-import com.github.fmaiassistent.web.mapper.PlayerMapper;
+import com.github.fmaiassistent.player.PositionTextFormatter;
+import com.github.fmaiassistent.player.PlayerMapper;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -1506,12 +1506,15 @@ public class FmAiAssistentTools {
         }
     }
 
-    private static Integer asInteger(String value) {
-        if (blank(value)) {
+    private static Integer asInteger(Object value) {
+        if (value == null || String.valueOf(value).isBlank()) {
             return null;
         }
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
         try {
-            return Integer.valueOf(value);
+            return Integer.valueOf(String.valueOf(value));
         } catch (NumberFormatException ex) {
             return null;
         }

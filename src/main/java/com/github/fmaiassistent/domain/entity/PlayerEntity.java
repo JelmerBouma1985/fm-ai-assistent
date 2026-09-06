@@ -1,6 +1,6 @@
 package com.github.fmaiassistent.domain.entity;
 
-import com.github.fmaiassistent.repository.PlayerColumnNames;
+import com.github.fmaiassistent.player.PlayerColumnNames;
 import com.github.fmaiassistent.exporter.PlayerExporter;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -102,7 +102,7 @@ public class PlayerEntity {
     @Column(name = "date_of_birth", length = 1024)
     private String dateOfBirth;
     @Column(length = 1024)
-    private String age;
+    private Integer age;
     @Column(name = "age_as_of", length = 1024)
     private String ageAsOf;
     @Column(name = "height_cm")
@@ -267,10 +267,6 @@ public class PlayerEntity {
         PlayerEntity entity = new PlayerEntity();
         for (String exportField : PlayerExporter.FIELD_NAMES) {
             entity.setExportField(exportField, row.get(exportField));
-        }
-        if (entity.club == null || entity.club.isBlank()) {
-            entity.askingPrice = 0L;
-            entity.askingPriceRaw = 0L;
         }
         return entity;
     }
@@ -450,7 +446,7 @@ public class PlayerEntity {
         return dateOfBirth;
     }
 
-    public String getAge() {
+    public Integer getAge() {
         return age;
     }
 

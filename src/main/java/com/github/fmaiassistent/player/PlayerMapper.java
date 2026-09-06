@@ -1,8 +1,6 @@
-package com.github.fmaiassistent.web.mapper;
+package com.github.fmaiassistent.player;
 
-import com.github.fmaiassistent.config.JCacheConfiguration;
 import com.github.fmaiassistent.domain.entity.PlayerEntity;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
@@ -12,7 +10,6 @@ import java.util.function.Function;
 @Service
 public class PlayerMapper implements Function<PlayerEntity, Map<String, Object>> {
 
-    @Cacheable(cacheNames = JCacheConfiguration.PLAYER_MAPPING_CACHE)
     @Override
     public Map<String, Object> apply(PlayerEntity entity) {
         Map<String, Object> out = new LinkedHashMap<>();

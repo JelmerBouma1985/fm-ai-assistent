@@ -9,11 +9,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
 
 class LineupOptimizerServiceTest {
     @Test
@@ -72,6 +74,31 @@ class LineupOptimizerServiceTest {
                         3, "snapshot", "fingerprint")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("explicitly unavailable");
+    }
+
+    @Test
+    void safelyOptimizesTwentySlotsWithoutExponentialState() {
+        RoleFitService fits = mock(RoleFitService.class);
+        when(fits.slotFit(any(PlayerEntity.class), any(TacticDefinition.TacticSlot.class)))
+                .thenAnswer(invocation -> {
+                    TacticDefinition.TacticSlot candidate = invocation.getArgument(1);
+                    return fit(candidate.index(), 80, 18);
+                });
+        List<PlayerEntity> players = IntStream.range(0, 100)
+                .mapToObj(index -> player("Player " + index, 10_000L + index, 120 + index % 40, false))
+                .toList();
+        List<TacticDefinition.TacticSlot> slots = IntStream.rangeClosed(1, 20)
+                .mapToObj(LineupOptimizerServiceTest::slot)
+                .toList();
+
+        LineupOptimizerService.Result result = new LineupOptimizerService(fits).optimize(
+                players,
+                new TacticDefinition("Large", "Custom", "Positive", slots),
+                LineupOptimizerService.Constraints.defaults());
+
+        assertThat(result.assignments()).hasSize(20);
+        assertThat(result.assignments()).extracting(value -> value.player().getUniqueId())
+                .doesNotHaveDuplicates();
     }
 
     private static TacticDefinition.TacticSlot slot(int index) {

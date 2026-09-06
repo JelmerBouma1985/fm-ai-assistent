@@ -257,10 +257,10 @@ public class AntigravityConversationService {
                 ? info.path("subagents").get(0)
                 : info;
         String label = firstNonBlank(
-                info.path("name").asText(null),
-                info.path("agent_name").asText(null),
-                firstSubagent.path("role").asText(null),
-                firstSubagent.path("type_name").asText(null),
+                info.path("name").asString(null),
+                info.path("agent_name").asString(null),
+                firstSubagent.path("role").asString(null),
+                firstSubagent.path("type_name").asString(null),
                 "Antigravity subagent");
         String status = "ACTIVE".equalsIgnoreCase(step.state()) ? "inProgress" : "completed";
         String details = compact(info);
@@ -428,14 +428,14 @@ public class AntigravityConversationService {
 
     private static String toolLabel(AntigravityStreamEvent.Step step) {
         JsonNode info = step.toolInfo();
-        String name = firstNonBlank(step.toolName(), info.path("name").asText(null), "Antigravity tool");
+        String name = firstNonBlank(step.toolName(), info.path("name").asString(null), "Antigravity tool");
         if ("call_mcp_tool".equals(name)) {
             JsonNode params = info.path("parameters");
             String tool = firstNonBlank(
-                    params.path("tool_name").asText(null),
-                    params.path("toolName").asText(null),
-                    params.path("ToolName").asText(null),
-                    params.path("name").asText(null));
+                    params.path("tool_name").asString(null),
+                    params.path("toolName").asString(null),
+                    params.path("ToolName").asString(null),
+                    params.path("name").asString(null));
             if (tool != null) {
                 return "MCP: " + tool;
             }
@@ -444,7 +444,7 @@ public class AntigravityConversationService {
     }
 
     private static boolean isMcpTool(AntigravityStreamEvent.Step step) {
-        String name = firstNonBlank(step.toolName(), step.toolInfo().path("name").asText(null), "");
+        String name = firstNonBlank(step.toolName(), step.toolInfo().path("name").asString(null), "");
         return "call_mcp_tool".equals(name) || name.toLowerCase().contains("mcp");
     }
 
@@ -454,11 +454,11 @@ public class AntigravityConversationService {
         if (value.isMissingNode() || value.isNull()) {
             return null;
         }
-        String message = value.path("message").asText(null);
+        String message = value.path("message").asString(null);
         if (message != null && !message.isBlank()) {
             return abbreviate(message, MAX_DETAILS);
         }
-        return value.isTextual() ? abbreviate(value.asText(), MAX_DETAILS) : abbreviate(value.toString(), MAX_DETAILS);
+        return value.isString() ? abbreviate(value.asString(), MAX_DETAILS) : abbreviate(value.toString(), MAX_DETAILS);
     }
 
     private static String toolError(JsonNode info) {
@@ -466,7 +466,7 @@ public class AntigravityConversationService {
         if (error.isMissingNode() || error.isNull()) {
             return null;
         }
-        return error.isTextual() ? error.asText() : error.toString();
+        return error.isString() ? error.asString() : error.toString();
     }
 
     private static String compact(JsonNode value) {

@@ -1,9 +1,6 @@
-package com.github.fmaiassistent.web.ui;
+package com.github.fmaiassistent.player;
 
-import com.github.fmaiassistent.repository.PlayerColumnNames;
 import com.github.fmaiassistent.domain.entity.PlayerEntity;
-import com.github.fmaiassistent.player.AttributeDefinitions;
-import com.github.fmaiassistent.player.FieldDef;
 
 import java.util.ArrayList;
 import java.util.Comparator;

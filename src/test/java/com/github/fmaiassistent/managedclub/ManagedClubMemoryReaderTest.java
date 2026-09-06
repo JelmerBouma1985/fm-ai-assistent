@@ -1,7 +1,7 @@
 package com.github.fmaiassistent.managedclub;
 
 import com.github.fmaiassistent.linux.FmOffsets;
-import com.github.fmaiassistent.linux.MemoryRegion;
+import com.github.fmaiassistent.memory.MemoryRegion;
 import com.github.fmaiassistent.memory.ProcessMemoryReader;
 import org.junit.jupiter.api.Test;
 

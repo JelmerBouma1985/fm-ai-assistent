@@ -1,6 +1,6 @@
 package com.github.fmaiassistent.windows;
 
-import com.github.fmaiassistent.linux.MemoryRegion;
+import com.github.fmaiassistent.memory.MemoryRegion;
 import com.github.fmaiassistent.linux.ProcessInfo;
 import com.github.fmaiassistent.memory.ProcessMemoryReader;
 import com.sun.jna.Memory;
@@ -34,9 +34,11 @@ public final class WindowsProcessReader implements ProcessMemoryReader {
     private static final int PAGE_GUARD = 0x100;
     private static final long MAX_ADDRESS = 0x00007FFFFFFFFFFFL;
     private static final Pointer INVALID_HANDLE_VALUE = Pointer.createConstant(-1);
+    private static final int MAX_REUSABLE_BUFFER = 1024 * 1024;
 
     private final int pid;
     private final Pointer process;
+    private Memory reusableBuffer = new Memory(Long.BYTES);
 
     public WindowsProcessReader(int pid) throws IOException {
         if (Native.POINTER_SIZE != Long.BYTES) {
@@ -78,20 +80,39 @@ public final class WindowsProcessReader implements ProcessMemoryReader {
     @Override
     public byte[] readBytes(long address, int size) throws IOException {
         if (size < 0) {
-            throw new IllegalArgumentException("size must be non-negative");
+            throw new IllegalArgumentException("size must not be negative");
         }
-        if (size == 0) {
-            return new byte[0];
+        byte[] result = new byte[size];
+        readInto(address, result, 0, size);
+        return result;
+    }
+
+    @Override
+    public void readInto(long address, byte[] target, int offset, int length) throws IOException {
+        ProcessMemoryReader.validateRead(address, target, offset, length);
+        if (length == 0) {
+            return;
         }
-        Memory buffer = new Memory(size);
+        Memory buffer = memory(length);
         LongByReference bytesRead = new LongByReference();
         boolean success = Kernel32.INSTANCE.ReadProcessMemory(
-                process, Pointer.createConstant(address), buffer, size, bytesRead);
-        if (!success || bytesRead.getValue() != size) {
+                process, Pointer.createConstant(address), buffer, length, bytesRead);
+        if (!success || bytesRead.getValue() != length) {
             throw win32Error("ReadProcessMemory failed at 0x" + Long.toHexString(address)
-                    + " (requested " + size + ", read " + bytesRead.getValue() + ")");
+                    + " (requested " + length + ", read " + bytesRead.getValue() + ")");
         }
-        return buffer.getByteArray(0, size);
+        buffer.read(0, target, offset, length);
+    }
+
+    private Memory memory(int length) {
+        if (length > MAX_REUSABLE_BUFFER) {
+            return new Memory(length);
+        }
+        if (reusableBuffer.size() < length) {
+            reusableBuffer.close();
+            reusableBuffer = new Memory(Integer.highestOneBit(length - 1) << 1);
+        }
+        return reusableBuffer;
     }
 
     @Override
@@ -174,8 +195,12 @@ public final class WindowsProcessReader implements ProcessMemoryReader {
 
     @Override
     public void close() throws IOException {
-        if (!Kernel32.INSTANCE.CloseHandle(process)) {
-            throw win32Error("CloseHandle failed for PID " + pid);
+        try {
+            if (!Kernel32.INSTANCE.CloseHandle(process)) {
+                throw win32Error("CloseHandle failed for PID " + pid);
+            }
+        } finally {
+            reusableBuffer.close();
         }
     }
 

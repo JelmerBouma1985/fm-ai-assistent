@@ -11,6 +11,7 @@ import com.github.fmaiassistent.managedclub.ManagedClubContextService;
 import com.github.fmaiassistent.repository.DatabaseService;
 import com.github.fmaiassistent.repository.LoadMetadataRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,6 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -80,7 +82,7 @@ class DatabaseLoadAllServiceTest {
         assertThat(result.staff()).isEqualTo(1);
         assertThat(result.clubs()).isEqualTo(3);
         assertThat(result.competitions()).isEqualTo(4);
-        verify(fixture.metadata).saveAll(any(List.class));
+        verify(fixture.metadata).saveAll(anyList());
     }
 
     @Test
@@ -115,6 +117,29 @@ class DatabaseLoadAllServiceTest {
         verify(fixture.managedClubs).restore(fixture.previousContext);
     }
 
+    @Test
+    void publishesManagedClubOnlyAfterTheSnapshotTransactionCommits() throws Exception {
+        Fixture fixture = new Fixture();
+        when(fixture.people.exportAllPeople(123, 1530, null)).thenReturn(peopleResult(0, 0));
+        when(fixture.clubs.exportAllClubs(123, 1530, null)).thenReturn(new ClubExporter.ExportResult(List.of()));
+        when(fixture.competitions.exportAllCompetitions(123, 1530, null))
+                .thenReturn(new CompetitionExporter.ExportResult(List.of()));
+        when(fixture.writer.saveCompetitions(any())).thenReturn(Map.of());
+        when(fixture.writer.saveClubs(any(), any())).thenReturn(Map.of());
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            fixture.service.loadAll(123, 1530, null);
+
+            verify(fixture.managedClubs, never()).publish(any());
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(synchronization -> synchronization.afterCommit());
+            verify(fixture.managedClubs).publish(fixture.previousContext);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
     private static void awaitOtherReaders(CountDownLatch readersStarted, AtomicBoolean databaseCleared)
             throws InterruptedException {
         assertThat(databaseCleared).isFalse();
@@ -147,7 +172,8 @@ class DatabaseLoadAllServiceTest {
 
         private Fixture() throws IOException {
             when(managedClubs.current()).thenReturn(previousContext);
-            when(managedClubs.refresh(123, 1530, null)).thenReturn(previousContext);
+            when(managedClubs.detect(123, 1530, null)).thenReturn(previousContext);
+            when(managedClubs.publish(any())).thenAnswer(invocation -> invocation.getArgument(0));
             service = new DatabaseLoadAllService(
                     clubs, competitions, people, database, writer, managedClubs, metadata);
         }

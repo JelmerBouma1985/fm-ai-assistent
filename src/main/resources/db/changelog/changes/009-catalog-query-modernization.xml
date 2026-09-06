@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="009-player-age-and-catalog-query-indexes" author="codex">
+        <sql>UPDATE players SET age = NULL WHERE TRIM(age) = ''</sql>
+        <modifyDataType tableName="players" columnName="age" newDataType="INT"/>
+
+        <createIndex indexName="idx_players_ca" tableName="players"><column name="ca"/></createIndex>
+        <createIndex indexName="idx_players_pa" tableName="players"><column name="pa"/></createIndex>
+        <createIndex indexName="idx_players_age" tableName="players"><column name="age"/></createIndex>
+        <createIndex indexName="idx_players_asking_price" tableName="players"><column name="asking_price"/></createIndex>
+        <createIndex indexName="idx_players_salary_weekly" tableName="players"><column name="salary_weekly_raw"/></createIndex>
+        <createIndex indexName="idx_players_contract_end" tableName="players"><column name="contract_end_date"/></createIndex>
+        <createIndex indexName="idx_players_world_reputation" tableName="players"><column name="world_reputation"/></createIndex>
+        <createIndex indexName="idx_staff_ca" tableName="staff"><column name="ca"/></createIndex>
+        <createIndex indexName="idx_staff_pa" tableName="staff"><column name="pa"/></createIndex>
+        <createIndex indexName="idx_staff_age" tableName="staff"><column name="age"/></createIndex>
+        <createIndex indexName="idx_staff_contract_end" tableName="staff"><column name="contract_end_date"/></createIndex>
+        <createIndex indexName="idx_clubs_reputation" tableName="clubs"><column name="reputation"/></createIndex>
+
+        <rollback>
+            <dropIndex indexName="idx_clubs_reputation" tableName="clubs"/>
+            <dropIndex indexName="idx_staff_contract_end" tableName="staff"/>
+            <dropIndex indexName="idx_staff_age" tableName="staff"/>
+            <dropIndex indexName="idx_staff_pa" tableName="staff"/>
+            <dropIndex indexName="idx_staff_ca" tableName="staff"/>
+            <dropIndex indexName="idx_players_world_reputation" tableName="players"/>
+            <dropIndex indexName="idx_players_contract_end" tableName="players"/>
+            <dropIndex indexName="idx_players_salary_weekly" tableName="players"/>
+            <dropIndex indexName="idx_players_asking_price" tableName="players"/>
+            <dropIndex indexName="idx_players_age" tableName="players"/>
+            <dropIndex indexName="idx_players_pa" tableName="players"/>
+            <dropIndex indexName="idx_players_ca" tableName="players"/>
+            <modifyDataType tableName="players" columnName="age" newDataType="VARCHAR(1024)"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

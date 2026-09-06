@@ -1,10 +1,6 @@
 package com.github.fmaiassistent.memory;
 
-import com.github.fmaiassistent.linux.MemoryRegion;
-
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
@@ -20,30 +16,48 @@ public interface ProcessMemoryReader extends AutoCloseable {
 
     byte[] readBytes(long address, int size) throws IOException;
 
+    default void readInto(long address, byte[] target, int offset, int length) throws IOException {
+        validateRead(address, target, offset, length);
+        byte[] bytes = readBytes(address, length);
+        System.arraycopy(bytes, 0, target, offset, length);
+    }
+
     List<MemoryRegion> maps() throws IOException;
 
     default int readU8(long address) throws IOException {
-        return readBytes(address, 1)[0] & 0xff;
+        byte[] bytes = PrimitiveBuffer.BYTES.get();
+        readInto(address, bytes, 0, 1);
+        return Byte.toUnsignedInt(bytes[0]);
     }
 
     default int readU16(long address) throws IOException {
-        return le(readBytes(address, 2)).getShort() & 0xffff;
+        byte[] bytes = PrimitiveBuffer.BYTES.get();
+        readInto(address, bytes, 0, 2);
+        return Byte.toUnsignedInt(bytes[0]) | Byte.toUnsignedInt(bytes[1]) << 8;
     }
 
     default short readI16(long address) throws IOException {
-        return le(readBytes(address, 2)).getShort();
+        return (short) readU16(address);
     }
 
     default long readU32(long address) throws IOException {
-        return le(readBytes(address, 4)).getInt() & 0xffffffffL;
+        return Integer.toUnsignedLong(readI32(address));
     }
 
     default int readI32(long address) throws IOException {
-        return le(readBytes(address, 4)).getInt();
+        byte[] bytes = PrimitiveBuffer.BYTES.get();
+        readInto(address, bytes, 0, 4);
+        return Byte.toUnsignedInt(bytes[0])
+                | Byte.toUnsignedInt(bytes[1]) << 8
+                | Byte.toUnsignedInt(bytes[2]) << 16
+                | bytes[3] << 24;
     }
 
     default long readU64(long address) throws IOException {
-        return le(readBytes(address, 8)).getLong();
+        byte[] bytes = PrimitiveBuffer.BYTES.get();
+        readInto(address, bytes, 0, 8);
+        return Integer.toUnsignedLong(littleEndianInt(bytes, 0))
+                | (long) littleEndianInt(bytes, 4) << 32;
     }
 
     default Optional<Long> qwordOrNull(long address) {
@@ -66,7 +80,7 @@ public interface ProcessMemoryReader extends AutoCloseable {
             return Optional.empty();
         }
         try {
-            int size = le(readBytes(address, 4)).getInt();
+            int size = readI32(address);
             if (size <= 0 || size > maxLen) {
                 return Optional.empty();
             }
@@ -87,8 +101,28 @@ public interface ProcessMemoryReader extends AutoCloseable {
         return qwordOrNull(address).flatMap(target -> readFmLenString(target, maxLen));
     }
 
-    private static ByteBuffer le(byte[] bytes) {
-        return ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
+    static void validateRead(long address, byte[] target, int offset, int length) {
+        if (target == null) {
+            throw new NullPointerException("target");
+        }
+        if (address < 0 || length < 0 || offset < 0 || offset > target.length - length
+                || address > MAX_USER_ADDRESS - length) {
+            throw new IllegalArgumentException("invalid process-memory read bounds");
+        }
+    }
+
+    private static int littleEndianInt(byte[] bytes, int offset) {
+        return Byte.toUnsignedInt(bytes[offset])
+                | Byte.toUnsignedInt(bytes[offset + 1]) << 8
+                | Byte.toUnsignedInt(bytes[offset + 2]) << 16
+                | bytes[offset + 3] << 24;
+    }
+
+    final class PrimitiveBuffer {
+        private static final ThreadLocal<byte[]> BYTES = ThreadLocal.withInitial(() -> new byte[Long.BYTES]);
+
+        private PrimitiveBuffer() {
+        }
     }
 
     @Override

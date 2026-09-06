@@ -5,19 +5,15 @@ import com.github.fmaiassistent.domain.entity.ClubEntity;
 import com.github.fmaiassistent.domain.entity.CompetitionEntity;
 import com.github.fmaiassistent.domain.entity.LoadMetadataEntity;
 import com.github.fmaiassistent.exporter.ClubExporter;
-import jakarta.persistence.criteria.Predicate;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 @Service
@@ -91,47 +87,17 @@ public class ClubDatabaseService {
     @Transactional(readOnly = true)
     public List<ClubEntity> findClubEntities(ClubFilterCriteria filter) {
         ClubFilterCriteria safeFilter = filter == null ? ClubFilterCriteria.empty() : filter;
-        if (safeFilter.isEmpty()) {
-            return findAllClubs();
-        }
-        return clubs.findAll().stream()
-                .filter(club -> matchesClubFilter(club, safeFilter))
-                .toList();
+        return clubs.findAll(CatalogSpecifications.clubs(safeFilter));
     }
 
-    private static boolean matchesClubFilter(ClubEntity club, ClubFilterCriteria filter) {
-        return equalsIgnoreCase(club.getName(), filter.name())
-                && equalsIgnoreCase(club.getCompetition(), filter.competition())
-                && equalsIgnoreCase(club.getNation(), filter.nation())
-                && inRange(club.getReputation(), filter.reputationMin(), filter.reputationMax())
-                && inRange(club.getBalance(), filter.balanceMin(), filter.balanceMax())
-                && inRange(club.getTransferBudget(), filter.transferBudgetMin(), filter.transferBudgetMax())
-                && inRange(club.getPayrollBudget(), filter.payrollBudgetMin(), filter.payrollBudgetMax());
+    @Transactional(readOnly = true)
+    public Page<ClubEntity> findClubPage(ClubFilterCriteria filter, Pageable pageable) {
+        return clubs.findAll(CatalogSpecifications.clubs(filter), pageable);
     }
 
-    private static boolean equalsIgnoreCase(Object value, String term) {
-        return term == null || term.isBlank()
-                || String.valueOf(value == null ? "" : value).equalsIgnoreCase(term.trim());
-    }
-
-    private static boolean inRange(Integer value, Integer min, Integer max) {
-        if (min == null && max == null) {
-            return true;
-        }
-        if (value == null) {
-            return false;
-        }
-        return (min == null || value >= min) && (max == null || value <= max);
-    }
-
-    private static boolean inRange(Long value, Long min, Long max) {
-        if (min == null && max == null) {
-            return true;
-        }
-        if (value == null) {
-            return false;
-        }
-        return (min == null || value >= min) && (max == null || value <= max);
+    @Transactional(readOnly = true)
+    public long countClubs(ClubFilterCriteria filter) {
+        return clubs.count(CatalogSpecifications.clubs(filter));
     }
 
     public record LoadResult(int count) {

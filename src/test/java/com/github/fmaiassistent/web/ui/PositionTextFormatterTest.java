@@ -1,5 +1,6 @@
 package com.github.fmaiassistent.web.ui;
 
+import com.github.fmaiassistent.player.PositionTextFormatter;
 import com.github.fmaiassistent.domain.entity.PlayerEntity;
 import org.junit.jupiter.api.Test;
 

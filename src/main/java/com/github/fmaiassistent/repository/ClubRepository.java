@@ -23,7 +23,4 @@ public interface ClubRepository extends JpaRepository<ClubEntity, Long>, JpaSpec
 
     Optional<ClubEntity> findFirstBySourceAddressOrderByReputationDesc(Long sourceAddress);
 
-    @Cacheable(cacheNames = JCacheConfiguration.CLUB_CACHE)
-    @Override
-    List<ClubEntity> findAll();
 }

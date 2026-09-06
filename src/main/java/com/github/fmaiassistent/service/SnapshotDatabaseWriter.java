@@ -8,7 +8,7 @@ import com.github.fmaiassistent.exporter.ClubExporter;
 import com.github.fmaiassistent.exporter.CompetitionExporter;
 import com.github.fmaiassistent.exporter.PlayerExporter;
 import com.github.fmaiassistent.exporter.StaffExporter;
-import com.github.fmaiassistent.repository.PlayerColumnNames;
+import com.github.fmaiassistent.player.PlayerColumnNames;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -113,11 +113,6 @@ public class SnapshotDatabaseWriter {
 
     private static Object normalizedValue(IdentifiedRow row, ExportColumn column) {
         Object value = row.values().get(column.exportName());
-        if (column.playerColumn() && ("asking_price".equals(column.exportName())
-                || "asking_price_raw".equals(column.exportName()))
-                && String.valueOf(row.values().getOrDefault("club", "")).isBlank()) {
-            return 0L;
-        }
         if (value == null) {
             return column.staffText() ? "" : null;
         }

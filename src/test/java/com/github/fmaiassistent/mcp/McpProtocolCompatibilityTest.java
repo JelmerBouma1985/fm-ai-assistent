@@ -139,7 +139,7 @@ class McpProtocolCompatibilityTest {
 
             assertEquals(200, initialized.statusCode());
             assertEquals(protocol, mapper.readTree(initialized.body())
-                    .path("result").path("protocolVersion").asText());
+                    .path("result").path("protocolVersion").asString());
             String sessionId = initialized.headers().firstValue("Mcp-Session-Id").orElse(null);
             if (sessionId != null) {
                 post("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}", sessionId, protocol);
@@ -157,7 +157,7 @@ class McpProtocolCompatibilityTest {
             JsonNode listedTools = mapper.readTree(data).path("result").path("tools");
             assertEquals(20, listedTools.size());
             Set<String> names = listedTools.valueStream()
-                    .map(tool -> tool.path("name").asText())
+                    .map(tool -> tool.path("name").asString())
                     .collect(Collectors.toSet());
             assertTrue(names.containsAll(Set.of(
                     "fm26_find_clubs",
@@ -181,45 +181,45 @@ class McpProtocolCompatibilityTest {
                     "fm26_update_recruitment_case",
                     "fm26_get_recruitment_board")));
             JsonNode createShortlist = listedTools.valueStream()
-                    .filter(tool -> "fm26_create_shortlist_file".equals(tool.path("name").asText()))
+                    .filter(tool -> "fm26_create_shortlist_file".equals(tool.path("name").asString()))
                     .findFirst()
                     .orElseThrow();
             assertEquals("string", createShortlist.path("inputSchema").path("properties")
-                    .path("shortlistName").path("type").asText());
+                    .path("shortlistName").path("type").asString());
             assertEquals("array", createShortlist.path("inputSchema").path("properties")
-                    .path("playerUniqueIds").path("type").asText());
+                    .path("playerUniqueIds").path("type").asString());
             JsonNode findStaff = listedTools.valueStream()
-                    .filter(tool -> "fm26_find_staff".equals(tool.path("name").asText()))
+                    .filter(tool -> "fm26_find_staff".equals(tool.path("name").asString()))
                     .findFirst()
                     .orElseThrow();
             assertEquals("object", findStaff.path("inputSchema").path("properties")
-                    .path("minimumAttributes").path("type").asText());
+                    .path("minimumAttributes").path("type").asString());
             assertEquals("number", findStaff.path("inputSchema").path("properties")
-                    .path("minimumCoachingStars").path("type").asText());
+                    .path("minimumCoachingStars").path("type").asString());
             JsonNode staffDetails = listedTools.valueStream()
-                    .filter(tool -> "fm26_get_staff_details".equals(tool.path("name").asText()))
+                    .filter(tool -> "fm26_get_staff_details".equals(tool.path("name").asString()))
                     .findFirst()
                     .orElseThrow();
             assertEquals("integer", staffDetails.path("inputSchema").path("properties")
-                    .path("staffUniqueId").path("type").asText());
+                    .path("staffUniqueId").path("type").asString());
             JsonNode scenario = listedTools.valueStream()
-                    .filter(tool -> "fm26_plan_squad_moves".equals(tool.path("name").asText()))
+                    .filter(tool -> "fm26_plan_squad_moves".equals(tool.path("name").asString()))
                     .findFirst()
                     .orElseThrow();
             assertEquals("array", scenario.path("inputSchema").path("properties")
-                    .path("quotes").path("type").asText());
+                    .path("quotes").path("type").asString());
             assertEquals("integer", scenario.path("inputSchema").path("properties")
                     .path("quotes").path("items").path("properties")
-                    .path("playerUniqueId").path("type").asText());
+                    .path("playerUniqueId").path("type").asString());
             JsonNode optimizer = listedTools.valueStream()
-                    .filter(tool -> "fm26_optimize_lineup".equals(tool.path("name").asText()))
+                    .filter(tool -> "fm26_optimize_lineup".equals(tool.path("name").asString()))
                     .findFirst()
                     .orElseThrow();
             assertEquals("array", optimizer.path("inputSchema").path("properties")
-                    .path("lockedAssignments").path("type").asText());
+                    .path("lockedAssignments").path("type").asString());
             assertEquals("integer", optimizer.path("inputSchema").path("properties")
                     .path("lockedAssignments").path("items").path("properties")
-                    .path("playerUniqueId").path("type").asText());
+                    .path("playerUniqueId").path("type").asString());
         }
     }
 

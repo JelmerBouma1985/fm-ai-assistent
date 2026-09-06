@@ -24,6 +24,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.List;
@@ -34,10 +35,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Service
 public class DatabaseLoadAllService {
     private static final Logger log = LoggerFactory.getLogger(DatabaseLoadAllService.class);
+    private static final Duration RAM_READ_TIMEOUT = Duration.ofMinutes(2);
+    private static final Duration EXECUTOR_SHUTDOWN_TIMEOUT = Duration.ofSeconds(5);
     private final ClubDatabaseService clubs;
     private final CompetitionDatabaseService competitions;
     private final PeopleExporter peopleExporter;
@@ -64,20 +68,15 @@ public class DatabaseLoadAllService {
     }
 
     @Caching(evict = {
-            @CacheEvict(cacheNames = JCacheConfiguration.PLAYERS_CACHE, allEntries = true),
-            @CacheEvict(cacheNames = JCacheConfiguration.PLAYERS_WITH_CLUBS_CACHE, allEntries = true),
-            @CacheEvict(cacheNames = JCacheConfiguration.STAFF_WITH_CLUBS_CACHE, allEntries = true),
             @CacheEvict(cacheNames = JCacheConfiguration.NATIONS_CACHE, allEntries = true),
             @CacheEvict(cacheNames = JCacheConfiguration.COMPETITIONS_CACHE, allEntries = true),
-            @CacheEvict(cacheNames = JCacheConfiguration.CLUB_NAMES_CACHE, allEntries = true),
-            @CacheEvict(cacheNames = JCacheConfiguration.CLUB_CACHE, allEntries = true),
-            @CacheEvict(cacheNames = JCacheConfiguration.PLAYER_MAPPING_CACHE, allEntries = true)
+            @CacheEvict(cacheNames = JCacheConfiguration.COMPETITION_GENDERS_CACHE, allEntries = true),
+            @CacheEvict(cacheNames = JCacheConfiguration.CLUB_NAMES_CACHE, allEntries = true)
     })
     @Transactional(rollbackFor = Exception.class)
     public LoadAllResult loadAll(Integer pid, int build, Long gamePluginBase) throws IOException {
         ManagedClubContext previousContext = managedClubContexts.current();
         try {
-            managedClubContexts.markUnavailable("Managed club detection is waiting for the current RAM load");
             int resolvedPid = pid == null ? detectFmPid() : pid;
             RamSnapshot ram = readRamInParallel(resolvedPid, build, gamePluginBase);
             long persistenceStarted = System.nanoTime();
@@ -98,15 +97,17 @@ public class DatabaseLoadAllService {
             snapshotWriter.saveStaff(ram.staff(), clubIds);
             log.info("FM26 staff persistence completed in {} ms", elapsedMillis(stepStarted));
             stepStarted = System.nanoTime();
+            ManagedClubContext detectedManagedClub;
             try {
-                managedClubContexts.refresh(resolvedPid, build, gamePluginBase);
+                detectedManagedClub = managedClubContexts.detect(resolvedPid, build, gamePluginBase);
             } catch (IOException | RuntimeException exception) {
                 String message = exception.getMessage() == null || exception.getMessage().isBlank()
                         ? "The managed club could not be detected from FM26 RAM"
                         : exception.getMessage();
-                managedClubContexts.markUnavailable(message);
+                detectedManagedClub = managedClubContexts.unavailable(message);
                 log.warn("FM26 data loaded, but the current managed club could not be detected: {}", message);
             }
+            publishManagedClubAfterCommit(detectedManagedClub);
             log.info("FM26 managed-club finalization completed in {} ms", elapsedMillis(stepStarted));
             stepStarted = System.nanoTime();
             String snapshotId = UUID.randomUUID().toString();
@@ -114,6 +115,7 @@ public class DatabaseLoadAllService {
             long staffCount = ram.staff().rows().size();
             long clubCount = ram.clubs().rows().size();
             long competitionCount = ram.competitions().rows().size();
+            PeopleExporter.Diagnostics peopleDiagnostics = ram.peopleDiagnostics();
             String loadedAt = OffsetDateTime.now().toString();
             List<LoadMetadataEntity> snapshotMetadata = new java.util.ArrayList<>(List.of(
                     new LoadMetadataEntity("snapshot_id", snapshotId),
@@ -123,17 +125,33 @@ public class DatabaseLoadAllService {
                     new LoadMetadataEntity("staff_count", String.valueOf(staffCount)),
                     new LoadMetadataEntity("clubs_count", String.valueOf(clubCount)),
                     new LoadMetadataEntity("competitions_count", String.valueOf(competitionCount)),
+                    new LoadMetadataEntity("quality_players_missing_age",
+                            String.valueOf(countMissing(ram.players().rows(), "age"))),
+                    new LoadMetadataEntity("quality_players_missing_asking_price",
+                            String.valueOf(countMissing(ram.players().rows(), "asking_price"))),
+                    new LoadMetadataEntity("quality_players_missing_ca",
+                            String.valueOf(countMissing(ram.players().rows(), "ca"))),
+                    new LoadMetadataEntity("quality_players_missing_pa",
+                            String.valueOf(countMissing(ram.players().rows(), "pa"))),
+                    new LoadMetadataEntity("quality_people_invalid_blocks",
+                            String.valueOf(peopleDiagnostics.invalidBlocks())),
+                    new LoadMetadataEntity("quality_people_malformed_pointers",
+                            String.valueOf(peopleDiagnostics.malformedPointers())),
+                    new LoadMetadataEntity("quality_people_unreadable",
+                            String.valueOf(peopleDiagnostics.unreadable())),
+                    new LoadMetadataEntity("people_slots", String.valueOf(ram.peopleSlots())),
+                    new LoadMetadataEntity("people_workers", String.valueOf(ram.peopleWorkers())),
+                    new LoadMetadataEntity("people_extraction_ms", String.valueOf(ram.peopleElapsedMillis())),
                     new LoadMetadataEntity("game_date", ram.players().gameDate()),
                     new LoadMetadataEntity("loaded_at", loadedAt),
                     new LoadMetadataEntity("clubs_loaded_at", loadedAt),
                     new LoadMetadataEntity("competitions_loaded_at", loadedAt)));
-            ManagedClubContext managedClub = managedClubContexts.current();
-            if (managedClub.managerUniqueId() != null) {
+            if (detectedManagedClub.managerUniqueId() != null) {
                 snapshotMetadata.add(new LoadMetadataEntity(
-                        "manager_unique_id", String.valueOf(managedClub.managerUniqueId())));
+                        "manager_unique_id", String.valueOf(detectedManagedClub.managerUniqueId())));
             }
-            if (managedClub.careerKey() != null) {
-                snapshotMetadata.add(new LoadMetadataEntity("career_key", managedClub.careerKey()));
+            if (detectedManagedClub.careerKey() != null) {
+                snapshotMetadata.add(new LoadMetadataEntity("career_key", detectedManagedClub.careerKey()));
             }
             metadata.saveAll(snapshotMetadata);
             log.info("FM26 snapshot metadata persistence completed in {} ms", elapsedMillis(stepStarted));
@@ -163,6 +181,8 @@ public class DatabaseLoadAllService {
 
     private RamSnapshot readRamInParallel(int pid, int build, Long gamePluginBase) throws IOException {
         long started = System.nanoTime();
+        long deadline = System.nanoTime() + RAM_READ_TIMEOUT.toNanos();
+        String gameDateBefore = liveGameDate(pid, build, gamePluginBase);
         ExecutorService executor = Executors.newFixedThreadPool(
                 3, Thread.ofPlatform().name("fm-ram-loader-", 0).factory());
         Future<PeopleExporter.ExportResult> peopleFuture = executor.submit(
@@ -173,12 +193,21 @@ public class DatabaseLoadAllService {
                 () -> timedRamRead("competitions", () -> competitions.exportAllCompetitions(pid, build, gamePluginBase)));
         List<Future<?>> futures = List.of(peopleFuture, clubFuture, competitionFuture);
         try {
-            PeopleExporter.ExportResult people = await(peopleFuture, "people");
+            PeopleExporter.ExportResult people = await(peopleFuture, "people", deadline);
             RamSnapshot snapshot = new RamSnapshot(
                     people.players(),
                     people.staff(),
-                    await(clubFuture, "clubs"),
-                    await(competitionFuture, "competitions"));
+                    await(clubFuture, "clubs", deadline),
+                    await(competitionFuture, "competitions", deadline),
+                    people.diagnostics(),
+                    people.slotCount(),
+                    people.selectedWorkers(),
+                    people.elapsedMillis());
+            validateCoherentGameDate(
+                    gameDateBefore,
+                    people.players().gameDate(),
+                    people.staff().gameDate(),
+                    liveGameDate(pid, build, gamePluginBase));
             log.info("Parallel FM26 RAM extraction completed in {} ms", elapsedMillis(started));
             return snapshot;
         } catch (IOException | RuntimeException exception) {
@@ -186,6 +215,14 @@ public class DatabaseLoadAllService {
             throw exception;
         } finally {
             executor.shutdownNow();
+            try {
+                if (!executor.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
+                    log.warn("FM26 RAM extraction workers did not terminate within {} ms",
+                            EXECUTOR_SHUTDOWN_TIMEOUT.toMillis());
+                }
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
@@ -202,9 +239,13 @@ public class DatabaseLoadAllService {
         }
     }
 
-    private static <T> T await(Future<T> future, String dataType) throws IOException {
+    private static <T> T await(Future<T> future, String dataType, long deadline) throws IOException {
         try {
-            return future.get();
+            long remaining = deadline - System.nanoTime();
+            if (remaining <= 0) {
+                throw new TimeoutException();
+            }
+            return future.get(remaining, TimeUnit.NANOSECONDS);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IOException("Interrupted while reading FM26 " + dataType + " data", exception);
@@ -217,11 +258,45 @@ public class DatabaseLoadAllService {
                 throw runtimeException;
             }
             throw new IOException("Could not read FM26 " + dataType + " data", cause);
+        } catch (TimeoutException exception) {
+            future.cancel(true);
+            throw new IOException("Timed out while reading FM26 " + dataType + " data after "
+                    + RAM_READ_TIMEOUT.toSeconds() + " seconds", exception);
+        }
+    }
+
+    private static String liveGameDate(int pid, int build, Long gamePluginBase) {
+        try (var reader = ProcessReaders.open(pid)) {
+            return new com.github.fmaiassistent.linux.GameDateFinder()
+                    .find(reader, 0, build, gamePluginBase)
+                    .map(java.time.LocalDate::toString)
+                    .orElse(null);
+        } catch (IOException | RuntimeException exception) {
+            log.debug("Could not probe FM26 game date for snapshot coherence: {}", exception.getMessage());
+            return null;
+        }
+    }
+
+    private static void validateCoherentGameDate(
+            String before,
+            String playerDate,
+            String staffDate,
+            String after) throws IOException {
+        List<String> observed = java.util.stream.Stream.of(before, playerDate, staffDate, after)
+                .filter(value -> value != null && !value.isBlank())
+                .distinct()
+                .toList();
+        if (observed.size() > 1) {
+            throw new IOException("FM26 game date changed during RAM extraction: " + observed);
         }
     }
 
     private static long elapsedMillis(long started) {
         return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
+    }
+
+    private static long countMissing(List<Map<String, Object>> rows, String field) {
+        return rows.stream().filter(row -> row.get(field) == null).count();
     }
 
     private static void logAfterCommit(long started) {
@@ -232,6 +307,19 @@ public class DatabaseLoadAllService {
             @Override
             public void afterCommit() {
                 log.info("FM26 database replacement and finalization committed in {} ms", elapsedMillis(started));
+            }
+        });
+    }
+
+    private void publishManagedClubAfterCommit(ManagedClubContext context) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            managedClubContexts.publish(context);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                managedClubContexts.publish(context);
             }
         });
     }
@@ -265,7 +353,11 @@ public class DatabaseLoadAllService {
             PlayerExporter.ExportResult players,
             StaffExporter.ExportResult staff,
             ClubExporter.ExportResult clubs,
-            CompetitionExporter.ExportResult competitions) {
+            CompetitionExporter.ExportResult competitions,
+            PeopleExporter.Diagnostics peopleDiagnostics,
+            int peopleSlots,
+            int peopleWorkers,
+            long peopleElapsedMillis) {
     }
 
     public record LoadAllResult(

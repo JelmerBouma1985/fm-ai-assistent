@@ -12,7 +12,7 @@ import com.github.fmaiassistent.service.StaffDatabaseService;
 import com.github.fmaiassistent.staff.StaffAttributeDefinitions;
 import com.github.fmaiassistent.shortlist.ShortlistFileService;
 import com.github.fmaiassistent.snapshot.SnapshotStatusService;
-import com.github.fmaiassistent.web.mapper.PlayerMapper;
+import com.github.fmaiassistent.player.PlayerMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 

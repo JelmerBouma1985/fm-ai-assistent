@@ -20,7 +20,7 @@ class AntigravityStreamParserTest {
 
         assertEquals("abc", init.conversationId());
         assertEquals("request-review", init.permissionMode());
-        assertEquals("call_mcp_tool", init.tools().get(0).asText());
+        assertEquals("call_mcp_tool", init.tools().get(0).asString());
     }
 
     @Test

@@ -67,7 +67,7 @@ final class TacticContextPanel extends Details {
         uploadButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         upload.setUploadButton(uploadButton);
         upload.setDropLabel(new Span("or drop your .fmf tactic file here"));
-        upload.setAcceptedFileTypes(".fmf");
+        upload.setAcceptedFileExtensions(".fmf");
         upload.setMaxFileSize(MAX_UPLOAD_BYTES);
         upload.setMaxFiles(1);
         upload.setDropAllowed(true);

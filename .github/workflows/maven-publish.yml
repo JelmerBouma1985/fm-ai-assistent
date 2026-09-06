@@ -31,10 +31,10 @@ jobs:
       - name: Show environment
         run: |
           java -version
-          mvn -version
+          ./mvnw -version
 
       - name: Build JAR
-        run: mvn -B clean package
+        run: ./mvnw --batch-mode --no-transfer-progress clean package
 
       - name: Collect JAR
         shell: bash
@@ -84,11 +84,11 @@ jobs:
         run: |
           java -version
           native-image --version
-          mvn -version
+          ./mvnw -version
 
       - name: Build Linux Native Image
         run: |
-          mvn -B clean package -Pnative native:compile
+          ./mvnw --batch-mode --no-transfer-progress clean -Pnative native:compile
 
       - name: Collect Linux Native Image
         shell: bash
@@ -145,12 +145,12 @@ jobs:
         run: |
           java -version
           native-image --version
-          mvn -version
+          ./mvnw -version
 
       - name: Build Windows Native Image
         shell: pwsh
         run: |
-          mvn -B clean package -Pnative native:compile
+          ./mvnw --batch-mode --no-transfer-progress clean -Pnative native:compile
 
       - name: Collect Windows Native Image
         shell: pwsh
@@ -203,11 +203,11 @@ jobs:
         run: |
           java -version
           jpackage --version
-          mvn -version
+          ./mvnw -version
 
       - name: Build Linux Desktop Application
         run: |
-          mvn -B clean verify -Pdesktop
+          ./mvnw --batch-mode --no-transfer-progress clean verify -Pdesktop
 
       - name: Collect Linux Desktop Package
         shell: bash
@@ -256,12 +256,12 @@ jobs:
         run: |
           java -version
           jpackage --version
-          mvn -version
+          ./mvnw -version
 
       - name: Build Windows Desktop Application
         shell: pwsh
         run: |
-          mvn -B clean verify -Pdesktop
+          ./mvnw --batch-mode --no-transfer-progress clean verify -Pdesktop
 
       - name: Collect Windows Desktop Package
         shell: pwsh

@@ -146,7 +146,7 @@ Codex asks for approval in the app before using tools that require permission.
 ```
 
 Antigravity cannot show an approval popup during a headless chat. Add the following FM26 tool permissions to the existing `permissions.allow` list in `~/.gemini/antigravity-cli/settings.json`:
-``
+
 ```json
 {
   "permissions": {
@@ -227,3 +227,24 @@ Desktop application logs are stored in:
 ## Privacy and safety
 
 FM AI Assistent listens only on your own computer by default. Keep it local: enabled AI agents may access FM26 data, local files and tools after receiving the required permission.
+
+## Development
+
+The project targets JDK 25 and includes a pinned Maven 3.9.12 wrapper. A local Maven installation is not required.
+
+```bash
+./mvnw clean verify
+```
+
+`verify` compiles the backend, runs unit, integration and architecture tests, builds the production Vaadin frontend, creates the executable Spring Boot JAR, generates JaCoCo coverage output, and writes CycloneDX JSON and XML software bills of materials under `target/` (the JSON SBOM is also embedded in the JAR).
+
+Useful focused commands:
+
+```bash
+./mvnw -Dvaadin.skip=true test
+./mvnw -DskipTests package
+./mvnw -DskipTests verify -Pdesktop
+./mvnw -DskipTests clean -Pnative native:compile
+```
+
+The application publishes local operational diagnostics at `/actuator/health` and `/actuator/metrics`. Snapshot status also reports refresh state, extraction timing and RAM-decoding data-quality counters. The CI workflow runs the same clean verification on every branch and pull request and retains test, coverage and SBOM reports.

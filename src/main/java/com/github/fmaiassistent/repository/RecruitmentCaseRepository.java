@@ -10,4 +10,5 @@ import java.util.Optional;
 public interface RecruitmentCaseRepository extends JpaRepository<RecruitmentCaseEntity, RecruitmentCaseId> {
     Optional<RecruitmentCaseEntity> findByIdCareerKeyAndIdPlayerUniqueId(String careerKey, Long playerUniqueId);
     List<RecruitmentCaseEntity> findByIdCareerKey(String careerKey);
+    List<RecruitmentCaseEntity> findAllByOrderByUpdatedAtDesc();
 }

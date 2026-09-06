@@ -496,4 +496,6 @@
             <column name="goalkeeping" type="INT"/>
         </addColumn>
     </changeSet>
+
+    <include file="changes/009-catalog-query-modernization.xml" relativeToChangelogFile="true"/>
 </databaseChangeLog>

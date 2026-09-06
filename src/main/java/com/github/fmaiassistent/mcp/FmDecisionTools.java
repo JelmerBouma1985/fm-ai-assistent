@@ -16,7 +16,7 @@ import com.github.fmaiassistent.snapshot.SnapshotStatusService;
 import com.github.fmaiassistent.tactic.TacticContext;
 import com.github.fmaiassistent.tactic.TacticContextService;
 import com.github.fmaiassistent.tactic.TacticDefinition;
-import com.github.fmaiassistent.web.ui.PositionTextFormatter;
+import com.github.fmaiassistent.player.PositionTextFormatter;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -1382,8 +1382,7 @@ public class FmDecisionTools {
     }
 
     private static Integer parsedAge(PlayerEntity player) {
-        try { return player.getAge() == null ? null : Integer.parseInt(player.getAge()); }
-        catch (NumberFormatException exception) { return null; }
+        return player.getAge();
     }
 
     private static int average(int... values) {

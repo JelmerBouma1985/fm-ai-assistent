@@ -4,11 +4,15 @@ import com.github.fmaiassistent.domain.entity.ClubEntity;
 import com.github.fmaiassistent.domain.entity.StaffEntity;
 import com.github.fmaiassistent.exporter.StaffExporter;
 import com.github.fmaiassistent.repository.ClubRepository;
+import com.github.fmaiassistent.repository.CatalogSpecifications;
 import com.github.fmaiassistent.repository.StaffFilterCriteria;
 import com.github.fmaiassistent.repository.StaffRepository;
 import com.github.fmaiassistent.staff.StaffRoleRatingCalculator;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 import java.io.IOException;
 import java.time.DateTimeException;
@@ -58,7 +62,29 @@ public class StaffDatabaseService {
     @Transactional(readOnly = true)
     public List<StaffEntity> findStaff(StaffFilterCriteria criteria) {
         StaffFilterCriteria filter = criteria == null ? StaffFilterCriteria.empty() : criteria;
-        return staff.findAllWithClubs().stream().filter(value -> matches(value, filter)).toList();
+        return staff.findAll(CatalogSpecifications.staff(filter)).stream()
+                .filter(value -> matchesDerivedRatings(value, filter)).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<StaffEntity> findStaffPage(StaffFilterCriteria criteria, Pageable pageable) {
+        StaffFilterCriteria filter = criteria == null ? StaffFilterCriteria.empty() : criteria;
+        if (!hasDerivedRatingFilter(filter)) {
+            return staff.findAll(CatalogSpecifications.staff(filter), pageable);
+        }
+        List<StaffEntity> matches = staff.findAll(CatalogSpecifications.staff(filter), pageable.getSort()).stream()
+                .filter(value -> matchesDerivedRatings(value, filter)).toList();
+        int start = Math.min(Math.toIntExact(pageable.getOffset()), matches.size());
+        int end = Math.min(start + pageable.getPageSize(), matches.size());
+        return new PageImpl<>(matches.subList(start, end), pageable, matches.size());
+    }
+
+    @Transactional(readOnly = true)
+    public long countStaff(StaffFilterCriteria criteria) {
+        StaffFilterCriteria filter = criteria == null ? StaffFilterCriteria.empty() : criteria;
+        return hasDerivedRatingFilter(filter)
+                ? findStaff(filter).size()
+                : staff.count(CatalogSpecifications.staff(filter));
     }
 
     private Map<Long, ClubEntity> clubsByAddress() {
@@ -85,26 +111,7 @@ public class StaffDatabaseService {
         return entity;
     }
 
-    private static boolean matches(StaffEntity staff, StaffFilterCriteria filter) {
-        if (!contains(staff.getName(), filter.name()) || !exact(staff.getGender(), filter.gender())
-                || !exact(staff.getNationality(), filter.nationality()) || !exact(staff.getClub(), filter.club())
-                || !exact(staff.getDivision(), filter.division()) || !exact(staff.getJob(), filter.job())
-                || !range(staff.getAge(), filter.ageMin(), filter.ageMax())
-                || !range(staff.getCa(), filter.caMin(), filter.caMax())
-                || !range(staff.getPa(), filter.paMin(), filter.paMax())
-                || !minimum(staff.getCurrentReputation(), filter.currentReputationMin())
-                || !minimum(staff.getWorldReputation(), filter.worldReputationMin())
-                || (filter.salaryWeeklyMax() != null && (staff.getSalaryWeeklyRaw() == null
-                    || staff.getSalaryWeeklyRaw() > filter.salaryWeeklyMax()))
-                || !dateRange(staff.getContractEndDate(), filter.contractEndDateFrom(), filter.contractEndDateTo())) {
-            return false;
-        }
-        for (Map.Entry<String, Integer> required : filter.attributeMinimums().entrySet()) {
-            Object value = staff.value(required.getKey().toLowerCase(Locale.ROOT));
-            if (!(value instanceof Number number) || number.intValue() < required.getValue()) {
-                return false;
-            }
-        }
+    private static boolean matchesDerivedRatings(StaffEntity staff, StaffFilterCriteria filter) {
         if (filter.coachingRole() != null && !filter.coachingRole().isBlank()) {
             var rating = StaffRoleRatingCalculator.rating(staff, filter.coachingRole());
             if (rating.isEmpty() || filter.minimumCoachingStars() != null
@@ -122,25 +129,10 @@ public class StaffDatabaseService {
         return true;
     }
 
-    private static boolean contains(String actual, String wanted) {
-        return wanted == null || wanted.isBlank() || actual != null && actual.toLowerCase(Locale.ROOT).contains(wanted.toLowerCase(Locale.ROOT));
-    }
-    private static boolean exact(String actual, String wanted) {
-        return wanted == null || wanted.isBlank() || actual != null && actual.equalsIgnoreCase(wanted);
-    }
-    private static boolean range(Integer value, Integer min, Integer max) {
-        return (min == null || value != null && value >= min) && (max == null || value != null && value <= max);
-    }
-    private static boolean minimum(Integer value, Integer min) { return min == null || value != null && value >= min; }
-    private static boolean dateRange(String raw, LocalDate from, LocalDate to) {
-        if (from == null && to == null) return true;
-        if (raw == null || raw.isBlank()) return false;
-        try {
-            LocalDate value = LocalDate.parse(raw);
-            return (from == null || !value.isBefore(from)) && (to == null || !value.isAfter(to));
-        } catch (DateTimeException exception) {
-            return false;
-        }
+    private static boolean hasDerivedRatingFilter(StaffFilterCriteria filter) {
+        return filter.coachingRole() != null && !filter.coachingRole().isBlank()
+                || filter.minimumCoachingStars() != null
+                || !filter.coachingRoleMinimumStars().isEmpty();
     }
 
     public record LoadResult(String gameDate, long count) { }

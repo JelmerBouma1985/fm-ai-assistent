@@ -12,6 +12,8 @@ import com.github.fmaiassistent.tactic.TacticContext;
 import com.github.fmaiassistent.tactic.TacticContextService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.annotation.PreDestroy;
 
 import java.io.IOException;
 import java.time.LocalDate;
@@ -20,11 +22,18 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class SnapshotStatusService {
     private final LoadMetadataRepository metadata;
     private final DatabaseLoadAllService loader;
+    private final RefreshCoordinator refreshes;
+    private final SnapshotProperties properties;
+    private final ExecutorService probes = Executors.newVirtualThreadPerTaskExecutor();
     private final ManagedClubContextService managedClubs;
     private final TacticContextService tactics;
     private final AtomicReference<Boolean> lastKnownStale = new AtomicReference<>(null);
@@ -33,12 +42,36 @@ public class SnapshotStatusService {
     public SnapshotStatusService(
             LoadMetadataRepository metadata,
             DatabaseLoadAllService loader,
+            RefreshCoordinator refreshes,
             ManagedClubContextService managedClubs,
             TacticContextService tactics) {
+        this(metadata, loader, refreshes, managedClubs, tactics, new SnapshotProperties());
+    }
+
+    @Autowired
+    public SnapshotStatusService(
+            LoadMetadataRepository metadata,
+            DatabaseLoadAllService loader,
+            RefreshCoordinator refreshes,
+            ManagedClubContextService managedClubs,
+            TacticContextService tactics,
+            SnapshotProperties properties) {
         this.metadata = metadata;
         this.loader = loader;
+        this.refreshes = refreshes;
+        this.properties = properties;
         this.managedClubs = managedClubs;
         this.tactics = tactics;
+    }
+
+    public CompletableFuture<Map<String, Object>> statusAsync(boolean probeLive) {
+        return CompletableFuture.supplyAsync(() -> status(probeLive), probes)
+                .orTimeout(properties.liveProbeTimeout().toMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    @PreDestroy
+    void shutdown() {
+        probes.shutdownNow();
     }
 
     @Transactional(readOnly = true)
@@ -67,6 +100,21 @@ public class SnapshotStatusService {
         putNumber(out, "staff", values.get("staff_count"));
         putNumber(out, "clubs", values.get("clubs_count"));
         putNumber(out, "competitions", values.get("competitions_count"));
+        RefreshCoordinator.Status refresh = refreshes.status();
+        out.put("refresh_state", refresh.state().name().toLowerCase(java.util.Locale.ROOT));
+        out.put("refresh_started_at", refresh.startedAt());
+        out.put("refresh_completed_at", refresh.completedAt());
+        out.put("refresh_failure", refresh.failure());
+        Map<String, Object> quality = new LinkedHashMap<>();
+        values.forEach((key, value) -> {
+            if (key.startsWith("quality_")) {
+                putNumber(quality, key.substring("quality_".length()), value);
+            }
+        });
+        out.put("data_quality", quality);
+        putNumber(out, "people_slots", values.get("people_slots"));
+        putNumber(out, "people_workers", values.get("people_workers"));
+        putNumber(out, "people_extraction_ms", values.get("people_extraction_ms"));
 
         ManagedClubContext club = managedClubs.current();
         out.put("managed_club", club.available() ? club.clubName() : null);
@@ -121,7 +169,7 @@ public class SnapshotStatusService {
     }
 
     public Map<String, Object> refresh() throws IOException {
-        DatabaseLoadAllService.LoadAllResult result = loader.loadAll(
+        DatabaseLoadAllService.LoadAllResult result = refreshes.refreshAndWait(
                 null, DatabaseLoadAllService.LoadAllResult.defaultBuild(), null);
         lastKnownStale.set(false);
         lastStaleReasons.set(List.of());

@@ -1,6 +1,8 @@
 package com.github.fmaiassistent.linux;
 
 import com.github.fmaiassistent.memory.ProcessMemoryReader;
+import com.github.fmaiassistent.memory.MemoryRegion;
+import com.github.fmaiassistent.memory.FmBuildProfile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -265,6 +267,18 @@ public final class FmOffsets {
             throw new IllegalArgumentException("unknown build 0x" + Integer.toHexString(build));
         }
         return rva;
+    }
+
+    /** Explicit known-build capabilities; dynamic table scanning remains available separately. */
+    public static FmBuildProfile requireProfile(int build) {
+        Long tableRva = BUILD_TO_TABLE_RVA.get(build);
+        if (tableRva == null) {
+            throw new IllegalArgumentException("Unsupported FM26 build 0x" + Integer.toHexString(build));
+        }
+        Long dateRva = BUILD_TO_CURRENT_DATE_RVA.get(build);
+        return new FmBuildProfile(build, tableRva,
+                dateRva == null ? OptionalLong.empty() : OptionalLong.of(dateRva),
+                currentHumanManagerRva(build), null);
     }
 
     static Long currentDateRva(int build) {

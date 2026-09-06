@@ -1,4 +1,4 @@
-package com.github.fmaiassistent.repository;
+package com.github.fmaiassistent.player;
 
 public final class PlayerColumnNames {
     private PlayerColumnNames() {

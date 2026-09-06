@@ -1,14 +1,11 @@
 package com.github.fmaiassistent.tactic;
 
-import io.airlift.compress.zstd.ZstdInputStream;
+import com.github.fmaiassistent.fmf.BoundedZstd;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
@@ -102,21 +99,8 @@ class FmfTacticParser {
 
     private static byte[] decompress(
             byte[] bytes, int offset, int length, long expectedLength, String description) {
-        try (ZstdInputStream input = new ZstdInputStream(new ByteArrayInputStream(bytes, offset, length));
-                ByteArrayOutputStream output = new ByteArrayOutputStream(
-                        expectedLength > 0 ? Math.toIntExact(expectedLength) : 1024)) {
-            input.transferTo(output);
-            byte[] result = output.toByteArray();
-            if (result.length > MAX_RESOURCE_SIZE) {
-                throw new IllegalArgumentException(description + " is too large");
-            }
-            if (expectedLength >= 0 && result.length != expectedLength) {
-                throw new IllegalArgumentException(description + " has an unexpected uncompressed size");
-            }
-            return result;
-        } catch (IOException exception) {
-            throw new IllegalArgumentException("The " + description + " is damaged or unsupported", exception);
-        }
+        return BoundedZstd.decompress(
+                bytes, offset, length, expectedLength, MAX_RESOURCE_SIZE, description);
     }
 
     private static int littleEndianInt(byte[] bytes, int offset) {

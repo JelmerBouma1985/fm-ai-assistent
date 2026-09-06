@@ -297,8 +297,7 @@ public class CopilotConversationService {
                     .setCwd(workingDirectory.toString())
                     .setEnvironment(cliEnvironment(executable))
                     .setUseLoggedInUser(true)
-                    .setUseStdio(true)
-                    .setAutoRestart(false);
+                    .setUseStdio(true);
             CopilotClient started = new CopilotClient(options);
             client = started;
             started.start().get(properties.startupTimeout().toMillis(), TimeUnit.MILLISECONDS);

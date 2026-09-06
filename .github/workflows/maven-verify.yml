@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - '**'
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -12,6 +18,7 @@ jobs:
   verify:
     name: Clean and verify
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -25,4 +32,17 @@ jobs:
           cache: maven
 
       - name: Verify project
-        run: mvn -B clean verify
+        run: ./mvnw --batch-mode --no-transfer-progress clean verify
+
+      - name: Upload test and coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-reports
+          path: |
+            target/surefire-reports
+            target/site/jacoco
+            target/classes/META-INF/sbom/application.cdx.json
+            target/bom.xml
+          if-no-files-found: ignore
+          retention-days: 14

@@ -10,30 +10,24 @@ import org.springframework.context.annotation.Configuration;
 @EnableCaching
 public class JCacheConfiguration {
 
-    public static final String PLAYERS_CACHE = "players";
-    public static final String PLAYERS_WITH_CLUBS_CACHE = "players_with_clubs";
-    public static final String STAFF_WITH_CLUBS_CACHE = "staff_with_clubs";
     public static final String NATIONS_CACHE = "nations";
     public static final String COMPETITIONS_CACHE = "competitions";
+    public static final String COMPETITION_GENDERS_CACHE = "competition_genders";
     public static final String CLUB_NAMES_CACHE = "club_names";
-    public static final String CLUB_CACHE = "clubs";
-    public static final String PLAYER_MAPPING_CACHE = "player_mapping_cache";
 
     @Bean
     CaffeineCacheManager cacheManager() {
         CaffeineCacheManager cacheManager = new CaffeineCacheManager(
-                PLAYERS_CACHE,
-                PLAYERS_WITH_CLUBS_CACHE,
-                STAFF_WITH_CLUBS_CACHE,
                 NATIONS_CACHE,
                 COMPETITIONS_CACHE,
-                CLUB_NAMES_CACHE,
-                CLUB_CACHE,
-                PLAYER_MAPPING_CACHE
+                COMPETITION_GENDERS_CACHE,
+                CLUB_NAMES_CACHE
         );
 
         cacheManager.setCaffeine(
                 Caffeine.newBuilder()
+                        .maximumSize(10_000)
+                        .expireAfterAccess(java.time.Duration.ofMinutes(30))
                         .recordStats()
         );
 

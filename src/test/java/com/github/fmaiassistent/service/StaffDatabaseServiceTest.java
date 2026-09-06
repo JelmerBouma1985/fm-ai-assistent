@@ -6,6 +6,7 @@ import com.github.fmaiassistent.repository.StaffFilterCriteria;
 import com.github.fmaiassistent.repository.StaffRepository;
 import com.github.fmaiassistent.staff.StaffAttributeDefinitions;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.util.HashMap;
 import java.util.List;
@@ -24,7 +25,8 @@ class StaffDatabaseServiceTest {
         StaffEntity multiRole = staff("Multi-role", Map.of(
                 "attacking", 20, "technical", 20, "goalkeeping", 20,
                 "authority", 20, "determination", 20, "motivating", 20));
-        when(repository.findAllWithClubs()).thenReturn(List.of(attackingOnly, multiRole));
+        when(repository.findAll(org.mockito.ArgumentMatchers.<Specification<StaffEntity>>any()))
+                .thenReturn(List.of(attackingOnly, multiRole));
         StaffDatabaseService service = new StaffDatabaseService(repository, mock(ClubRepository.class));
         StaffFilterCriteria criteria = new StaffFilterCriteria(
                 "", "", "", "", "", "", null, null, null, null, null, null,

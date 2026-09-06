@@ -3,14 +3,15 @@ package com.github.fmaiassistent.managedclub;
 import com.github.fmaiassistent.ai.AiPromptContextContributor;
 import com.github.fmaiassistent.domain.entity.ClubEntity;
 import com.github.fmaiassistent.repository.ClubRepository;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.util.Locale;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -24,7 +25,10 @@ public class ManagedClubContextService implements AiPromptContextContributor {
     private final AtomicLong versions = new AtomicLong();
     private final AtomicReference<ManagedClubContext> current =
             new AtomicReference<>(ManagedClubContext.notLoaded(0));
-    private final ConcurrentMap<String, Long> deliveredVersions = new ConcurrentHashMap<>();
+    private final Cache<String, Long> deliveredVersions = Caffeine.newBuilder()
+            .maximumSize(10_000)
+            .expireAfterAccess(Duration.ofHours(12))
+            .build();
     private final AtomicBoolean aiContextEnabled = new AtomicBoolean(true);
 
     ManagedClubContextService(ManagedClubMemoryReader memoryReader, ClubRepository clubs) {
@@ -42,14 +46,19 @@ public class ManagedClubContextService implements AiPromptContextContributor {
 
     public void setAiContextEnabled(boolean enabled) {
         if (aiContextEnabled.getAndSet(enabled) != enabled) {
-            deliveredVersions.clear();
+            deliveredVersions.invalidateAll();
         }
     }
 
     public ManagedClubContext refresh(int pid, int build, Long gamePluginBase) throws IOException {
+        return publish(detect(pid, build, gamePluginBase));
+    }
+
+    /** Detects a managed club without publishing it to application state. */
+    public ManagedClubContext detect(int pid, int build, Long gamePluginBase) throws IOException {
         ManagedClubIdentity identity = memoryReader.read(pid, build, gamePluginBase);
         ClubEntity club = clubs.findFirstBySourceAddressOrderByReputationDesc(identity.clubAddress()).orElse(null);
-        ManagedClubContext context = new ManagedClubContext(
+        return new ManagedClubContext(
                 versions.incrementAndGet(),
                 ManagedClubContext.State.AVAILABLE,
                 identity.managerName(),
@@ -64,19 +73,27 @@ public class ManagedClubContextService implements AiPromptContextContributor {
                 club == null ? null : club.getPayrollBudget(),
                 identity.clubAddress(),
                 "Detected from the loaded FM26 save");
+    }
+
+    public ManagedClubContext publish(ManagedClubContext context) {
+        java.util.Objects.requireNonNull(context, "context");
         current.set(context);
         log.info("Detected current human manager={} managedClub={} clubAddress=0x{}",
-                context.managerName(), context.clubName(), Long.toHexString(identity.clubAddress()));
+                context.managerName(), context.clubName(),
+                context.clubAddress() == null ? "unknown" : Long.toHexString(context.clubAddress()));
         return context;
     }
 
-    public ManagedClubContext markUnavailable(String message) {
+    /** Creates an unavailable state without exposing it before a snapshot commits. */
+    public ManagedClubContext unavailable(String message) {
         String safeMessage = message == null || message.isBlank()
                 ? "The managed club could not be detected from FM26 RAM"
                 : message;
-        ManagedClubContext context = ManagedClubContext.unavailable(versions.incrementAndGet(), safeMessage);
-        current.set(context);
-        return context;
+        return ManagedClubContext.unavailable(versions.incrementAndGet(), safeMessage);
+    }
+
+    public ManagedClubContext markUnavailable(String message) {
+        return publish(unavailable(message));
     }
 
     public void restore(ManagedClubContext context) {
@@ -98,7 +115,8 @@ public class ManagedClubContextService implements AiPromptContextContributor {
         if (!context.available()) {
             return "";
         }
-        Long previousVersion = deliveredVersions.put(conversationKey, context.version());
+        Long previousVersion = deliveredVersions.getIfPresent(conversationKey);
+        deliveredVersions.put(conversationKey, context.version());
         if (previousVersion != null && previousVersion == context.version()) {
             return "";
         }

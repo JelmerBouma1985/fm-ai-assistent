@@ -3,6 +3,8 @@ package com.github.fmaiassistent.tactic;
 import com.github.fmaiassistent.ai.AiPromptContextContributor;
 import com.github.fmaiassistent.domain.entity.TacticContextEntity;
 import com.github.fmaiassistent.repository.TacticContextRepository;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,14 +12,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.Path;
+import java.time.Duration;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -32,7 +33,10 @@ public class TacticContextService implements AiPromptContextContributor {
     private final AtomicLong versions = new AtomicLong();
     private final AtomicReference<TacticContext> current =
             new AtomicReference<>(TacticContext.empty(0));
-    private final ConcurrentMap<String, Long> deliveredVersions = new ConcurrentHashMap<>();
+    private final Cache<String, Long> deliveredVersions = Caffeine.newBuilder()
+            .maximumSize(10_000)
+            .expireAfterAccess(Duration.ofHours(12))
+            .build();
     private final AtomicBoolean aiContextEnabled = new AtomicBoolean(true);
 
     @Autowired
@@ -79,7 +83,7 @@ public class TacticContextService implements AiPromptContextContributor {
 
     public void setAiContextEnabled(boolean enabled) {
         if (aiContextEnabled.getAndSet(enabled) != enabled) {
-            deliveredVersions.clear();
+            deliveredVersions.invalidateAll();
         }
     }
 
@@ -133,7 +137,8 @@ public class TacticContextService implements AiPromptContextContributor {
         if (!context.active()) {
             return "";
         }
-        Long previousVersion = deliveredVersions.put(conversationKey, context.version());
+        Long previousVersion = deliveredVersions.getIfPresent(conversationKey);
+        deliveredVersions.put(conversationKey, context.version());
         if (previousVersion != null && previousVersion == context.version()) {
             return "";
         }

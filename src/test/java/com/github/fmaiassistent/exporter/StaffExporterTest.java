@@ -1,6 +1,6 @@
 package com.github.fmaiassistent.exporter;
 
-import com.github.fmaiassistent.linux.MemoryRegion;
+import com.github.fmaiassistent.memory.MemoryRegion;
 import com.github.fmaiassistent.memory.ProcessMemoryReader;
 import org.junit.jupiter.api.Test;
 

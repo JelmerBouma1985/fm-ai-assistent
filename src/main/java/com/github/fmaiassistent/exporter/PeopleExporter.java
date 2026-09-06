@@ -21,6 +21,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntSupplier;
 
@@ -33,6 +34,7 @@ public class PeopleExporter {
     static final int CHUNK_SIZE = 4_096;
     static final int SMALL_TABLE_SLOT_LIMIT = 10_000;
     static final int MAX_WORKERS = 12;
+    static final long SCAN_TIMEOUT_SECONDS = 90;
 
     private static final Logger log = LoggerFactory.getLogger(PeopleExporter.class);
     private static final Comparator<Map<String, Object>> PLAYER_NAME_ORDER =
@@ -81,8 +83,9 @@ public class PeopleExporter {
         int processors = Math.max(1, availableProcessors.getAsInt());
         try (ProcessMemoryReader coordinator = readers.open(pid)) {
             FmOffsets.Bounds bounds = FmOffsets.peopleBounds(coordinator, build, gamePluginBase);
-            int slotCount = checkedSlotCount(bounds);
-            byte[] pointerTable = coordinator.readBytes(bounds.start(), Math.multiplyExact(slotCount, Long.BYTES));
+            PointerTable table = PointerTable.read(coordinator, bounds, "People");
+            int slotCount = table.size();
+            byte[] pointerTable = table.bytes();
             int workers = forcedWorkers == null
                     ? selectedWorkerCount(processors, slotCount)
                     : Math.min(forcedWorkers, Math.max(1, slotCount));
@@ -137,13 +140,14 @@ public class PeopleExporter {
         ExecutorService executor = Executors.newFixedThreadPool(
                 actualWorkers, Thread.ofPlatform().name("fm-people-reader-", 0).factory());
         List<Future<WorkerResult>> futures = new ArrayList<>(actualWorkers);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(SCAN_TIMEOUT_SECONDS);
         try {
             for (int worker = 0; worker < actualWorkers; worker++) {
                 futures.add(executor.submit(() -> scanWorker(pid, pointerTable, mode, nextIndex)));
             }
             List<WorkerResult> results = new ArrayList<>(actualWorkers);
             for (Future<WorkerResult> future : futures) {
-                results.add(await(future));
+                results.add(await(future, deadline));
             }
             return merge(results);
         } catch (IOException | RuntimeException exception) {
@@ -151,6 +155,7 @@ public class PeopleExporter {
             throw exception;
         } finally {
             executor.shutdownNow();
+            awaitTermination(executor);
         }
     }
 
@@ -285,17 +290,6 @@ public class PeopleExporter {
                 && StaffExporter.validAbility(ca) && StaffExporter.validAbility(pa);
     }
 
-    private static int checkedSlotCount(FmOffsets.Bounds bounds) throws IOException {
-        if (bounds.end() < bounds.start() || (bounds.end() - bounds.start()) % Long.BYTES != 0) {
-            throw new IOException("Invalid FM26 people table bounds");
-        }
-        long count = bounds.count();
-        if (count > Integer.MAX_VALUE / Long.BYTES) {
-            throw new IOException("FM26 people table is too large to export");
-        }
-        return (int) count;
-    }
-
     private static long pointerAt(byte[] pointerTable, int index) {
         int offset = index * Long.BYTES;
         return (pointerTable[offset] & 0xffL)
@@ -308,14 +302,20 @@ public class PeopleExporter {
                 | (pointerTable[offset + 7] & 0xffL) << 56;
     }
 
-    private static WorkerResult await(Future<WorkerResult> future) throws IOException {
+    private static WorkerResult await(Future<WorkerResult> future, long deadline) throws IOException {
         try {
-            return future.get();
+            long remaining = deadline - System.nanoTime();
+            if (remaining <= 0) {
+                throw new TimeoutException("People extraction deadline exceeded");
+            }
+            return future.get(remaining, TimeUnit.NANOSECONDS);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IOException("Interrupted while reading FM26 people data", exception);
         } catch (CancellationException exception) {
             throw new IOException("FM26 people extraction was cancelled", exception);
+        } catch (TimeoutException exception) {
+            throw new IOException("FM26 people extraction exceeded " + SCAN_TIMEOUT_SECONDS + " seconds", exception);
         } catch (ExecutionException exception) {
             Throwable cause = exception.getCause();
             if (cause instanceof InterruptedException interrupted) {
@@ -328,6 +328,16 @@ public class PeopleExporter {
                 throw runtimeException;
             }
             throw new IOException("Could not read FM26 people data", cause);
+        }
+    }
+
+    private static void awaitTermination(ExecutorService executor) {
+        try {
+            if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                log.warn("FM26 people extraction workers did not terminate within 5 seconds");
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
         }
     }
 

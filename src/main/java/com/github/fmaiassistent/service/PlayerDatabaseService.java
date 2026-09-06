@@ -9,6 +9,8 @@ import com.github.fmaiassistent.exporter.PlayerExporter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StopWatch;
@@ -103,9 +105,9 @@ public class PlayerDatabaseService {
     public List<PlayerEntity> findAllPlayerEntities() {
         StopWatch stopWatch = new StopWatch();
         stopWatch.start();
-        List<PlayerEntity> out = players.findAllWithClubs();
+        List<PlayerEntity> out = players.findAll(CatalogSpecifications.players(PlayerFilterCriteria.empty()));
         stopWatch.stop();
-        LOGGER.info("Time to get player entities: {}", stopWatch.getTotalTime(TimeUnit.MILLISECONDS));
+        LOGGER.debug("Loaded all player entities in {} ms", stopWatch.getTotalTime(TimeUnit.MILLISECONDS));
         return out;
     }
 
@@ -114,13 +116,20 @@ public class PlayerDatabaseService {
         PlayerFilterCriteria safeFilter = filter == null ? PlayerFilterCriteria.empty() : filter;
         StopWatch stopWatch = new StopWatch();
         stopWatch.start();
-        List<PlayerEntity> out = players.findAllWithClubs()
-                .stream()
-                .filter(player -> matchesPlayerFilter(player, safeFilter))
-                .toList();
+        List<PlayerEntity> out = players.findAll(CatalogSpecifications.players(safeFilter));
         stopWatch.stop();
-        LOGGER.info("Time to get filtered player entities: {}", stopWatch.getTotalTime(TimeUnit.MILLISECONDS));
+        LOGGER.debug("Loaded filtered player entities in {} ms", stopWatch.getTotalTime(TimeUnit.MILLISECONDS));
         return out;
+    }
+
+    @Transactional(readOnly = true)
+    public Page<PlayerEntity> findPlayerPage(PlayerFilterCriteria filter, Pageable pageable) {
+        return players.findAll(CatalogSpecifications.players(filter), pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public long countPlayers(PlayerFilterCriteria filter) {
+        return players.count(CatalogSpecifications.players(filter));
     }
 
     @Transactional(readOnly = true)
@@ -144,97 +153,6 @@ public class PlayerDatabaseService {
         metadata.findAll(Sort.by("key")).forEach(row -> out.put(row.getKey(), row.getValue()));
         out.put("count", countPlayers());
         return out;
-    }
-
-    private static boolean matchesPlayerFilter(PlayerEntity player, PlayerFilterCriteria filter) {
-        return contains(player.getName(), filter.name())
-                && equalsIgnoreCase(player.getGender(), filter.gender())
-                && equalsIgnoreCase(Optional.ofNullable(player.getPlayingClubEntity()).map(ClubEntity::getCompetitionEntity).map(CompetitionEntity::getNation).orElse(null), filter.playingNation())
-                && equalsIgnoreCase(Optional.ofNullable(player.getPlayingClubEntity()).map(ClubEntity::getCompetitionEntity).map(CompetitionEntity::getName).orElse(null), filter.playingCompetition())
-                && matchesClub(player, filter.club())
-                && inRange(player.getSalaryWeeklyRaw().longValue(), 0L, filter.salaryMax())
-                && equalsIgnoreCase(player.getNationality(), filter.nationality())
-                && inRange(asInt(player.getAge()), filter.ageMin(), filter.ageMax())
-                && inRange(player.getHeightCm(), filter.heightMin(), filter.heightMax())
-                && inRange(player.getCurrentReputation(), filter.currentReputationMin(), filter.currentReputationMax())
-                && inRange(player.getHomeReputation(), filter.homeReputationMin(), filter.homeReputationMax())
-                && inRange(player.getWorldReputation(), filter.worldReputationMin(), filter.worldReputationMax())
-                && inRange(player.getCa(), filter.caMin(), filter.caMax())
-                && inRange(player.getPa(), filter.paMin(), filter.paMax())
-                && inRange(player.getAskingPrice(), filter.askingPriceMin(), filter.askingPriceMax())
-                && dateInRange(player.getContractEndDate(), filter.contractEndDateFrom(), filter.contractEndDateTo())
-                && minimumsMatch(player, filter.positionMinimums())
-                && minimumsMatch(player, filter.attributeMinimums());
-    }
-
-    private static boolean contains(Object value, String term) {
-        return term == null || term.isBlank()
-                || String.valueOf(value == null ? "" : value).toLowerCase(Locale.ROOT)
-                .contains(term.toLowerCase(Locale.ROOT).trim());
-    }
-
-    private static boolean equalsIgnoreCase(Object value, String term) {
-        return term == null || term.isBlank()
-                || String.valueOf(value == null ? "" : value).equalsIgnoreCase(term.trim());
-    }
-
-    private static boolean matchesClub(PlayerEntity player, String club) {
-        return equalsIgnoreCase(Optional.ofNullable(player.getClubEntity()).map(ClubEntity::getName).orElse(null), club)
-                || equalsIgnoreCase(Optional.ofNullable(player.getPlayingClubEntity()).map(ClubEntity::getName).orElse(null), club)
-                || equalsIgnoreCase(player.getClub(), club)
-                || equalsIgnoreCase(player.getPlayingClub(), club);
-    }
-
-    private static boolean minimumsMatch(PlayerEntity player, Map<String, Integer> minimums) {
-        for (Map.Entry<String, Integer> minimum : minimums.entrySet()) {
-            Integer value = asInt(player.getColumnValue(minimum.getKey()));
-            if (value == null || value < minimum.getValue()) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private static boolean inRange(Integer value, Integer min, Integer max) {
-        if (min == null && max == null) {
-            return true;
-        }
-        if (value == null) {
-            return false;
-        }
-        return (min == null || value >= min) && (max == null || value <= max);
-    }
-
-    private static boolean inRange(Long value, Long min, Long max) {
-        if (min == null && max == null) {
-            return true;
-        }
-        if (value == null) {
-            return false;
-        }
-        return (min == null || value >= min) && (max == null || value <= max);
-    }
-
-    private static boolean dateInRange(Object value, LocalDate from, LocalDate to) {
-        if (from == null && to == null) {
-            return true;
-        }
-        if (value == null || String.valueOf(value).isBlank()) {
-            return false;
-        }
-        try {
-            LocalDate date = LocalDate.parse(String.valueOf(value));
-            return (from == null || !date.isBefore(from)) && (to == null || !date.isAfter(to));
-        } catch (RuntimeException ex) {
-            return false;
-        }
-    }
-
-    private static Integer asInt(Object value) {
-        if (value == null || String.valueOf(value).isBlank()) {
-            return null;
-        }
-        return Integer.valueOf(String.valueOf(value));
     }
 
     public record LoadResult(String gameDate, int count) {

@@ -20,12 +20,12 @@ class AntigravityStreamParser {
     Optional<AntigravityStreamEvent> parse(String line) {
         try {
             JsonNode root = mapper.readTree(line);
-            return switch (root.path("event").asText()) {
+            return switch (root.path("event").asString()) {
                 case "init" -> Optional.of(parseInit(root));
                 case "step_update" -> Optional.of(parseStep(root.path("step_update")));
                 case "result" -> Optional.of(parseResult(root.path("result")));
                 default -> {
-                    log.trace("Ignoring unknown Antigravity stream event: {}", root.path("event").asText());
+                    log.trace("Ignoring unknown Antigravity stream event: {}", root.path("event").asString());
                     yield Optional.empty();
                 }
             };
@@ -73,15 +73,15 @@ class AntigravityStreamParser {
         if (error.isMissingNode() || error.isNull()) {
             return null;
         }
-        if (error.isTextual()) {
-            return error.asText();
+        if (error.isString()) {
+            return error.asString();
         }
-        String message = error.path("message").asText(null);
+        String message = error.path("message").asString(null);
         return message == null ? error.toString() : message;
     }
 
     private static String text(JsonNode node, String field) {
-        String value = node.path(field).asText(null);
+        String value = node.path(field).asString(null);
         return value == null || value.isBlank() ? null : value;
     }
 }

@@ -8,7 +8,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -20,8 +19,8 @@ import java.util.Set;
 
 @Service
 public class LineupOptimizerService {
-    private static final long UNREACHABLE = Long.MIN_VALUE / 4;
     private static final long MAX_FM_UID = 0xffff_ffffL;
+    private static final long FORBIDDEN_COST = Long.MAX_VALUE / 8;
 
     private final RoleFitService roleFits;
     private final Cache<FitKey, RoleFitService.SlotFit> fitCache = Caffeine.newBuilder()
@@ -139,55 +138,106 @@ public class LineupOptimizerService {
                 }
             }
         }
-        int states = 1 << slots.size();
-        long[][] scores = new long[players.size() + 1][states];
-        int[][] parent = new int[players.size() + 1][states];
-        short[][] chosenSlot = new short[players.size() + 1][states];
-        for (int row = 0; row <= players.size(); row++) {
-            Arrays.fill(scores[row], UNREACHABLE);
-            Arrays.fill(parent[row], -1);
-            Arrays.fill(chosenSlot[row], (short) -1);
-        }
-        scores[0][0] = 0;
-        parent[0][0] = 0;
-
-        for (int playerIndex = 1; playerIndex <= players.size(); playerIndex++) {
-            for (int mask = 0; mask < states; mask++) {
-                long previous = scores[playerIndex - 1][mask];
-                if (previous == UNREACHABLE) continue;
-                update(scores, parent, chosenSlot, playerIndex, mask, previous, mask, (short) -1);
-                for (int slotIndex = 0; slotIndex < slots.size(); slotIndex++) {
-                    if ((mask & (1 << slotIndex)) != 0) continue;
-                    if (fits[playerIndex - 1][slotIndex] == null) continue;
-                    int nextMask = mask | (1 << slotIndex);
-                    update(scores, parent, chosenSlot, playerIndex, nextMask,
-                            previous + utilities[playerIndex - 1][slotIndex], mask, (short) slotIndex);
-                }
+        // Assign every tactic slot either to one eligible player or to its own
+        // zero-cost dummy column. This is polynomial in players and slots and
+        // avoids the previous O(players * 2^slots) heap requirement.
+        int playerColumns = players.size();
+        long[][] costs = new long[slots.size()][playerColumns + slots.size()];
+        for (int slotIndex = 0; slotIndex < slots.size(); slotIndex++) {
+            for (int playerIndex = 0; playerIndex < playerColumns; playerIndex++) {
+                costs[slotIndex][playerIndex] = fits[playerIndex][slotIndex] == null
+                        ? FORBIDDEN_COST
+                        : -utilities[playerIndex][slotIndex];
+            }
+            // Dummy columns represent an intentionally unfilled slot.
+            for (int dummy = 0; dummy < slots.size(); dummy++) {
+                costs[slotIndex][playerColumns + dummy] = 0;
             }
         }
 
-        int bestMask = 0;
-        for (int mask = 1; mask < states; mask++) {
-            if (scores[players.size()][mask] > scores[players.size()][bestMask]
-                    || (scores[players.size()][mask] == scores[players.size()][bestMask]
-                    && Integer.bitCount(mask) > Integer.bitCount(bestMask))) {
-                bestMask = mask;
-            }
-        }
+        int[] selectedColumnBySlot = minimumCostAssignment(costs);
         Map<Integer, Assignment> selected = new HashMap<>();
-        int state = bestMask;
-        for (int playerIndex = players.size(); playerIndex > 0; playerIndex--) {
-            short slotIndex = chosenSlot[playerIndex][state];
-            int previous = parent[playerIndex][state];
-            if (slotIndex >= 0) {
-                PlayerEntity player = players.get(playerIndex - 1);
+        for (int slotIndex = 0; slotIndex < slots.size(); slotIndex++) {
+            int playerIndex = selectedColumnBySlot[slotIndex];
+            if (playerIndex >= 0 && playerIndex < playerColumns
+                    && fits[playerIndex][slotIndex] != null) {
+                PlayerEntity player = players.get(playerIndex);
                 TacticDefinition.TacticSlot slot = slots.get(slotIndex);
                 selected.put(slot.index(), new Assignment(
-                        slot, player, fits[playerIndex - 1][slotIndex], false));
+                        slot, player, fits[playerIndex][slotIndex], false));
             }
-            state = previous;
         }
         return selected;
+    }
+
+    /**
+     * Rectangular Hungarian algorithm. Rows must not outnumber columns.
+     * Returns the selected zero-based column for every row.
+     */
+    private static int[] minimumCostAssignment(long[][] costs) {
+        int rows = costs.length;
+        int columns = costs[0].length;
+        if (rows > columns) {
+            throw new IllegalArgumentException("assignment rows must not exceed columns");
+        }
+        long[] rowPotential = new long[rows + 1];
+        long[] columnPotential = new long[columns + 1];
+        int[] rowByColumn = new int[columns + 1];
+        int[] previousColumn = new int[columns + 1];
+
+        for (int row = 1; row <= rows; row++) {
+            rowByColumn[0] = row;
+            long[] minimum = new long[columns + 1];
+            java.util.Arrays.fill(minimum, Long.MAX_VALUE / 4);
+            boolean[] used = new boolean[columns + 1];
+            int column = 0;
+            do {
+                used[column] = true;
+                int currentRow = rowByColumn[column];
+                long delta = Long.MAX_VALUE / 4;
+                int nextColumn = 0;
+                for (int candidate = 1; candidate <= columns; candidate++) {
+                    if (used[candidate]) {
+                        continue;
+                    }
+                    long reducedCost = costs[currentRow - 1][candidate - 1]
+                            - rowPotential[currentRow] - columnPotential[candidate];
+                    if (reducedCost < minimum[candidate]) {
+                        minimum[candidate] = reducedCost;
+                        previousColumn[candidate] = column;
+                    }
+                    if (minimum[candidate] < delta
+                            || (minimum[candidate] == delta && candidate < nextColumn)) {
+                        delta = minimum[candidate];
+                        nextColumn = candidate;
+                    }
+                }
+                for (int candidate = 0; candidate <= columns; candidate++) {
+                    if (used[candidate]) {
+                        rowPotential[rowByColumn[candidate]] += delta;
+                        columnPotential[candidate] -= delta;
+                    } else {
+                        minimum[candidate] -= delta;
+                    }
+                }
+                column = nextColumn;
+            } while (rowByColumn[column] != 0);
+
+            do {
+                int predecessor = previousColumn[column];
+                rowByColumn[column] = rowByColumn[predecessor];
+                column = predecessor;
+            } while (column != 0);
+        }
+
+        int[] columnByRow = new int[rows];
+        java.util.Arrays.fill(columnByRow, -1);
+        for (int column = 1; column <= columns; column++) {
+            if (rowByColumn[column] != 0) {
+                columnByRow[rowByColumn[column] - 1] = column - 1;
+            }
+        }
+        return columnByRow;
     }
 
     private Map<Integer, Assignment> validateLocks(
@@ -218,22 +268,6 @@ public class LineupOptimizerService {
             locked.put(slot.index(), new Assignment(slot, player, fit, true));
         }
         return locked;
-    }
-
-    private static void update(
-            long[][] scores,
-            int[][] parent,
-            short[][] chosenSlot,
-            int row,
-            int state,
-            long score,
-            int previousState,
-            short slot) {
-        if (score > scores[row][state]) {
-            scores[row][state] = score;
-            parent[row][state] = previousState;
-            chosenSlot[row][state] = slot;
-        }
     }
 
     private static long utility(RoleFitService.SlotFit fit, PlayerEntity player) {

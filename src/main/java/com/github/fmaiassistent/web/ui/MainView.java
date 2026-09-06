@@ -13,10 +13,13 @@ import com.github.fmaiassistent.copilot.CopilotConversationService;
 import com.github.fmaiassistent.managedclub.ManagedClubContextService;
 import com.github.fmaiassistent.tactic.TacticContextService;
 import com.github.fmaiassistent.snapshot.SnapshotStatusService;
+import com.github.fmaiassistent.snapshot.RefreshCoordinator;
 import com.github.fmaiassistent.domain.enums.MoneyCurrency;
 import com.github.fmaiassistent.repository.*;
 import com.github.fmaiassistent.player.AttributeDefinitions;
 import com.github.fmaiassistent.player.FieldDef;
+import com.github.fmaiassistent.player.PositionTextFormatter;
+import com.github.fmaiassistent.player.PlayerColumnNames;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.ModalityMode;
 import com.vaadin.flow.component.UI;
@@ -44,6 +47,9 @@ import com.vaadin.flow.component.textfield.IntegerField;
 import com.vaadin.flow.component.textfield.NumberField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.dependency.CssImport;
+import com.vaadin.flow.data.provider.DataProvider;
+import com.vaadin.flow.data.provider.QuerySortOrder;
+import com.vaadin.flow.data.provider.SortDirection;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 
@@ -55,11 +61,14 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.function.Function;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 @Route("")
 @PageTitle("FM AI Assistent")
 @CssImport("./styles/main-view.css")
-@CssImport(value = "./styles/player-grid.css", themeFor = "vaadin-grid")
+@CssImport("./styles/player-grid.css")
 public class MainView extends VerticalLayout {
     private static final Set<String> NUMERIC_SORT_COLUMNS = Set.of(
             "ID", "CLUB_ID", "PLAYING_CLUB_ID", "CURRENT_REPUTATION", "HOME_REPUTATION", "WORLD_REPUTATION",
@@ -83,7 +92,7 @@ public class MainView extends VerticalLayout {
             "ASKING_PRICE", "ASKING_PRICE_RAW", "SALARY_PA", "SALARY_WEEKLY_RAW",
             "BALANCE", "TRANSFER_BUDGET", "PAYROLL_BUDGET");
 
-    private final DatabaseLoadAllService loadAll;
+    private final RefreshCoordinator refreshes;
     private final PlayerDatabaseService players;
     private final StaffDatabaseService staff;
     private final ClubDatabaseService clubs;
@@ -118,7 +127,7 @@ public class MainView extends VerticalLayout {
     private MoneyCurrency currency;
 
     public MainView(
-            DatabaseLoadAllService loadAll,
+            RefreshCoordinator refreshes,
             PlayerDatabaseService players,
             StaffDatabaseService staff,
             ClubDatabaseService clubs,
@@ -130,7 +139,7 @@ public class MainView extends VerticalLayout {
             CopilotConversationService copilotConversations,
             TacticContextService tacticContexts,
             ManagedClubContextService managedClubContexts) {
-        this.loadAll = loadAll;
+        this.refreshes = refreshes;
         this.players = players;
         this.staff = staff;
         this.clubs = clubs;
@@ -261,18 +270,10 @@ public class MainView extends VerticalLayout {
         loadButton.addClassName("is-loading");
         loadingDialog.open();
 
-        CompletableFuture
-                .supplyAsync(() -> {
-                    try {
-                        return loadAll.loadAll(
-                                null,
-                                DatabaseLoadAllService.LoadAllResult.defaultBuild(),
-                                null
-                        );
-                    } catch (IOException ex) {
-                        throw new CompletionException(ex);
-                    }
-                })
+        refreshes.refresh(
+                        null,
+                        DatabaseLoadAllService.LoadAllResult.defaultBuild(),
+                        null)
                 .thenAccept(result -> ui.access(() -> {
                     updateStatus(result);
                     aiAssistant.refreshManagedClubContext();
@@ -312,7 +313,7 @@ public class MainView extends VerticalLayout {
     private void checkSnapshotFreshness() {
         freshnessButton.setEnabled(false);
         UI ui = UI.getCurrent();
-        CompletableFuture.supplyAsync(() -> snapshots.status(true))
+        snapshots.statusAsync(true)
                 .thenAccept(snapshot -> ui.access(() -> {
                     Boolean stale = (Boolean) snapshot.get("stale");
                     String liveDate = Objects.toString(snapshot.get("live_game_date"), "unknown");
@@ -393,11 +394,12 @@ public class MainView extends VerticalLayout {
                 new PlayerColumn("CURRENT_REPUTATION", "Current Reputation", PlayerEntity::getCurrentReputation),
                 new PlayerColumn("HOME_REPUTATION", "Home Reputation", PlayerEntity::getHomeReputation),
                 new PlayerColumn("WORLD_REPUTATION", "World Reputation", PlayerEntity::getWorldReputation));
-        List<PlayerEntity> rows = playerFilter.isEmpty() ? players.findAllPlayerEntities() : players.findPlayerEntities(playerFilter);
-        setPlayerGrid(columns, rows);
+        PlayerFilterCriteria activeFilter = playerFilter;
+        setPlayerGrid(columns, activeFilter);
         setFilterActive(!playerFilter.isEmpty());
         if (!playerFilter.isEmpty()) {
-            status.setText("Filtered players " + rows.size() + " | Total players " + players.countPlayers());
+            status.setText("Filtered players " + players.countPlayers(activeFilter)
+                    + " | Total players " + players.countPlayers());
         }
     }
 
@@ -416,11 +418,12 @@ public class MainView extends VerticalLayout {
         columns.add(new StaffColumn("SALARY_WEEKLY_RAW", "Salary Weekly", StaffEntity::getSalaryWeeklyRaw));
         columns.add(new StaffColumn("CONTRACT_END_DATE", "Contract End Date", StaffEntity::getContractEndDate));
         columns.add(new StaffColumn("WORLD_REPUTATION", "World Reputation", StaffEntity::getWorldReputation));
-        List<StaffEntity> rows = staffFilter.isEmpty() ? staff.findAllStaff() : staff.findStaff(staffFilter);
-        setStaffGrid(columns, rows);
+        StaffFilterCriteria activeFilter = staffFilter;
+        setStaffGrid(columns, activeFilter);
         setFilterActive(!staffFilter.isEmpty());
         if (!staffFilter.isEmpty()) {
-            status.setText("Filtered staff " + rows.size() + " | Total staff " + staff.countStaff());
+            status.setText("Filtered staff " + staff.countStaff(activeFilter)
+                    + " | Total staff " + staff.countStaff());
         }
     }
 
@@ -438,11 +441,12 @@ public class MainView extends VerticalLayout {
                 new GridColumn("BALANCE", "Balance"),
                 new GridColumn("TRANSFER_BUDGET", "Transfer Budget"),
                 new GridColumn("PAYROLL_BUDGET", "Payroll Budget"));
-        List<ClubEntity> rows = clubs.findClubEntities(clubFilter);
-        setClubGrid(columns, rows);
+        ClubFilterCriteria activeFilter = clubFilter;
+        setClubGrid(columns, activeFilter);
         setFilterActive(!clubFilter.isEmpty());
         if (!clubFilter.isEmpty()) {
-            status.setText("Filtered clubs " + rows.size() + " | Total clubs " + clubs.countClubs());
+            status.setText("Filtered clubs " + clubs.countClubs(activeFilter)
+                    + " | Total clubs " + clubs.countClubs());
         }
     }
 
@@ -452,15 +456,16 @@ public class MainView extends VerticalLayout {
                 new GridColumn("NATION", "Nation"),
                 new GridColumn("REPUTATION", "Reputation"),
                 new GridColumn("GENDER", "Gender"));
-        List<CompetitionEntity> rows = competitions.findCompetitionEntities(competitionFilter);
-        setCompetitionGrid(columns, rows);
+        CompetitionFilterCriteria activeFilter = competitionFilter;
+        setCompetitionGrid(columns, activeFilter);
         setFilterActive(!competitionFilter.isEmpty());
         if (!competitionFilter.isEmpty()) {
-            status.setText("Filtered competitions " + rows.size() + " | Total competitions " + competitions.countCompetitions());
+            status.setText("Filtered competitions " + competitions.countCompetitions(activeFilter)
+                    + " | Total competitions " + competitions.countCompetitions());
         }
     }
 
-    private void setClubGrid(List<GridColumn> columns, List<ClubEntity> rows) {
+    private void setClubGrid(List<GridColumn> columns, ClubFilterCriteria filter) {
         clubsGrid.removeAllColumns();
         for (GridColumn column : columns) {
             clubsGrid.addColumn(club -> displayColumn(column.key(), clubColumnValue(club, column.key())))
@@ -468,31 +473,41 @@ public class MainView extends VerticalLayout {
                     .setHeader(column.header())
                     .setAutoWidth(true)
                     .setResizable(true)
-                    .setComparator((left, right) -> compareClubColumn(left, right, column.key()))
+                    .setSortProperty(column.key())
                     .setSortable(true);
         }
-        clubsGrid.setItems(rows);
+        clubsGrid.setDataProvider(DataProvider.fromCallbacks(
+                query -> clubs.findClubPage(filter, pageable(query.getPage(), query.getPageSize(),
+                        query.getSortOrders(), MainView::catalogSortProperty)).stream(),
+                query -> boundedCount(clubs.countClubs(filter))));
         content.removeAll();
         content.setSizeFull();
         content.add(clubsGrid);
         content.addClassName("data-workspace");
     }
 
-    private void setStaffGrid(List<StaffColumn> columns, List<StaffEntity> rows) {
+    private void setStaffGrid(List<StaffColumn> columns, StaffFilterCriteria filter) {
         staffGrid.removeAllColumns();
         for (StaffColumn column : columns) {
-            staffGrid.addColumn(value -> displayColumn(column.key(), column.value(value)))
-                    .setKey(column.key()).setHeader(column.header()).setAutoWidth(true).setResizable(true)
-                    .setComparator((left, right) -> compareStaffColumn(left, right, column)).setSortable(true);
+            Grid.Column<StaffEntity> gridColumn = staffGrid.addColumn(
+                            value -> displayColumn(column.key(), column.value(value)))
+                    .setKey(column.key()).setHeader(column.header()).setAutoWidth(true).setResizable(true);
+            String sortProperty = staffSortProperty(column.key());
+            if (sortProperty != null) {
+                gridColumn.setSortProperty(column.key()).setSortable(true);
+            }
         }
-        staffGrid.setItems(rows);
+        staffGrid.setDataProvider(DataProvider.fromCallbacks(
+                query -> staff.findStaffPage(filter, pageable(query.getPage(), query.getPageSize(),
+                        query.getSortOrders(), MainView::staffSortProperty)).stream(),
+                query -> boundedCount(staff.countStaff(filter))));
         content.removeAll();
         content.setSizeFull();
         content.add(staffGrid);
         content.addClassName("data-workspace");
     }
 
-    private void setCompetitionGrid(List<GridColumn> columns, List<CompetitionEntity> rows) {
+    private void setCompetitionGrid(List<GridColumn> columns, CompetitionFilterCriteria filter) {
         competitionsGrid.removeAllColumns();
         for (GridColumn column : columns) {
             competitionsGrid.addColumn(competition -> displayColumn(column.key(), competitionColumnValue(competition, column.key())))
@@ -500,33 +515,86 @@ public class MainView extends VerticalLayout {
                     .setHeader(column.header())
                     .setAutoWidth(true)
                     .setResizable(true)
-                    .setComparator((left, right) -> compareCompetitionColumn(left, right, column.key()))
+                    .setSortProperty(column.key())
                     .setSortable(true);
         }
-        competitionsGrid.setItems(rows);
+        competitionsGrid.setDataProvider(DataProvider.fromCallbacks(
+                query -> competitions.findCompetitionPage(filter, pageable(query.getPage(), query.getPageSize(),
+                        query.getSortOrders(), MainView::catalogSortProperty)).stream(),
+                query -> boundedCount(competitions.countCompetitions(filter))));
         content.removeAll();
         content.setSizeFull();
         content.add(competitionsGrid);
         content.addClassName("data-workspace");
     }
 
-    private void setPlayerGrid(List<PlayerColumn> columns, List<PlayerEntity> rows) {
+    private void setPlayerGrid(List<PlayerColumn> columns, PlayerFilterCriteria filter) {
         playersGrid.removeAllColumns();
         playersGrid.setPartNameGenerator(this::playerRowPartName);
         for (PlayerColumn column : columns) {
-            playersGrid.addColumn(player -> displayColumn(column.key(), column.value(player)))
+            Grid.Column<PlayerEntity> gridColumn = playersGrid.addColumn(
+                            player -> displayColumn(column.key(), column.value(player)))
                     .setKey(column.key())
                     .setHeader(column.header())
                     .setAutoWidth(true)
-                    .setResizable(true)
-                    .setComparator((left, right) -> comparePlayerColumn(left, right, column))
-                    .setSortable(true);
+                    .setResizable(true);
+            String sortProperty = playerSortProperty(column.key());
+            if (sortProperty != null) {
+                gridColumn.setSortProperty(column.key()).setSortable(true);
+            }
         }
-        playersGrid.setItems(rows);
+        playersGrid.setDataProvider(DataProvider.fromCallbacks(
+                query -> players.findPlayerPage(filter, pageable(query.getPage(), query.getPageSize(),
+                        query.getSortOrders(), MainView::playerSortProperty)).stream(),
+                query -> boundedCount(players.countPlayers(filter))));
         content.removeAll();
         content.setSizeFull();
         content.add(playersGrid);
         content.addClassName("data-workspace");
+    }
+
+    private static Pageable pageable(
+            int page,
+            int pageSize,
+            List<QuerySortOrder> orders,
+            Function<String, String> propertyMapper) {
+        List<Sort.Order> mapped = orders.stream()
+                .map(order -> {
+                    String property = propertyMapper.apply(order.getSorted());
+                    if (property == null) {
+                        return null;
+                    }
+                    return new Sort.Order(
+                            order.getDirection() == SortDirection.ASCENDING
+                                    ? Sort.Direction.ASC : Sort.Direction.DESC,
+                            property);
+                })
+                .filter(Objects::nonNull)
+                .toList();
+        Sort sort = mapped.isEmpty() ? Sort.by("name").ascending() : Sort.by(mapped);
+        return PageRequest.of(Math.max(0, page), Math.max(1, pageSize), sort);
+    }
+
+    private static String playerSortProperty(String key) {
+        return switch (key) {
+            case "POSITION" -> null;
+            default -> PlayerColumnNames.toEntityFieldName(key.toLowerCase(Locale.ROOT));
+        };
+    }
+
+    private static String staffSortProperty(String key) {
+        return switch (key) {
+            case "BEST_COACHING_ROLE", "BEST_COACHING_STARS" -> null;
+            default -> PlayerColumnNames.toEntityFieldName(key.toLowerCase(Locale.ROOT));
+        };
+    }
+
+    private static String catalogSortProperty(String key) {
+        return PlayerColumnNames.toEntityFieldName(key.toLowerCase(Locale.ROOT));
+    }
+
+    private static int boundedCount(long count) {
+        return count > Integer.MAX_VALUE ? Integer.MAX_VALUE : Math.toIntExact(Math.max(0, count));
     }
 
     private String playerRowPartName(PlayerEntity player) {

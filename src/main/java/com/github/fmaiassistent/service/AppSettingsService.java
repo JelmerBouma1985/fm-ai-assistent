@@ -9,10 +9,13 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.Path;
 import java.security.CodeSource;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @Service
 public class AppSettingsService {
@@ -21,9 +24,14 @@ public class AppSettingsService {
     private static final String CURRENCY_KEY = "currency";
 
     private final Path settingsPath;
+    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     public AppSettingsService() {
-        this.settingsPath = resolveSettingsPath().toAbsolutePath().normalize();
+        this(resolveSettingsPath());
+    }
+
+    AppSettingsService(Path settingsPath) {
+        this.settingsPath = settingsPath.toAbsolutePath().normalize();
         ensureSettingsFileExists();
     }
 
@@ -32,9 +40,14 @@ public class AppSettingsService {
     }
 
     public void saveCurrency(MoneyCurrency currency) {
-        Properties properties = load();
-        properties.setProperty(CURRENCY_KEY, (currency == null ? MoneyCurrency.POUND : currency).propertyValue());
-        save(properties);
+        lock.writeLock().lock();
+        try {
+            Properties properties = load();
+            properties.setProperty(CURRENCY_KEY, (currency == null ? MoneyCurrency.POUND : currency).propertyValue());
+            save(properties);
+        } finally {
+            lock.writeLock().unlock();
+        }
     }
 
     public Path settingsPath() {
@@ -42,29 +55,46 @@ public class AppSettingsService {
     }
 
     private Properties load() {
-        Properties properties = new Properties();
-        if (!Files.exists(settingsPath)) {
+        lock.readLock().lock();
+        try {
+            Properties properties = new Properties();
+            if (!Files.exists(settingsPath)) {
+                return properties;
+            }
+            try (InputStream input = Files.newInputStream(settingsPath)) {
+                properties.load(input);
+            } catch (IOException ex) {
+                throw new IllegalStateException("Could not load settings from " + settingsPath, ex);
+            }
             return properties;
+        } finally {
+            lock.readLock().unlock();
         }
-        try (InputStream input = Files.newInputStream(settingsPath)) {
-            properties.load(input);
-        } catch (IOException ex) {
-            throw new IllegalStateException("Could not load settings from " + settingsPath, ex);
-        }
-        return properties;
     }
 
     private void save(Properties properties) {
+        lock.writeLock().lock();
         try {
             Path parent = settingsPath.getParent();
             if (parent != null) {
                 Files.createDirectories(parent);
             }
-            try (OutputStream output = Files.newOutputStream(settingsPath)) {
+            Path temporary = Files.createTempFile(parent, settingsPath.getFileName().toString(), ".tmp");
+            try (OutputStream output = Files.newOutputStream(temporary)) {
                 properties.store(output, "FM AI Assistent settings");
+            }
+            try {
+                Files.move(temporary, settingsPath,
+                        StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException exception) {
+                Files.move(temporary, settingsPath, StandardCopyOption.REPLACE_EXISTING);
+            } finally {
+                Files.deleteIfExists(temporary);
             }
         } catch (IOException ex) {
             throw new IllegalStateException("Could not save settings to " + settingsPath, ex);
+        } finally {
+            lock.writeLock().unlock();
         }
     }
 

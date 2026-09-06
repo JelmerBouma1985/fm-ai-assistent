@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
-import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -113,12 +113,17 @@ public class RecruitmentCaseService {
     public List<Map<String, Object>> board() {
         String careerKey = currentCareerKey();
         String gameDate = currentGameDate();
-        return cases.findAll().stream()
-                .sorted(Comparator.comparing(RecruitmentCaseEntity::getUpdatedAt,
-                        Comparator.nullsLast(Comparator.reverseOrder())))
-                .map(entity -> toMap(entity,
-                        players.findFirstByUniqueId(entity.getPlayerUniqueId()).orElse(null),
-                        careerKey, gameDate))
+        List<RecruitmentCaseEntity> entries = cases.findAllByOrderByUpdatedAtDesc();
+        if (entries.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, PlayerEntity> playersByUniqueId = players.findByUniqueIdIn(
+                        entries.stream().map(RecruitmentCaseEntity::getPlayerUniqueId).collect(Collectors.toSet()))
+                .stream()
+                .collect(Collectors.toMap(PlayerEntity::getUniqueId, Function.identity(), (left, right) -> left,
+                        HashMap::new));
+        return entries.stream()
+                .map(entity -> toMap(entity, playersByUniqueId.get(entity.getPlayerUniqueId()), careerKey, gameDate))
                 .toList();
     }
 

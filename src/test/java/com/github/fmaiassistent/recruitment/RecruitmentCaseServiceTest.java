@@ -84,7 +84,8 @@ class RecruitmentCaseServiceTest {
         when(metadata.findById("game_date")).thenAnswer(ignored -> Optional.of(
                 new LoadMetadataEntity("game_date", gameDate.get())));
         when(cases.findByIdCareerKey("42:test-manager")).thenReturn(List.of(current));
-        when(cases.findAll()).thenReturn(List.of(current, otherCareer));
+        when(cases.findAllByOrderByUpdatedAtDesc()).thenReturn(List.of(current, otherCareer));
+        when(players.findByUniqueIdIn(any())).thenReturn(List.of());
 
         assertThat(service.byPlayerUniqueId()).containsKey(2002000001L);
         assertThat(service.board()).extracting(row -> row.get("effective_reason"))

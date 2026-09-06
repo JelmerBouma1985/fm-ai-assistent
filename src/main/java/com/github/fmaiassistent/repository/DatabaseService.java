@@ -26,14 +26,10 @@ public class DatabaseService {
     }
 
     @Caching(evict = {
-            @CacheEvict(cacheNames = JCacheConfiguration.PLAYERS_CACHE, allEntries = true),
-            @CacheEvict(cacheNames = JCacheConfiguration.PLAYERS_WITH_CLUBS_CACHE, allEntries = true),
-            @CacheEvict(cacheNames = JCacheConfiguration.STAFF_WITH_CLUBS_CACHE, allEntries = true),
             @CacheEvict(cacheNames = JCacheConfiguration.NATIONS_CACHE, allEntries = true),
             @CacheEvict(cacheNames = JCacheConfiguration.COMPETITIONS_CACHE, allEntries = true),
-            @CacheEvict(cacheNames = JCacheConfiguration.CLUB_NAMES_CACHE, allEntries = true),
-            @CacheEvict(cacheNames = JCacheConfiguration.CLUB_CACHE, allEntries = true),
-            @CacheEvict(cacheNames = JCacheConfiguration.PLAYER_MAPPING_CACHE, allEntries = true)
+            @CacheEvict(cacheNames = JCacheConfiguration.COMPETITION_GENDERS_CACHE, allEntries = true),
+            @CacheEvict(cacheNames = JCacheConfiguration.CLUB_NAMES_CACHE, allEntries = true)
     })
     @Transactional
     public void clearAllTables() {

@@ -116,7 +116,7 @@ public class CodexConversationService {
         String enrichedPrompt = promptContext.enrich("codex:" + threadId, text);
         CompletableFuture<String> turn = readyThen(
                 () -> client.startTurn(threadId, enrichedPrompt, messageId)).thenApply(result -> {
-            String turnId = result.path("turn").path("id").asText();
+            String turnId = result.path("turn").path("id").asString();
             if (completedTurns.remove(turnId)) {
                 activeTurns.remove(threadId, reservation);
             } else {
@@ -184,7 +184,7 @@ public class CodexConversationService {
         client.respond(pending.id(), result);
         if (decision == ApprovalDecision.DENY_AND_STOP
                 && "item/permissions/requestApproval".equals(pending.method())) {
-            client.interruptTurn(pending.threadId(), pending.params().path("turnId").asText());
+            client.interruptTurn(pending.threadId(), pending.params().path("turnId").asString());
         }
         log.info("Resolved Codex approval method={} decision={} threadId={}",
                 pending.method(), decision, pending.threadId());
@@ -208,8 +208,8 @@ public class CodexConversationService {
                 CodexAvailability.State.AUTHENTICATING,
                 "Waiting for ChatGPT sign-in"));
         CompletableFuture<CodexLogin> login = invoke(client::startChatGptLogin).thenApply(response -> {
-            String loginId = response.path("loginId").asText();
-            String authUrl = response.path("authUrl").asText();
+            String loginId = response.path("loginId").asString();
+            String authUrl = response.path("authUrl").asString();
             if (loginId.isBlank() || authUrl.isBlank()) {
                 throw new CodexException("Codex did not return a ChatGPT sign-in URL");
             }
@@ -276,13 +276,13 @@ public class CodexConversationService {
             setAuthenticationRequired("Codex is not authenticated. Sign in with ChatGPT to continue.");
             return;
         }
-        String type = account.path("type").asText();
+        String type = account.path("type").asString();
         if (!"chatgpt".equals(type)) {
             setAuthenticationRequired("Codex is not signed in with ChatGPT. Sign in to continue.");
             return;
         }
         activeLoginId = null;
-        String plan = account.path("planType").asText("");
+        String plan = account.path("planType").asString("");
         setAvailability(new CodexAvailability(CodexAvailability.State.READY,
                 plan.isBlank() ? "Codex ready" : "Codex ready · " + plan));
     }
@@ -315,7 +315,7 @@ public class CodexConversationService {
 
     private void handleNotification(CodexJsonRpcClient.Notification notification) {
         JsonNode params = notification.params();
-        String threadId = params.path("threadId").asText(null);
+        String threadId = params.path("threadId").asString(null);
         switch (notification.method()) {
             case "account/login/completed" -> handleLoginCompleted(params);
             case "account/updated" -> refreshAccount().exceptionally(error -> {
@@ -323,25 +323,25 @@ public class CodexConversationService {
                 return null;
             });
             case "turn/started" -> {
-                String turnId = params.path("turn").path("id").asText();
+                String turnId = params.path("turn").path("id").asString();
                 activeTurns.put(threadId, turnId);
                 emit(new CodexEvent.TurnStarted(threadId, turnId));
             }
-            case "item/started" -> emitItemStarted(threadId, params.path("turnId").asText(), params.path("item"));
+            case "item/started" -> emitItemStarted(threadId, params.path("turnId").asString(), params.path("item"));
             case "item/agentMessage/delta" -> emit(new CodexEvent.AssistantTextDelta(
                     threadId,
-                    params.path("turnId").asText(),
-                    params.path("itemId").asText(),
-                    params.path("delta").asText()));
-            case "item/completed" -> emitItemCompleted(threadId, params.path("turnId").asText(), params.path("item"));
+                    params.path("turnId").asString(),
+                    params.path("itemId").asString(),
+                    params.path("delta").asString()));
+            case "item/completed" -> emitItemCompleted(threadId, params.path("turnId").asString(), params.path("item"));
             case "turn/completed" -> emitTurnCompleted(threadId, params.path("turn"));
             case "mcpServer/startupStatus/updated" -> emit(new CodexEvent.McpStatusChanged(
                     threadId,
-                    params.path("name").asText(),
-                    params.path("status").asText(),
-                    params.path("error").asText(null)));
+                    params.path("name").asString(),
+                    params.path("status").asString(),
+                    params.path("error").asString(null)));
             case "error" -> {
-                String message = params.path("error").path("message").asText("Codex reported an error");
+                String message = params.path("error").path("message").asString("Codex reported an error");
                 if (threadId != null) {
                     emit(new CodexEvent.Failure(threadId, message));
                 }
@@ -351,14 +351,14 @@ public class CodexConversationService {
     }
 
     private void handleLoginCompleted(JsonNode params) {
-        String loginId = params.path("loginId").asText(null);
+        String loginId = params.path("loginId").asString(null);
         if (activeLoginId != null && loginId != null && !activeLoginId.equals(loginId)) {
             log.debug("Ignoring completion for an older Codex login loginId={}", loginId);
             return;
         }
         if (!params.path("success").asBoolean(false)) {
             activeLoginId = null;
-            setAuthenticationRequired(params.path("error").asText("ChatGPT sign-in was not completed."));
+            setAuthenticationRequired(params.path("error").asString("ChatGPT sign-in was not completed."));
             return;
         }
         refreshAccount().exceptionally(error -> {
@@ -368,8 +368,8 @@ public class CodexConversationService {
     }
 
     private void emitItemStarted(String threadId, String turnId, JsonNode item) {
-        String type = item.path("type").asText();
-        String itemId = item.path("id").asText();
+        String type = item.path("type").asString();
+        String itemId = item.path("id").asString();
         if ("agentMessage".equals(type)) {
             emit(new CodexEvent.AssistantStarted(threadId, turnId, itemId));
         } else if (isTool(type)) {
@@ -378,24 +378,24 @@ public class CodexConversationService {
     }
 
     private void emitItemCompleted(String threadId, String turnId, JsonNode item) {
-        String type = item.path("type").asText();
-        String itemId = item.path("id").asText();
+        String type = item.path("type").asString();
+        String itemId = item.path("id").asString();
         if ("agentMessage".equals(type)) {
             emit(new CodexEvent.AssistantCompleted(
-                    threadId, turnId, itemId, item.path("text").asText()));
+                    threadId, turnId, itemId, item.path("text").asString()));
         } else if (isTool(type)) {
             emit(new CodexEvent.ToolCompleted(
                     threadId,
                     turnId,
                     itemId,
                     toolLabel(item),
-                    item.path("status").asText("completed"),
+                    item.path("status").asString("completed"),
                     toolDetails(item)));
         }
     }
 
     private void emitTurnCompleted(String threadId, JsonNode turn) {
-        String turnId = turn.path("id").asText();
+        String turnId = turn.path("id").asString();
         activeTurns.computeIfPresent(threadId, (ignored, current) -> {
             if (current.startsWith("starting:")) {
                 completedTurns.add(turnId);
@@ -403,8 +403,8 @@ public class CodexConversationService {
             }
             return current.equals(turnId) ? null : current;
         });
-        String status = turn.path("status").asText("completed");
-        String error = turn.path("error").path("message").asText(null);
+        String status = turn.path("status").asString("completed");
+        String error = turn.path("error").path("message").asString(null);
         emit(new CodexEvent.TurnCompleted(threadId, turnId, status, error));
         log.info("Completed Codex turn threadId={} turnId={} status={}", threadId, turnId, status);
     }
@@ -416,7 +416,7 @@ public class CodexConversationService {
         String summary;
         if ("item/commandExecution/requestApproval".equals(method)) {
             kind = CodexEvent.ApprovalKind.COMMAND;
-            summary = params.path("command").asText("Codex wants to run a command");
+            summary = params.path("command").asString("Codex wants to run a command");
         } else if ("item/fileChange/requestApproval".equals(method)) {
             kind = CodexEvent.ApprovalKind.FILE_CHANGE;
             summary = "Codex wants to modify files";
@@ -424,22 +424,22 @@ public class CodexConversationService {
             kind = CodexEvent.ApprovalKind.PERMISSIONS;
             summary = "Codex requests additional permissions";
         } else if ("mcpServer/elicitation/request".equals(method)
-                && "mcp_tool_call".equals(params.path("_meta").path("codex_approval_kind").asText())) {
+                && "mcp_tool_call".equals(params.path("_meta").path("codex_approval_kind").asString())) {
             kind = CodexEvent.ApprovalKind.MCP_TOOL;
-            summary = params.path("message").asText("Codex wants to call an MCP tool");
+            summary = params.path("message").asString("Codex wants to call an MCP tool");
         } else {
             client.respondError(request.id(), -32601,
                     "This client does not support the app-server request: " + method);
             log.warn("Safely rejected unsupported Codex server request method={}", method);
             return;
         }
-        String threadId = params.path("threadId").asText();
+        String threadId = params.path("threadId").asString();
         String requestKey = request.id().toString();
         String details = approvalDetails(params);
         approvals.put(requestKey, new PendingApproval(request.id(), method, threadId, params));
         emit(new CodexEvent.ApprovalRequested(
                 threadId,
-                params.path("turnId").asText(),
+                params.path("turnId").asString(),
                 requestKey,
                 kind,
                 summary,
@@ -450,8 +450,8 @@ public class CodexConversationService {
         List<CodexConversationItem> items = new ArrayList<>();
         String activeTurnId = null;
         for (JsonNode turn : thread.path("turns")) {
-            if ("inProgress".equals(turn.path("status").asText())) {
-                activeTurnId = turn.path("id").asText();
+            if ("inProgress".equals(turn.path("status").asString())) {
+                activeTurnId = turn.path("id").asString();
             }
             for (JsonNode item : turn.path("items")) {
                 CodexConversationItem converted = historyItem(item);
@@ -460,7 +460,7 @@ public class CodexConversationService {
                 }
             }
         }
-        String threadId = thread.path("id").asText();
+        String threadId = thread.path("id").asString();
         if (activeTurnId != null) {
             activeTurns.put(threadId, activeTurnId);
         }
@@ -468,33 +468,33 @@ public class CodexConversationService {
     }
 
     private CodexConversationItem historyItem(JsonNode item) {
-        String type = item.path("type").asText();
-        String id = item.path("id").asText(UUID.randomUUID().toString());
+        String type = item.path("type").asString();
+        String id = item.path("id").asString(UUID.randomUUID().toString());
         return switch (type) {
             case "userMessage" -> new CodexConversationItem(
                     id, CodexConversationItem.Kind.USER, userText(item), "completed", null);
             case "agentMessage" -> new CodexConversationItem(
-                    id, CodexConversationItem.Kind.ASSISTANT, item.path("text").asText(), "completed", null);
+                    id, CodexConversationItem.Kind.ASSISTANT, item.path("text").asString(), "completed", null);
             case "mcpToolCall", "commandExecution", "fileChange", "dynamicToolCall", "webSearch" ->
                     new CodexConversationItem(
                             id,
                             CodexConversationItem.Kind.TOOL,
                             toolLabel(item),
-                            item.path("status").asText("completed"),
+                            item.path("status").asString("completed"),
                             toolDetails(item));
             default -> null;
         };
     }
 
     private CodexConversation conversation(JsonNode thread) {
-        String preview = thread.path("preview").asText("");
-        String name = thread.path("name").asText("");
+        String preview = thread.path("preview").asString("");
+        String name = thread.path("name").asString("");
         String title = !name.isBlank() ? name : firstLine(preview);
         if (title.isBlank()) {
             title = "New conversation";
         }
         return new CodexConversation(
-                thread.path("id").asText(),
+                thread.path("id").asString(),
                 abbreviate(title, 55),
                 abbreviate(preview, 120),
                 Instant.ofEpochSecond(thread.path("updatedAt").asLong(0)));
@@ -503,11 +503,11 @@ public class CodexConversationService {
     private static String userText(JsonNode item) {
         StringBuilder text = new StringBuilder();
         for (JsonNode content : item.path("content")) {
-            if ("text".equals(content.path("type").asText())) {
+            if ("text".equals(content.path("type").asString())) {
                 if (!text.isEmpty()) {
                     text.append('\n');
                 }
-                text.append(content.path("text").asText());
+                text.append(content.path("text").asString());
             }
         }
         return text.toString();
@@ -521,21 +521,21 @@ public class CodexConversationService {
     }
 
     private static String toolLabel(JsonNode item) {
-        return switch (item.path("type").asText()) {
-            case "mcpToolCall" -> item.path("server").asText() + " · " + item.path("tool").asText();
-            case "commandExecution" -> "Command · " + abbreviate(item.path("command").asText(), 100);
+        return switch (item.path("type").asString()) {
+            case "mcpToolCall" -> item.path("server").asString() + " · " + item.path("tool").asString();
+            case "commandExecution" -> "Command · " + abbreviate(item.path("command").asString(), 100);
             case "fileChange" -> "File changes";
-            case "dynamicToolCall" -> "Tool · " + item.path("tool").asText();
-            case "webSearch" -> "Web search · " + item.path("query").asText();
+            case "dynamicToolCall" -> "Tool · " + item.path("tool").asString();
+            case "webSearch" -> "Web search · " + item.path("query").asString();
             default -> "Tool activity";
         };
     }
 
     private static String toolDetails(JsonNode item) {
-        return switch (item.path("type").asText()) {
+        return switch (item.path("type").asString()) {
             case "mcpToolCall" -> mcpToolDetails(item);
             case "dynamicToolCall" -> compactJson(item.path("arguments"));
-            case "commandExecution" -> item.path("cwd").asText();
+            case "commandExecution" -> item.path("cwd").asString();
             case "fileChange" -> item.path("changes").size() + " file change(s)";
             default -> "";
         };
@@ -543,20 +543,20 @@ public class CodexConversationService {
 
     private static String approvalDetails(JsonNode params) {
         List<String> details = new ArrayList<>();
-        if (!params.path("cwd").asText("").isBlank()) {
-            details.add("Working directory: " + params.path("cwd").asText());
+        if (!params.path("cwd").asString("").isBlank()) {
+            details.add("Working directory: " + params.path("cwd").asString());
         }
-        if (!params.path("reason").asText("").isBlank()) {
-            details.add("Reason: " + params.path("reason").asText());
+        if (!params.path("reason").asString("").isBlank()) {
+            details.add("Reason: " + params.path("reason").asString());
         }
-        if (!params.path("grantRoot").asText("").isBlank()) {
-            details.add("Requested write root: " + params.path("grantRoot").asText());
+        if (!params.path("grantRoot").asString("").isBlank()) {
+            details.add("Requested write root: " + params.path("grantRoot").asString());
         }
         JsonNode network = params.path("networkApprovalContext");
         if (!network.isMissingNode()) {
-            String host = network.path("host").asText("");
-            String protocol = network.path("protocol").asText("");
-            String port = network.path("port").asText("");
+            String host = network.path("host").asString("");
+            String protocol = network.path("protocol").asString("");
+            String port = network.path("port").asString("");
             if (!host.isBlank()) {
                 details.add("Network: " + (protocol.isBlank() ? "" : protocol + "://")
                         + host + (port.isBlank() ? "" : ":" + port));
@@ -566,10 +566,10 @@ public class CodexConversationService {
             details.add("Requested permissions: " + compactJson(params.path("permissions")));
         }
         JsonNode metadata = params.path("_meta");
-        if ("mcp_tool_call".equals(metadata.path("codex_approval_kind").asText())) {
-            details.add("MCP server: " + params.path("serverName").asText("unknown"));
-            if (!metadata.path("tool_description").asText().isBlank()) {
-                details.add(metadata.path("tool_description").asText());
+        if ("mcp_tool_call".equals(metadata.path("codex_approval_kind").asString())) {
+            details.add("MCP server: " + params.path("serverName").asString("unknown"));
+            if (!metadata.path("tool_description").asString().isBlank()) {
+                details.add(metadata.path("tool_description").asString());
             }
             if (!metadata.path("tool_params").isMissingNode()) {
                 details.add("Arguments: " + compactJson(metadata.path("tool_params")));
