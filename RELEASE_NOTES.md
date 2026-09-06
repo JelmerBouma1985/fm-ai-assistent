@@ -14,3 +14,4 @@
 ### Bug fixes
 
 - UI now shows correct position AML and AMR which were inverted
+- Fix offset table detection for large databases (thx to @gezaba)
