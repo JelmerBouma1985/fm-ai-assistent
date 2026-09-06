@@ -102,7 +102,7 @@ After the agent has found and discussed transfer targets, ask it to create an im
 
 For faster and more reproducible answers, the agent can now use task-level tools instead of assembling every conclusion from raw player rows:
 
-1. Check `fm26_get_data_status` and refresh stale data with `fm26_refresh_data`.
+1. Check `fm26_get_data_status` and reuse the loaded snapshot unless it is missing or stale. `fm26_refresh_data` skips a redundant reload by default; unverified freshness alone does not trigger a reload. Use `force: true` for an explicit reload or known game changes since loading (including same-day changes or switching saves). If you already clicked **Load data**, agents should use that snapshot. The live probe checks date/process, not every player or transfer change.
 2. Diagnose depth and the two phases of the loaded tactic with `fm26_analyze_squad`.
 3. Build a globally optimized unique XI with `fm26_optimize_lineup`; one player is never assigned to two slots.
 4. Recruit against both roles of a weak slot with `fm26_recruit_for_tactic_slot`, or use `fm26_transfer_shortlist` for a literal single position/role.

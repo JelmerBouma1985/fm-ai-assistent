@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -36,8 +37,9 @@ public class SnapshotStatusService {
     private final ExecutorService probes = Executors.newVirtualThreadPerTaskExecutor();
     private final ManagedClubContextService managedClubs;
     private final TacticContextService tactics;
-    private final AtomicReference<Boolean> lastKnownStale = new AtomicReference<>(null);
-    private final AtomicReference<List<String>> lastStaleReasons = new AtomicReference<>(List.of());
+    private record Freshness(String snapshotId, Boolean stale, List<String> reasons) {}
+
+    private final AtomicReference<Freshness> lastFreshness = new AtomicReference<>();
 
     public SnapshotStatusService(
             LoadMetadataRepository metadata,
@@ -76,24 +78,34 @@ public class SnapshotStatusService {
 
     @Transactional(readOnly = true)
     public Map<String, Object> reference() {
-        Map<String, String> values = metadataValues();
+        return reference(metadataValues());
+    }
+
+    private Map<String, Object> reference(Map<String, String> values) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("snapshot_id", values.get("snapshot_id"));
         out.put("game_date", values.get("game_date"));
         out.put("loaded_at", values.get("loaded_at"));
         out.put("career_key", values.get("career_key"));
         out.put("state", values.containsKey("snapshot_id") ? "loaded" : "not_loaded");
-        Boolean stale = lastKnownStale.get();
+        Freshness checked = lastFreshness.get();
+        boolean matches = checked != null && Objects.equals(checked.snapshotId(), values.get("snapshot_id"));
+        Boolean stale = matches ? checked.stale() : null;
         out.put("stale", stale);
         out.put("freshness", stale == null ? "unverified" : stale ? "stale" : "verified_current");
-        out.put("stale_reasons", lastStaleReasons.get());
+        out.put("stale_reasons", matches ? checked.reasons() : List.of());
+        out.put("refresh_recommended", !values.containsKey("snapshot_id") || Boolean.TRUE.equals(stale));
+        out.put("refresh_policy", "Reuse the loaded snapshot. Refresh only when no snapshot is loaded or stale=true. "
+                + "Unverified freshness alone is not a reason to reload. If the user already loaded data, use that snapshot. "
+                + "For known in-game changes since loading (including same-day changes or switching saves), use force=true. "
+                + "The live probe checks date/process only; it cannot detect all same-day changes.");
         return out;
     }
 
     @Transactional(readOnly = true)
     public Map<String, Object> status(boolean probeLive) {
         Map<String, String> values = metadataValues();
-        Map<String, Object> out = new LinkedHashMap<>(reference());
+        Map<String, Object> out = new LinkedHashMap<>(reference(values));
         putNumber(out, "fm_pid", values.get("fm_pid"));
         putNumber(out, "fm_build", values.get("fm_build"));
         putNumber(out, "players", values.get("players_count"));
@@ -136,6 +148,10 @@ public class SnapshotStatusService {
         try {
             int pid = loader.detectFmPid();
             running = true;
+            String loadedPid = values.get("fm_pid");
+            if (loadedPid != null && !loadedPid.equals(String.valueOf(pid))) {
+                staleReasons.add("fm_process_changed");
+            }
             int build = parseInt(values.get("fm_build"), FmOffsets.DEFAULT_BUILD);
             try (ProcessMemoryReader reader = ProcessReaders.open(pid)) {
                 liveGameDate = new GameDateFinder().find(reader, 0, build, null)
@@ -147,10 +163,6 @@ public class SnapshotStatusService {
             } else if (values.get("game_date") != null && !liveGameDate.equals(values.get("game_date"))) {
                 staleReasons.add("game_date_changed");
             }
-            String loadedPid = values.get("fm_pid");
-            if (loadedPid != null && !loadedPid.equals(String.valueOf(pid))) {
-                staleReasons.add("fm_process_changed");
-            }
         } catch (IOException | RuntimeException exception) {
             staleReasons.add("fm_not_running_or_unreadable");
         }
@@ -159,8 +171,8 @@ public class SnapshotStatusService {
         Boolean stale = staleReasons.contains("game_date_changed") || staleReasons.contains("fm_process_changed")
                 ? Boolean.TRUE
                 : running && liveGameDate != null && values.get("game_date") != null ? Boolean.FALSE : null;
-        lastKnownStale.set(stale);
-        lastStaleReasons.set(List.copyOf(staleReasons));
+        lastFreshness.set(new Freshness(values.get("snapshot_id"), stale, List.copyOf(staleReasons)));
+        out.put("refresh_recommended", !values.containsKey("snapshot_id") || Boolean.TRUE.equals(stale));
         out.put("stale", stale);
         out.put("freshness", stale == null ? "unverified" : stale ? "stale" : "verified_current");
         out.put("stale_reasons", staleReasons);
@@ -169,10 +181,24 @@ public class SnapshotStatusService {
     }
 
     public Map<String, Object> refresh() throws IOException {
+        return refresh(false);
+    }
+
+    public Map<String, Object> refresh(boolean force) throws IOException {
+        if (!force && metadataValues().containsKey("snapshot_id")) {
+            Map<String, Object> current = status(true);
+            if ("loaded".equals(current.get("state")) && !Boolean.TRUE.equals(current.get("stale"))) {
+                Map<String, Object> out = new LinkedHashMap<>();
+                out.put("refreshed", false);
+                out.put("reason", Boolean.FALSE.equals(current.get("stale"))
+                        ? "snapshot_current" : "snapshot_loaded_freshness_unverified");
+                out.put("snapshot", current);
+                return out;
+            }
+        }
         DatabaseLoadAllService.LoadAllResult result = refreshes.refreshAndWait(
                 null, DatabaseLoadAllService.LoadAllResult.defaultBuild(), null);
-        lastKnownStale.set(false);
-        lastStaleReasons.set(List.of());
+        lastFreshness.set(new Freshness(result.snapshotId(), false, List.of()));
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("refreshed", true);
         out.put("pid", result.pid());

@@ -16,14 +16,15 @@ public class FmSnapshotTools {
         this.snapshots = snapshots;
     }
 
-    @Tool(name = "fm26_get_data_status", description = "Check which FM26 snapshot is loaded and whether FM has advanced since it was loaded. Call this before decisions when freshness matters.")
+    @Tool(name = "fm26_get_data_status", description = "Check which FM26 snapshot is loaded and whether FM has advanced since it was loaded. Use the loaded snapshot when stale is false or unknown; do not reload just because the user asks a new question or already loaded data. The probe cannot detect same-day changes.")
     public Map<String, Object> getDataStatus(
             @ToolParam(required = false, description = "Probe the running FM process and live game date. Defaults to true.") Boolean probeLive) {
         return snapshots.status(probeLive == null || probeLive);
     }
 
-    @Tool(name = "fm26_refresh_data", description = "Refresh the application's local read-only snapshot from the running FM26 process. This never writes to Football Manager, but replaces the app's cached player, club and competition data.")
-    public Map<String, Object> refreshData() throws IOException {
-        return snapshots.refresh();
+    @Tool(name = "fm26_refresh_data", description = "Load missing or stale FM26 data. By default reuses a loaded snapshot if the date/process probe finds no change, including when freshness cannot be verified. Do not call after the user already loaded data. Use force=true only for an explicit refresh request or known game changes since loading, including same-day changes or switching saves. Never writes to Football Manager.")
+    public Map<String, Object> refreshData(
+            @ToolParam(required = false, description = "Force a full RAM reload for an explicit refresh request or known changes since the last load. Defaults to false.") Boolean force) throws IOException {
+        return snapshots.refresh(Boolean.TRUE.equals(force));
     }
 }
