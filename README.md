@@ -248,3 +248,5 @@ Useful focused commands:
 ```
 
 The application publishes local operational diagnostics at `/actuator/health` and `/actuator/metrics`. Snapshot status also reports refresh state, extraction timing and RAM-decoding data-quality counters. The CI workflow runs the same clean verification on every branch and pull request and retains test, coverage and SBOM reports.
+
+To publish a release, update `RELEASE_NOTES.md`, then run the **Maven Publish** workflow from the branch you want to release. The workflow converts the current `x.y.z-SNAPSHOT` version to `x.y.z` and commits it, builds all release artifacts from that exact commit, tags it as `vx.y.z`, creates the GitHub Release, and finally commits the next minor version as `x.(y+1).0-SNAPSHOT`. A failed run can be rerun from the same release commit and tag.
