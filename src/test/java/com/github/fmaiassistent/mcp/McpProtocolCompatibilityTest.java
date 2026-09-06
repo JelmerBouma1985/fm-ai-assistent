@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -122,7 +123,7 @@ class McpProtocolCompatibilityTest {
     }
 
     @Test
-    void supportsAntigravityAndCodexProtocolVersions() throws Exception {
+    void supportsCopilotAntigravityAndCodexProtocolVersions() throws Exception {
         for (String protocol : new String[] {"2025-11-25", "2025-06-18"}) {
             JsonNode initialize = mapper.createObjectNode()
                     .put("jsonrpc", "2.0")
@@ -141,9 +142,12 @@ class McpProtocolCompatibilityTest {
             assertEquals(protocol, mapper.readTree(initialized.body())
                     .path("result").path("protocolVersion").asString());
             String sessionId = initialized.headers().firstValue("Mcp-Session-Id").orElse(null);
-            if (sessionId != null) {
-                post("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}", sessionId, protocol);
-            }
+            assertNotNull(sessionId);
+            HttpResponse<String> ready = post(
+                    "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}",
+                    sessionId,
+                    protocol);
+            assertEquals(202, ready.statusCode());
 
             HttpResponse<String> tools = post(
                     "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}",
