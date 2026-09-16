@@ -25,6 +25,12 @@ final class Fm26TacticDecoder {
             0x80, "Standard",
             0x84, "More Direct",
             0x82, "Much More Direct");
+    private static final Map<Integer, String> TEMPOS = Map.of(
+            0x0a00, "Much Lower",
+            0x0900, "Lower",
+            0x0800, "Standard",
+            0x0880, "Higher",
+            0x0840, "Much Higher");
     private static final Map<Integer, String> ATTACKING_TRANSITIONS = Map.of(
             1, "Counter",
             2, "Standard",
@@ -66,12 +72,15 @@ final class Fm26TacticDecoder {
         }
         String name = new String(bytes, nameOffset, nameLength, StandardCharsets.UTF_8);
         int settingsOffset = nameOffset + nameLength + 12;
-        if (settingsOffset > bytes.length - 7) {
+        if (settingsOffset > bytes.length - 13) {
             throw new IllegalArgumentException("The embedded tactic settings are truncated");
         }
         // Passing directness is encoded in the instruction byte after the six
         // leading settings, not in the first setting (which is 4 in all samples).
         String passingDirectness = option(PASSING_DIRECTNESS, bytes[settingsOffset + 6]);
+        int tempoCode = Byte.toUnsignedInt(bytes[settingsOffset + 11])
+                | Byte.toUnsignedInt(bytes[settingsOffset + 12]) << Byte.SIZE;
+        String tempo = TEMPOS.getOrDefault(tempoCode, "Unknown (code " + tempoCode + ")");
         String attackingTransition = option(ATTACKING_TRANSITIONS, bytes[settingsOffset + 1]);
         String mentality = option(MENTALITIES, bytes[settingsOffset + 2]);
         String attackingWidth = option(ATTACKING_WIDTHS, bytes[settingsOffset + 3]);
@@ -104,7 +113,7 @@ final class Fm26TacticDecoder {
         }
 
         return new DecodedTactic(
-                name, style, mentality, passingDirectness, attackingTransition,
+                name, style, mentality, passingDirectness, tempo, attackingTransition,
                 attackingWidth, creativeFreedom, timeWasting,
                 inPossession, outOfPossession);
     }
@@ -366,6 +375,7 @@ final class Fm26TacticDecoder {
             String tacticalStyle,
             String mentality,
             String passingDirectness,
+            String tempo,
             String attackingTransition,
             String attackingWidth,
             String creativeFreedom,
@@ -383,6 +393,7 @@ final class Fm26TacticDecoder {
                     .append("Mentality: ").append(mentality).append("\n\n")
                     .append("### Core team instructions\n")
                     .append("- Passing directness: ").append(passingDirectness).append('\n')
+                    .append("- Tempo: ").append(tempo).append('\n')
                     .append("- Attacking transition: ").append(attackingTransition).append('\n')
                     .append("- Attacking width: ").append(attackingWidth).append('\n')
                     .append("- Creative freedom: ").append(creativeFreedom).append('\n')

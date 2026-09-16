@@ -30,6 +30,7 @@ class FmfTacticParserTest {
         assertThat(metadata.tactic().tacticalStyle()).isEqualTo("Custom Wing Play");
         assertThat(metadata.tactic().mentality()).isEqualTo("Positive");
         assertThat(metadata.tactic().passingDirectness()).isEqualTo("Shorter");
+        assertThat(metadata.tactic().tempo()).isEqualTo("Standard");
         assertThat(metadata.tactic().attackingTransition()).isEqualTo("Standard");
         assertThat(metadata.tactic().attackingWidth()).isEqualTo("Wider");
         assertThat(metadata.tactic().creativeFreedom()).isEqualTo("Balanced");
@@ -48,13 +49,19 @@ class FmfTacticParserTest {
     }
 
     @Test
-    void decodesPassingDirectnessFromRealFm26Tactics() throws IOException {
+    void decodesPassingDirectnessAndTempoFromRealFm26Tactics() throws IOException {
         Map<String, String> examples = Map.of(
                 "4-2-4-attacking-standard-lower.fmf", "Standard",
                 "4-2-4-balanced-much-shorter-standard.fmf", "Much Shorter",
                 "4-2-4-cautious-much-more-direct-much-higher.fmf", "Much More Direct",
                 "4-2-4-very-attacking-more-direct-much-lower.fmf", "More Direct",
                 "4-2-4-sam-twm-press.fmf", "Shorter");
+        Map<String, String> tempos = Map.of(
+                "4-2-4-attacking-standard-lower.fmf", "Lower",
+                "4-2-4-balanced-much-shorter-standard.fmf", "Standard",
+                "4-2-4-cautious-much-more-direct-much-higher.fmf", "Much Higher",
+                "4-2-4-very-attacking-more-direct-much-lower.fmf", "Much Lower",
+                "4-2-4-sam-twm-press.fmf", "Higher");
 
         for (Map.Entry<String, String> example : examples.entrySet()) {
             String resource = "/tactics/" + example.getKey();
@@ -63,6 +70,8 @@ class FmfTacticParserTest {
                 var tactic = parser.parse(stream.readAllBytes()).tactic();
                 assertThat(tactic.passingDirectness()).as(example.getKey()).isEqualTo(example.getValue());
                 assertThat(tactic.markdown()).contains("Passing directness: " + example.getValue());
+                assertThat(tactic.tempo()).as(example.getKey()).isEqualTo(tempos.get(example.getKey()));
+                assertThat(tactic.markdown()).contains("Tempo: " + tempos.get(example.getKey()));
             }
         }
     }
@@ -116,7 +125,7 @@ class FmfTacticParserTest {
         string(tactic, name);
         tactic.writeBytes(new byte[12]);
         tactic.writeBytes(new byte[]{4, 2, 5, 6, 2, 3});
-        tactic.writeBytes(new byte[]{(byte) 0x88, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
+        tactic.writeBytes(new byte[]{(byte) 0x88, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0});
         tactic.write(0xff);
         string(tactic, "Custom Wing Play");
         tactic.writeBytes(new byte[]{'G', 'N', 'I', 'W'});
