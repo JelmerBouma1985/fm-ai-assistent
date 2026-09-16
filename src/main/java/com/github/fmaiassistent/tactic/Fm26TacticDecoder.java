@@ -20,35 +20,128 @@ final class Fm26TacticDecoder {
             6, "Attacking",
             7, "Very Attacking");
     private static final Map<Integer, String> PASSING_DIRECTNESS = Map.of(
-            0x90, "Much Shorter",
-            0x88, "Shorter",
-            0x80, "Standard",
-            0x84, "More Direct",
-            0x82, "Much More Direct");
+            0x10, "Much Shorter",
+            0x08, "Shorter",
+            0, "Standard",
+            0x04, "More Direct",
+            0x02, "Much More Direct");
     private static final Map<Integer, String> TEMPOS = Map.of(
-            0x0a00, "Much Lower",
-            0x0900, "Lower",
-            0x0800, "Standard",
-            0x0880, "Higher",
-            0x0840, "Much Higher");
+            0x0200, "Much Lower",
+            0x0100, "Lower",
+            0, "Standard",
+            0x0080, "Higher",
+            0x0040, "Much Higher");
     private static final Map<Integer, String> ATTACKING_TRANSITIONS = Map.of(
-            1, "Counter",
-            2, "Standard",
-            3, "Hold Shape");
+            0x08, "Counter Attack",
+            0, "Standard",
+            0x10, "Hold Shape");
+    private static final Map<Integer, String> SET_PIECE_APPROACHES = Map.of(
+            0, "Keep Ball in Play",
+            0x04, "Play for Set Pieces");
     private static final Map<Integer, String> ATTACKING_WIDTHS = Map.of(
-            3, "Much Narrower",
-            4, "Narrower",
-            5, "Standard",
-            6, "Wider",
-            7, "Much Wider");
+            0x20, "Much Narrower",
+            0x80, "Narrower",
+            0, "Standard",
+            0x08, "Wider",
+            0x04, "Much Wider");
     private static final Map<Integer, String> CREATIVE_FREEDOM = Map.of(
-            1, "More Expressive",
-            2, "Balanced",
-            3, "More Disciplined");
+            0x40, "More Expressive",
+            0, "Balanced",
+            0x10, "More Disciplined");
     private static final Map<Integer, String> TIME_WASTING = Map.of(
-            2, "Less Often",
-            3, "Standard",
-            4, "More Often");
+            0x80, "Less Often",
+            0, "Standard",
+            0x40, "More Often");
+    private static final Map<Integer, String> LINES_OF_ENGAGEMENT = Map.of(
+            0x20, "High Press",
+            0x40, "Mid Block",
+            0x80, "Low Block");
+    private static final Map<Integer, String> DEFENSIVE_LINES = Map.of(
+            0x01, "Much Higher",
+            0x02, "Higher",
+            0, "Standard",
+            0x04, "Lower",
+            0x08, "Much Lower");
+    private static final Map<Integer, String> DEFENSIVE_LINE_BEHAVIOURS = Map.of(
+            0, "Balanced",
+            0x20, "Drop Off More",
+            0x10, "Step Up More");
+    private static final Map<Integer, String> TRIGGER_PRESS = Map.of(
+            0x10, "Much Less Often",
+            0x08, "Less Often",
+            0, "Standard",
+            0x04, "More Often",
+            0x02, "Much More Often");
+    private static final Map<Integer, String> DEFENSIVE_TRANSITIONS = Map.of(
+            0x40, "Counter-Press",
+            0, "Standard",
+            0x80, "Regroup");
+    private static final Map<Integer, String> TACKLING = Map.of(
+            0x01, "Get Stuck In",
+            0, "Standard",
+            0x02, "Stay On Feet");
+    private static final Map<Integer, String> CROSS_ENGAGEMENT = Map.of(
+            0, "Balanced",
+            0x08, "Invite Crosses",
+            0x04, "Stop Crosses");
+    private static final Map<Integer, String> PRESSING_TRAPS = Map.of(
+            0, "Balanced",
+            0x01, "Trap Inside",
+            0x02, "Trap Outside");
+    private static final Map<Integer, String> SHORT_GOALKEEPING_DISTRIBUTION = Map.of(
+            0, "No",
+            0x20, "Yes");
+    private static final Map<Integer, String> DRIBBLING = Map.of(
+            0, "Balanced",
+            0x40, "Discourage",
+            0x20, "Encourage");
+    private static final Map<Integer, String> PATIENCE = Map.of(
+            0, "Standard",
+            0x0200, "Hit Early Crosses",
+            0x0002, "Work Ball Into Box");
+    private static final Map<Integer, String> SHOTS_FROM_DISTANCE = Map.of(
+            0, "Balanced",
+            0x0100, "Discourage",
+            0x0080, "Encourage");
+    private static final Map<Integer, String> CROSSING_STYLES = Map.of(
+            0, "Balanced",
+            0x04, "Floated Crosses",
+            0x10, "Low Crosses",
+            0x08, "Whipped Crosses");
+    private static final Map<Integer, String> SUPPORTING_RUNS = Map.of(
+            0, "Balanced",
+            0x10, "Both Flanks",
+            0x20, "Left",
+            0x40, "Right");
+    private static final Map<Integer, String> PROGRESS_THROUGH = Map.of(
+            0, "Balanced",
+            0x0100, "Both Flanks",
+            0x20, "Left",
+            0x80, "Middle",
+            0x40, "Right");
+    private static final Map<Integer, String> PASS_RECEPTION = Map.of(
+            0, "Balanced",
+            0x20, "Pass Into Space",
+            0x40, "Pass To Feet");
+    private static final Map<Integer, String> BUILD_UP_STRATEGIES = Map.of(
+            0, "Balanced",
+            0x0100, "Bypass Press",
+            0x0080, "Play Through Press");
+    private static final Map<Integer, String> GOAL_KICKS = Map.of(
+            0, "Mixed",
+            0x10, "Short",
+            0x20, "Long");
+    private static final Map<Integer, String> GK_DISTRIBUTION_SPEED = Map.of(
+            0, "Balanced",
+            0x04, "Distribute Quickly",
+            0x08, "Slow Pace Down");
+    private static final Map<Integer, String> GK_DISTRIBUTION = Map.of(
+            0, "Balanced",
+            0x08, "Center Backs",
+            0x10, "Full Backs",
+            0x20, "Flanks",
+            0x80, "Playmaker",
+            0x0100, "Target Forward");
     private static final Map<Long, String> DUTIES = Map.of(
             0x200000L, "Defend",
             0x400000L, "Support",
@@ -72,20 +165,54 @@ final class Fm26TacticDecoder {
         }
         String name = new String(bytes, nameOffset, nameLength, StandardCharsets.UTF_8);
         int settingsOffset = nameOffset + nameLength + 12;
-        if (settingsOffset > bytes.length - 13) {
+        if (settingsOffset > bytes.length - 17) {
             throw new IllegalArgumentException("The embedded tactic settings are truncated");
         }
-        // Passing directness is encoded in the instruction byte after the six
-        // leading settings, not in the first setting (which is 4 in all samples).
-        String passingDirectness = option(PASSING_DIRECTNESS, bytes[settingsOffset + 6]);
-        int tempoCode = Byte.toUnsignedInt(bytes[settingsOffset + 11])
-                | Byte.toUnsignedInt(bytes[settingsOffset + 12]) << Byte.SIZE;
-        String tempo = TEMPOS.getOrDefault(tempoCode, "Unknown (code " + tempoCode + ")");
-        String attackingTransition = option(ATTACKING_TRANSITIONS, bytes[settingsOffset + 1]);
+        int passingByte = Byte.toUnsignedInt(bytes[settingsOffset + 6]);
+        int attackingByte = Byte.toUnsignedInt(bytes[settingsOffset + 7]);
+        int transitionByte = Byte.toUnsignedInt(bytes[settingsOffset + 8]);
+        int movementByte = Byte.toUnsignedInt(bytes[settingsOffset + 9]);
+        int goalkeeperByte = Byte.toUnsignedInt(bytes[settingsOffset + 10]);
+        int goalKickByte = Byte.toUnsignedInt(bytes[settingsOffset + 11]);
+        int instructionByte = Byte.toUnsignedInt(bytes[settingsOffset + 12]);
+        String passingDirectness = option(PASSING_DIRECTNESS, passingByte & 0x1e);
+        int tempoCode = (goalKickByte & 0xc0)
+                | (instructionByte & 0x03) << Byte.SIZE;
+        String tempo = option(TEMPOS, tempoCode);
+        String attackingTransition = option(ATTACKING_TRANSITIONS, transitionByte & 0x18);
+        String setPieceApproach = option(SET_PIECE_APPROACHES, transitionByte & 0x04);
         String mentality = option(MENTALITIES, bytes[settingsOffset + 2]);
-        String attackingWidth = option(ATTACKING_WIDTHS, bytes[settingsOffset + 3]);
-        String creativeFreedom = option(CREATIVE_FREEDOM, bytes[settingsOffset + 4]);
-        String timeWasting = option(TIME_WASTING, bytes[settingsOffset + 5]);
+        String attackingWidth = option(ATTACKING_WIDTHS, instructionByte & 0xac);
+        String creativeFreedom = option(CREATIVE_FREEDOM, instructionByte & 0x50);
+        String dribbling = option(DRIBBLING, attackingByte & 0x60);
+        String patience = option(PATIENCE, ((attackingByte & 0x02) << Byte.SIZE) | (transitionByte & 0x02));
+        String shotsFromDistance = option(SHOTS_FROM_DISTANCE,
+                (attackingByte & 0x80) | ((transitionByte & 0x01) << Byte.SIZE));
+        String crossingStyle = option(CROSSING_STYLES, attackingByte & 0x1c);
+        String supportingRuns = option(SUPPORTING_RUNS, movementByte & 0x70);
+        String progressThrough = option(PROGRESS_THROUGH,
+                (transitionByte & 0xe0) | ((movementByte & 0x01) << Byte.SIZE));
+        String passReception = option(PASS_RECEPTION, passingByte & 0x60);
+        String buildUpStrategy = option(BUILD_UP_STRATEGIES,
+                (passingByte & 0x80) | ((attackingByte & 0x01) << Byte.SIZE));
+        String goalKicks = option(GOAL_KICKS, goalKickByte & 0x30);
+        String gkDistributionSpeed = option(GK_DISTRIBUTION_SPEED, goalKickByte & 0x0c);
+        String gkDistribution = option(GK_DISTRIBUTION,
+                (goalkeeperByte & 0xb8) | ((goalKickByte & 0x01) << Byte.SIZE));
+        int lineByte = Byte.toUnsignedInt(bytes[settingsOffset + 13]);
+        int pressingByte = Byte.toUnsignedInt(bytes[settingsOffset + 14]);
+        int behaviourByte = Byte.toUnsignedInt(bytes[settingsOffset + 15]);
+        int trappingByte = Byte.toUnsignedInt(bytes[settingsOffset + 16]);
+        String timeWasting = option(TIME_WASTING, behaviourByte & 0xc0);
+        String lineOfEngagement = option(LINES_OF_ENGAGEMENT, lineByte & 0xe0);
+        String defensiveLine = option(DEFENSIVE_LINES, lineByte & 0x0f);
+        String defensiveLineBehaviour = option(DEFENSIVE_LINE_BEHAVIOURS, behaviourByte & 0x30);
+        String triggerPress = option(TRIGGER_PRESS, pressingByte & 0x1e);
+        String defensiveTransition = option(DEFENSIVE_TRANSITIONS, pressingByte & 0xc0);
+        String tackling = option(TACKLING, behaviourByte & 0x03);
+        String crossEngagement = option(CROSS_ENGAGEMENT, trappingByte & 0x0c);
+        String pressingTrap = option(PRESSING_TRAPS, trappingByte & 0x03);
+        String shortGoalkeepingDistribution = option(SHORT_GOALKEEPING_DISTRIBUTION, pressingByte & 0x20);
 
         int firstRole = indexOf(bytes, ROLE_MARKER, settingsOffset);
         if (firstRole < 0) {
@@ -114,12 +241,21 @@ final class Fm26TacticDecoder {
 
         return new DecodedTactic(
                 name, style, mentality, passingDirectness, tempo, attackingTransition,
-                attackingWidth, creativeFreedom, timeWasting,
+                attackingWidth, creativeFreedom, timeWasting, setPieceApproach,
+                dribbling, patience, shotsFromDistance, crossingStyle, supportingRuns,
+                progressThrough, passReception, buildUpStrategy,
+                goalKicks, gkDistributionSpeed, gkDistribution,
+                lineOfEngagement, defensiveLine, defensiveLineBehaviour,
+                triggerPress, defensiveTransition, tackling,
+                crossEngagement, pressingTrap, shortGoalkeepingDistribution,
                 inPossession, outOfPossession);
     }
 
     private static String option(Map<Integer, String> options, byte rawValue) {
-        int value = Byte.toUnsignedInt(rawValue);
+        return option(options, Byte.toUnsignedInt(rawValue));
+    }
+
+    private static String option(Map<Integer, String> options, int value) {
         return options.getOrDefault(value, "Unknown (code " + value + ")");
     }
 
@@ -380,6 +516,27 @@ final class Fm26TacticDecoder {
             String attackingWidth,
             String creativeFreedom,
             String timeWasting,
+            String setPieceApproach,
+            String dribbling,
+            String patience,
+            String shotsFromDistance,
+            String crossingStyle,
+            String supportingRuns,
+            String progressThrough,
+            String passReception,
+            String buildUpStrategy,
+            String goalKicks,
+            String gkDistributionSpeed,
+            String gkDistribution,
+            String lineOfEngagement,
+            String defensiveLine,
+            String defensiveLineBehaviour,
+            String triggerPress,
+            String defensiveTransition,
+            String tackling,
+            String crossEngagement,
+            String pressingTrap,
+            String shortGoalkeepingDistribution,
             List<RoleSelection> inPossession,
             List<RoleSelection> outOfPossession) {
         DecodedTactic {
@@ -391,13 +548,35 @@ final class Fm26TacticDecoder {
             StringBuilder markdown = new StringBuilder()
                     .append("Tactical style: ").append(tacticalStyle).append('\n')
                     .append("Mentality: ").append(mentality).append("\n\n")
-                    .append("### Core team instructions\n")
+                    .append("### In possession team instructions\n")
                     .append("- Passing directness: ").append(passingDirectness).append('\n')
                     .append("- Tempo: ").append(tempo).append('\n')
                     .append("- Attacking transition: ").append(attackingTransition).append('\n')
                     .append("- Attacking width: ").append(attackingWidth).append('\n')
                     .append("- Creative freedom: ").append(creativeFreedom).append('\n')
-                    .append("- Time wasting: ").append(timeWasting).append("\n\n")
+                    .append("- Time wasting: ").append(timeWasting).append('\n')
+                    .append("- Set-piece approach: ").append(setPieceApproach).append('\n')
+                    .append("- Dribbling: ").append(dribbling).append('\n')
+                    .append("- Patience: ").append(patience).append('\n')
+                    .append("- Shots from distance: ").append(shotsFromDistance).append('\n')
+                    .append("- Crossing style: ").append(crossingStyle).append('\n')
+                    .append("- Supporting runs: ").append(supportingRuns).append('\n')
+                    .append("- Progress through: ").append(progressThrough).append('\n')
+                    .append("- Pass reception: ").append(passReception).append('\n')
+                    .append("- Build-up strategy: ").append(buildUpStrategy).append('\n')
+                    .append("- Goal kicks: ").append(goalKicks).append('\n')
+                    .append("- GK distribution speed: ").append(gkDistributionSpeed).append('\n')
+                    .append("- GK distribution: ").append(gkDistribution).append("\n\n")
+                    .append("### Out of possession team instructions\n")
+                    .append("- Line of engagement: ").append(lineOfEngagement).append('\n')
+                    .append("- Defensive line: ").append(defensiveLine).append('\n')
+                    .append("- Defensive line behaviour: ").append(defensiveLineBehaviour).append('\n')
+                    .append("- Trigger press: ").append(triggerPress).append('\n')
+                    .append("- Defensive transition: ").append(defensiveTransition).append('\n')
+                    .append("- Tackling: ").append(tackling).append('\n')
+                    .append("- Cross engagement: ").append(crossEngagement).append('\n')
+                    .append("- Pressing trap: ").append(pressingTrap).append('\n')
+                    .append("- Short goalkeeping distribution: ").append(shortGoalkeepingDistribution).append("\n\n")
                     .append("### In possession\n");
             appendRoles(markdown, inPossession);
             markdown.append("\n### Out of possession\n");
