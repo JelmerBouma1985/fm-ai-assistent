@@ -20,11 +20,11 @@ final class Fm26TacticDecoder {
             6, "Attacking",
             7, "Very Attacking");
     private static final Map<Integer, String> PASSING_DIRECTNESS = Map.of(
-            3, "Much Shorter",
-            4, "Shorter",
-            5, "Standard",
-            6, "More Direct",
-            7, "Much More Direct");
+            0x90, "Much Shorter",
+            0x88, "Shorter",
+            0x80, "Standard",
+            0x84, "More Direct",
+            0x82, "Much More Direct");
     private static final Map<Integer, String> ATTACKING_TRANSITIONS = Map.of(
             1, "Counter",
             2, "Standard",
@@ -66,10 +66,12 @@ final class Fm26TacticDecoder {
         }
         String name = new String(bytes, nameOffset, nameLength, StandardCharsets.UTF_8);
         int settingsOffset = nameOffset + nameLength + 12;
-        if (settingsOffset > bytes.length - 6) {
+        if (settingsOffset > bytes.length - 7) {
             throw new IllegalArgumentException("The embedded tactic settings are truncated");
         }
-        String passingDirectness = option(PASSING_DIRECTNESS, bytes[settingsOffset]);
+        // Passing directness is encoded in the instruction byte after the six
+        // leading settings, not in the first setting (which is 4 in all samples).
+        String passingDirectness = option(PASSING_DIRECTNESS, bytes[settingsOffset + 6]);
         String attackingTransition = option(ATTACKING_TRANSITIONS, bytes[settingsOffset + 1]);
         String mentality = option(MENTALITIES, bytes[settingsOffset + 2]);
         String attackingWidth = option(ATTACKING_WIDTHS, bytes[settingsOffset + 3]);

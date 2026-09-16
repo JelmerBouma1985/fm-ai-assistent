@@ -12,6 +12,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -44,6 +45,26 @@ class FmfTacticParserTest {
         assertThatThrownBy(() -> parser.parse("not-an-fmf".getBytes(StandardCharsets.UTF_8)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("not a supported");
+    }
+
+    @Test
+    void decodesPassingDirectnessFromRealFm26Tactics() throws IOException {
+        Map<String, String> examples = Map.of(
+                "4-2-4-attacking-standard-lower.fmf", "Standard",
+                "4-2-4-balanced-much-shorter-standard.fmf", "Much Shorter",
+                "4-2-4-cautious-much-more-direct-much-higher.fmf", "Much More Direct",
+                "4-2-4-very-attacking-more-direct-much-lower.fmf", "More Direct",
+                "4-2-4-sam-twm-press.fmf", "Shorter");
+
+        for (Map.Entry<String, String> example : examples.entrySet()) {
+            String resource = "/tactics/" + example.getKey();
+            try (var stream = getClass().getResourceAsStream(resource)) {
+                assertThat(stream).as(resource).isNotNull();
+                var tactic = parser.parse(stream.readAllBytes()).tactic();
+                assertThat(tactic.passingDirectness()).as(example.getKey()).isEqualTo(example.getValue());
+                assertThat(tactic.markdown()).contains("Passing directness: " + example.getValue());
+            }
+        }
     }
 
     static byte[] fmf(String name) {
@@ -95,7 +116,7 @@ class FmfTacticParserTest {
         string(tactic, name);
         tactic.writeBytes(new byte[12]);
         tactic.writeBytes(new byte[]{4, 2, 5, 6, 2, 3});
-        tactic.writeBytes(new byte[12]);
+        tactic.writeBytes(new byte[]{(byte) 0x88, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
         tactic.write(0xff);
         string(tactic, "Custom Wing Play");
         tactic.writeBytes(new byte[]{'G', 'N', 'I', 'W'});
