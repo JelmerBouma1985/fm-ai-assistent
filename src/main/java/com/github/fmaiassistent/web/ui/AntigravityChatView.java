@@ -9,8 +9,6 @@ import com.github.fmaiassistent.antigravity.AntigravityEvent;
 import com.github.fmaiassistent.antigravity.AntigravitySubscription;
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.DetachEvent;
-import com.vaadin.flow.component.Key;
-import com.vaadin.flow.component.Shortcuts;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -38,6 +36,7 @@ final class AntigravityChatView extends Div {
     private final Div conversationList = new Div();
     private final MessageList messages = new MessageList();
     private final TextArea input = new TextArea();
+    private final ChatCommandPicker commands = new ChatCommandPicker(input, this::sendMessage);
     private final Button send = new Button("Send", VaadinIcon.PAPERPLANE.create());
     private final Button stop = new Button("Stop", VaadinIcon.STOP.create());
     private final Button newChat = new Button("New chat", VaadinIcon.PLUS.create());
@@ -122,10 +121,10 @@ final class AntigravityChatView extends Div {
         header.setWidthFull();
         header.addClassName("codex-chat-header");
 
-        HorizontalLayout actions = new HorizontalLayout(stop, send);
+        HorizontalLayout actions = new HorizontalLayout(commands.menuButton(), stop, send);
         actions.setAlignItems(HorizontalLayout.Alignment.END);
         actions.addClassName("codex-input-actions");
-        Div composer = new Div(input, actions);
+        Div composer = new Div(commands.inputGroup(), actions);
         composer.addClassName("codex-composer");
         Div workspace = new Div(header, messages, composer);
         workspace.addClassName("codex-workspace");
@@ -140,7 +139,6 @@ final class AntigravityChatView extends Div {
         input.setValueChangeMode(ValueChangeMode.EAGER);
         input.addClassName("codex-input");
         input.getElement().setAttribute("aria-label", "Message Antigravity");
-        Shortcuts.addShortcutListener(input, this::sendMessage, Key.ENTER).listenOn(input);
     }
 
     private void configureActions() {
@@ -251,6 +249,9 @@ final class AntigravityChatView extends Div {
     }
 
     private void sendMessage() {
+        if (commands.expandBeforeSend()) {
+            return;
+        }
         String text = input.getValue();
         if (activeTurnId != null || turnPending || text == null || text.isBlank()) {
             return;

@@ -10,8 +10,6 @@ import com.github.fmaiassistent.codex.CodexLogin;
 import com.github.fmaiassistent.codex.CodexSubscription;
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.DetachEvent;
-import com.vaadin.flow.component.Key;
-import com.vaadin.flow.component.Shortcuts;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -40,6 +38,7 @@ final class CodexChatView extends Div {
     private final Div conversationList = new Div();
     private final MessageList messages = new MessageList();
     private final TextArea input = new TextArea();
+    private final ChatCommandPicker commands = new ChatCommandPicker(input, this::sendMessage);
     private final Button send = new Button("Send", VaadinIcon.PAPERPLANE.create());
     private final Button stop = new Button("Stop", VaadinIcon.STOP.create());
     private final Button newChat = new Button("New chat", VaadinIcon.PLUS.create());
@@ -133,10 +132,10 @@ final class CodexChatView extends Div {
         header.setWidthFull();
         header.addClassName("codex-chat-header");
 
-        HorizontalLayout inputActions = new HorizontalLayout(stop, send);
+        HorizontalLayout inputActions = new HorizontalLayout(commands.menuButton(), stop, send);
         inputActions.setAlignItems(HorizontalLayout.Alignment.END);
         inputActions.addClassName("codex-input-actions");
-        Div composer = new Div(input, inputActions);
+        Div composer = new Div(commands.inputGroup(), inputActions);
         composer.addClassName("codex-composer");
 
         Div workspace = new Div(header, messages, composer);
@@ -152,7 +151,6 @@ final class CodexChatView extends Div {
         input.setValueChangeMode(ValueChangeMode.EAGER);
         input.addClassName("codex-input");
         input.getElement().setAttribute("aria-label", "Message Codex");
-        Shortcuts.addShortcutListener(input, this::sendMessage, Key.ENTER).listenOn(input);
     }
 
     private void configureActions() {
@@ -332,6 +330,9 @@ final class CodexChatView extends Div {
     }
 
     private void sendMessage() {
+        if (commands.expandBeforeSend()) {
+            return;
+        }
         String text = input.getValue();
         if (activeTurnId != null || turnPending || text == null || text.isBlank()) {
             return;

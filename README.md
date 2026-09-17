@@ -82,6 +82,19 @@ The embedded chat supports locally installed **Codex**, **Antigravity** and **Gi
 5. Select **Context** to control what is included with your messages.
 6. Start a new chat and ask your question.
 
+Select **Commands** beside the chat input, or type `/`, to see question starters in any of the three chats. Choose a command to fill the input, then edit and send it when ready. You can add requirements after a command, such as `/recruit left back under 25`; they are kept in the expanded question. Press Enter to accept a highlighted suggestion, use the arrow keys to move through suggestions, or press Escape to close them.
+
+| Command | Question starter |
+|---|---|
+| `/squad` | Review squad depth, weak positions and contract risks. |
+| `/lineup` | Build a best XI and alternatives for an uploaded `.fmf` tactic. Upload a tactic in **Context** first. |
+| `/recruit` | Find realistic transfer targets for a position or role. |
+| `/compare` | Compare named players, their club fit and costs. |
+| `/staff` | Find or assess staff and coaching roles. |
+| `/club` | Review a club's finances and squad context. |
+
+Load FM26 data before using these questions. If a needed snapshot or tactic is unavailable, the agent will explain what to load.
+
 ![AI assistant with agent selection, conversations and chat input](screenshots/ai-assistent-tab.png)
 
 ### AI context
