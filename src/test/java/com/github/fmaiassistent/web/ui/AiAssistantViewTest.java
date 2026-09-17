@@ -44,10 +44,16 @@ class AiAssistantViewTest {
         assertFalse(selector.getItemEnabledProvider().test(copilot));
         assertTrue(selector.getItemEnabledProvider().test(antigravity));
         assertEquals("ANTIGRAVITY", selector.getValue().toString());
+        OpenRouterChatView openRouterChat = field(view, "openRouterChat");
+        assertFalse(openRouterChat.toolbarControls().isVisible());
+        assertEquals(view.getChildren().findFirst().orElseThrow(),
+                openRouterChat.toolbarControls().getParent().orElseThrow());
+        selector.setValue(item(items, "OPENROUTER"));
+        assertTrue(openRouterChat.toolbarControls().isVisible());
     }
 
     @Test
-    void noInstalledAgentsShowsAnEmptySelection() throws Exception {
+    void noInstalledAgentsStillOffersOpenRouter() throws Exception {
         AiAssistantView view = view(
                 new CodexAvailability(CodexAvailability.State.UNAVAILABLE, "not found"),
                 new AntigravityAvailability(AntigravityAvailability.State.UNAVAILABLE, "not found"),
@@ -55,9 +61,11 @@ class AiAssistantViewTest {
 
         Select<Object> selector = selector(view);
 
-        assertNull(selector.getValue());
-        assertTrue(selector.isEmptySelectionAllowed());
-        assertEquals("No AI agents installed", selector.getEmptySelectionCaption());
+        assertEquals("OPENROUTER", selector.getValue().toString());
+        assertFalse(selector.isEmptySelectionAllowed());
+        assertTrue(selector.getItemEnabledProvider().test(selector.getValue()));
+        OpenRouterChatView openRouterChat = field(view, "openRouterChat");
+        assertTrue(openRouterChat.toolbarControls().isVisible());
     }
 
     private static AiAssistantView view(
@@ -78,7 +86,8 @@ class AiAssistantViewTest {
         ManagedClubContextService managedClub = mock(ManagedClubContextService.class);
         when(managedClub.current()).thenReturn(ManagedClubContext.notLoaded(0));
 
-        return new AiAssistantView(codex, antigravity, copilot, tactics, managedClub);
+        return new AiAssistantView(codex, antigravity, copilot,
+                mock(com.github.fmaiassistent.openrouter.OpenRouterConversationService.class), tactics, managedClub);
     }
 
     @SuppressWarnings("unchecked")
@@ -90,5 +99,12 @@ class AiAssistantViewTest {
 
     private static Object item(List<Object> items, String name) {
         return items.stream().filter(value -> value.toString().equals(name)).findFirst().orElseThrow();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T field(Object object, String name) throws Exception {
+        Field field = object.getClass().getDeclaredField(name);
+        field.setAccessible(true);
+        return (T) field.get(object);
     }
 }

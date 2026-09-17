@@ -137,6 +137,7 @@ public class MainView extends VerticalLayout {
             CodexConversationService codexConversations,
             AntigravityConversationService antigravityConversations,
             CopilotConversationService copilotConversations,
+            OpenRouterSession openRouterSession,
             TacticContextService tacticContexts,
             ManagedClubContextService managedClubContexts) {
         this.refreshes = refreshes;
@@ -148,6 +149,7 @@ public class MainView extends VerticalLayout {
         this.snapshots = snapshots;
         this.aiAssistant = new AiAssistantView(
                 codexConversations, antigravityConversations, copilotConversations,
+                openRouterSession.conversations(),
                 tacticContexts, managedClubContexts);
         this.currency = settings.currency();
 

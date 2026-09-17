@@ -9,7 +9,7 @@ It reads your loaded FM26 save directly from memory so you can:
 - ask an AI assistant for recruitment, squad and tactical advice;
 - give the AI extra context about your managed club and an exported `.fmf` tactic.
 
-Your FM data and tactic file are processed locally. FM AI Assistent does not require or store an AI API key.
+Your FM data and tactic file are processed locally. AI chats send messages and enabled context to the selected provider. OpenRouter optionally uses an API key held only in backend session memory.
 
 The assistant can also diagnose tactic-specific squad depth, compare finalists, find replacements,
 model incoming and outgoing moves, and retain verified recruitment evidence between RAM refreshes.
@@ -73,7 +73,7 @@ Select **Load data** again after opening another save, changing clubs or advanci
 
 ## Use the AI assistant
 
-The embedded chat supports locally installed **Codex**, **Antigravity** and **GitHub Copilot**. You only need to install and sign in to the agent you want to use.
+The embedded chat supports locally installed **Codex**, **Antigravity** and **GitHub Copilot**, plus **OpenRouter** with an API key and no CLI installation.
 
 1. Complete the one-time setup for your chosen agent below.
 2. Start FM26, load your save and select **Load data**.
@@ -82,7 +82,7 @@ The embedded chat supports locally installed **Codex**, **Antigravity** and **Gi
 5. Select **Context** to control what is included with your messages.
 6. Start a new chat and ask your question.
 
-Select **Commands** beside the chat input, or type `/`, to see question starters in any of the three chats. Choose a command to fill the input, then edit and send it when ready. You can add requirements after a command, such as `/recruit left back under 25`; they are kept in the expanded question. Press Enter to accept a highlighted suggestion, use the arrow keys to move through suggestions, or press Escape to close them.
+Select **Commands** beside the chat input, or type `/`, to see question starters in any chat. Choose a command to fill the input, then edit and send it when ready. You can add requirements after a command, such as `/recruit left back under 25`; they are kept in the expanded question. Press Enter to accept a highlighted suggestion, use the arrow keys to move through suggestions, or press Escape to close them.
 
 | Command | Question starter |
 |---|---|
@@ -96,6 +96,16 @@ Select **Commands** beside the chat input, or type `/`, to see question starters
 Load FM26 data before using these questions. If a needed snapshot or tactic is unavailable, the agent will explain what to load.
 
 ![AI assistant with agent selection, conversations and chat input](screenshots/ai-assistent-tab.png)
+
+### OpenRouter setup and privacy
+
+Choose **OpenRouter**, enter your [OpenRouter API key](https://openrouter.ai/settings/keys) in the masked field, and select **Connect**. No agent CLI or additional service is required. The field clears after submission. Keys and conversations are session-only: they are not stored in the database, browser storage or application logs, and are cleared on **Disconnect**, session expiry or shutdown.
+
+Every new conversation starts with the **Free router** (`openrouter/free`). The model picker also lists specific models available to your account that support FM tool calls. Specific `:free` variants with zero listed prompt, completion and request prices can be selected without confirmation. Selecting a paid model or the **Auto router** (`openrouter/auto`) requires confirmation and may incur charges; catalog prices and availability can change. Free availability and rate limits are limited; unavailable capacity produces an error and never switches to paid routing. Model changes are disabled while a response is active. The chat shows the selected route or model and the actual responding model when supplied. The model list follows your OpenRouter privacy and provider restrictions and loads after connecting; if it cannot load, Free and Auto remain available. See [OpenRouter's routing guidance](https://openrouter.zendesk.com/hc/en-us/articles/51679572756123-I-used-openrouter-auto-free-or-auto-and-still-got-charged) and [model catalog API](https://openrouter.ai/docs/api/api-reference/models/get-models).
+
+Messages, enabled managed-club/tactic/snapshot context, and FM tool results reach OpenRouter and its model providers. Your account privacy restrictions are respected; the application never relaxes them to obtain capacity. No optional paid plugins are requested. All existing FM tools may execute automatically, including refreshes, recruitment updates and shortlist creation. OpenRouter has no general shell or filesystem tools.
+
+**Stop** prevents further requests and tool calls; completed local writes remain completed. Read-only tool validation errors are shown in the chat so the assistant can ask for missing information or correct its arguments. If FM data has not been loaded, open your save and select **Load data**; if club detection is unavailable after loading, tell the assistant your club name. Failed writes, unexpected failures and stopped turns require a new chat and are never replayed automatically. Each turn permits at most 20 model requests and 40 sequential tool calls, with a five-minute deadline and a 120-second timeout per HTTP request. Tool results are compacted as JSON where possible and limited to 64 KiB. OpenRouter receives compact views of squad analyses, move plans, role catalogs, lineups, and broad player/staff searches, with IDs and decision values preserved; public MCP responses stay unchanged. If an unusual read-only result remains too large, listed rows are explicitly marked partial with original and sent counts. Other oversized results are omitted with an explicit notice so the assistant can request a narrower read-only result or ask you to narrow the question in the same chat; completed writes are not automatically replayed. Requests are limited to 512 KiB; start a new chat if the history limit is reached. Keep the default loopback address (`127.0.0.1`).
 
 ### AI context
 

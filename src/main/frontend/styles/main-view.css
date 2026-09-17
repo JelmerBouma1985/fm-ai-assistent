@@ -597,6 +597,20 @@ vaadin-select:hover::part(input-field) {
     width: 190px;
 }
 
+.ai-openrouter-controls {
+    flex: 0 0 auto;
+    gap: 8px;
+    flex-wrap: nowrap;
+}
+
+.ai-openrouter-controls vaadin-password-field {
+    width: 180px;
+}
+
+.ai-openrouter-controls vaadin-combo-box {
+    width: 280px;
+}
+
 .ai-context-button {
     flex: 0 0 auto;
     color: var(--fmai-green-dark);
@@ -1029,6 +1043,16 @@ vaadin-select:hover::part(input-field) {
 }
 
 @media (max-width: 900px) {
+    .ai-provider-toolbar {
+        flex-wrap: wrap;
+    }
+
+    .ai-openrouter-controls {
+        order: 1;
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
     .app-bar {
         padding: 0 14px;
     }
@@ -1078,6 +1102,10 @@ vaadin-select:hover::part(input-field) {
 }
 
 @media (max-width: 620px) {
+    .ai-openrouter-controls vaadin-combo-box {
+        width: min(280px, 100%);
+    }
+
     .brand-descriptor {
         display: none;
     }

@@ -9,6 +9,7 @@ import com.github.fmaiassistent.codex.CodexSubscription;
 import com.github.fmaiassistent.copilot.CopilotAvailability;
 import com.github.fmaiassistent.copilot.CopilotConversationService;
 import com.github.fmaiassistent.copilot.CopilotSubscription;
+import com.github.fmaiassistent.openrouter.OpenRouterConversationService;
 import com.github.fmaiassistent.managedclub.ManagedClubContextService;
 import com.github.fmaiassistent.tactic.TacticContextService;
 import com.vaadin.flow.component.AttachEvent;
@@ -28,6 +29,7 @@ final class AiAssistantView extends Div {
     private final CodexChatView codexChat;
     private final AntigravityChatView antigravityChat;
     private final CopilotChatView copilotChat;
+    private final OpenRouterChatView openRouterChat;
     private final Div chatHost = new Div();
     private final Select<Provider> provider = new Select<>();
     private final Button contextButton = new Button(VaadinIcon.BOOK.create());
@@ -47,6 +49,7 @@ final class AiAssistantView extends Div {
             CodexConversationService codexConversations,
             AntigravityConversationService antigravityConversations,
             CopilotConversationService copilotConversations,
+            OpenRouterConversationService openRouterConversations,
             TacticContextService tacticContexts,
             ManagedClubContextService managedClubContexts) {
         this.tacticContexts = tacticContexts;
@@ -57,6 +60,7 @@ final class AiAssistantView extends Div {
         codexChat = new CodexChatView(codexConversations);
         antigravityChat = new AntigravityChatView(antigravityConversations);
         copilotChat = new CopilotChatView(copilotConversations);
+        openRouterChat = new OpenRouterChatView(openRouterConversations);
         managedClubContext = new ManagedClubContextPanel(managedClubContexts, this::refreshContextButton);
         tacticContext = new TacticContextPanel(tacticContexts, this::refreshContextButton);
 
@@ -84,7 +88,9 @@ final class AiAssistantView extends Div {
         });
 
         Div toolbarSpacer = new Div();
-        HorizontalLayout toolbar = new HorizontalLayout(providerLabel, provider, toolbarSpacer, contextButton);
+        toolbarSpacer.addClassName("ai-toolbar-spacer");
+        HorizontalLayout toolbar = new HorizontalLayout(providerLabel, provider,
+                openRouterChat.toolbarControls(), toolbarSpacer, contextButton);
         toolbar.setAlignItems(HorizontalLayout.Alignment.CENTER);
         toolbar.expand(toolbarSpacer);
         toolbar.setWidthFull();
@@ -207,6 +213,7 @@ final class AiAssistantView extends Div {
             case ANTIGRAVITY -> antigravityConversations.availability().state()
                     == AntigravityAvailability.State.UNAVAILABLE;
             case COPILOT -> copilotConversations.availability().state() == CopilotAvailability.State.UNAVAILABLE;
+            case OPENROUTER -> false;
         };
     }
 
@@ -216,6 +223,7 @@ final class AiAssistantView extends Div {
             case ANTIGRAVITY -> antigravityConversations.availability().state()
                     == AntigravityAvailability.State.DISABLED;
             case COPILOT -> copilotConversations.availability().state() == CopilotAvailability.State.DISABLED;
+            case OPENROUTER -> false;
         };
     }
 
@@ -229,6 +237,7 @@ final class AiAssistantView extends Div {
     }
 
     private void showProvider(Provider selected) {
+        openRouterChat.toolbarControls().setVisible(selected == Provider.OPENROUTER);
         if (selected == null) {
             Span heading = new Span("No AI agents installed");
             heading.addClassName("ai-provider-empty-heading");
@@ -245,6 +254,7 @@ final class AiAssistantView extends Div {
             case CODEX -> codexChat;
             case ANTIGRAVITY -> antigravityChat;
             case COPILOT -> copilotChat;
+            case OPENROUTER -> openRouterChat;
         };
         if (chat.getParent().orElse(null) != chatHost) {
             chatHost.removeAll();
@@ -255,7 +265,8 @@ final class AiAssistantView extends Div {
     private enum Provider {
         CODEX("Codex"),
         ANTIGRAVITY("Antigravity"),
-        COPILOT("GitHub Copilot");
+        COPILOT("GitHub Copilot"),
+        OPENROUTER("OpenRouter");
 
         private final String label;
 
