@@ -14,11 +14,15 @@ import com.github.fmaiassistent.shortlist.ShortlistFileService;
 import com.github.fmaiassistent.snapshot.SnapshotStatusService;
 import com.github.fmaiassistent.player.PlayerMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 import org.springframework.jdbc.core.JdbcTemplate;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -26,6 +30,45 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 class FmAiAssistentToolsTest {
+    @Test
+    void searchesDefaultToTwentyAndAllowLargerPages() {
+        PlayerDatabaseService players = mock(PlayerDatabaseService.class);
+        ClubDatabaseService clubs = mock(ClubDatabaseService.class);
+        StaffDatabaseService staff = mock(StaffDatabaseService.class);
+        SnapshotStatusService snapshots = mock(SnapshotStatusService.class);
+        when(snapshots.reference()).thenReturn(Map.of("snapshot_id", "test"));
+        when(clubs.findAllClubs()).thenReturn(IntStream.range(0, 30)
+                .mapToObj(i -> club("Club " + i, 6000 - i, 1_000_000L)).toList());
+        when(players.findAllPlayerEntities()).thenReturn(IntStream.range(0, 30)
+                .mapToObj(i -> player("Player " + i, 1000L + i, "Other FC", 22,
+                        120, 150, 1_000_000L, 18)).toList());
+        when(staff.findStaff(any())).thenReturn(IntStream.range(0, 30)
+                .mapToObj(i -> staff("Coach " + i, 2000L + i, Map.of())).toList());
+        FmAiAssistentTools tools = new FmAiAssistentTools(players, clubs, staff,
+                mock(PlayerMapper.class), mock(JdbcTemplate.class), mock(ShortlistFileService.class),
+                mock(RecruitmentCaseService.class), snapshots);
+        var callbacks = MethodToolCallbackProvider.builder().toolObjects(tools).build().getToolCallbacks();
+        JsonMapper json = JsonMapper.builder().build();
+        for (String name : new String[] {"fm26_find_clubs", "fm26_find_players", "fm26_find_staff"}) {
+            var callback = java.util.Arrays.stream(callbacks)
+                    .filter(value -> value.getToolDefinition().name().equals(name)).findFirst().orElseThrow();
+            JsonNode first = json.readTree(callback.call("{}"));
+            assertThat(first.path("count").asInt()).isEqualTo(20);
+            assertThat(first.path("limit").asInt()).isEqualTo(20);
+            assertThat(first.path("total_matches").asInt()).isEqualTo(30);
+            JsonNode larger = json.readTree(callback.call("{\"limit\":30}"));
+            assertThat(larger.path("count").asInt()).isEqualTo(30);
+        }
+        var clubSearch = java.util.Arrays.stream(callbacks)
+                .filter(value -> value.getToolDefinition().name().equals("fm26_find_clubs"))
+                .findFirst().orElseThrow();
+        JsonNode secondPage = json.readTree(clubSearch.call("{\"offset\":20}"));
+        assertThat(secondPage.path("count").asInt()).isEqualTo(10);
+        assertThat(secondPage.path("total_matches").asInt()).isEqualTo(30);
+        assertThat(secondPage.path("offset").asInt()).isEqualTo(20);
+        assertThat(secondPage.path("clubs").get(0).path("NAME").asString()).isEqualTo("Club 20");
+    }
+
     @Test
     void explicitPriceCeilingDoesNotSilentlyShrinkToClubBudget() {
         PlayerDatabaseService players = mock(PlayerDatabaseService.class);

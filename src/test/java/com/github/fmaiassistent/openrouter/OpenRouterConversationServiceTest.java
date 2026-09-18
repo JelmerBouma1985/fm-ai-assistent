@@ -352,7 +352,7 @@ class OpenRouterConversationServiceTest {
         String sent = history.get(history.size() - 1).path("content").asString();
         JsonNode summary = json.readTree(sent);
         assertTrue(sent.getBytes(StandardCharsets.UTF_8).length <= 64 * 1024);
-        assertTrue(summary.path("_openrouter_response").path("compacted").asBoolean());
+        assertEquals("compact", summary.path("_response_detail").path("level").asString());
         assertEquals(14, summary.path("position_depth").size());
         assertEquals(11, summary.path("tactic_slots").size());
         assertEquals(11, summary.path("optimized_lineup").path("lineup").size());

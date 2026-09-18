@@ -1,5 +1,6 @@
 package com.github.fmaiassistent.openrouter;
 
+import com.github.fmaiassistent.mcp.FmToolResultFormatter;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -26,11 +27,11 @@ class OpenRouterToolResultFormatterTest {
         }
         String original = json.writeValueAsString(catalog);
         assertTrue(bytes(original) > 64 * 1024);
-        JsonNode compact = json.readTree(OpenRouterToolResultFormatter.compact(json, "fm26_get_role_attributes", original));
+        JsonNode compact = json.readTree(compact(json, "fm26_get_role_attributes", original));
         assertEquals(50, compact.path("roles").size());
         assertEquals("ATTRIBUTE_0", compact.path("roles").get(0).path("primary_attributes").get(0).asString());
         assertEquals("ATTRIBUTE_5", compact.path("roles").get(49).path("secondary_attributes").get(5).asString());
-        assertTrue(compact.path("_openrouter_response").path("compacted").asBoolean());
+        assertEquals("compact", compact.path("_response_detail").path("level").asString());
         assertTrue(bytes(compact.toString()) <= 64 * 1024);
         assertTrue(json.readTree(original).path("roles").get(0).path("primary_attributes").get(0).isObject());
     }
@@ -53,7 +54,7 @@ class OpenRouterToolResultFormatterTest {
                 {"fm26_find_staff", staff, "staff"}}) {
             String original = json.writeValueAsString(entry[1]);
             assertTrue(bytes(original) > 64 * 1024);
-            String result = OpenRouterToolResultFormatter.compact(json, (String) entry[0], original);
+            String result = compact(json, (String) entry[0], original);
             JsonNode summary = json.readTree(result);
             assertEquals(50, summary.path((String) entry[2]).size());
             assertEquals("players".equals(entry[2]) ? 400 : 200,
@@ -93,7 +94,7 @@ class OpenRouterToolResultFormatterTest {
         }
         String original = json.writeValueAsString(plan);
         assertTrue(bytes(original) > 64 * 1024);
-        String result = OpenRouterToolResultFormatter.compact(json, "fm26_plan_squad_moves", original);
+        String result = compact(json, "fm26_plan_squad_moves", original);
         JsonNode summary = json.readTree(result);
         assertTrue(bytes(result) <= 64 * 1024);
         assertEquals(1000000, summary.path("finances").path("known_remaining_budget").asInt());
@@ -111,7 +112,7 @@ class OpenRouterToolResultFormatterTest {
         assignment.set("player", detailedPlayer(7));
         assignment.set("fit", fit());
         assignment.putArray("alternatives").add(detailedPlayer(8).set("fit", fit()));
-        JsonNode compactLineup = json.readTree(OpenRouterToolResultFormatter.compact(json,
+        JsonNode compactLineup = json.readTree(compact(json,
                 "fm26_optimize_lineup", json.writeValueAsString(lineup)));
         assertEquals(820, compactLineup.path("team_score_total").asInt());
         assertEquals(8, compactLineup.path("lineup").get(0).path("player").path("player_unique_id").asInt());
@@ -123,7 +124,7 @@ class OpenRouterToolResultFormatterTest {
         context.putObject("squad_summary").put("count", 1);
         context.putArray("squad").addObject().put("unique_id", 7).put("name", "Player 7")
                 .put("ca", 150).put("injury", "minor");
-        JsonNode compactContext = json.readTree(OpenRouterToolResultFormatter.compact(json,
+        JsonNode compactContext = json.readTree(compact(json,
                 "fm26_get_club_context", json.writeValueAsString(context)));
         assertEquals(1000000, compactContext.path("club").path("transfer_budget").asInt());
         assertEquals(7, compactContext.path("squad").get(0).path("unique_id").asInt());
@@ -138,7 +139,7 @@ class OpenRouterToolResultFormatterTest {
                 .put("note", "x".repeat(1000));
         String original = json.writeValueAsString(board);
         assertTrue(bytes(original) > 64 * 1024);
-        String result = OpenRouterToolResultFormatter.compact(json, "fm26_get_recruitment_board", original);
+        String result = compact(json, "fm26_get_recruitment_board", original);
         JsonNode summary = json.readTree(result);
         assertTrue(bytes(result) <= 64 * 1024);
         assertEquals(100, summary.path("count").asInt());
@@ -163,4 +164,7 @@ class OpenRouterToolResultFormatterTest {
         return fit;
     }
     private static int bytes(String value) { return value.getBytes(StandardCharsets.UTF_8).length; }
+    private static String compact(JsonMapper json, String tool, String original) {
+        return OpenRouterToolResultFormatter.limit(json, FmToolResultFormatter.compact(json, tool, original));
+    }
 }

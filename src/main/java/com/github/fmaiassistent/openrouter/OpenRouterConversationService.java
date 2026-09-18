@@ -1,5 +1,7 @@
 package com.github.fmaiassistent.openrouter;
 
+import com.github.fmaiassistent.mcp.FmToolResultFormatter;
+
 import com.github.fmaiassistent.ai.AiPromptContext;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
@@ -286,8 +288,15 @@ public final class OpenRouterConversationService implements AutoCloseable {
                                         .writeValueAsString(json.readTree(result));
                             } catch (RuntimeException ignored) { /* Non-JSON tool result. */ }
                         }
-                        if (!WRITE_TOOLS.contains(call.name.toString()))
-                            result = OpenRouterToolResultFormatter.compact(json, call.name.toString(), result);
+                        if (!WRITE_TOOLS.contains(call.name.toString())) {
+                            JsonNode options = json.readTree(call.arguments.toString());
+                            boolean full = "full".equals(options.path("responseDetail").asString())
+                                    || !options.has("responseDetail")
+                                    && "fm26_find_players".equals(call.name.toString())
+                                    && "full".equalsIgnoreCase(options.path("detailLevel").asString());
+                            if (!full) result = FmToolResultFormatter.compact(json, call.name.toString(), result);
+                            result = OpenRouterToolResultFormatter.limit(json, result);
+                        }
                         boolean omitted = bytes(result) > 64 * 1024;
                         if (omitted) {
                             result = json.createObjectNode().put("status", "result_omitted")

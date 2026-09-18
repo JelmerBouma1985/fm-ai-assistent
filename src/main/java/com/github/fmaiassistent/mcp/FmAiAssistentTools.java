@@ -42,6 +42,7 @@ import java.util.function.Predicate;
 @Service
 public class FmAiAssistentTools {
     private static final int DEFAULT_LIMIT = 50;
+    private static final int DEFAULT_SEARCH_LIMIT = 20;
     private static final int MAX_LIMIT = 250;
     private static final int DEFAULT_SHORTLIST_LIMIT = 8;
     private static final int MAX_SHORTLIST_LIMIT = 30;
@@ -88,9 +89,11 @@ public class FmAiAssistentTools {
             @ToolParam(required = false, description = "Minimum youth-facilities rating, 0-20") Integer youthFacilitiesMin,
             @ToolParam(required = false, description = "Minimum youth-coaching rating, 0-20") Integer youthCoachingMin,
             @ToolParam(required = false, description = "Minimum youth-recruitment rating, 0-20") Integer youthRecruitmentMin,
-            @ToolParam(required = false, description = "Maximum number of clubs to return") Integer limit) {
-        int safeLimit = safeLimit(limit);
-        List<Map<String, Object>> rows = allClubs().stream()
+            @ToolParam(required = false, description = "Maximum number of clubs to return") Integer limit,
+            @ToolParam(required = false, description = "Number of matching clubs to skip. Defaults to 0.") Integer offset) {
+        int safeLimit = safeLimit(limit == null ? DEFAULT_SEARCH_LIMIT : limit);
+        int safeOffset = Math.max(0, offset == null ? 0 : offset);
+        List<ClubEntity> matches = allClubs().stream()
                 .filter(club -> contains(club.getName(), name))
                 .filter(club -> blank(nation) || equalsIgnoreCase(club.getNation(), nation))
                 .filter(club -> blank(competition) || equalsIgnoreCase(club.getCompetition(), competition))
@@ -102,10 +105,16 @@ public class FmAiAssistentTools {
                 .sorted(Comparator
                         .comparing((ClubEntity club) -> value(club.getReputation())).reversed()
                         .thenComparing(ClubEntity::getName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+                .toList();
+        List<Map<String, Object>> rows = matches.stream()
+                .skip(safeOffset)
                 .limit(safeLimit)
                 .map(this::clubMap)
                 .toList();
-        return withSnapshot(result("clubs", rows, safeLimit));
+        Map<String, Object> out = result("clubs", rows, safeLimit);
+        out.put("total_matches", matches.size());
+        out.put("offset", safeOffset);
+        return withSnapshot(out);
     }
 
     @Tool(name = "fm26_get_club_context", description = "Get a club profile, facility ratings, finances and squad snapshot for transfer advice. Facility ratings use FM's 0-20 scale. Money values are raw pounds.")
@@ -163,7 +172,7 @@ public class FmAiAssistentTools {
             @ToolParam(required = false, description = "Number of matching players to skip. Defaults to 0.") Integer offset,
             @ToolParam(required = false, description = "compact or full. Defaults to compact; use full only when attributes are needed.") String detailLevel,
             @ToolParam(required = false, description = "Maximum players to return") Integer limit) {
-        int safeLimit = safeLimit(limit);
+        int safeLimit = safeLimit(limit == null ? DEFAULT_SEARCH_LIMIT : limit);
         PositionSpec positionSpec = resolvePosition(position);
         int safePositionMinimum = positionSpec == null ? 1
                 : Math.max(1, Math.min(20, minimumPositionScore == null ? DEFAULT_MIN_POSITION_SCORE : minimumPositionScore));
@@ -279,7 +288,7 @@ public class FmAiAssistentTools {
         if (!blank(sortDirection) && !"asc".equalsIgnoreCase(sortDirection) && !"desc".equalsIgnoreCase(sortDirection)) {
             throw new IllegalArgumentException("sortDirection must be asc or desc");
         }
-        int safeLimit = safeLimit(limit);
+        int safeLimit = safeLimit(limit == null ? DEFAULT_SEARCH_LIMIT : limit);
         int safeOffset = Math.max(0, offset == null ? 0 : offset);
         LocalDate contractFrom = parseDate(contractEndFrom, "contractEndFrom");
         LocalDate contractTo = parseDate(contractEndTo, "contractEndTo");

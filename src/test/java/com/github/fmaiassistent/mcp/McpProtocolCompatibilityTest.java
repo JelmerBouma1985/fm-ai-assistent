@@ -20,6 +20,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -160,6 +161,17 @@ class McpProtocolCompatibilityTest {
                     .orElse(tools.body());
             JsonNode listedTools = mapper.readTree(data).path("result").path("tools");
             assertEquals(20, listedTools.size());
+            if ("2025-11-25".equals(protocol)) {
+                JsonNode beforeCatalog = listedTools.deepCopy();
+                beforeCatalog.valueStream().forEach(tool -> {
+                    if (tool.path("inputSchema").path("properties") instanceof tools.jackson.databind.node.ObjectNode fields) {
+                        fields.remove("responseDetail");
+                    }
+                });
+                System.out.printf("FM_SIZE_AUDIT tools/list before=%d after=%d%n",
+                        mapper.writeValueAsString(beforeCatalog).getBytes(StandardCharsets.UTF_8).length,
+                        mapper.writeValueAsString(listedTools).getBytes(StandardCharsets.UTF_8).length);
+            }
             Set<String> names = listedTools.valueStream()
                     .map(tool -> tool.path("name").asString())
                     .collect(Collectors.toSet());
@@ -224,7 +236,52 @@ class McpProtocolCompatibilityTest {
             assertEquals("integer", optimizer.path("inputSchema").path("properties")
                     .path("lockedAssignments").path("items").path("properties")
                     .path("playerUniqueId").path("type").asString());
+            for (String projected : Set.of("fm26_analyze_squad", "fm26_optimize_lineup",
+                    "fm26_plan_squad_moves", "fm26_get_role_attributes", "fm26_find_players",
+                    "fm26_find_staff", "fm26_get_club_context")) {
+                JsonNode schema = listedTools.valueStream()
+                        .filter(tool -> projected.equals(tool.path("name").asString()))
+                        .findFirst().orElseThrow().path("inputSchema");
+                assertEquals(2, schema.path("properties").path("responseDetail").path("enum").size());
+            }
+            assertTrue(listedTools.valueStream()
+                    .filter(tool -> "fm26_create_shortlist_file".equals(tool.path("name").asString()))
+                    .findFirst().orElseThrow().path("inputSchema").path("properties")
+                    .path("responseDetail").isMissingNode());
+
+            JsonNode compact = toolCall("fm26_get_role_attributes", "{}", sessionId, protocol);
+            JsonNode full = toolCall("fm26_get_role_attributes", "{\"responseDetail\":\"full\"}",
+                    sessionId, protocol);
+            assertEquals("compact", compact.path("_response_detail").path("level").asString());
+            assertTrue(compact.path("roles").get(0).path("primary_attributes").get(0).isString());
+            assertTrue(full.path("roles").get(0).path("primary_attributes").get(0).isObject());
+            assertEquals("compact", toolCall("fm26_get_role_attributes", "[]", sessionId, protocol)
+                    .path("_response_detail").path("level").asString());
+            assertEquals("compact", toolCall("fm26_get_role_attributes", "[{}]", sessionId, protocol)
+                    .path("_response_detail").path("level").asString());
+            assertEquals(0, toolCall("fm26_find_players", "[{\"name\":\"no such player 987654\"}]",
+                    sessionId, protocol).path("count").asInt());
+            HttpResponse<String> badArguments = post(
+                    "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\","
+                            + "\"params\":{\"name\":\"fm26_find_players\",\"arguments\":[1,2]}}",
+                    sessionId, protocol);
+            assertEquals(200, badArguments.statusCode());
+            JsonNode error = mapper.readTree(badArguments.body());
+            assertEquals(-32602, error.path("error").path("code").asInt());
+            assertEquals(4, error.path("id").asInt());
         }
+    }
+
+    private JsonNode toolCall(String name, String args, String sessionId, String protocol) throws Exception {
+        String request = "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{"
+                + "\"name\":\"" + name + "\",\"arguments\":" + args + "}}";
+        HttpResponse<String> response = post(request, sessionId, protocol);
+        assertEquals(200, response.statusCode());
+        String data = response.body().lines().filter(line -> line.startsWith("data:"))
+                .map(line -> line.substring(5)).findFirst().orElse(response.body());
+        JsonNode result = mapper.readTree(data).path("result");
+        assertTrue(result.path("isError").isMissingNode() || !result.path("isError").asBoolean());
+        return mapper.readTree(result.path("content").get(0).path("text").asString());
     }
 
     private HttpResponse<String> post(String body, String sessionId, String protocol) throws Exception {

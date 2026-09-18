@@ -9,15 +9,20 @@ import static org.mockito.Mockito.*;
 
 class SnapshotPromptContextTest {
     @Test
-    void readsCurrentSnapshotOnEveryTurnWithoutProbingOrReloading() {
+    void checksEveryTurnAndSendsOnlyChangedIdentityOrFreshness() {
         SnapshotStatusService snapshots = mock(SnapshotStatusService.class);
-        when(snapshots.reference()).thenReturn(Map.of("snapshot_id", "before-load"),
-                Map.of("snapshot_id", "after-load"));
+        when(snapshots.reference()).thenReturn(
+                Map.of("snapshot_id", "before-load", "freshness", "unverified", "refresh_policy", "verbose"),
+                Map.of("snapshot_id", "before-load", "freshness", "unverified", "refresh_policy", "verbose"),
+                Map.of("snapshot_id", "before-load", "freshness", "stale", "refresh_policy", "verbose"),
+                Map.of("snapshot_id", "after-load", "freshness", "unverified", "refresh_policy", "verbose"));
         SnapshotPromptContext context = new SnapshotPromptContext(snapshots);
 
         assertThat(context.contextFor("same-conversation")).contains("before-load");
+        assertThat(context.contextFor("same-conversation")).isEmpty();
+        assertThat(context.contextFor("same-conversation")).contains("stale");
         assertThat(context.contextFor("same-conversation")).contains("after-load");
-        verify(snapshots, times(2)).reference();
+        verify(snapshots, times(4)).reference();
         verifyNoMoreInteractions(snapshots);
     }
 }
