@@ -19,6 +19,7 @@ class CopilotConversationLocalIntegrationTest {
                 properties,
                 new CopilotWorkspaceResolver(properties),
                 new CopilotExecutableResolver(properties),
+                new CopilotLoginRunner(),
                 AiPromptContext.none());
         try {
             service.initialize();

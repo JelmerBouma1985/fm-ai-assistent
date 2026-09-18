@@ -18,6 +18,7 @@ import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -77,6 +78,38 @@ class CodexConversationServiceTest {
         assertEquals("My first question", snapshot.conversation().title());
         assertEquals(List.of(CodexConversationItem.Kind.USER, CodexConversationItem.Kind.ASSISTANT),
                 snapshot.items().stream().map(CodexConversationItem::kind).toList());
+    }
+
+    @Test
+    void listsModelsAndUsesSelectionForNewAndExistingTurns() throws Exception {
+        when(client.listModels()).thenReturn(CompletableFuture.completedFuture(mapper.createObjectNode()
+                .set("data", mapper.createArrayNode().add(mapper.createObjectNode()
+                        .put("model", "chosen-model").put("displayName", "Chosen model")))));
+        when(client.startThread("chosen-model")).thenReturn(CompletableFuture.completedFuture(
+                mapper.createObjectNode().set("thread", thread("thread-1", "", mapper.createArrayNode()))));
+        when(client.startTurn(org.mockito.ArgumentMatchers.eq("thread-1"),
+                org.mockito.ArgumentMatchers.eq("Hello"), any(),
+                org.mockito.ArgumentMatchers.eq("chosen-model")))
+                .thenReturn(CompletableFuture.completedFuture(turnResponse("turn-1")));
+
+        assertEquals(List.of(new CodexModel("chosen-model", "Chosen model")),
+                service.models().get(1, TimeUnit.SECONDS));
+        CodexConversationSnapshot snapshot = service.newConversation("chosen-model").get(1, TimeUnit.SECONDS);
+        assertEquals("chosen-model", snapshot.selectedModel());
+        assertEquals("turn-1", service.sendMessage("thread-1", "Hello").get(1, TimeUnit.SECONDS));
+        verify(client).startTurn(org.mockito.ArgumentMatchers.eq("thread-1"),
+                org.mockito.ArgumentMatchers.eq("Hello"), any(),
+                org.mockito.ArgumentMatchers.eq("chosen-model"));
+        assertThrows(CodexException.class, () -> service.selectModel("thread-1", "another-model"));
+        notifications.accept(notification("turn/completed", mapper.createObjectNode()
+                .put("threadId", "thread-1")
+                .set("turn", mapper.createObjectNode().put("id", "turn-1").put("status", "completed"))));
+        service.selectModel("thread-1", "another-model");
+        when(client.resumeThread("thread-1")).thenReturn(CompletableFuture.completedFuture(mapper.createObjectNode()));
+        when(client.readThread("thread-1")).thenReturn(CompletableFuture.completedFuture(
+                mapper.createObjectNode().set("thread", thread("thread-1", "", mapper.createArrayNode()))));
+        assertEquals("another-model", service.openConversation("thread-1")
+                .get(1, TimeUnit.SECONDS).selectedModel());
     }
 
     @Test

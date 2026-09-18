@@ -7,12 +7,14 @@ import com.github.fmaiassistent.codex.CodexConversationService;
 import com.github.fmaiassistent.codex.CodexConversationSnapshot;
 import com.github.fmaiassistent.codex.CodexEvent;
 import com.github.fmaiassistent.codex.CodexLogin;
+import com.github.fmaiassistent.codex.CodexModel;
 import com.github.fmaiassistent.codex.CodexSubscription;
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.DetachEvent;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.Div;
@@ -46,6 +48,10 @@ final class CodexChatView extends Div {
     private final Button login = new Button("Sign in with ChatGPT", VaadinIcon.SIGN_IN.create());
     private final Span codexStatus = new Span();
     private final Span mcpStatus = new Span("Application MCP · connects with first chat");
+    private final ComboBox<CodexModel> model = new ComboBox<>();
+    private final HorizontalLayout modelControls = new HorizontalLayout();
+    private List<CodexModel> availableModels = List.of();
+    private String displayedModelId;
     private final List<MessageListItem> messageItems = new ArrayList<>();
     private final Map<String, MessageListItem> itemsById = new LinkedHashMap<>();
     private final Map<String, StringBuilder> assistantBuffers = new LinkedHashMap<>();
@@ -71,6 +77,8 @@ final class CodexChatView extends Div {
 
         configureInput();
         configureActions();
+        configureModel();
+        configureModelControls();
         conversationList.addClassName("codex-conversation-list");
         codexStatus.addClassName("codex-status");
         mcpStatus.addClassName("codex-mcp-status");
@@ -88,11 +96,15 @@ final class CodexChatView extends Div {
         availabilitySubscription.close();
         availabilitySubscription = conversations.subscribeAvailability(value -> access(() -> {
             updateAvailability(value);
+            if (value.ready()) {
+                refreshModels();
+            }
             if (value.ready() && conversationButtons.isEmpty()) {
                 refreshConversations();
             }
         }));
         if (conversations.availability().ready()) {
+            refreshModels();
             refreshConversations();
         }
         if (selectedThreadId != null) {
@@ -143,6 +155,22 @@ final class CodexChatView extends Div {
         return workspace;
     }
 
+    ComboBox<CodexModel> modelSelector() {
+        return model;
+    }
+
+    HorizontalLayout modelControls() {
+        return modelControls;
+    }
+
+    private void configureModelControls() {
+        Span label = new Span("Model");
+        label.addClassName("ai-provider-label");
+        modelControls.add(label, model);
+        modelControls.setAlignItems(HorizontalLayout.Alignment.CENTER);
+        modelControls.addClassName("ai-openrouter-controls");
+    }
+
     private void configureInput() {
         input.setPlaceholder("Ask Codex about the FM26 data or application…");
         input.setMinRows(2);
@@ -165,11 +193,46 @@ final class CodexChatView extends Div {
         login.addClickListener(event -> startLogin());
     }
 
+    private void configureModel() {
+        model.setItemLabelGenerator(CodexModel::name);
+        model.setPlaceholder("Default");
+        model.setClearButtonVisible(true);
+        model.setWidth("14rem");
+        model.addValueChangeListener(event -> {
+            if (event.isFromClient()) {
+                displayedModelId = event.getValue() == null ? null : event.getValue().id();
+            }
+            if (event.isFromClient() && selectedThreadId != null) {
+                try {
+                    conversations.selectModel(selectedThreadId,
+                            event.getValue() == null ? null : event.getValue().id());
+                } catch (RuntimeException error) {
+                    showError(error);
+                }
+            }
+        });
+    }
+
+    private void refreshModels() {
+        conversations.models().thenAccept(values -> access(() -> {
+            availableModels = values;
+            model.setItems(values);
+            if (displayedModelId != null) {
+                values.stream().filter(value -> value.id().equals(displayedModelId))
+                        .findFirst().ifPresent(model::setValue);
+            }
+        })).exceptionally(error -> {
+            access(() -> showError(error));
+            return null;
+        });
+    }
+
     private void updateAvailability(CodexAvailability value) {
         codexStatus.setText(value.message());
         codexStatus.getElement().setAttribute("data-state", value.state().name().toLowerCase());
         newChat.setEnabled(value.ready());
         send.setEnabled(value.ready() && activeTurnId == null && !turnPending);
+        model.setEnabled(value.ready() && activeTurnId == null && !turnPending);
         restart.setVisible(value.state() == CodexAvailability.State.ERROR
                 || value.state() == CodexAvailability.State.UNAVAILABLE);
         boolean signingIn = value.state() == CodexAvailability.State.AUTHENTICATING;
@@ -273,7 +336,7 @@ final class CodexChatView extends Div {
 
     private void createConversation() {
         newChat.setEnabled(false);
-        conversations.newConversation()
+        conversations.newConversation(model.getValue() == null ? null : model.getValue().id())
                 .thenAccept(snapshot -> access(() -> {
                     displaySnapshot(snapshot);
                     refreshConversations();
@@ -315,6 +378,15 @@ final class CodexChatView extends Div {
                 button.getElement().getClassList().set("selected", id.equals(selectedThreadId)));
         conversationSubscription = conversations.subscribe(selectedThreadId, event -> access(() -> handleEvent(event)));
         conversationSubscribed = true;
+        displayedModelId = snapshot.selectedModel();
+        if (snapshot.selectedModel() == null) {
+            model.clear();
+        } else {
+            model.clear();
+            availableModels.stream()
+                    .filter(value -> value.id().equals(snapshot.selectedModel()))
+                    .findFirst().ifPresent(model::setValue);
+        }
         setRunning(activeTurnId != null);
         input.focus();
     }
@@ -348,7 +420,7 @@ final class CodexChatView extends Div {
     private void createConversationAndSend(String text) {
         turnPending = true;
         setRunning(true);
-        conversations.newConversation()
+        conversations.newConversation(model.getValue() == null ? null : model.getValue().id())
                 .thenAccept(snapshot -> access(() -> {
                     displaySnapshot(snapshot);
                     refreshConversations();
@@ -545,6 +617,7 @@ final class CodexChatView extends Div {
 
     private void setRunning(boolean running) {
         send.setEnabled(!running && conversations.availability().ready());
+        model.setEnabled(!running && conversations.availability().ready());
         stop.setVisible(running);
         stop.setEnabled(running && activeTurnId != null);
         newChat.setEnabled(!running && conversations.availability().ready());

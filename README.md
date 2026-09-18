@@ -150,7 +150,7 @@ FM AI Assistent uses the agent's normal local login. It does not ask for a Codex
 codex mcp add fm-ai-assistent --url http://127.0.0.1:8080/mcp
 ```
 
-Codex asks for approval in the app before using tools that require permission.
+Use the **Model** dropdown in the Codex chat header to choose from the models reported by your local Codex installation. The choice applies to the current conversation's next turns; a new chat starts with the model currently shown in the dropdown. Clearing the choice uses the thread's default model. Model changes are disabled while a response is active. Codex asks for approval in the app before using tools that require permission.
 
 ### Antigravity
 
@@ -204,19 +204,14 @@ If the file already contains settings or permissions, merge these entries into i
 ### GitHub Copilot
 
 1. Install [GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli/cli-getting-started).
-2. Sign in once:
-
-```bash
-copilot login
-```
-
-3. Start FM AI Assistent and add its MCP server:
+2. Start FM AI Assistent, choose **GitHub Copilot**, and select **Sign in with GitHub** if prompted. Complete sign-in in the browser that opens.
+3. Add the application's MCP server:
 
 ```bash
 copilot mcp add --transport http fm-ai-assistent http://127.0.0.1:8080/mcp
 ```
 
-Do not add it again if `copilot mcp list` already shows `fm-ai-assistent`. Copilot permission prompts appear inside the app. For the app's read-only FM26 tools, you can choose **Always allow this MCP tool**.
+Do not add it again if `copilot mcp list` already shows `fm-ai-assistent`. The sign-in button runs the CLI's browser flow, so no separate terminal is needed for login. Use the **Model** dropdown to choose an available model for the conversation. Model changes are disabled while a response is active. Copilot permission prompts appear inside the app. For the app's read-only FM26 tools, you can choose **Always allow this MCP tool**.
 
 ## Troubleshooting
 

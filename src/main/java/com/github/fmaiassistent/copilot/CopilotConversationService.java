@@ -51,9 +51,11 @@ import java.util.function.Consumer;
 public class CopilotConversationService {
     private static final Logger log = LoggerFactory.getLogger(CopilotConversationService.class);
     private static final int MAX_DETAILS = 2_000;
+    private static final String SIGN_IN_MESSAGE = "GitHub Copilot is not authenticated · sign in with GitHub";
 
     private final CopilotProperties properties;
     private final CopilotExecutableResolver executableResolver;
+    private final CopilotLoginRunner loginRunner;
     private final AiPromptContext promptContext;
     private final Path workingDirectory;
     private final CopilotSdkEventMapper eventMapper = new CopilotSdkEventMapper();
@@ -72,10 +74,12 @@ public class CopilotConversationService {
             CopilotProperties properties,
             CopilotWorkspaceResolver workspaceResolver,
             CopilotExecutableResolver executableResolver,
+            CopilotLoginRunner loginRunner,
             AiPromptContext promptContext) {
         this.properties = properties;
         this.workingDirectory = workspaceResolver.workingDirectory();
         this.executableResolver = executableResolver;
+        this.loginRunner = loginRunner;
         this.promptContext = promptContext;
         availability = properties.enabled()
                 ? new CopilotAvailability(CopilotAvailability.State.STARTING, "GitHub Copilot starting…", null, 0)
@@ -99,24 +103,60 @@ public class CopilotConversationService {
                 state.session.close();
             }
         });
-        CopilotClient current = client;
-        if (current != null) {
-            try {
-                current.stop().get(properties.shutdownTimeout().toMillis(), TimeUnit.MILLISECONDS);
-            } catch (Exception ex) {
-                log.warn("Copilot did not stop gracefully; forcing shutdown: {}", rootMessage(ex));
-                try {
-                    current.forceStop().get(properties.shutdownTimeout().toMillis(), TimeUnit.MILLISECONDS);
-                } catch (Exception forceError) {
-                    log.warn("Could not force-stop Copilot runtime: {}", rootMessage(forceError));
-                }
-            }
-        }
+        stopClient(client);
         lifecycleExecutor.shutdownNow();
     }
 
     public CopilotAvailability availability() {
         return availability;
+    }
+
+    public CompletableFuture<Void> signIn() {
+        if (availability.state() != CopilotAvailability.State.AUTHENTICATION_REQUIRED) {
+            return CompletableFuture.failedFuture(new IllegalStateException("Copilot sign-in is not required"));
+        }
+        String executable = executableResolver.resolve();
+        if (executable == null) {
+            return CompletableFuture.failedFuture(new IllegalStateException("GitHub Copilot CLI was not found"));
+        }
+        setAvailability(new CopilotAvailability(CopilotAvailability.State.AUTHENTICATING,
+                "Complete GitHub Copilot sign-in in your browser…", null, 0));
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        lifecycleExecutor.execute(() -> {
+            try {
+                loginRunner.login(executable, workingDirectory, cliEnvironment(executable));
+                stopClient(client);
+                client = null;
+                startRuntime();
+                if (!availability.ready()) {
+                    throw new IllegalStateException(availability.message());
+                }
+                result.complete(null);
+            } catch (Exception ex) {
+                if (availability.state() == CopilotAvailability.State.AUTHENTICATING) {
+                    setAvailability(new CopilotAvailability(CopilotAvailability.State.AUTHENTICATION_REQUIRED,
+                            "GitHub Copilot sign-in did not finish. Try again.", null, 0));
+                }
+                result.completeExceptionally(ex);
+            }
+        });
+        return result;
+    }
+
+    private void stopClient(CopilotClient current) {
+        if (current == null) {
+            return;
+        }
+        try {
+            current.stop().get(properties.shutdownTimeout().toMillis(), TimeUnit.MILLISECONDS);
+        } catch (Exception ex) {
+            log.warn("Copilot did not stop gracefully; forcing shutdown: {}", rootMessage(ex));
+            try {
+                current.forceStop().get(properties.shutdownTimeout().toMillis(), TimeUnit.MILLISECONDS);
+            } catch (Exception forceError) {
+                log.warn("Could not force-stop Copilot runtime: {}", rootMessage(forceError));
+            }
+        }
     }
 
     public List<CopilotModel> models() {
@@ -305,7 +345,7 @@ public class CopilotConversationService {
             var auth = started.getAuthStatus().get(properties.startupTimeout().toMillis(), TimeUnit.MILLISECONDS);
             if (!auth.isAuthenticated()) {
                 setAvailability(new CopilotAvailability(CopilotAvailability.State.AUTHENTICATION_REQUIRED,
-                        "GitHub Copilot is not authenticated · run `copilot login`", status.getVersion(),
+                        SIGN_IN_MESSAGE, status.getVersion(),
                         status.getProtocolVersion()));
                 return;
             }
@@ -333,7 +373,7 @@ public class CopilotConversationService {
         } catch (Exception ex) {
             if (!stopping) {
                 String message = rootMessage(ex);
-                setAvailability(new CopilotAvailability(CopilotAvailability.State.ERROR,
+                setAvailability(new CopilotAvailability(startupFailureState(message),
                         friendlyStartupError(message), null, 0));
                 log.error("Could not start GitHub Copilot SDK runtime", unwrap(ex));
             }
@@ -632,24 +672,33 @@ public class CopilotConversationService {
     }
 
     private static String friendlyStartupError(String message) {
-        String lower = message.toLowerCase();
-        if (lower.contains("auth") || lower.contains("login") || lower.contains("credential")) {
-            return "GitHub Copilot is not authenticated · run `copilot login`";
+        if (startupFailureState(message) == CopilotAvailability.State.AUTHENTICATION_REQUIRED) {
+            return SIGN_IN_MESSAGE;
         }
+        String lower = message.toLowerCase();
         if (lower.contains("protocol") || lower.contains("incompatible")) {
             return "GitHub Copilot CLI and Java SDK are incompatible · " + message;
         }
         return "GitHub Copilot unavailable · " + message;
     }
 
+    static CopilotAvailability.State startupFailureState(String message) {
+        String lower = message.toLowerCase();
+        return lower.contains("auth") || lower.contains("login") || lower.contains("credential")
+                ? CopilotAvailability.State.AUTHENTICATION_REQUIRED
+                : CopilotAvailability.State.ERROR;
+    }
+
     private static Map<String, String> cliEnvironment(String executable) {
         Map<String, String> environment = new HashMap<>(System.getenv());
         Path executableDirectory = Path.of(executable).toAbsolutePath().normalize().getParent();
-        String inheritedPath = environment.getOrDefault("PATH", "");
+        String pathKey = CopilotExecutableResolver.environmentKey(
+                environment, "PATH", CopilotExecutableResolver.isWindows());
+        String inheritedPath = pathKey == null ? "" : environment.get(pathKey);
         String path = executableDirectory + (inheritedPath.isBlank()
                 ? ""
                 : java.io.File.pathSeparator + inheritedPath);
-        environment.put("PATH", path);
+        environment.put(pathKey == null ? "PATH" : pathKey, path);
         return environment;
     }
 

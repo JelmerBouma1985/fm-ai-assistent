@@ -39,8 +39,19 @@ class CodexAppServerClient {
         return rpc.request("account/login/cancel", mapper.createObjectNode().put("loginId", loginId));
     }
 
+    CompletableFuture<JsonNode> listModels() {
+        return rpc.request("model/list", mapper.createObjectNode().put("limit", 100));
+    }
+
     CompletableFuture<JsonNode> startThread() {
+        return startThread(null);
+    }
+
+    CompletableFuture<JsonNode> startThread(String model) {
         ObjectNode params = mapper.createObjectNode().put("cwd", workingDirectory.toString());
+        if (model != null && !model.isBlank()) {
+            params.put("model", model);
+        }
         return rpc.request("thread/start", params);
     }
 
@@ -64,11 +75,18 @@ class CodexAppServerClient {
     }
 
     CompletableFuture<JsonNode> startTurn(String threadId, String text, String clientUserMessageId) {
+        return startTurn(threadId, text, clientUserMessageId, null);
+    }
+
+    CompletableFuture<JsonNode> startTurn(String threadId, String text, String clientUserMessageId, String model) {
         ObjectNode textInput = mapper.createObjectNode().put("type", "text").put("text", text);
         ObjectNode params = mapper.createObjectNode()
                 .put("threadId", threadId)
                 .put("clientUserMessageId", clientUserMessageId)
                 .set("input", mapper.createArrayNode().add(textInput));
+        if (model != null && !model.isBlank()) {
+            params.put("model", model);
+        }
         return rpc.request("turn/start", params);
     }
 

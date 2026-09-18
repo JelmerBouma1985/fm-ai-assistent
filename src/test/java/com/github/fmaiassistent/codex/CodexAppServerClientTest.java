@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -44,6 +45,39 @@ class CodexAppServerClientTest {
         ArgumentCaptor<JsonNode> params = ArgumentCaptor.forClass(JsonNode.class);
         verify(rpc).request(eq("thread/list"), params.capture());
         assertFalse(params.getValue().has("sourceKinds"));
+    }
+
+    @Test
+    void sendsChosenModelToThreadAndTurn() {
+        CodexJsonRpcClient rpc = mock(CodexJsonRpcClient.class);
+        when(rpc.request(eq("thread/start"), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(CompletableFuture.completedFuture(mapper.createObjectNode()));
+        when(rpc.request(eq("turn/start"), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(CompletableFuture.completedFuture(mapper.createObjectNode()));
+        CodexAppServerClient client = client(rpc);
+
+        client.startThread("chosen-model");
+        client.startTurn("thread-1", "Hello", "message-1", "chosen-model");
+
+        ArgumentCaptor<JsonNode> thread = ArgumentCaptor.forClass(JsonNode.class);
+        ArgumentCaptor<JsonNode> turn = ArgumentCaptor.forClass(JsonNode.class);
+        verify(rpc).request(eq("thread/start"), thread.capture());
+        verify(rpc).request(eq("turn/start"), turn.capture());
+        assertEquals("chosen-model", thread.getValue().path("model").asString());
+        assertEquals("chosen-model", turn.getValue().path("model").asString());
+    }
+
+    @Test
+    void requestsPickerModelsFromAppServer() {
+        CodexJsonRpcClient rpc = mock(CodexJsonRpcClient.class);
+        when(rpc.request(eq("model/list"), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(CompletableFuture.completedFuture(mapper.createObjectNode()));
+
+        client(rpc).listModels();
+
+        ArgumentCaptor<JsonNode> params = ArgumentCaptor.forClass(JsonNode.class);
+        verify(rpc).request(eq("model/list"), params.capture());
+        assertEquals(100, params.getValue().path("limit").asInt());
     }
 
     private CodexAppServerClient client(CodexJsonRpcClient rpc) {

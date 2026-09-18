@@ -13,6 +13,7 @@ import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 @Component
@@ -35,8 +36,9 @@ class CopilotExecutableResolver {
                     .orElse(null);
         }
 
+        String searchPath = environmentValue("PATH");
         List<Path> pathDirectories = java.util.Arrays.stream(
-                        System.getenv().getOrDefault("PATH", "").split(File.pathSeparator))
+                        (searchPath == null ? "" : searchPath).split(File.pathSeparator))
                 .filter(directory -> !directory.isBlank())
                 .map(Path::of)
                 .toList();
@@ -132,15 +134,20 @@ class CopilotExecutableResolver {
             return List.of(path);
         }
         Set<Path> candidates = new LinkedHashSet<>();
-        candidates.add(path);
         for (String extension : windowsExtensions) {
             candidates.add(path.resolveSibling(path.getFileName() + extension));
         }
+        // Windows can report extensionless Unix shims as executable files. Prefer
+        // a real PATHEXT launcher (especially .cmd/.exe) before that shim.
+        candidates.add(path);
         return List.copyOf(candidates);
     }
 
     private static List<String> windowsExecutableExtensions() {
-        String pathExt = System.getenv().getOrDefault("PATHEXT", ".COM;.EXE;.BAT;.CMD");
+        String pathExt = environmentValue("PATHEXT");
+        if (pathExt == null) {
+            pathExt = ".COM;.EXE;.BAT;.CMD";
+        }
         return java.util.Arrays.stream(pathExt.split(";"))
                 .map(String::strip)
                 .filter(extension -> !extension.isBlank())
@@ -155,8 +162,27 @@ class CopilotExecutableResolver {
                 .anyMatch(filename::endsWith);
     }
 
-    private static boolean isWindows() {
+    static boolean isWindows() {
         return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
+    }
+
+    static String environmentKey(Map<String, String> environment, String name, boolean windows) {
+        if (environment.containsKey(name)) {
+            return name;
+        }
+        if (!windows) {
+            return null;
+        }
+        return environment.keySet().stream()
+                .filter(key -> key.equalsIgnoreCase(name))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private static String environmentValue(String name) {
+        Map<String, String> environment = System.getenv();
+        String key = environmentKey(environment, name, isWindows());
+        return key == null ? null : environment.get(key);
     }
 
     private static boolean isExecutableFile(Path path) {
@@ -164,7 +190,7 @@ class CopilotExecutableResolver {
     }
 
     private static Path environmentPath(String name) {
-        String value = System.getenv(name);
+        String value = environmentValue(name);
         return value == null || value.isBlank() ? null : Path.of(value);
     }
 

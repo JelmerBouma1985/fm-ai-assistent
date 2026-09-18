@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -35,6 +36,17 @@ class CopilotExecutableResolverTest {
     }
 
     @Test
+    void prefersWindowsLauncherOverExtensionlessShim() throws IOException {
+        Path bin = Files.createDirectory(temporaryDirectory.resolve("windows-bin"));
+        executableFile(bin.resolve("copilot"));
+        Path launcher = executableFile(bin.resolve("copilot.cmd"));
+
+        assertThat(CopilotExecutableResolver.findInDirectories(
+                "copilot", List.of(bin), true, List.of(".exe", ".cmd")))
+                .isEqualTo(launcher.toAbsolutePath().normalize().toString());
+    }
+
+    @Test
     void findsWinGetInstallationWhenItIsMissingFromPath() throws IOException {
         Path localAppData = Files.createDirectory(temporaryDirectory.resolve("local-app-data"));
         Path packageDirectory = localAppData.resolve(
@@ -53,6 +65,16 @@ class CopilotExecutableResolverTest {
                 true, "/definitely/missing/copilot", ".", null, null, null, null, null);
 
         assertThat(new CopilotExecutableResolver(properties).resolve()).isNull();
+    }
+
+    @Test
+    void windowsEnvironmentLookupFindsMixedCasePath() {
+        Map<String, String> environment = Map.of("Path", "C:/copilot", "PATHEXT", ".CMD");
+
+        assertThat(CopilotExecutableResolver.environmentKey(environment, "PATH", true))
+                .isEqualTo("Path");
+        assertThat(CopilotExecutableResolver.environmentKey(environment, "PATH", false))
+                .isNull();
     }
 
     private static Path executableFile(Path path) throws IOException {

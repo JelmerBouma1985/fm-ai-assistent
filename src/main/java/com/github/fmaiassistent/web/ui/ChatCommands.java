@@ -14,9 +14,9 @@ final class ChatCommands {
 
     static final List<Command> ALL = List.of(
             new Command("/squad", "Review squad depth, weak positions and contract risks",
-                    "Analyze my squad depth, weak positions, injuries and contract risks. If the relevant FM26 data or context is missing, tell me what to load.", "Focus on"),
+                    "Use the fm26_analyze_squad tool now for my detected managed club and loaded FM26 data. Then analyze squad depth, weak positions, injuries and contract risks. Only if that tool reports that FM26 data is unavailable, tell me what to load.", "Focus on"),
             new Command("/lineup", "Best XI for your uploaded tactic · tactic required",
-                    "Build the best starting XI for my uploaded FM26 tactic, explain the key choices and alternatives. If no tactic is uploaded or squad data is missing, tell me what to load.", "Requirements"),
+                    "Use the fm26_optimize_lineup tool now for my detected managed club and loaded FM26 tactic. Then build the best starting XI, explain the key choices and alternatives. Only if that tool reports that the tactic or FM26 data is unavailable, tell me what to load.", "Requirements"),
             new Command("/recruit", "Find transfer targets for a position or role",
                     "Find realistic transfer targets for my club, considering squad needs, position fit and affordability. If club or player data is missing, tell me what to load.", "Requirements"),
             new Command("/compare", "Compare players and their fit for my club",
@@ -24,7 +24,7 @@ final class ChatCommands {
             new Command("/staff", "Find or assess staff and coaching roles",
                     "Help me find or assess staff for my club, including coaching role strengths where relevant. If staff data is missing, tell me what to load.", "Requirements"),
             new Command("/club", "Inspect a club, budget and squad context",
-                    "Summarize the club I name, or my managed club if I name none, including its finances and squad context. If club data is missing, tell me what to load.", "Club and requirements")
+                    "Use the fm26_get_club_context tool now for the named club, or my detected managed club if I name none. Then summarize its profile, finances and returned squad context. Only if that tool reports that club or FM26 data is unavailable, tell me what to load.", "Club and requirements")
     );
 
     private ChatCommands() { }

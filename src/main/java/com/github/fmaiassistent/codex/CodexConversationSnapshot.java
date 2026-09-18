@@ -5,5 +5,6 @@ import java.util.List;
 public record CodexConversationSnapshot(
         CodexConversation conversation,
         List<CodexConversationItem> items,
-        String activeTurnId) {
+        String activeTurnId,
+        String selectedModel) {
 }

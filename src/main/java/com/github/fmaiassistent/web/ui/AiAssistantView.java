@@ -90,6 +90,7 @@ final class AiAssistantView extends Div {
         Div toolbarSpacer = new Div();
         toolbarSpacer.addClassName("ai-toolbar-spacer");
         HorizontalLayout toolbar = new HorizontalLayout(providerLabel, provider,
+                codexChat.modelControls(), copilotChat.modelControls(),
                 openRouterChat.toolbarControls(), toolbarSpacer, contextButton);
         toolbar.setAlignItems(HorizontalLayout.Alignment.CENTER);
         toolbar.expand(toolbarSpacer);
@@ -237,6 +238,8 @@ final class AiAssistantView extends Div {
     }
 
     private void showProvider(Provider selected) {
+        codexChat.modelControls().setVisible(selected == Provider.CODEX);
+        copilotChat.modelControls().setVisible(selected == Provider.COPILOT);
         openRouterChat.toolbarControls().setVisible(selected == Provider.OPENROUTER);
         if (selected == null) {
             Span heading = new Span("No AI agents installed");

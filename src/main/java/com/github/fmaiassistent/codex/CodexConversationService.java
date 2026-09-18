@@ -32,6 +32,7 @@ public class CodexConversationService {
     private final Map<String, CopyOnWriteArrayList<Consumer<CodexEvent>>> listeners = new ConcurrentHashMap<>();
     private final CopyOnWriteArrayList<Consumer<CodexAvailability>> availabilityListeners = new CopyOnWriteArrayList<>();
     private final Map<String, String> activeTurns = new ConcurrentHashMap<>();
+    private final Map<String, String> selectedModels = new ConcurrentHashMap<>();
     private final Set<String> completedTurns = ConcurrentHashMap.newKeySet();
     private final Map<String, PendingApproval> approvals = new ConcurrentHashMap<>();
 
@@ -86,8 +87,39 @@ public class CodexConversationService {
     }
 
     public CompletableFuture<CodexConversationSnapshot> newConversation() {
-        return readyThen(client::startThread)
-                .thenApply(result -> snapshot(result.path("thread")));
+        return newConversation(null);
+    }
+
+    public CompletableFuture<CodexConversationSnapshot> newConversation(String model) {
+        String selected = model == null || model.isBlank() ? null : model;
+        return readyThen(() -> selected == null ? client.startThread() : client.startThread(selected))
+                .thenApply(result -> {
+                    JsonNode thread = result.path("thread");
+                    if (selected != null) {
+                        selectedModels.put(thread.path("id").asString(), selected);
+                    }
+                    return snapshot(thread);
+                });
+    }
+
+    public CompletableFuture<List<CodexModel>> models() {
+        return readyThen(client::listModels).thenApply(result -> {
+            List<CodexModel> models = new ArrayList<>();
+            result.path("data").forEach(value -> {
+                String id = value.path("model").asString(value.path("id").asString());
+                if (!id.isBlank()) {
+                    models.add(new CodexModel(id, value.path("displayName").asString(id)));
+                }
+            });
+            return List.copyOf(models);
+        });
+    }
+
+    public void selectModel(String threadId, String model) {
+        if (activeTurns.containsKey(threadId)) {
+            throw new CodexException("Cannot change model during an active turn");
+        }
+        selectedModels.put(threadId, model == null ? "" : model);
     }
 
     public CompletableFuture<List<CodexConversation>> listConversations() {
@@ -114,8 +146,12 @@ public class CodexConversationService {
             return CompletableFuture.failedFuture(new CodexException("A turn is already active in this conversation"));
         }
         String enrichedPrompt = promptContext.enrich("codex:" + threadId, text);
-        CompletableFuture<String> turn = readyThen(
-                () -> client.startTurn(threadId, enrichedPrompt, messageId)).thenApply(result -> {
+        CompletableFuture<String> turn = readyThen(() -> {
+            String model = selectedModels.get(threadId);
+            return model == null || model.isBlank()
+                    ? client.startTurn(threadId, enrichedPrompt, messageId)
+                    : client.startTurn(threadId, enrichedPrompt, messageId, model);
+        }).thenApply(result -> {
             String turnId = result.path("turn").path("id").asString();
             if (completedTurns.remove(turnId)) {
                 activeTurns.remove(threadId, reservation);
@@ -464,7 +500,9 @@ public class CodexConversationService {
         if (activeTurnId != null) {
             activeTurns.put(threadId, activeTurnId);
         }
-        return new CodexConversationSnapshot(conversation(thread), List.copyOf(items), activeTurnId);
+        String selected = selectedModels.getOrDefault(threadId, thread.path("model").asString(""));
+        return new CodexConversationSnapshot(conversation(thread), List.copyOf(items), activeTurnId,
+                selected.isBlank() ? null : selected);
     }
 
     private CodexConversationItem historyItem(JsonNode item) {

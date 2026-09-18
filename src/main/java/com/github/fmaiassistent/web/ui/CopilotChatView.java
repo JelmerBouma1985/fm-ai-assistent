@@ -45,9 +45,11 @@ final class CopilotChatView extends Div {
     private final Button send = new Button("Send", VaadinIcon.PAPERPLANE.create());
     private final Button stop = new Button("Stop", VaadinIcon.STOP.create());
     private final Button newChat = new Button("New chat", VaadinIcon.PLUS.create());
+    private final Button login = new Button("Sign in with GitHub", VaadinIcon.SIGN_IN.create());
     private final Span agentStatus = new Span();
     private final Span mcpStatus = new Span("Application MCP · inherited from Copilot configuration");
-    private final ComboBox<CopilotModel> model = new ComboBox<>("Model");
+    private final ComboBox<CopilotModel> model = new ComboBox<>();
+    private final HorizontalLayout modelControls = new HorizontalLayout();
     private final List<MessageListItem> messageItems = new ArrayList<>();
     private final Map<String, MessageListItem> itemsById = new LinkedHashMap<>();
     private final Map<String, StringBuilder> assistantBuffers = new LinkedHashMap<>();
@@ -75,6 +77,7 @@ final class CopilotChatView extends Div {
         configureInput();
         configureActions();
         configureModel();
+        configureModelControls();
         conversationList.addClassName("codex-conversation-list");
         agentStatus.addClassName("codex-status");
         mcpStatus.addClassName("codex-mcp-status");
@@ -133,7 +136,7 @@ final class CopilotChatView extends Div {
         heading.addClassName("codex-heading");
         Div statusCopy = new Div(agentStatus, mcpStatus);
         statusCopy.addClassName("codex-status-copy");
-        HorizontalLayout header = new HorizontalLayout(heading, statusCopy, model);
+        HorizontalLayout header = new HorizontalLayout(heading, statusCopy, login);
         header.setAlignItems(HorizontalLayout.Alignment.CENTER);
         header.expand(statusCopy);
         header.setWidthFull();
@@ -147,6 +150,22 @@ final class CopilotChatView extends Div {
         Div workspace = new Div(header, messages, composer);
         workspace.addClassName("codex-workspace");
         return workspace;
+    }
+
+    ComboBox<CopilotModel> modelSelector() {
+        return model;
+    }
+
+    HorizontalLayout modelControls() {
+        return modelControls;
+    }
+
+    private void configureModelControls() {
+        Span label = new Span("Model");
+        label.addClassName("ai-provider-label");
+        modelControls.add(label, model);
+        modelControls.setAlignItems(HorizontalLayout.Alignment.CENTER);
+        modelControls.addClassName("ai-openrouter-controls");
     }
 
     private void configureInput() {
@@ -165,6 +184,11 @@ final class CopilotChatView extends Div {
         stop.addThemeVariants(ButtonVariant.LUMO_ERROR);
         stop.addClickListener(event -> stopTurn());
         newChat.addClickListener(event -> createConversation());
+        login.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        login.addClickListener(event -> conversations.signIn().exceptionally(error -> {
+            access(() -> showError(error));
+            return null;
+        }));
     }
 
     private void configureModel() {
@@ -198,6 +222,10 @@ final class CopilotChatView extends Div {
         newChat.setEnabled(value.ready());
         send.setEnabled(value.ready() && activeTurnId == null && !turnPending);
         model.setEnabled(value.ready() && activeTurnId == null && !turnPending);
+        boolean signingIn = value.state() == CopilotAvailability.State.AUTHENTICATING;
+        login.setVisible(value.state() == CopilotAvailability.State.AUTHENTICATION_REQUIRED || signingIn);
+        login.setEnabled(!signingIn);
+        login.setText(signingIn ? "Signing in…" : "Sign in with GitHub");
         if (value.ready()) {
             mcpStatus.setText("Local MCP config · Copilot CLI " + value.cliVersion()
                     + " · protocol " + value.protocolVersion());

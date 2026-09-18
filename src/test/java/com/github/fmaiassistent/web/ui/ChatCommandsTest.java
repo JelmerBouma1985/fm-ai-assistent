@@ -30,7 +30,15 @@ class ChatCommandsTest {
         assertTrue(ChatCommands.matches("hello /recruit").isEmpty());
         assertTrue(ChatCommands.expandKnown("/recruit left back under 25").orElseThrow()
                 .endsWith("Requirements: left back under 25"));
-        assertTrue(ChatCommands.expandKnown("/lineup").orElseThrow().contains("uploaded FM26 tactic"));
+        String squad = ChatCommands.expandKnown("/squad").orElseThrow();
+        assertTrue(squad.contains("fm26_analyze_squad"));
+        assertTrue(squad.contains("Only if that tool reports"));
+        String club = ChatCommands.expandKnown("/club").orElseThrow();
+        assertTrue(club.contains("fm26_get_club_context"));
+        assertTrue(club.contains("Only if that tool reports"));
+        String lineup = ChatCommands.expandKnown("/lineup").orElseThrow();
+        assertTrue(lineup.contains("fm26_optimize_lineup"));
+        assertTrue(lineup.contains("Only if that tool reports"));
         assertTrue(ChatCommands.expandKnown("/unknown").isEmpty());
         assertTrue(ChatCommands.expandKnown("ordinary message").isEmpty());
     }
@@ -46,7 +54,7 @@ class ChatCommandsTest {
         assertTrue(suggestions.isVisible());
         assertEquals(6, suggestions.getChildren().count());
         ((Button) suggestions.getChildren().findFirst().orElseThrow()).click();
-        assertTrue(input.getValue().startsWith("Analyze my squad depth"));
+        assertTrue(input.getValue().startsWith("Use the fm26_analyze_squad tool"));
         assertEquals(0, sends.get());
         assertFalse(suggestions.isVisible());
 
@@ -69,7 +77,7 @@ class ChatCommandsTest {
         picker.menuButton().click();
         picker.move(1);
         picker.onEnter(() -> { });
-        assertTrue(input.getValue().startsWith("Build the best starting XI"));
+        assertTrue(input.getValue().startsWith("Use the fm26_optimize_lineup tool"));
     }
 
     @Test
