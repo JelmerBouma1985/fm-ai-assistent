@@ -18,7 +18,7 @@ final class ChatCommands {
             new Command("/lineup", "Best XI for your uploaded tactic · tactic required",
                     "Use the fm26_optimize_lineup tool now for my detected managed club and loaded FM26 tactic. Then build the best starting XI, explain the key choices and alternatives. Only if that tool reports that the tactic or FM26 data is unavailable, tell me what to load.", "Requirements"),
             new Command("/recruit", "Find transfer targets for a position or role",
-                    "Find realistic transfer targets for my club, considering squad needs, position fit and affordability. If club or player data is missing, tell me what to load.", "Requirements"),
+                    "Use the fm26_transfer_shortlist tool now for my detected managed club and loaded FM26 data. That tool must load the current squad and player market data, then return realistic targets using squad needs, position fit and affordability. Only if that tool reports that club or FM26 data is unavailable, tell me what to load.", "Requirements"),
             new Command("/compare", "Compare players and their fit for my club",
                     "Compare the players I name, including their fit, cost and risks. If you cannot identify them or the relevant data is missing, tell me what details to provide or load.", "Players and requirements"),
             new Command("/staff", "Find or assess staff and coaching roles",

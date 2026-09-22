@@ -30,6 +30,10 @@ class ChatCommandsTest {
         assertTrue(ChatCommands.matches("hello /recruit").isEmpty());
         assertTrue(ChatCommands.expandKnown("/recruit left back under 25").orElseThrow()
                 .endsWith("Requirements: left back under 25"));
+        String recruit = ChatCommands.expandKnown("/recruit").orElseThrow();
+        assertTrue(recruit.contains("fm26_transfer_shortlist"));
+        assertTrue(recruit.contains("current squad and player market data"));
+        assertTrue(recruit.contains("Only if that tool reports"));
         String squad = ChatCommands.expandKnown("/squad").orElseThrow();
         assertTrue(squad.contains("fm26_analyze_squad"));
         assertTrue(squad.contains("Only if that tool reports"));
