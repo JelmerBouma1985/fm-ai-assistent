@@ -7,6 +7,7 @@
 - [openrouter.ai](https://openrouter.ai) can be used as AI agent
 - Model selection added for codex and copilot
 - Smaller MCP responses
+- Sorting is preserved when switching between tabs
 
 ### Bug fixes
 

@@ -468,15 +468,16 @@ public class MainView extends VerticalLayout {
     }
 
     private void setClubGrid(List<GridColumn> columns, ClubFilterCriteria filter) {
-        clubsGrid.removeAllColumns();
-        for (GridColumn column : columns) {
-            clubsGrid.addColumn(club -> displayColumn(column.key(), clubColumnValue(club, column.key())))
-                    .setKey(column.key())
-                    .setHeader(column.header())
-                    .setAutoWidth(true)
-                    .setResizable(true)
-                    .setSortProperty(column.key())
-                    .setSortable(true);
+        if (clubsGrid.getColumns().isEmpty()) {
+            for (GridColumn column : columns) {
+                clubsGrid.addColumn(club -> displayColumn(column.key(), clubColumnValue(club, column.key())))
+                        .setKey(column.key())
+                        .setHeader(column.header())
+                        .setAutoWidth(true)
+                        .setResizable(true)
+                        .setSortProperty(column.key())
+                        .setSortable(true);
+            }
         }
         clubsGrid.setDataProvider(DataProvider.fromCallbacks(
                 query -> clubs.findClubPage(filter, pageable(query.getPage(), query.getPageSize(),
@@ -489,14 +490,15 @@ public class MainView extends VerticalLayout {
     }
 
     private void setStaffGrid(List<StaffColumn> columns, StaffFilterCriteria filter) {
-        staffGrid.removeAllColumns();
-        for (StaffColumn column : columns) {
-            Grid.Column<StaffEntity> gridColumn = staffGrid.addColumn(
-                            value -> displayColumn(column.key(), column.value(value)))
-                    .setKey(column.key()).setHeader(column.header()).setAutoWidth(true).setResizable(true);
-            String sortProperty = staffSortProperty(column.key());
-            if (sortProperty != null) {
-                gridColumn.setSortProperty(column.key()).setSortable(true);
+        if (staffGrid.getColumns().isEmpty()) {
+            for (StaffColumn column : columns) {
+                Grid.Column<StaffEntity> gridColumn = staffGrid.addColumn(
+                                value -> displayColumn(column.key(), column.value(value)))
+                        .setKey(column.key()).setHeader(column.header()).setAutoWidth(true).setResizable(true);
+                String sortProperty = staffSortProperty(column.key());
+                if (sortProperty != null) {
+                    gridColumn.setSortProperty(column.key()).setSortable(true);
+                }
             }
         }
         staffGrid.setDataProvider(DataProvider.fromCallbacks(
@@ -510,15 +512,16 @@ public class MainView extends VerticalLayout {
     }
 
     private void setCompetitionGrid(List<GridColumn> columns, CompetitionFilterCriteria filter) {
-        competitionsGrid.removeAllColumns();
-        for (GridColumn column : columns) {
-            competitionsGrid.addColumn(competition -> displayColumn(column.key(), competitionColumnValue(competition, column.key())))
-                    .setKey(column.key())
-                    .setHeader(column.header())
-                    .setAutoWidth(true)
-                    .setResizable(true)
-                    .setSortProperty(column.key())
-                    .setSortable(true);
+        if (competitionsGrid.getColumns().isEmpty()) {
+            for (GridColumn column : columns) {
+                competitionsGrid.addColumn(competition -> displayColumn(column.key(), competitionColumnValue(competition, column.key())))
+                        .setKey(column.key())
+                        .setHeader(column.header())
+                        .setAutoWidth(true)
+                        .setResizable(true)
+                        .setSortProperty(column.key())
+                        .setSortable(true);
+            }
         }
         competitionsGrid.setDataProvider(DataProvider.fromCallbacks(
                 query -> competitions.findCompetitionPage(filter, pageable(query.getPage(), query.getPageSize(),
@@ -531,18 +534,19 @@ public class MainView extends VerticalLayout {
     }
 
     private void setPlayerGrid(List<PlayerColumn> columns, PlayerFilterCriteria filter) {
-        playersGrid.removeAllColumns();
         playersGrid.setPartNameGenerator(this::playerRowPartName);
-        for (PlayerColumn column : columns) {
-            Grid.Column<PlayerEntity> gridColumn = playersGrid.addColumn(
-                            player -> displayColumn(column.key(), column.value(player)))
-                    .setKey(column.key())
-                    .setHeader(column.header())
-                    .setAutoWidth(true)
-                    .setResizable(true);
-            String sortProperty = playerSortProperty(column.key());
-            if (sortProperty != null) {
-                gridColumn.setSortProperty(column.key()).setSortable(true);
+        if (playersGrid.getColumns().isEmpty()) {
+            for (PlayerColumn column : columns) {
+                Grid.Column<PlayerEntity> gridColumn = playersGrid.addColumn(
+                                player -> displayColumn(column.key(), column.value(player)))
+                        .setKey(column.key())
+                        .setHeader(column.header())
+                        .setAutoWidth(true)
+                        .setResizable(true);
+                String sortProperty = playerSortProperty(column.key());
+                if (sortProperty != null) {
+                    gridColumn.setSortProperty(column.key()).setSortable(true);
+                }
             }
         }
         playersGrid.setDataProvider(DataProvider.fromCallbacks(
