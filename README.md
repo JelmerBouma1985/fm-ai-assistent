@@ -111,7 +111,7 @@ Messages, enabled managed-club/tactic/snapshot context, and FM tool results reac
 
 The managed club is detected automatically when you select **Load data**.
 
-To add your tactic, select **Context** in the AI assistant, upload the `.fmf` tactic file exported by FM26, and close the context window. The app converts the tactic into information the AI can understand.
+To add your tactic, select **Context** in the AI assistant and either pick one of the `.fmf` tactic files found in your FM26 `tactics` folder or upload the `.fmf` tactic file exported by FM26, then close the context window. The app converts the tactic into information the AI can understand. A tactic loaded from disk is remembered between restarts and silently reloaded when the file changes on disk.
 
 Use the **Include in AI chats** checkboxes to enable or disable the managed-club and tactic context without removing them from the app.
 

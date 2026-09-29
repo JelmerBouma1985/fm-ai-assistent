@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="010-tactic-disk-source" author="codex">
+        <addColumn tableName="tactic_context">
+            <column name="source_kind" type="VARCHAR(16)"/>
+            <column name="source_path" type="VARCHAR(2048)"/>
+        </addColumn>
+        <sql>UPDATE tactic_context SET source_kind = 'UPLOAD' WHERE source_kind IS NULL</sql>
+        <rollback>
+            <dropColumn tableName="tactic_context" columnName="source_path"/>
+            <dropColumn tableName="tactic_context" columnName="source_kind"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

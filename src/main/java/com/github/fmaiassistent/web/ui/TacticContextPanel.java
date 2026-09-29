@@ -2,10 +2,12 @@ package com.github.fmaiassistent.web.ui;
 
 import com.github.fmaiassistent.tactic.TacticContext;
 import com.github.fmaiassistent.tactic.TacticContextService;
+import com.github.fmaiassistent.tactic.TacticDirectoryResolver;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.checkbox.Checkbox;
+import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.html.Pre;
 import com.vaadin.flow.component.html.Span;
@@ -17,6 +19,7 @@ import com.vaadin.flow.component.upload.Upload;
 import com.vaadin.flow.server.streams.UploadHandler;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -33,6 +36,9 @@ final class TacticContextPanel extends Details {
     private final Details previewDetails = new Details("Preview AI context", preview);
     private final Upload upload;
     private final Map<String, byte[]> pendingUploads = new LinkedHashMap<>();
+    private final ComboBox<TacticDirectoryResolver.DiskTactic> diskSelect = new ComboBox<>();
+    private final Button diskRefresh = new Button(VaadinIcon.REFRESH.create());
+    private final Button diskLoad = new Button("Load selected");
 
     TacticContextPanel(TacticContextService contexts, Runnable contextChanged) {
         this.contexts = contexts;
@@ -79,9 +85,39 @@ final class TacticContextPanel extends Details {
         Span heading = new Span("Let the AI understand your current tactic");
         heading.addClassName("tactic-context-heading");
         Span help = new Span(
-                "Upload one Football Manager 2026 .fmf tactic file. Its roles, duties, mentality "
-                        + "and tactical style will be added automatically to Codex, Antigravity and GitHub Copilot chats.");
+                "Choose a Football Manager 2026 .fmf tactic from your tactics folder, or upload one. "
+                        + "Its roles, duties, mentality and tactical style will be added automatically to Codex, Antigravity and GitHub Copilot chats. "
+                        + "A tactic loaded from disk is remembered between restarts and silently reloaded when the file changes.");
         help.addClassName("tactic-context-help");
+
+        diskSelect.setLabel("Tactics found on disk");
+        diskSelect.setPlaceholder("Select a .fmf tactic");
+        diskSelect.setItemLabelGenerator(item -> item.fileName() + " · " + item.lastModified().toString().substring(0, 10));
+        diskSelect.setWidthFull();
+        diskRefresh.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+        diskRefresh.setTooltipText("Refresh disk tactics");
+        diskRefresh.getElement().setAttribute("aria-label", "Refresh disk tactics");
+        diskRefresh.addClickListener(ignored -> refreshDiskList(true));
+        diskLoad.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        diskLoad.addClickListener(ignored -> {
+            TacticDirectoryResolver.DiskTactic selected = diskSelect.getValue();
+            if (selected == null) {
+                Notification.show("Select a disk tactic first, or upload a .fmf file below.");
+                return;
+            }
+            runImport(() -> contexts.loadFromDisk(selected.path()));
+        });
+        Span diskPath = new Span("Folder: " + contexts.diskDirectory());
+        diskPath.addClassName("tactic-context-disk-path");
+        HorizontalLayout diskRow = new HorizontalLayout(diskSelect, diskRefresh, diskLoad);
+        diskRow.setAlignItems(HorizontalLayout.Alignment.END);
+        diskRow.expand(diskSelect);
+        diskRow.setWidthFull();
+        diskRow.addClassName("tactic-context-disk-row");
+        VerticalLayout diskSection = new VerticalLayout(diskPath, diskRow);
+        diskSection.setPadding(false);
+        diskSection.setSpacing(false);
+        diskSection.addClassName("tactic-context-disk-section");
         status.addClassName("tactic-context-status");
         details.addClassName("tactic-context-details");
         preview.addClassName("tactic-context-preview");
@@ -93,12 +129,32 @@ final class TacticContextPanel extends Details {
         controls.setWidthFull();
         controls.addClassName("tactic-context-controls");
 
-        VerticalLayout body = new VerticalLayout(heading, help, upload, controls, details, previewDetails);
+        VerticalLayout body = new VerticalLayout(heading, help, diskSection, upload, controls, details, previewDetails);
         body.setPadding(false);
         body.setSpacing(true);
         body.addClassName("tactic-context-body");
         add(body);
+        refreshDiskList(false);
         refresh();
+    }
+
+    private void refreshDiskList(boolean notify) {
+        List<TacticDirectoryResolver.DiskTactic> found = contexts.listDiskTactics();
+        TacticDirectoryResolver.DiskTactic selected = diskSelect.getValue();
+        diskSelect.setItems(found);
+        if (selected != null && found.stream().anyMatch(item -> item.path().equals(selected.path()))) {
+            diskSelect.setValue(selected);
+        }
+        diskLoad.setEnabled(!found.isEmpty());
+        if (notify) {
+            if (found.isEmpty()) {
+                Notification.show("No .fmf tactics in " + contexts.diskDirectory()
+                        + ". Export a tactic in FM26 first, or upload one below.");
+            } else {
+                Notification.show("Found " + found.size() + " tactic(s) on disk.", 2500,
+                        Notification.Position.TOP_CENTER);
+            }
+        }
     }
 
     private void importUploads() {
@@ -144,6 +200,9 @@ final class TacticContextPanel extends Details {
     private void setBusy(boolean busy) {
         upload.setEnabled(!busy);
         clear.setEnabled(!busy);
+        diskSelect.setEnabled(!busy);
+        diskRefresh.setEnabled(!busy);
+        diskLoad.setEnabled(!busy);
         if (busy) {
             status.setText("Reading tactic…");
         }
@@ -158,8 +217,8 @@ final class TacticContextPanel extends Details {
             boolean restoreFailed = !context.warnings().isEmpty();
             setSummaryText(restoreFailed
                     ? "AI tactic context · saved tactic unavailable"
-                    : "AI tactic context · upload a .fmf file");
-            status.setText(restoreFailed ? "Saved tactic could not be restored" : "No tactic uploaded yet");
+                    : "AI tactic context · choose from disk or upload a .fmf file");
+            status.setText(restoreFailed ? "Saved tactic could not be restored" : "No tactic loaded yet");
             details.setText(restoreFailed ? String.join(" · ", context.warnings()) : "");
             preview.setText("");
             previewDetails.setVisible(false);
@@ -171,6 +230,9 @@ final class TacticContextPanel extends Details {
                 ? "Active for Codex, Antigravity and GitHub Copilot"
                 : "Loaded, but not included in AI chats");
         String imported = "Files: " + String.join(", ", context.importedFiles());
+        if (context.source() != null && context.source().startsWith("local disk")) {
+            imported += "\nRemembered: " + context.source().replaceFirst("^local disk(?::\\s*)?", "");
+        }
         if (context.fingerprint() != null) {
             imported += "\nFingerprint: " + context.fingerprint();
         }

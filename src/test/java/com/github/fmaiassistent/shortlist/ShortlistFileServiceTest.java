@@ -64,6 +64,30 @@ class ShortlistFileServiceTest {
                 .hasMessageContaining("Load data again");
     }
 
+    @Test
+    void prefersExistingShortlistsFolder(@TempDir Path home) throws Exception {
+        Path existing = home.resolve("Documents/Sports Interactive/Football Manager 26/shortlists");
+        Files.createDirectories(existing);
+
+        assertThat(ShortlistFileService.resolveOutputDirectory(home)).isEqualTo(existing.toAbsolutePath().normalize());
+    }
+
+    @Test
+    void fallsBackToLibraryHoldingTheGame(@TempDir Path home) throws Exception {
+        Path customLib = home.resolve("mnt/bcache/Steam");
+        Path steamApps = home.resolve(".local/share/Steam/steamapps");
+        Files.createDirectories(steamApps);
+        Files.createDirectories(customLib.resolve("steamapps"));
+        Files.writeString(steamApps.resolve("libraryfolders.vdf"),
+                "\"libraryfolders\"\n{\n\t\"1\"\n\t{\n\t\t\"path\"\t\t\"" + customLib + "\"\n\t}\n}");
+        Files.writeString(customLib.resolve("steamapps/appmanifest_3551340.acf"), "\"AppState\"{}");
+
+        Path resolved = ShortlistFileService.resolveOutputDirectory(home);
+
+        assertThat(resolved.toString()).startsWith(customLib.toAbsolutePath().normalize().toString());
+        assertThat(resolved.getFileName().toString()).isEqualTo("shortlists");
+    }
+
     private static PlayerEntity player(String name, long uniqueId) {
         Map<String, Object> row = new HashMap<>();
         PlayerExporter.FIELD_NAMES.forEach(field -> row.put(field, null));
