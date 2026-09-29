@@ -139,6 +139,7 @@ public class MainView extends VerticalLayout {
     private final Tab recruitmentTab = new Tab("Recruitment");
     private final Tab aiAssistantTab = new Tab("AI assistent");
     private PlayerFilterCriteria playerFilter = PlayerFilterCriteria.empty();
+    private final Map<String, PlayerFilterCriteria> savedPlayerFilters = new LinkedHashMap<>();
     private StaffFilterCriteria staffFilter = StaffFilterCriteria.empty();
     private ClubFilterCriteria clubFilter = ClubFilterCriteria.empty();
     private CompetitionFilterCriteria competitionFilter = CompetitionFilterCriteria.empty();
@@ -597,21 +598,29 @@ public class MainView extends VerticalLayout {
     private void showRecruitment() {
         if (recruitmentGrid.getColumns().isEmpty()) {
             recruitmentGrid.addColumn(item -> display(item.get("name")))
-                    .setKey("NAME").setHeader("Player").setAutoWidth(true).setResizable(true);
+                    .setKey("NAME").setHeader("Player").setAutoWidth(true).setResizable(true)
+                    .setTooltipGenerator(item -> display(item.get("name")));
             recruitmentGrid.addColumn(item -> display(item.get("club")))
-                    .setKey("CLUB").setHeader("Club").setAutoWidth(true).setResizable(true);
+                    .setKey("CLUB").setHeader("Club").setAutoWidth(true).setResizable(true)
+                    .setTooltipGenerator(item -> display(item.get("club")));
             recruitmentGrid.addColumn(item -> display(item.get("interest_status")))
-                    .setKey("INTEREST").setHeader("Interest").setAutoWidth(true).setResizable(true);
+                    .setKey("INTEREST").setHeader("Interest").setAutoWidth(true).setResizable(true)
+                    .setTooltipGenerator(item -> display(item.get("interest_status")));
             recruitmentGrid.addColumn(item -> display(item.get("deal_stage")))
-                    .setKey("STAGE").setHeader("Stage").setAutoWidth(true).setResizable(true);
+                    .setKey("STAGE").setHeader("Stage").setAutoWidth(true).setResizable(true)
+                    .setTooltipGenerator(item -> display(item.get("deal_stage")));
             recruitmentGrid.addColumn(item -> display(item.get("source")))
-                    .setKey("SOURCE").setHeader("Source").setAutoWidth(true).setResizable(true);
+                    .setKey("SOURCE").setHeader("Source").setAutoWidth(true).setResizable(true)
+                    .setTooltipGenerator(item -> display(item.get("source")));
             recruitmentGrid.addColumn(item -> display(item.get("observed_game_date")))
-                    .setKey("OBSERVED").setHeader("Observed").setAutoWidth(true).setResizable(true);
+                    .setKey("OBSERVED").setHeader("Observed").setAutoWidth(true).setResizable(true)
+                    .setTooltipGenerator(item -> display(item.get("observed_game_date")));
             recruitmentGrid.addColumn(item -> display(item.get("valid_until_game_date")))
-                    .setKey("VALID_UNTIL").setHeader("Valid until").setAutoWidth(true).setResizable(true);
+                    .setKey("VALID_UNTIL").setHeader("Valid until").setAutoWidth(true).setResizable(true)
+                    .setTooltipGenerator(item -> display(item.get("valid_until_game_date")));
             recruitmentGrid.addColumn(item -> Boolean.TRUE.equals(item.get("effective")) ? "Active" : "Expired")
-                    .setKey("STATUS").setHeader("Status").setAutoWidth(true).setResizable(true);
+                    .setKey("STATUS").setHeader("Status").setAutoWidth(true).setResizable(true)
+                    .setTooltipGenerator(item -> Boolean.TRUE.equals(item.get("effective")) ? "Active" : "Expired");
             recruitmentGrid.addComponentColumn(item -> {
                 Button delete = new Button("Delete", VaadinIcon.TRASH.create());
                 delete.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE, ButtonVariant.LUMO_ERROR);
@@ -669,7 +678,8 @@ public class MainView extends VerticalLayout {
                         .setAutoWidth(true)
                         .setResizable(true)
                         .setSortProperty(column.key())
-                        .setSortable(true);
+                        .setSortable(true)
+                        .setTooltipGenerator(club -> displayColumn(column.key(), clubColumnValue(club, column.key())));
             }
         }
         clubsGrid.setDataProvider(DataProvider.fromCallbacks(
@@ -688,6 +698,7 @@ public class MainView extends VerticalLayout {
                 Grid.Column<StaffEntity> gridColumn = staffGrid.addColumn(
                                 value -> displayColumn(column.key(), column.value(value)))
                         .setKey(column.key()).setHeader(column.header()).setAutoWidth(true).setResizable(true);
+                gridColumn.setTooltipGenerator(staff -> displayColumn(column.key(), column.value(staff)));
                 String sortProperty = staffSortProperty(column.key());
                 if (sortProperty != null) {
                     gridColumn.setSortProperty(column.key()).setSortable(true);
@@ -713,7 +724,8 @@ public class MainView extends VerticalLayout {
                         .setAutoWidth(true)
                         .setResizable(true)
                         .setSortProperty(column.key())
-                        .setSortable(true);
+                        .setSortable(true)
+                        .setTooltipGenerator(competition -> displayColumn(column.key(), competitionColumnValue(competition, column.key())));
             }
         }
         competitionsGrid.setDataProvider(DataProvider.fromCallbacks(
@@ -736,6 +748,7 @@ public class MainView extends VerticalLayout {
                         .setHeader(column.header())
                         .setAutoWidth(true)
                         .setResizable(true);
+                gridColumn.setTooltipGenerator(player -> displayColumn(column.key(), column.value(player)));
                 String sortProperty = playerSortProperty(column.key());
                 if (sortProperty != null) {
                     gridColumn.setSortProperty(column.key()).setSortable(true);
@@ -844,23 +857,14 @@ public class MainView extends VerticalLayout {
         dialog.getElement().getThemeList().add("professional-dialog");
         dialog.getElement().getThemeList().add("player-detail-dialog");
 
-        VerticalLayout info = new VerticalLayout(detailLayout(List.of(
-                new DetailField("Name", player.getName()),
-                new DetailField("Age", player.getAge()),
-                new DetailField("Height", heightDisplay(player)),
-                new DetailField("Nationality", player.getNationality()),
-                new DetailField("Club", player.getClub()),
-                new DetailField("Playing Club", player.getPlayingClub()),
-                new DetailField("Position", PositionTextFormatter.format(player)),
-                new DetailField("Salary Weekly", salaryWeeklyDisplay(player.getSalaryWeeklyRaw())),
-                new DetailField("Asking Price", moneyDisplay(player.getAskingPrice())),
-                new DetailField("Joined Club Date", player.getJoinedClubDate()),
-                new DetailField("Contract End Date", player.getContractEndDate()),
-                new DetailField("Current Reputation", player.getCurrentReputation()),
-                new DetailField("Home Reputation", player.getHomeReputation()),
-                new DetailField("World Reputation", player.getWorldReputation()))));
+        VerticalLayout info = new VerticalLayout(detailLayout(playerInfoFields(player)));
         info.setPadding(false);
         info.addClassName("detail-info");
+        if (Boolean.TRUE.equals(player.getInjured())) {
+            Span injuryWarning = new Span(injurySummary(player));
+            injuryWarning.addClassName("injury-warning");
+            info.addComponentAsFirst(injuryWarning);
+        }
 
         Checkbox showGoalkeeping = new Checkbox("Show goalkeeping attributes");
         showGoalkeeping.setValue(isGoalkeeper(player));
@@ -923,6 +927,51 @@ public class MainView extends VerticalLayout {
         dialog.add(detailTabs, detailContent);
         dialog.getFooter().add(close);
         dialog.open();
+    }
+
+    List<DetailField> playerInfoFields(PlayerEntity player) {
+        List<DetailField> fields = new ArrayList<>(List.of(
+                new DetailField("Name", player.getName()),
+                new DetailField("Age", player.getAge()),
+                new DetailField("Height", heightDisplay(player)),
+                new DetailField("Nationality", player.getNationality()),
+                new DetailField("Club", player.getClub()),
+                new DetailField("Playing Club", player.getPlayingClub()),
+                new DetailField("Position", PositionTextFormatter.format(player)),
+                new DetailField("Salary Weekly", salaryWeeklyDisplay(player.getSalaryWeeklyRaw())),
+                new DetailField("Asking Price", moneyDisplay(player.getAskingPrice())),
+                new DetailField("Joined Club Date", player.getJoinedClubDate()),
+                new DetailField("Contract End Date", player.getContractEndDate()),
+                new DetailField("Current Reputation", player.getCurrentReputation()),
+                new DetailField("Home Reputation", player.getHomeReputation()),
+                new DetailField("World Reputation", player.getWorldReputation())));
+        if (Boolean.TRUE.equals(player.getInjured())) {
+            fields.add(new DetailField("Injured", "Yes"));
+            fields.add(new DetailField("Injury", display(player.getInjury())));
+            fields.add(new DetailField("Injury Start Date", display(player.getInjuryStartDate())));
+            fields.add(new DetailField("Expected Return", display(player.getInjuryExpectedReturn())));
+            fields.add(new DetailField("Full Training In (days)",
+                    display(player.getInjuryFullTrainingDaysRemaining())));
+            fields.add(new DetailField("Light Training In (days)",
+                    display(player.getInjuryLightTrainingDaysRemaining())));
+        }
+        return fields;
+    }
+
+    static String injurySummary(PlayerEntity player) {
+        String injury = Objects.toString(player.getInjury(), "").trim();
+        String expected = Objects.toString(player.getInjuryExpectedReturn(), "").trim();
+        StringBuilder summary = new StringBuilder("Injured");
+        if (!injury.isEmpty()) {
+            summary.append(": ").append(injury);
+        }
+        if (player.getInjuryFullTrainingDaysRemaining() != null) {
+            summary.append(" — full training in ").append(player.getInjuryFullTrainingDaysRemaining()).append(" days");
+        }
+        if (!expected.isEmpty()) {
+            summary.append(" (expected return ").append(expected).append(")");
+        }
+        return summary.toString();
     }
 
     private void openStaffDetailsDialog(StaffEntity staffMember) {
@@ -1157,40 +1206,77 @@ public class MainView extends VerticalLayout {
         });
 
         Button apply = new Button("Apply filters", VaadinIcon.CHECK.create(), event -> {
-            createAttributeFields(attributeFields, attributeLayout);
-            if (!validPlayerFilter(
-                    currentRepMin, currentRepMax,
-                    homeRepMin, homeRepMax,
-                    worldRepMin, worldRepMax,
-                    caMin, caMax,
-                    paMin, paMax,
-                    heightMin, heightMax,
-                    attributeFields)) {
+            PlayerFilterCriteria next = buildPlayerFilterFromDialog(
+                    name, gender, playingNation, playingCompetition, club, nationality,
+                    ageMin, ageMax, heightMin, heightMax,
+                    currentRepMin, currentRepMax, homeRepMin, homeRepMax,
+                    worldRepMin, worldRepMax, caMin, caMax, paMin, paMax,
+                    askingMin, askingMax, salaryMax, contractFrom, contractTo,
+                    selectedPositions, attributeFields, attributeLayout);
+            if (next == null) {
                 return;
             }
-            playerFilter = new PlayerFilterCriteria(
-                    name.getValue(),
-                    gender.getValue(),
-                    playingNation.getValue(),
-                    playingCompetition.getValue(),
-                    club.getValue(),
-                    ageMin.getValue(), ageMax.getValue(),
-                    heightMin.getValue(), heightMax.getValue(),
-                    nationality.getValue(),
-                    defaultInt(currentRepMin.getValue(), 1), currentRepMax.getValue(),
-                    defaultInt(homeRepMin.getValue(), 1), homeRepMax.getValue(),
-                    defaultInt(worldRepMin.getValue(), 1), worldRepMax.getValue(),
-                    defaultInt(caMin.getValue(), 1), caMax.getValue(),
-                    defaultInt(paMin.getValue(), 1), paMax.getValue(),
-                    contractFrom.getValue(), contractTo.getValue(),
-                    askingMin.value(), askingMax.value(),
-                    salaryMax.value(),
-                    selectedPositionMinimums(selectedPositions),
-                    selectedAttributeMinimums(attributeFields));
+            playerFilter = next;
             showPlayers();
             dialog.close();
         });
         apply.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+
+        ComboBox<String> savedSets = new ComboBox<>("Saved sets");
+        savedSets.setPlaceholder("Select a saved set");
+        savedSets.setItems(savedPlayerFilters.keySet());
+        savedSets.setWidth("220px");
+        Button loadSet = new Button("Load", VaadinIcon.UPLOAD.create(), event -> {
+            String selected = savedSets.getValue();
+            PlayerFilterCriteria saved = selected == null ? null : savedPlayerFilters.get(selected);
+            if (saved == null) {
+                Notification.show("Select a saved set first.", 2500, Notification.Position.TOP_CENTER);
+                return;
+            }
+            playerFilter = saved;
+            showPlayers();
+            Notification.show("Filter set \"" + selected + "\" applied.", 2500, Notification.Position.TOP_CENTER);
+            dialog.close();
+        });
+        TextField setName = new TextField("Set name");
+        setName.setPlaceholder("Name this filter");
+        setName.setWidth("200px");
+        Button saveSet = new Button("Save", VaadinIcon.CHECK.create(), event -> {
+            String setLabel = setName.getValue() == null ? "" : setName.getValue().trim();
+            if (setLabel.isEmpty()) {
+                Notification.show("Enter a name for the filter set.", 2500, Notification.Position.TOP_CENTER);
+                return;
+            }
+            PlayerFilterCriteria next = buildPlayerFilterFromDialog(
+                    name, gender, playingNation, playingCompetition, club, nationality,
+                    ageMin, ageMax, heightMin, heightMax,
+                    currentRepMin, currentRepMax, homeRepMin, homeRepMax,
+                    worldRepMin, worldRepMax, caMin, caMax, paMin, paMax,
+                    askingMin, askingMax, salaryMax, contractFrom, contractTo,
+                    selectedPositions, attributeFields, attributeLayout);
+            if (next == null) {
+                return;
+            }
+            savedPlayerFilters.put(setLabel, next);
+            savedSets.setItems(savedPlayerFilters.keySet());
+            savedSets.setValue(setLabel);
+            Notification.show("Filter set \"" + setLabel + "\" saved.", 2500, Notification.Position.TOP_CENTER);
+        });
+        Button deleteSet = new Button("Delete", VaadinIcon.TRASH.create(), event -> {
+            String selected = savedSets.getValue();
+            if (selected == null || savedPlayerFilters.remove(selected) == null) {
+                Notification.show("Select a saved set first.", 2500, Notification.Position.TOP_CENTER);
+                return;
+            }
+            savedSets.setItems(savedPlayerFilters.keySet());
+            savedSets.clear();
+            Notification.show("Filter set \"" + selected + "\" deleted.", 2500, Notification.Position.TOP_CENTER);
+        });
+        deleteSet.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_ERROR);
+        HorizontalLayout savedRow = new HorizontalLayout(savedSets, loadSet, setName, saveSet, deleteSet);
+        savedRow.setAlignItems(HorizontalLayout.Alignment.END);
+        savedRow.setWidthFull();
+        savedRow.addClassName("saved-filter-row");
 
         Button clear = new Button("Clear", VaadinIcon.TRASH.create(), event -> {
             playerFilter = PlayerFilterCriteria.empty();
@@ -1200,9 +1286,73 @@ public class MainView extends VerticalLayout {
         });
         Button cancel = new Button("Cancel", VaadinIcon.CLOSE_SMALL.create(), event -> dialog.close());
 
-        dialog.add(dialogTabs, dialogContent);
+        VerticalLayout filterBody = new VerticalLayout(savedRow, dialogTabs, dialogContent);
+        filterBody.setPadding(false);
+        filterBody.setSpacing(true);
+        dialog.add(filterBody);
         dialog.getFooter().add(clear, cancel, apply);
         dialog.open();
+    }
+
+    PlayerFilterCriteria buildPlayerFilterFromDialog(
+            TextField name,
+            Select<String> gender,
+            ComboBox<String> playingNation,
+            ComboBox<String> playingCompetition,
+            ComboBox<String> club,
+            ComboBox<String> nationality,
+            IntegerField ageMin,
+            IntegerField ageMax,
+            IntegerField heightMin,
+            IntegerField heightMax,
+            IntegerField currentRepMin,
+            IntegerField currentRepMax,
+            IntegerField homeRepMin,
+            IntegerField homeRepMax,
+            IntegerField worldRepMin,
+            IntegerField worldRepMax,
+            IntegerField caMin,
+            IntegerField caMax,
+            IntegerField paMin,
+            IntegerField paMax,
+            LongField askingMin,
+            LongField askingMax,
+            LongField salaryMax,
+            DatePicker contractFrom,
+            DatePicker contractTo,
+            Map<String, PositionLevel> selectedPositions,
+            Map<String, IntegerField> attributeFields,
+            Div attributeLayout) {
+        createAttributeFields(attributeFields, attributeLayout);
+        if (!validPlayerFilter(
+                currentRepMin, currentRepMax,
+                homeRepMin, homeRepMax,
+                worldRepMin, worldRepMax,
+                caMin, caMax,
+                paMin, paMax,
+                heightMin, heightMax,
+                attributeFields)) {
+            return null;
+        }
+        return new PlayerFilterCriteria(
+                name.getValue(),
+                gender.getValue(),
+                playingNation.getValue(),
+                playingCompetition.getValue(),
+                club.getValue(),
+                ageMin.getValue(), ageMax.getValue(),
+                heightMin.getValue(), heightMax.getValue(),
+                nationality.getValue(),
+                defaultInt(currentRepMin.getValue(), 1), currentRepMax.getValue(),
+                defaultInt(homeRepMin.getValue(), 1), homeRepMax.getValue(),
+                defaultInt(worldRepMin.getValue(), 1), worldRepMax.getValue(),
+                defaultInt(caMin.getValue(), 1), caMax.getValue(),
+                defaultInt(paMin.getValue(), 1), paMax.getValue(),
+                contractFrom.getValue(), contractTo.getValue(),
+                askingMin.value(), askingMax.value(),
+                salaryMax.value(),
+                selectedPositionMinimums(selectedPositions),
+                selectedAttributeMinimums(attributeFields));
     }
 
     private void openStaffFilterDialog() {
@@ -2304,7 +2454,7 @@ public class MainView extends VerticalLayout {
     private record GridColumn(String key, String header) {
     }
 
-    private record DetailField(String label, Object value) {
+    record DetailField(String label, Object value) {
     }
 
     private record PositionTile(String shortName, String fullName, Object value) {
@@ -2364,10 +2514,10 @@ public class MainView extends VerticalLayout {
         }
     }
 
-    private static final class LongField {
+    static final class LongField {
         private final com.vaadin.flow.component.textfield.NumberField field;
 
-        private LongField(String label, Long value) {
+        LongField(String label, Long value) {
             field = new com.vaadin.flow.component.textfield.NumberField(label);
             field.setMin(0);
             field.setStep(1000);
@@ -2375,11 +2525,11 @@ public class MainView extends VerticalLayout {
             field.setValue(value == null ? null : value.doubleValue());
         }
 
-        private com.vaadin.flow.component.textfield.NumberField field() {
+        NumberField field() {
             return field;
         }
 
-        private Long value() {
+        Long value() {
             return field.getValue() == null ? null : field.getValue().longValue();
         }
     }

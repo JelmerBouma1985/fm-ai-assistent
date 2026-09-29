@@ -1048,6 +1048,17 @@ vaadin-select:hover::part(input-field) {
     margin: 4px 0;
 }
 
+/* Player injury warning */
+.injury-warning {
+    padding: 8px 12px;
+    border: 1px solid rgba(232, 161, 61, 0.45);
+    border-radius: 8px;
+    background: rgba(232, 161, 61, 0.12);
+    color: #f2c879;
+    font-size: 13px;
+    font-weight: 650;
+}
+
 /* Freshness badge */
 .freshness-badge {
     display: inline-flex;
@@ -1112,6 +1123,13 @@ vaadin-select:hover::part(input-field) {
         display: none;
     }
 
+    /* Narrow screens keep the freshness badge and load button; only the
+       detailed counts are hidden. */
+    .freshness-badge {
+        display: inline-flex;
+        padding: 4px 10px;
+    }
+
     .workspace-nav {
         padding-right: 10px;
     }
@@ -1169,6 +1187,12 @@ vaadin-select:hover::part(input-field) {
         min-width: 38px;
         padding: 0 10px;
         font-size: 0;
+    }
+
+    .freshness-badge {
+        max-width: 38vw;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .app-bar .load-button vaadin-icon {

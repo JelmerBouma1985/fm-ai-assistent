@@ -25,7 +25,9 @@ import java.lang.reflect.Field;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -58,6 +60,103 @@ class MainViewTest {
                 MainView.badgeFor(java.util.Map.of("state", "loaded", "stale", Boolean.FALSE)));
         assertEquals(MainView.FreshnessBadge.UNKNOWN,
                 MainView.badgeFor(java.util.Map.of("state", "loaded")));
+    }
+
+    @Test
+    void injuredPlayerInfoIncludesInjuryDetails() {
+        MainView view = view();
+        com.github.fmaiassistent.domain.entity.PlayerEntity injured = playerRow(
+                java.util.Map.of(
+                        "name", "Hurt Håland",
+                        "injured", Boolean.TRUE,
+                        "injury", "Torn calf",
+                        "injury_start_date", "2026-09-01",
+                        "injury_expected_return", "12 days",
+                        "injury_full_training_days_remaining", 9,
+                        "injury_light_training_days_remaining", 4));
+
+        assertEquals("Injured: Torn calf — full training in 9 days (expected return 12 days)",
+                MainView.injurySummary(injured));
+        java.util.List<String> labels = view.playerInfoFields(injured).stream()
+                .map(field -> field.label()).toList();
+        assertTrue(labels.containsAll(java.util.List.of(
+                "Injured", "Injury", "Injury Start Date", "Expected Return",
+                "Full Training In (days)", "Light Training In (days)")));
+    }
+
+    @Test
+    void fitPlayerInfoOmitsInjuryDetails() {
+        MainView view = view();
+        com.github.fmaiassistent.domain.entity.PlayerEntity fit = playerRow(
+                java.util.Map.of("name", "Fit Felipe", "injured", Boolean.FALSE));
+
+        java.util.List<String> labels = view.playerInfoFields(fit).stream()
+                .map(field -> field.label()).toList();
+        assertFalse(labels.contains("Injury"));
+        assertFalse(labels.contains("Expected Return"));
+    }
+
+    @Test
+    void dialogFilterBuilderMapsFieldsToCriteria() {
+        MainView view = view();
+        com.vaadin.flow.component.textfield.TextField name = new com.vaadin.flow.component.textfield.TextField();
+        name.setValue("Haaland");
+        com.vaadin.flow.component.select.Select<String> gender = new com.vaadin.flow.component.select.Select<>();
+        gender.setItems("", "male", "female");
+        gender.setValue("male");
+        com.vaadin.flow.component.combobox.ComboBox<String> playingNation = new com.vaadin.flow.component.combobox.ComboBox<>();
+        com.vaadin.flow.component.combobox.ComboBox<String> playingCompetition = new com.vaadin.flow.component.combobox.ComboBox<>();
+        com.vaadin.flow.component.combobox.ComboBox<String> club = new com.vaadin.flow.component.combobox.ComboBox<>();
+        club.setItems("Dortmund");
+        club.setValue("Dortmund");
+        com.vaadin.flow.component.combobox.ComboBox<String> nationality = new com.vaadin.flow.component.combobox.ComboBox<>();
+        com.vaadin.flow.component.textfield.IntegerField ageMin = new com.vaadin.flow.component.textfield.IntegerField();
+        ageMin.setValue(20);
+        com.vaadin.flow.component.textfield.IntegerField ageMax = new com.vaadin.flow.component.textfield.IntegerField();
+        ageMax.setValue(30);
+        com.vaadin.flow.component.textfield.IntegerField heightMin = new com.vaadin.flow.component.textfield.IntegerField();
+        com.vaadin.flow.component.textfield.IntegerField heightMax = new com.vaadin.flow.component.textfield.IntegerField();
+        com.vaadin.flow.component.textfield.IntegerField caMax = new com.vaadin.flow.component.textfield.IntegerField();
+        caMax.setValue(180);
+        MainView.LongField askingMin = new MainView.LongField("Asking price min", 5_000_000L);
+        com.vaadin.flow.component.datepicker.DatePicker contractFrom =
+                new com.vaadin.flow.component.datepicker.DatePicker();
+        com.vaadin.flow.component.datepicker.DatePicker contractTo =
+                new com.vaadin.flow.component.datepicker.DatePicker();
+
+        com.github.fmaiassistent.repository.PlayerFilterCriteria criteria = view.buildPlayerFilterFromDialog(
+                name, gender, playingNation, playingCompetition, club, nationality,
+                ageMin, ageMax, heightMin, heightMax,
+                new com.vaadin.flow.component.textfield.IntegerField(),
+                new com.vaadin.flow.component.textfield.IntegerField(),
+                new com.vaadin.flow.component.textfield.IntegerField(),
+                new com.vaadin.flow.component.textfield.IntegerField(),
+                new com.vaadin.flow.component.textfield.IntegerField(),
+                new com.vaadin.flow.component.textfield.IntegerField(),
+                new com.vaadin.flow.component.textfield.IntegerField(), caMax,
+                new com.vaadin.flow.component.textfield.IntegerField(),
+                new com.vaadin.flow.component.textfield.IntegerField(),
+                askingMin,
+                new MainView.LongField("Asking price max", null),
+                new MainView.LongField("Weekly Salary max", null),
+                contractFrom, contractTo,
+                java.util.Map.of(), new java.util.LinkedHashMap<>(), new com.vaadin.flow.component.html.Div());
+
+        assertEquals("Haaland", criteria.name());
+        assertEquals("male", criteria.gender());
+        assertEquals("Dortmund", criteria.club());
+        assertEquals(20, criteria.ageMin());
+        assertEquals(30, criteria.ageMax());
+        assertEquals(1, criteria.caMin());
+        assertEquals(180, criteria.caMax());
+        assertEquals(5_000_000L, criteria.askingPriceMin());
+    }
+
+    private static com.github.fmaiassistent.domain.entity.PlayerEntity playerRow(java.util.Map<String, Object> values) {
+        java.util.Map<String, Object> row = new java.util.HashMap<>();
+        com.github.fmaiassistent.exporter.PlayerExporter.FIELD_NAMES.forEach(field -> row.put(field, null));
+        row.putAll(values);
+        return com.github.fmaiassistent.domain.entity.PlayerEntity.fromExportRow(row);
     }
 
     private static <T> void assertSortSurvivesTabSwitch(
