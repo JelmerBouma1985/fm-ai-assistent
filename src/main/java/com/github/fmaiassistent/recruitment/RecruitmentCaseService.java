@@ -146,6 +146,38 @@ public class RecruitmentCaseService {
                 .collect(Collectors.toMap(RecruitmentCaseEntity::getPlayerUniqueId, Function.identity()));
     }
 
+    @Transactional
+    public boolean delete(Long playerUniqueId) {
+        String careerKey = currentCareerKey();
+        if (playerUniqueId == null || blank(careerKey)) {
+            return false;
+        }
+        return cases.findByIdCareerKeyAndIdPlayerUniqueId(careerKey, playerUniqueId)
+                .map(entity -> {
+                    cases.delete(entity);
+                    return true;
+                })
+                .orElse(false);
+    }
+
+    @Transactional
+    public int deleteExpired() {
+        String careerKey = currentCareerKey();
+        String gameDate = currentGameDate();
+        if (blank(careerKey)) {
+            return 0;
+        }
+        List<RecruitmentCaseEntity> entries = cases.findByIdCareerKey(careerKey);
+        int removed = 0;
+        for (RecruitmentCaseEntity entity : entries) {
+            if (!effectiveness(entity, careerKey, gameDate).effective()) {
+                cases.delete(entity);
+                removed++;
+            }
+        }
+        return removed;
+    }
+
     public static boolean excludesCandidate(RecruitmentCaseEntity entity) {
         if (entity == null) return false;
         return "not_interested".equals(entity.getInterestStatus())

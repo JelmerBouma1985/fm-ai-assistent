@@ -47,6 +47,19 @@ class MainViewTest {
                 field(view, "competitionsGrid"), "REPUTATION");
     }
 
+    @Test
+    void freshnessBadgeMapping() {
+        assertEquals(MainView.FreshnessBadge.EMPTY,
+                MainView.badgeFor(java.util.Map.of("state", "not_loaded")));
+        assertEquals(MainView.FreshnessBadge.EMPTY, MainView.badgeFor(java.util.Map.of()));
+        assertEquals(MainView.FreshnessBadge.STALE,
+                MainView.badgeFor(java.util.Map.of("state", "loaded", "stale", Boolean.TRUE)));
+        assertEquals(MainView.FreshnessBadge.CURRENT,
+                MainView.badgeFor(java.util.Map.of("state", "loaded", "stale", Boolean.FALSE)));
+        assertEquals(MainView.FreshnessBadge.UNKNOWN,
+                MainView.badgeFor(java.util.Map.of("state", "loaded")));
+    }
+
     private static <T> void assertSortSurvivesTabSwitch(
             Tabs tabs, Tab selected, Tab other, Grid<T> grid, String columnKey) {
         tabs.setSelectedTab(selected);
@@ -84,7 +97,9 @@ class MainViewTest {
                 mock(PlayerDatabaseService.class), mock(StaffDatabaseService.class),
                 mock(ClubDatabaseService.class), mock(CompetitionDatabaseService.class),
                 mock(AppSettingsService.class), mock(SnapshotStatusService.class),
-                codex, antigravity, copilot, openRouter, tactics, managedClub);
+                codex, antigravity, copilot, openRouter, tactics, managedClub,
+                mock(com.github.fmaiassistent.shortlist.ShortlistFileService.class),
+                mock(com.github.fmaiassistent.recruitment.RecruitmentCaseService.class));
     }
 
     @SuppressWarnings("unchecked")

@@ -44,4 +44,26 @@ class RefreshCoordinatorTest {
             coordinator.shutdown();
         }
     }
+
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void wiresPhaseListenerAroundLoad() throws Exception {
+        DatabaseLoadAllService loader = mock(DatabaseLoadAllService.class);
+        DatabaseLoadAllService.LoadAllResult expected = new DatabaseLoadAllService.LoadAllResult(
+                123, "2033-06-10", 2, 1, 3, 4, "snapshot");
+        when(loader.loadAll(null, 1530, null)).thenReturn(expected);
+        RefreshCoordinator coordinator = new RefreshCoordinator(
+                loader, new RefreshProperties(Duration.ofSeconds(5), Duration.ofSeconds(1)));
+        try {
+            assertThat(coordinator.refresh(null, 1530, null).get(5, TimeUnit.SECONDS)).isSameAs(expected);
+            org.mockito.ArgumentCaptor<java.util.function.Consumer> captor =
+                    org.mockito.ArgumentCaptor.forClass(java.util.function.Consumer.class);
+            verify(loader, times(2)).setPhaseListener(captor.capture());
+            assertThat(captor.getAllValues().get(0)).isNotNull();
+            assertThat(captor.getAllValues().get(1)).isNull();
+            assertThat(coordinator.phase()).isEmpty();
+        } finally {
+            coordinator.shutdown();
+        }
+    }
 }
