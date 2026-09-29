@@ -10,6 +10,7 @@ import com.github.fmaiassistent.copilot.CopilotAvailability;
 import com.github.fmaiassistent.copilot.CopilotConversationService;
 import com.github.fmaiassistent.copilot.CopilotSubscription;
 import com.github.fmaiassistent.openrouter.OpenRouterConversationService;
+import com.github.fmaiassistent.shortlist.ShortlistFileService;
 import com.github.fmaiassistent.managedclub.ManagedClubContextService;
 import com.github.fmaiassistent.tactic.TacticContextService;
 import com.vaadin.flow.component.AttachEvent;
@@ -19,11 +20,18 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.dialog.Dialog;
+import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.grid.GridVariant;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.select.Select;
+
+import java.nio.file.Files;
+import java.util.List;
 
 final class AiAssistantView extends Div {
     private final CodexChatView codexChat;
@@ -33,7 +41,11 @@ final class AiAssistantView extends Div {
     private final Div chatHost = new Div();
     private final Select<Provider> provider = new Select<>();
     private final Button contextButton = new Button(VaadinIcon.BOOK.create());
+    private final Button shortlistsButton = new Button(VaadinIcon.LIST.create());
     private final Dialog contextDialog = new Dialog();
+    private final Dialog shortlistsDialog = new Dialog();
+    private final Grid<ShortlistFileService.CreatedShortlist> shortlistsGrid = new Grid<>();
+    private final ShortlistFileService shortlistFiles;
     private final ManagedClubContextPanel managedClubContext;
     private final TacticContextPanel tacticContext;
     private final ManagedClubContextService managedClubContexts;
@@ -51,9 +63,11 @@ final class AiAssistantView extends Div {
             CopilotConversationService copilotConversations,
             OpenRouterConversationService openRouterConversations,
             TacticContextService tacticContexts,
-            ManagedClubContextService managedClubContexts) {
+            ManagedClubContextService managedClubContexts,
+            ShortlistFileService shortlistFiles) {
         this.tacticContexts = tacticContexts;
         this.managedClubContexts = managedClubContexts;
+        this.shortlistFiles = shortlistFiles;
         this.codexConversations = codexConversations;
         this.antigravityConversations = antigravityConversations;
         this.copilotConversations = copilotConversations;
@@ -89,15 +103,24 @@ final class AiAssistantView extends Div {
 
         Div toolbarSpacer = new Div();
         toolbarSpacer.addClassName("ai-toolbar-spacer");
+        shortlistsButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+        shortlistsButton.addClassName("ai-shortlists-button");
+        shortlistsButton.setText("Shortlists");
+        shortlistsButton.getElement().setAttribute("title", "Show shortlists created by the AI assistant");
+        shortlistsButton.addClickListener(ignored -> {
+            refreshShortlists();
+            shortlistsDialog.open();
+        });
         HorizontalLayout toolbar = new HorizontalLayout(providerLabel, provider,
                 codexChat.modelControls(), copilotChat.modelControls(),
-                openRouterChat.toolbarControls(), toolbarSpacer, contextButton);
+                openRouterChat.toolbarControls(), toolbarSpacer, shortlistsButton, contextButton);
         toolbar.setAlignItems(HorizontalLayout.Alignment.CENTER);
         toolbar.expand(toolbarSpacer);
         toolbar.setWidthFull();
         toolbar.addClassName("ai-provider-toolbar");
 
         configureContextDialog();
+        configureShortlistsDialog();
         refreshContextButton();
         add(toolbar, chatHost);
         showProvider(provider.getValue());
@@ -143,6 +166,46 @@ final class AiAssistantView extends Div {
         Button close = new Button("Done", ignored -> contextDialog.close());
         close.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         contextDialog.getFooter().add(close);
+    }
+
+    private void configureShortlistsDialog() {
+        shortlistsDialog.setHeaderTitle("AI shortlists");
+        shortlistsDialog.setWidth("min(860px, calc(100vw - 32px))");
+        shortlistsDialog.getElement().setAttribute("theme", "professional-dialog ai-shortlists-dialog");
+
+        Span introduction = new Span(
+                "Shortlists created by the AI assistant in this session. Import a file in FM26 under Scouting > Shortlists.");
+        introduction.addClassName("ai-shortlists-dialog-introduction");
+        shortlistsGrid.addColumn(ShortlistFileService.CreatedShortlist::name).setHeader("Name")
+                .setAutoWidth(true).setFlexGrow(1);
+        shortlistsGrid.addColumn(item -> item.players().size()).setHeader("Players")
+                .setWidth("90px").setFlexGrow(0);
+        shortlistsGrid.addColumn(item -> item.path() == null ? "" : item.path().toString()).setHeader("File")
+                .setAutoWidth(true).setFlexGrow(2);
+        shortlistsGrid.addColumn(item -> Files.exists(item.path()) ? "On disk" : "Missing").setHeader("Status")
+                .setWidth("100px").setFlexGrow(0);
+        shortlistsGrid.addThemeVariants(GridVariant.LUMO_NO_BORDER, GridVariant.LUMO_ROW_STRIPES);
+        shortlistsGrid.setWidthFull();
+        shortlistsGrid.setHeight("min(420px, 55vh)");
+
+        VerticalLayout content = new VerticalLayout(introduction, shortlistsGrid);
+        content.setPadding(false);
+        content.setSpacing(true);
+        shortlistsDialog.add(content);
+
+        Button refresh = new Button("Refresh", VaadinIcon.REFRESH.create(), ignored -> refreshShortlists());
+        Button done = new Button("Done", ignored -> shortlistsDialog.close());
+        done.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        shortlistsDialog.getFooter().add(refresh, done);
+    }
+
+    private void refreshShortlists() {
+        List<ShortlistFileService.CreatedShortlist> items = shortlistFiles.recent();
+        shortlistsGrid.setItems(items);
+        if (items.isEmpty()) {
+            Notification.show("No shortlists created yet. Ask the assistant to create one first.",
+                    3000, Notification.Position.TOP_CENTER);
+        }
     }
 
     private void refreshContextButton() {

@@ -65,6 +65,24 @@ class ShortlistFileServiceTest {
     }
 
     @Test
+    void recentListsCreatedShortlistsNewestFirst() {
+        PlayerDatabaseService players = mock(PlayerDatabaseService.class);
+        when(players.findAllPlayerEntities()).thenReturn(List.of(
+                player("Brayley Lipman", 2002082558L),
+                player("Sasa Zivadinovic", 2002097318L)));
+        ShortlistFileService service = new ShortlistFileService(new FmfShortlistFile(), players, outputDirectory);
+
+        assertThat(service.recent()).isEmpty();
+        service.create("first", List.of(2002082558L));
+        service.create("second", List.of(2002097318L));
+
+        assertThat(service.recent())
+                .extracting(ShortlistFileService.CreatedShortlist::name)
+                .containsExactly("second", "first");
+        assertThat(service.recent().getFirst().createdAt()).isNotBlank();
+    }
+
+    @Test
     void prefersExistingShortlistsFolder(@TempDir Path home) throws Exception {
         Path existing = home.resolve("Documents/Sports Interactive/Football Manager 26/shortlists");
         Files.createDirectories(existing);
@@ -104,7 +122,6 @@ class ShortlistFileServiceTest {
 
         assertThat(resolved.toString()).startsWith(customLib.toAbsolutePath().normalize().toString());
     }
-
     private static PlayerEntity player(String name, long uniqueId) {
         Map<String, Object> row = new HashMap<>();
         PlayerExporter.FIELD_NAMES.forEach(field -> row.put(field, null));

@@ -10,10 +10,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Deque;
+import java.util.concurrent.ConcurrentLinkedDeque;
 
 @Service
 public class ShortlistFileService {
@@ -22,6 +25,8 @@ public class ShortlistFileService {
     private final FmfShortlistFile fmf;
     private final PlayerDatabaseService players;
     private final Path outputDirectory;
+    private final Deque<CreatedShortlist> recent = new ConcurrentLinkedDeque<>();
+    private static final int MAX_RECENT = 10;
 
     @Autowired
     public ShortlistFileService(FmfShortlistFile fmf, PlayerDatabaseService players) {
@@ -67,15 +72,26 @@ public class ShortlistFileService {
             Files.createDirectories(outputDirectory);
             Path path = availablePath(outputDirectory, fileStem(shortlistName));
             Files.write(path, bytes, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
-            return new CreatedShortlist(
+            CreatedShortlist created = new CreatedShortlist(
                     shortlistName.strip(),
                     path.toAbsolutePath().normalize(),
                     bytes.length,
                     selected.stream().map(PlayerEntity::getName).toList(),
-                    selected.stream().map(PlayerEntity::getUniqueId).toList());
+                    selected.stream().map(PlayerEntity::getUniqueId).toList(),
+                    OffsetDateTime.now().toString());
+            recent.addFirst(created);
+            while (recent.size() > MAX_RECENT) {
+                recent.removeLast();
+            }
+            return created;
         } catch (IOException exception) {
             throw new IllegalStateException("Could not write the FM26 shortlist to " + outputDirectory, exception);
         }
+    }
+
+    /** Session-only history of created shortlists, newest first. Files live on disk; this list does not persist. */
+    public List<CreatedShortlist> recent() {
+        return List.copyOf(recent);
     }
 
     private static Path availablePath(Path directory, String stem) {
@@ -139,7 +155,8 @@ public class ShortlistFileService {
             Path path,
             int fileSize,
             List<String> players,
-            List<Long> playerUniqueIds) {
+            List<Long> playerUniqueIds,
+            String createdAt) {
         public Map<String, Object> toMap() {
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("name", name);

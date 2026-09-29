@@ -7,6 +7,8 @@ import com.github.fmaiassistent.domain.entity.StaffEntity;
 import com.github.fmaiassistent.staff.StaffAttributeDefinitions;
 import com.github.fmaiassistent.staff.StaffRoleRatingCalculator;
 import com.github.fmaiassistent.service.*;
+import com.github.fmaiassistent.recruitment.RecruitmentCaseService;
+import com.github.fmaiassistent.shortlist.ShortlistFileService;
 import com.github.fmaiassistent.codex.CodexConversationService;
 import com.github.fmaiassistent.antigravity.AntigravityConversationService;
 import com.github.fmaiassistent.copilot.CopilotConversationService;
@@ -20,8 +22,11 @@ import com.github.fmaiassistent.player.AttributeDefinitions;
 import com.github.fmaiassistent.player.FieldDef;
 import com.github.fmaiassistent.player.PositionTextFormatter;
 import com.github.fmaiassistent.player.PlayerColumnNames;
+import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.DetachEvent;
 import com.vaadin.flow.component.ModalityMode;
+import com.vaadin.flow.component.PollEvent;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -57,6 +62,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.NumberFormat;
 import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -64,6 +71,7 @@ import java.util.function.Function;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import com.vaadin.flow.shared.Registration;
 
 @Route("")
 @PageTitle("FM AI Assistent")
@@ -91,34 +99,44 @@ public class MainView extends VerticalLayout {
     private static final Set<String> MONEY_COLUMNS = Set.of(
             "ASKING_PRICE", "ASKING_PRICE_RAW", "SALARY_PA", "SALARY_WEEKLY_RAW",
             "BALANCE", "TRANSFER_BUDGET", "PAYROLL_BUDGET");
+    private static final int BADGE_POLL_INTERVAL_MS = 60_000;
+    private static final int LOADING_POLL_INTERVAL_MS = 2_000;
+    private static final Duration FRESHNESS_INTERVAL = Duration.ofMinutes(1);
 
     private final RefreshCoordinator refreshes;
     private final PlayerDatabaseService players;
     private final StaffDatabaseService staff;
     private final ClubDatabaseService clubs;
     private final CompetitionDatabaseService competitions;
+    private final RecruitmentCaseService recruitment;
     private final AppSettingsService settings;
     private final SnapshotStatusService snapshots;
 
     private final Dialog loadingDialog = new Dialog();
     private final ProgressBar spinner = new ProgressBar();
+    private final Span loadingPhase = new Span("Reading Football Manager memory");
     private final Button loadButton = new Button("Load data", VaadinIcon.DATABASE.create());
-    private final Button freshnessButton = new Button(VaadinIcon.CLOCK.create());
+    private final Span freshnessBadge = new Span("Freshness unknown");
     private final Button settingsButton = new Button(VaadinIcon.COG.create());
     private final Button filterButton = new Button("Filter", VaadinIcon.FILTER.create());
     private final Span status = new Span();
+    private Instant lastFreshnessPoll;
+    private Boolean lastStale;
+    private Registration pollRegistration;
     private final Tabs tabs = new Tabs();
     private final Div content = new Div();
     private final Grid<PlayerEntity> playersGrid = new Grid<>();
     private final Grid<StaffEntity> staffGrid = new Grid<>();
     private final Grid<ClubEntity> clubsGrid = new Grid<>();
     private final Grid<CompetitionEntity> competitionsGrid = new Grid<>();
+    private final Grid<Map<String, Object>> recruitmentGrid = new Grid<>();
     private final AiAssistantView aiAssistant;
 
     private final Tab playersTab = new Tab("Players");
     private final Tab staffTab = new Tab("Staff");
     private final Tab clubsTab = new Tab("Clubs");
     private final Tab competitionsTab = new Tab("Competitions");
+    private final Tab recruitmentTab = new Tab("Recruitment");
     private final Tab aiAssistantTab = new Tab("AI assistent");
     private PlayerFilterCriteria playerFilter = PlayerFilterCriteria.empty();
     private StaffFilterCriteria staffFilter = StaffFilterCriteria.empty();
@@ -139,18 +157,21 @@ public class MainView extends VerticalLayout {
             CopilotConversationService copilotConversations,
             OpenRouterSession openRouterSession,
             TacticContextService tacticContexts,
-            ManagedClubContextService managedClubContexts) {
+            ManagedClubContextService managedClubContexts,
+            ShortlistFileService shortlistFiles,
+            RecruitmentCaseService recruitment) {
         this.refreshes = refreshes;
         this.players = players;
         this.staff = staff;
         this.clubs = clubs;
         this.competitions = competitions;
+        this.recruitment = recruitment;
         this.settings = settings;
         this.snapshots = snapshots;
         this.aiAssistant = new AiAssistantView(
                 codexConversations, antigravityConversations, copilotConversations,
                 openRouterSession.conversations(),
-                tacticContexts, managedClubContexts);
+                tacticContexts, managedClubContexts, shortlistFiles);
         this.currency = settings.currency();
 
         setSizeFull();
@@ -166,6 +187,7 @@ public class MainView extends VerticalLayout {
         configureGrid(staffGrid);
         configureGrid(clubsGrid);
         configureGrid(competitionsGrid);
+        configureGrid(recruitmentGrid);
         configureLoadingDialog();
         playersGrid.addItemClickListener(event -> openPlayerDetailsDialog(event.getItem()));
         staffGrid.addItemClickListener(event -> openStaffDetailsDialog(event.getItem()));
@@ -175,14 +197,16 @@ public class MainView extends VerticalLayout {
 
     private Component header() {
         loadButton.addClickListener(event -> loadAllData());
-        freshnessButton.addClickListener(event -> checkSnapshotFreshness());
+        freshnessBadge.addClickListener(event -> refreshFreshnessBadge(true));
         settingsButton.addClickListener(event -> openSettingsDialog());
         filterButton.addClickListener(event -> openFilterDialog());
         loadButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         loadButton.addClassName("load-button");
-        freshnessButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
-        freshnessButton.setTooltipText("Check whether the loaded FM26 data is current");
-        freshnessButton.getElement().setAttribute("aria-label", "Check data freshness");
+        freshnessBadge.addClassName("freshness-badge");
+        freshnessBadge.getElement().setAttribute("title", "Check whether the loaded FM26 data is current");
+        freshnessBadge.getElement().setAttribute("aria-label", "Check data freshness");
+        freshnessBadge.getElement().getStyle().set("cursor", "pointer");
+        setBadge(FreshnessBadge.UNKNOWN);
         filterButton.addClassName("filter-button");
         settingsButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
         settingsButton.addClassName("icon-button");
@@ -203,7 +227,7 @@ public class MainView extends VerticalLayout {
         brand.setSpacing(false);
         brand.addClassName("brand");
 
-        HorizontalLayout actions = new HorizontalLayout(status, freshnessButton, loadButton, settingsButton);
+        HorizontalLayout actions = new HorizontalLayout(status, freshnessBadge, loadButton, settingsButton);
         actions.setAlignItems(Alignment.CENTER);
         actions.setSpacing(false);
         actions.addClassName("app-actions");
@@ -230,13 +254,14 @@ public class MainView extends VerticalLayout {
     }
 
     private void configureTabs() {
-        tabs.add(playersTab, staffTab, clubsTab, competitionsTab, aiAssistantTab);
+        tabs.add(playersTab, staffTab, clubsTab, competitionsTab, recruitmentTab, aiAssistantTab);
         tabs.setWidthFull();
         tabs.addClassName("workspace-tabs");
         playersTab.addComponentAsFirst(VaadinIcon.USERS.create());
         staffTab.addComponentAsFirst(VaadinIcon.USER_STAR.create());
         clubsTab.addComponentAsFirst(VaadinIcon.OFFICE.create());
         competitionsTab.addComponentAsFirst(VaadinIcon.TROPHY.create());
+        recruitmentTab.addComponentAsFirst(VaadinIcon.CLIPBOARD_TEXT.create());
         aiAssistantTab.addComponentAsFirst(VaadinIcon.CHAT.create());
         tabs.addSelectedChangeListener(event -> {
             filterButton.setVisible(event.getSelectedTab() == playersTab
@@ -251,6 +276,8 @@ public class MainView extends VerticalLayout {
                 showClubs();
             } else if (event.getSelectedTab() == competitionsTab) {
                 showCompetitions();
+            } else if (event.getSelectedTab() == recruitmentTab) {
+                showRecruitment();
             } else {
                 showAiAssistant();
             }
@@ -270,7 +297,9 @@ public class MainView extends VerticalLayout {
         loadButton.setText("Loading...");
         loadButton.setIcon(VaadinIcon.REFRESH.create());
         loadButton.addClassName("is-loading");
+        loadingPhase.setText("Starting FM26 memory read...");
         loadingDialog.open();
+        ui.setPollInterval(LOADING_POLL_INTERVAL_MS);
 
         refreshes.refresh(
                         null,
@@ -305,6 +334,8 @@ public class MainView extends VerticalLayout {
                 })
                 .whenComplete((result, ex) -> ui.access(() -> {
                     loadingDialog.close();
+                    ui.setPollInterval(BADGE_POLL_INTERVAL_MS);
+                    refreshFreshnessBadge(false);
                     loadButton.setEnabled(true);
                     loadButton.setText("Load data");
                     loadButton.setIcon(VaadinIcon.DATABASE.create());
@@ -312,39 +343,133 @@ public class MainView extends VerticalLayout {
                 }));
     }
 
-    private void checkSnapshotFreshness() {
-        freshnessButton.setEnabled(false);
-        UI ui = UI.getCurrent();
+    private void refreshFreshnessBadge(boolean manual) {
         snapshots.statusAsync(true)
-                .thenAccept(snapshot -> ui.access(() -> {
-                    Boolean stale = (Boolean) snapshot.get("stale");
-                    String liveDate = Objects.toString(snapshot.get("live_game_date"), "unknown");
-                    String loadedDate = Objects.toString(snapshot.get("game_date"), "unknown");
-                    if (Boolean.TRUE.equals(stale)) {
-                        status.setText("Data stale | Loaded " + loadedDate + " | FM " + liveDate);
-                        Notification.show(
-                                "FM26 has changed since the last load. Select Load data before asking for decisions.",
-                                7000,
-                                Notification.Position.TOP_CENTER);
-                    } else if (Boolean.FALSE.equals(stale)) {
-                        status.setText("Data current | Game date " + loadedDate);
-                        Notification.show("Loaded FM26 snapshot is current", 2500, Notification.Position.TOP_CENTER);
-                    } else {
-                        status.setText("Data freshness unverified | Loaded " + loadedDate);
-                        Notification.show(
-                                "Could not verify the live FM26 game date. The loaded snapshot was left unchanged.",
-                                5000,
-                                Notification.Position.TOP_CENTER);
-                    }
-                }))
+                .thenAccept(snapshot -> getUI().ifPresent(ui -> ui.access(() -> applyFreshness(snapshot, manual))))
                 .exceptionally(exception -> {
-                    ui.access(() -> Notification.show(
-                            "Freshness check failed: " + exception.getMessage(),
-                            5000,
-                            Notification.Position.TOP_CENTER));
+                    getUI().ifPresent(ui -> ui.access(() -> {
+                        if (manual) {
+                            Notification.show(
+                                    "Freshness check failed: " + exception.getMessage(),
+                                    5000,
+                                    Notification.Position.TOP_CENTER);
+                        }
+                        setBadge(FreshnessBadge.UNKNOWN);
+                    }));
                     return null;
                 })
-                .whenComplete((ignored, exception) -> ui.access(() -> freshnessButton.setEnabled(true)));
+                .whenComplete((ignored, exception) -> lastFreshnessPoll = Instant.now());
+    }
+
+    private void applyFreshness(Map<String, Object> snapshot, boolean manual) {
+        FreshnessBadge badge = badgeFor(snapshot);
+        setBadge(badge);
+        Boolean stale = (Boolean) snapshot.get("stale");
+        String liveDate = Objects.toString(snapshot.get("live_game_date"), "unknown");
+        String loadedDate = Objects.toString(snapshot.get("game_date"), "unknown");
+        if (manual) {
+            if (Boolean.TRUE.equals(stale)) {
+                status.setText("Data stale | Loaded " + loadedDate + " | FM " + liveDate);
+                Notification.show(
+                        "FM26 has changed since the last load. Select Load data before asking for decisions.",
+                        7000,
+                        Notification.Position.TOP_CENTER);
+            } else if (Boolean.FALSE.equals(stale)) {
+                status.setText("Data current | Game date " + loadedDate);
+                Notification.show("Loaded FM26 snapshot is current", 2500, Notification.Position.TOP_CENTER);
+            } else {
+                status.setText("Data freshness unverified | Loaded " + loadedDate);
+                Notification.show(
+                        "Could not verify the live FM26 game date. The loaded snapshot was left unchanged.",
+                        5000,
+                        Notification.Position.TOP_CENTER);
+            }
+        } else if (Boolean.TRUE.equals(stale) && !Boolean.TRUE.equals(lastStale)) {
+            Notification.show(
+                    "FM26 has changed since the last load. Select Load data before asking for decisions.",
+                    7000,
+                    Notification.Position.TOP_CENTER);
+        }
+        lastStale = stale;
+    }
+
+    static FreshnessBadge badgeFor(Map<String, Object> snapshot) {
+        if (!"loaded".equals(snapshot.get("state"))) {
+            return FreshnessBadge.EMPTY;
+        }
+        Boolean stale = (Boolean) snapshot.get("stale");
+        if (Boolean.TRUE.equals(stale)) {
+            return FreshnessBadge.STALE;
+        }
+        if (Boolean.FALSE.equals(stale)) {
+            return FreshnessBadge.CURRENT;
+        }
+        return FreshnessBadge.UNKNOWN;
+    }
+
+    private void setBadge(FreshnessBadge badge) {
+        freshnessBadge.setText(switch (badge) {
+            case CURRENT -> "Data current";
+            case STALE -> "Data stale — reload";
+            case UNKNOWN -> "Freshness unknown";
+            case EMPTY -> "No data loaded";
+        });
+        freshnessBadge.getElement().getClassList().remove("is-current");
+        freshnessBadge.getElement().getClassList().remove("is-stale");
+        freshnessBadge.getElement().getClassList().remove("is-unknown");
+        freshnessBadge.getElement().getClassList().remove("is-empty");
+        freshnessBadge.getElement().getClassList().add(switch (badge) {
+            case CURRENT -> "is-current";
+            case STALE -> "is-stale";
+            case UNKNOWN -> "is-unknown";
+            case EMPTY -> "is-empty";
+        });
+    }
+
+    enum FreshnessBadge {
+        CURRENT,
+        STALE,
+        UNKNOWN,
+        EMPTY
+    }
+
+    @Override
+    protected void onAttach(AttachEvent event) {
+        super.onAttach(event);
+        getUI().ifPresent(ui -> {
+            ui.setPollInterval(BADGE_POLL_INTERVAL_MS);
+            if (pollRegistration == null) {
+                pollRegistration = ui.addPollListener(this::onPoll);
+            }
+        });
+    }
+
+    @Override
+    protected void onDetach(DetachEvent event) {
+        if (pollRegistration != null) {
+            pollRegistration.remove();
+            pollRegistration = null;
+        }
+        super.onDetach(event);
+    }
+
+    private void onPoll(PollEvent event) {
+        if (loadingDialog.isOpened()) {
+            updateLoadingPhase();
+            return;
+        }
+        if (lastFreshnessPoll != null
+                && Duration.between(lastFreshnessPoll, Instant.now()).compareTo(FRESHNESS_INTERVAL) < 0) {
+            return;
+        }
+        refreshFreshnessBadge(false);
+    }
+
+    private void updateLoadingPhase() {
+        String phase = refreshes.phase();
+        if (phase != null && !phase.isBlank()) {
+            loadingPhase.setText(phase + "...");
+        }
     }
 
     private void refreshSelectedTab() {
@@ -356,6 +481,8 @@ public class MainView extends VerticalLayout {
             showClubs();
         } else if (tabs.getSelectedTab() == competitionsTab) {
             showCompetitions();
+        } else if (tabs.getSelectedTab() == recruitmentTab) {
+            showRecruitment();
         } else {
             showAiAssistant();
         }
@@ -465,6 +592,72 @@ public class MainView extends VerticalLayout {
             status.setText("Filtered competitions " + competitions.countCompetitions(activeFilter)
                     + " | Total competitions " + competitions.countCompetitions());
         }
+    }
+
+    private void showRecruitment() {
+        if (recruitmentGrid.getColumns().isEmpty()) {
+            recruitmentGrid.addColumn(item -> display(item.get("name")))
+                    .setKey("NAME").setHeader("Player").setAutoWidth(true).setResizable(true);
+            recruitmentGrid.addColumn(item -> display(item.get("club")))
+                    .setKey("CLUB").setHeader("Club").setAutoWidth(true).setResizable(true);
+            recruitmentGrid.addColumn(item -> display(item.get("interest_status")))
+                    .setKey("INTEREST").setHeader("Interest").setAutoWidth(true).setResizable(true);
+            recruitmentGrid.addColumn(item -> display(item.get("deal_stage")))
+                    .setKey("STAGE").setHeader("Stage").setAutoWidth(true).setResizable(true);
+            recruitmentGrid.addColumn(item -> display(item.get("source")))
+                    .setKey("SOURCE").setHeader("Source").setAutoWidth(true).setResizable(true);
+            recruitmentGrid.addColumn(item -> display(item.get("observed_game_date")))
+                    .setKey("OBSERVED").setHeader("Observed").setAutoWidth(true).setResizable(true);
+            recruitmentGrid.addColumn(item -> display(item.get("valid_until_game_date")))
+                    .setKey("VALID_UNTIL").setHeader("Valid until").setAutoWidth(true).setResizable(true);
+            recruitmentGrid.addColumn(item -> Boolean.TRUE.equals(item.get("effective")) ? "Active" : "Expired")
+                    .setKey("STATUS").setHeader("Status").setAutoWidth(true).setResizable(true);
+            recruitmentGrid.addComponentColumn(item -> {
+                Button delete = new Button("Delete", VaadinIcon.TRASH.create());
+                delete.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE, ButtonVariant.LUMO_ERROR);
+                delete.addClickListener(ignored -> deleteRecruitmentCase(item));
+                return delete;
+            }).setKey("DELETE").setHeader("").setWidth("110px").setFlexGrow(0);
+        }
+        List<Map<String, Object>> rows = recruitment.board();
+        recruitmentGrid.setItems(rows);
+        long active = rows.stream().filter(row -> Boolean.TRUE.equals(row.get("effective"))).count();
+        Span summary = new Span("Recruitment evidence: " + active + " active, "
+                + (rows.size() - active) + " expired");
+        summary.addClassName("app-status");
+        Button clearExpired = new Button("Clear expired", VaadinIcon.TRASH.create(), ignored -> {
+            int removed = recruitment.deleteExpired();
+            Notification.show(removed == 0
+                            ? "No expired recruitment evidence to clear."
+                            : "Cleared " + removed + " expired recruitment " + (removed == 1 ? "case." : "cases."),
+                    3000, Notification.Position.TOP_CENTER);
+            showRecruitment();
+        });
+        clearExpired.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+        HorizontalLayout toolbar = new HorizontalLayout(summary, clearExpired);
+        toolbar.setAlignItems(HorizontalLayout.Alignment.CENTER);
+        toolbar.expand(summary);
+        toolbar.setWidthFull();
+        VerticalLayout view = new VerticalLayout(toolbar, recruitmentGrid);
+        view.setSizeFull();
+        view.setPadding(false);
+        view.setSpacing(false);
+        view.expand(recruitmentGrid);
+        content.removeAll();
+        content.setSizeFull();
+        content.add(view);
+        content.addClassName("data-workspace");
+    }
+
+    private void deleteRecruitmentCase(Map<String, Object> item) {
+        Object uid = item.get("player_unique_id");
+        Long uniqueId = uid instanceof Number number ? number.longValue() : null;
+        if (uniqueId == null || !recruitment.delete(uniqueId)) {
+            Notification.show("Recruitment evidence is already gone.", 2500, Notification.Position.TOP_CENTER);
+        } else {
+            Notification.show("Recruitment evidence removed.", 2500, Notification.Position.TOP_CENTER);
+        }
+        showRecruitment();
     }
 
     private void setClubGrid(List<GridColumn> columns, ClubFilterCriteria filter) {
@@ -632,6 +825,7 @@ public class MainView extends VerticalLayout {
                 new Div(VaadinIcon.DATABASE.create()),
                 spinner,
                 new Span("Reading Football Manager memory"),
+                loadingPhase,
                 new Span("Players, staff, clubs and competitions will refresh automatically.")
         );
         content.setAlignItems(FlexComponent.Alignment.CENTER);

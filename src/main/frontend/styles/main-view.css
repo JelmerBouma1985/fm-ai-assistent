@@ -1032,6 +1032,12 @@ vaadin-select:hover::part(input-field) {
 }
 
 .loading-content > span:nth-of-type(2) {
+    color: var(--fmai-green-dark);
+    font-size: 13px;
+    font-weight: 650;
+}
+
+.loading-content > span:nth-of-type(3) {
     max-width: 310px;
     color: var(--fmai-muted);
     font-size: 12px;
@@ -1040,6 +1046,51 @@ vaadin-select:hover::part(input-field) {
 .loading-progress {
     width: 100%;
     margin: 4px 0;
+}
+
+/* Freshness badge */
+.freshness-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.freshness-badge::before {
+    width: 7px;
+    height: 7px;
+    flex: 0 0 7px;
+    border-radius: 50%;
+    background: #8a978f;
+    content: "";
+}
+
+.freshness-badge.is-current {
+    color: #7fe3b2;
+}
+
+.freshness-badge.is-current::before {
+    background: #39c98a;
+    box-shadow: 0 0 0 3px rgba(57, 201, 138, 0.14);
+}
+
+.freshness-badge.is-stale {
+    color: #f2c879;
+}
+
+.freshness-badge.is-stale::before {
+    background: #e8a13d;
+    box-shadow: 0 0 0 3px rgba(232, 161, 61, 0.16);
+}
+
+.freshness-badge.is-unknown,
+.freshness-badge.is-empty {
+    color: #aebbb5;
 }
 
 @media (max-width: 900px) {
