@@ -33,7 +33,6 @@ public class PlayerExporter {
     private static final int HEIGHT_CM_REL = -0x5A;
     private static final int JOINED_CLUB_DATE_REL = -0x38;
     private static final int INJURY_REFERENCE_REL = -0x190;
-    private static final int INJURY_REFERENCE_FLAG_REL = -0x18C;
     private static final int INJURY_DATE_DAY_MASK = 0x01FF;
     private static final int DUTY_REFERENCE_REL = -0x168;
     private static final int DUTY_CALLUP_VECTOR_REL = 0x50;
@@ -381,11 +380,13 @@ public class PlayerExporter {
 
     private static InjuryStatus injuryStatus(ProcessMemoryReader reader, long record) throws IOException {
         long injuryReference = reader.readU64(record + INJURY_REFERENCE_REL);
-        long injuryReferenceFlag = reader.readU32(record + INJURY_REFERENCE_FLAG_REL);
+        // Note: the four bytes at -0x18C are the high half of this same
+        // 64-bit pointer, not an independent status flag. Past code required
+        // them to equal 1, which only matched references in the 0x1... heap
+        // region and silently dropped every injury allocated in 0x2... (6267
+        // cases in one live save). A readable vector alone decides.
         var vectorStart = reader.qwordOrNull(injuryReference);
-        boolean injured = injuryReference != 0
-                && injuryReferenceFlag == 1
-                && vectorStart.isPresent();
+        boolean injured = injuryReference != 0 && vectorStart.isPresent();
         if (!injured) {
             return new InjuryStatus(false, "", "", 0, 0);
         }
