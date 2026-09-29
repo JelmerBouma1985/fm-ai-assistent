@@ -90,6 +90,101 @@ class PlayerExporterTest {
         assertThat(PlayerExporter.playerMemoryLayout(memory, PERSON, type)).isEmpty();
     }
 
+    @Test
+    void reportsNoDutyWithoutInternationalContainer() throws Exception {
+        FakeMemory memory = minimalPlayerRow();
+        memory.putLong(PERSON - 0x168, 0);
+
+        Map<String, Object> row = new PlayerExporter().decodeRow(
+                memory, 1, PERSON, "", java.time.LocalDate.of(2026, 1, 17));
+
+        assertThat(row.get("on_duty")).isEqualTo(false);
+        assertThat(row.get("duty_start_date")).isEqualTo("");
+        assertThat(row.get("duty_end_date")).isEqualTo("");
+    }
+
+    @Test
+    void reportsDutyForCurrentCallupWindow() throws Exception {
+        FakeMemory memory = minimalPlayerRow();
+        putDutyContainer(memory, new DutyRecord(13, 2026, 17, 2026));
+
+        Map<String, Object> row = new PlayerExporter().decodeRow(
+                memory, 1, PERSON, "", java.time.LocalDate.of(2026, 1, 17));
+
+        assertThat(row.get("on_duty")).isEqualTo(true);
+        assertThat(row.get("duty_start_date")).isEqualTo("2026-01-13");
+        assertThat(row.get("duty_end_date")).isEqualTo("2026-01-17");
+    }
+
+    @Test
+    void coversReturnGracePeriodAfterDutyEnds() throws Exception {
+        FakeMemory memory = minimalPlayerRow();
+        putDutyContainer(memory, new DutyRecord(13, 2026, 14, 2026));
+
+        Map<String, Object> row = new PlayerExporter().decodeRow(
+                memory, 1, PERSON, "", java.time.LocalDate.of(2026, 1, 17));
+
+        assertThat(row.get("on_duty")).isEqualTo(true);
+        assertThat(row.get("duty_end_date")).isEqualTo("2026-01-14");
+    }
+
+    @Test
+    void ignoresExpiredFutureAndCorruptDutyRecords() throws Exception {
+        FakeMemory memory = minimalPlayerRow();
+        // Expired window, future window and a record without magic.
+        putDutyContainer(memory,
+                new DutyRecord(17, 2025, 21, 2025),
+                new DutyRecord(20, 2026, 25, 2026),
+                new DutyRecord(13, 2026, 14, 2026, false));
+
+        Map<String, Object> row = new PlayerExporter().decodeRow(
+                memory, 1, PERSON, "", java.time.LocalDate.of(2026, 1, 17));
+
+        assertThat(row.get("on_duty")).isEqualTo(false);
+        assertThat(row.get("duty_start_date")).isEqualTo("");
+        assertThat(row.get("duty_end_date")).isEqualTo("");
+    }
+
+    private record DutyRecord(int startDay, int startYear, int endDay, int endYear, boolean magic) {
+        DutyRecord(int startDay, int startYear, int endDay, int endYear) {
+            this(startDay, startYear, endDay, endYear, true);
+        }
+    }
+
+    private static FakeMemory minimalPlayerRow() {
+        FakeMemory memory = memoryWithType(PersonMemoryClassifier.PLAYER_DYNAMIC_OFFSET);
+        memory.fill(PERSON - 0x1A0, 0x1A0, 0);
+        memory.fill(PERSON + Long.BYTES, 0x90 - Long.BYTES, 0);
+        memory.putI16(PERSON + AttributeDefinitions.CURRENT_ABILITY_REL, 120);
+        memory.putI16(PERSON + AttributeDefinitions.POTENTIAL_ABILITY_REL, 140);
+        putPlausiblePlayerBlock(memory, 0, true);
+        return memory;
+    }
+
+    private static void putDutyContainer(FakeMemory memory, DutyRecord... records) {
+        long container = 0x8000;
+        long vector = 0x8100;
+        memory.putLong(PERSON - 0x168, container);
+        memory.putLong(container + 0x50, vector);
+        memory.putLong(container + 0x58, vector + (long) records.length * Long.BYTES);
+        for (int index = 0; index < records.length; index++) {
+            long item = 0x8200 + (long) index * 0x20;
+            memory.putLong(vector + (long) index * Long.BYTES, item);
+            memory.fill(item, 0x20, 0);
+            DutyRecord record = records[index];
+            if (record.magic()) {
+                memory.putU8(item, 0x20);
+                memory.putU8(item + 1, 'C');
+                memory.putU8(item + 2, 'O');
+                memory.putU8(item + 3, 'T');
+            }
+            memory.putI16(item + 0x10, record.startDay());
+            memory.putI16(item + 0x12, record.startYear());
+            memory.putI16(item + 0x14, record.endDay());
+            memory.putI16(item + 0x16, record.endYear());
+        }
+    }
+
     private static FakeMemory memoryWithType(int dynamicOffset) {
         FakeMemory memory = new FakeMemory();
         long vtable = 0x6000;

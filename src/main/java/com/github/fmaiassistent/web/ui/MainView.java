@@ -517,6 +517,7 @@ public class MainView extends VerticalLayout {
                 new PlayerColumn("FUTURE_TRANSFER_DATE", "Future Transfer Date", PlayerEntity::getFutureTransferDate),
                 new PlayerColumn("FUTURE_TRANSFER_CONTRACT_END_DATE", "Future Contract End", PlayerEntity::getFutureTransferContractEndDate),
                 new PlayerColumn("INJURED", "Injured", PlayerEntity::getInjured),
+                new PlayerColumn("ON_DUTY", "On Duty", PlayerEntity::getOnDuty),
                 new PlayerColumn("INJURY", "Injury", PlayerEntity::getInjury),
                 new PlayerColumn("INJURY_LIGHT_TRAINING_DAYS_REMAINING", "Light Training Days", PlayerEntity::getInjuryLightTrainingDaysRemaining),
                 new PlayerColumn("INJURY_FULL_TRAINING_DAYS_REMAINING", "Full Training Days", PlayerEntity::getInjuryFullTrainingDaysRemaining),
@@ -865,6 +866,11 @@ public class MainView extends VerticalLayout {
             injuryWarning.addClassName("injury-warning");
             info.addComponentAsFirst(injuryWarning);
         }
+        if (Boolean.TRUE.equals(player.getOnDuty())) {
+            Span dutyWarning = new Span(dutySummary(player));
+            dutyWarning.addClassName("injury-warning");
+            info.addComponentAsFirst(dutyWarning);
+        }
 
         Checkbox showGoalkeeping = new Checkbox("Show goalkeeping attributes");
         showGoalkeeping.setValue(isGoalkeeper(player));
@@ -955,6 +961,11 @@ public class MainView extends VerticalLayout {
             fields.add(new DetailField("Light Training In (days)",
                     display(player.getInjuryLightTrainingDaysRemaining())));
         }
+        if (Boolean.TRUE.equals(player.getOnDuty())) {
+            fields.add(new DetailField("On International Duty", "Yes"));
+            fields.add(new DetailField("Duty Since", display(player.getDutyStartDate())));
+            fields.add(new DetailField("Duty Until", display(player.getDutyEndDate())));
+        }
         return fields;
     }
 
@@ -970,6 +981,17 @@ public class MainView extends VerticalLayout {
         }
         if (!expected.isEmpty()) {
             summary.append(" (expected return ").append(expected).append(")");
+        }
+        return summary.toString();
+    }
+
+    static String dutySummary(PlayerEntity player) {
+        StringBuilder summary = new StringBuilder("On international duty");
+        if (player.getDutyEndDate() != null && !player.getDutyEndDate().isBlank()) {
+            summary.append(" until ").append(player.getDutyEndDate());
+        }
+        if (player.getDutyStartDate() != null && !player.getDutyStartDate().isBlank()) {
+            summary.append(" (since ").append(player.getDutyStartDate()).append(")");
         }
         return summary.toString();
     }
