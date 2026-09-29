@@ -98,9 +98,55 @@ class PlayerExporterTest {
         Map<String, Object> row = new PlayerExporter().decodeRow(
                 memory, 1, PERSON, "", java.time.LocalDate.of(2026, 1, 17));
 
+        assertThat(row.get("injured")).isEqualTo(false);
         assertThat(row.get("on_duty")).isEqualTo(false);
         assertThat(row.get("duty_start_date")).isEqualTo("");
         assertThat(row.get("duty_end_date")).isEqualTo("");
+    }
+
+    @Test
+    void detectsInjuryRegardlessOfPointerRegion() throws Exception {
+        // Regression test: the flag slot overlaps the high bytes of the
+        // 64-bit reference, so a reference in the 0x2... heap region reads
+        // flag 2 (and 0x1... reads 1). Both must count as injured.
+        for (long reference : new long[]{0x19000, 0x29000}) {
+            FakeMemory memory = minimalPlayerRow();
+            putInjury(memory, reference, 43, 2026, 3, 2);
+
+            Map<String, Object> row = new PlayerExporter().decodeRow(
+                    memory, 1, PERSON, "", java.time.LocalDate.of(2026, 2, 13));
+            PlayerExporter.applyGameDate(
+                    new java.util.ArrayList<>(List.of(row)), java.time.LocalDate.of(2026, 2, 13));
+
+            assertThat(row.get("injured")).isEqualTo(true);
+            assertThat(row.get("injury")).isEqualTo("Sprained ankle");
+            assertThat(row.get("injury_start_date")).isEqualTo("2026-02-12");
+            assertThat(row.get("injury_light_training_days_remaining")).isEqualTo(1);
+            assertThat(row.get("injury_full_training_days_remaining")).isEqualTo(2);
+            assertThat(row.get("injury_expected_return")).isEqualTo("2 days");
+        }
+    }
+
+    private static void putInjury(
+            FakeMemory memory, long reference, int day, int year, int fullDays, int lightDays) {
+        long vector = 0x9100;
+        long item = 0x9200;
+        long type = 0x9300;
+        long text = 0x9400;
+        memory.putLong(PERSON - 0x190, reference);
+        memory.putLong(reference, vector);
+        memory.putLong(vector, item);
+        memory.putLong(item + 0x08, type);
+        memory.putLong(type + 0x20, text);
+        String description = "sprained ankle";
+        memory.putI32(text, description.length());
+        for (int index = 0; index < description.length(); index++) {
+            memory.putU8(text + 4 + index, description.charAt(index));
+        }
+        memory.putI16(item + 0x20, day);
+        memory.putI16(item + 0x22, year);
+        memory.putI16(item + 0x28, fullDays);
+        memory.putI16(item + 0x2A, lightDays);
     }
 
     @Test

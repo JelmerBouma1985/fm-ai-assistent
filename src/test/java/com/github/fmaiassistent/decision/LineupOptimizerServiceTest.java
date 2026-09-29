@@ -108,6 +108,26 @@ class LineupOptimizerServiceTest {
     }
 
     @Test
+    void legacyConstraintsFormExcludesOnDutyPlayers() {
+        RoleFitService fits = mock(RoleFitService.class);
+        TacticDefinition.TacticSlot slot = slot(1);
+        PlayerEntity away = player("Away", 2002L, 150, false, true);
+        PlayerEntity home = player("Home", 2003L, 140, false, false);
+        when(fits.slotFit(away, slot)).thenReturn(fit(1, 90, 18));
+        when(fits.slotFit(home, slot)).thenReturn(fit(1, 80, 18));
+        LineupOptimizerService service = new LineupOptimizerService(fits);
+        TacticDefinition tactic = new TacticDefinition("Test", "Custom", "Positive", List.of(slot));
+
+        LineupOptimizerService.Constraints constraints = new LineupOptimizerService.Constraints(
+                15, false, Set.of(), List.of(), 3, "snapshot", "fingerprint");
+
+        assertThat(constraints.includeOnDuty()).isFalse();
+        LineupOptimizerService.Result result = service.optimize(List.of(away, home), tactic, constraints);
+
+        assertThat(result.assignmentFor(1).player().getUniqueId()).isEqualTo(2003L);
+    }
+
+    @Test
     void safelyOptimizesTwentySlotsWithoutExponentialState() {
         RoleFitService fits = mock(RoleFitService.class);
         when(fits.slotFit(any(PlayerEntity.class), any(TacticDefinition.TacticSlot.class)))

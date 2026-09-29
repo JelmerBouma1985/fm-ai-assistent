@@ -313,6 +313,19 @@ public class LineupOptimizerService {
             return new Constraints(15, false, false, Set.of(), List.of(), 3, null, null);
         }
 
+        /** Backwards-compatible form that excludes players away on duty. */
+        public Constraints(
+                int minimumPositionScore,
+                boolean includeInjured,
+                Set<Long> unavailablePlayerUniqueIds,
+                List<LockedAssignment> lockedAssignments,
+                int alternativeLimit,
+                String snapshotId,
+                String tacticFingerprint) {
+            this(minimumPositionScore, includeInjured, false, unavailablePlayerUniqueIds,
+                    lockedAssignments, alternativeLimit, snapshotId, tacticFingerprint);
+        }
+
         Constraints normalized() {
             return new Constraints(
                     Math.max(1, Math.min(20, minimumPositionScore)),
