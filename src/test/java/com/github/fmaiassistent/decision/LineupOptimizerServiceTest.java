@@ -58,7 +58,7 @@ class LineupOptimizerServiceTest {
         TacticDefinition tactic = new TacticDefinition("Test", "Custom", "Positive", List.of(slot));
 
         LineupOptimizerService.Result result = service.optimize(List.of(injured), tactic,
-                new LineupOptimizerService.Constraints(15, false, Set.of(),
+                new LineupOptimizerService.Constraints(15, false, false, Set.of(),
                         List.of(new LineupOptimizerService.LockedAssignment(1, 2001L)),
                         3, "snapshot", "fingerprint"));
 
@@ -69,11 +69,42 @@ class LineupOptimizerServiceTest {
                 "locked_player_below_position_threshold:2001");
 
         assertThatThrownBy(() -> service.optimize(List.of(injured), tactic,
-                new LineupOptimizerService.Constraints(15, false, Set.of(2001L),
+                new LineupOptimizerService.Constraints(15, false, false, Set.of(2001L),
                         List.of(new LineupOptimizerService.LockedAssignment(1, 2001L)),
                         3, "snapshot", "fingerprint")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("explicitly unavailable");
+    }
+
+    @Test
+    void excludesOnDutyPlayersUnlessIncludedOrLocked() {
+        RoleFitService fits = mock(RoleFitService.class);
+        TacticDefinition.TacticSlot slot = slot(1);
+        PlayerEntity away = player("Away", 2002L, 150, false, true);
+        PlayerEntity home = player("Home", 2003L, 140, false, false);
+        when(fits.slotFit(away, slot)).thenReturn(fit(1, 90, 18));
+        when(fits.slotFit(home, slot)).thenReturn(fit(1, 80, 18));
+        LineupOptimizerService service = new LineupOptimizerService(fits);
+        TacticDefinition tactic = new TacticDefinition("Test", "Custom", "Positive", List.of(slot));
+
+        LineupOptimizerService.Result excluded = service.optimize(List.of(away, home), tactic,
+                LineupOptimizerService.Constraints.defaults());
+
+        assertThat(excluded.assignmentFor(1).player().getUniqueId()).isEqualTo(2003L);
+
+        LineupOptimizerService.Result included = service.optimize(List.of(away, home), tactic,
+                new LineupOptimizerService.Constraints(15, false, true, Set.of(), List.of(),
+                        3, "snapshot", "fingerprint"));
+
+        assertThat(included.assignmentFor(1).player().getUniqueId()).isEqualTo(2002L);
+
+        LineupOptimizerService.Result locked = service.optimize(List.of(away, home), tactic,
+                new LineupOptimizerService.Constraints(15, false, false, Set.of(),
+                        List.of(new LineupOptimizerService.LockedAssignment(1, 2002L)),
+                        3, "snapshot", "fingerprint"));
+
+        assertThat(locked.assignmentFor(1).player().getUniqueId()).isEqualTo(2002L);
+        assertThat(locked.warnings()).contains("locked_player_on_duty:2002");
     }
 
     @Test
@@ -115,12 +146,17 @@ class LineupOptimizerServiceTest {
     }
 
     private static PlayerEntity player(String name, long uniqueId, int ca, boolean injured) {
+        return player(name, uniqueId, ca, injured, false);
+    }
+
+    private static PlayerEntity player(String name, long uniqueId, int ca, boolean injured, boolean onDuty) {
         Map<String, Object> row = new HashMap<>();
         PlayerExporter.FIELD_NAMES.forEach(field -> row.put(field, null));
         row.put("unique_id", uniqueId);
         row.put("name", name);
         row.put("ca", ca);
         row.put("injured", injured);
+        row.put("on_duty", onDuty);
         return PlayerEntity.fromExportRow(row);
     }
 }

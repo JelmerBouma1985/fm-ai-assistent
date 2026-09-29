@@ -93,6 +93,12 @@ public class PlayerEntity {
     private Integer injuryMaxDaysRemaining;
     @Column(name = "injury_expected_return", length = 1024)
     private String injuryExpectedReturn;
+    @Column(name = "on_duty")
+    private Boolean onDuty;
+    @Column(name = "duty_start_date", length = 1024)
+    private String dutyStartDate;
+    @Column(name = "duty_end_date", length = 1024)
+    private String dutyEndDate;
     @Column(name = "contract_end_date", length = 1024)
     private String contractEndDate;
     @Column(name = "salary_pa")
@@ -428,6 +434,18 @@ public class PlayerEntity {
 
     public String getInjuryExpectedReturn() {
         return injuryExpectedReturn;
+    }
+
+    public Boolean getOnDuty() {
+        return onDuty;
+    }
+
+    public String getDutyStartDate() {
+        return dutyStartDate;
+    }
+
+    public String getDutyEndDate() {
+        return dutyEndDate;
     }
 
     public String getContractEndDate() {

@@ -163,6 +163,7 @@ public class FmAiAssistentTools {
             @ToolParam(required = false, description = "Transfer-agreed filter. Use true for players who already agreed a future move, false to exclude them.") Boolean transferAgreed,
             @ToolParam(required = false, description = "Future transfer destination club exact filter.") String futureTransferClub,
             @ToolParam(required = false, description = "Injury filter. Use true for only injured players, false for only currently fit players.") Boolean injured,
+            @ToolParam(required = false, description = "International-duty filter. Use true for only players away on duty, false for only available players.") Boolean onDuty,
             @ToolParam(required = false, description = "Position code such as GK, DL, DC, DR, DMC, MC, AML, AMR or ST.") String position,
             @ToolParam(required = false, description = "Minimum position ability, 1-20. Defaults to 15 when position is supplied.") Integer minimumPositionScore,
             @ToolParam(required = false, description = "Preferred stronger foot: left, right or either.") String preferredFoot,
@@ -196,6 +197,7 @@ public class FmAiAssistentTools {
                         && matchesBoolean(player.getTransferAgreed(), transferAgreed)
                         && (blank(futureTransferClub) || equalsIgnoreCase(player.getFutureTransferClub(), futureTransferClub))
                         && matchesBoolean(player.getInjured(), injured)
+                        && matchesBoolean(player.getOnDuty(), onDuty)
                         && (positionSpec == null || positionScore(player, positionSpec) >= safePositionMinimum)
                         && matchesPreferredFoot(player, preferredFoot)
                         && matchesMinimumAttributes(player, minimumAttributes);
@@ -1129,6 +1131,9 @@ public class FmAiAssistentTools {
         out.put("injury_min_days_remaining", player.getInjuryMinDaysRemaining());
         out.put("injury_max_days_remaining", player.getInjuryMaxDaysRemaining());
         out.put("injury_expected_return", player.getInjuryExpectedReturn());
+        out.put("on_duty", player.getOnDuty());
+        out.put("duty_start_date", player.getDutyStartDate());
+        out.put("duty_end_date", player.getDutyEndDate());
         out.put("contract_end_date", player.getContractEndDate());
         out.put("current_reputation", player.getCurrentReputation());
         out.put("home_reputation", player.getHomeReputation());

@@ -35,6 +35,11 @@ public class PlayerExporter {
     private static final int INJURY_REFERENCE_REL = -0x190;
     private static final int INJURY_REFERENCE_FLAG_REL = -0x18C;
     private static final int INJURY_DATE_DAY_MASK = 0x01FF;
+    private static final int DUTY_REFERENCE_REL = -0x168;
+    private static final int DUTY_CALLUP_VECTOR_REL = 0x50;
+    private static final int DUTY_RECORD_SIZE = 0x20;
+    private static final int DUTY_MAX_RECORDS_BYTES = 512;
+    private static final int DUTY_RETURN_GRACE_DAYS = 7;
     private static final int TRANSFER_STATUS_REL = 0x57;
     private static final int TRANSFER_AGREED_MARKER_REL = 0x51;
     private static final int FUTURE_TRANSFER_TABLE_REL = 0xD8;
@@ -162,6 +167,10 @@ public class PlayerExporter {
         row.put("injury_max_days_remaining", "");
         row.put("injury_expected_return", "");
         row.put("_injury_status", status.injury());
+        DutyStatus duty = dutyStatus(reader, record, gameDate);
+        row.put("on_duty", duty.onDuty());
+        row.put("duty_start_date", duty.startDate());
+        row.put("duty_end_date", duty.endDate());
         row.put("contract_end_date", contractEndDate(reader, record));
         row.put("salary_pa", salary.annualRounded());
         row.put("salary_weekly_raw", salary.weeklyRaw());
@@ -297,6 +306,77 @@ public class PlayerExporter {
                 futureTransfer.contractEndDate(),
                 injury.injured(),
                 injury);
+    }
+
+    /**
+     * International-duty availability from the player's international-career
+     * container ({@code record-0x168}). The container holds a vector of
+     * {@code " COT"} callup records with day-of-year duty windows. A player
+     * counts as on duty when a window covers the game date, plus a short
+     * grace period for the return trip home.
+     */
+    private static DutyStatus dutyStatus(ProcessMemoryReader reader, long record, LocalDate gameDate) {
+        if (gameDate == null) {
+            return new DutyStatus(false, "", "");
+        }
+        try {
+            var container = reader.qwordOrNull(record + DUTY_REFERENCE_REL);
+            if (container.isEmpty()) {
+                return new DutyStatus(false, "", "");
+            }
+            long begin = reader.readU64(container.get() + DUTY_CALLUP_VECTOR_REL);
+            long end = reader.readU64(container.get() + DUTY_CALLUP_VECTOR_REL + Long.BYTES);
+            if (begin <= 0 || end < begin || end - begin > DUTY_MAX_RECORDS_BYTES
+                    || (end - begin) % Long.BYTES != 0
+                    || end > ProcessMemoryReader.MAX_USER_ADDRESS) {
+                return new DutyStatus(false, "", "");
+            }
+            LocalDate bestStart = null;
+            LocalDate bestEnd = null;
+            for (long reference = begin; reference < end; reference += Long.BYTES) {
+                var item = reader.qwordOrNull(reference);
+                if (item.isEmpty()) {
+                    continue;
+                }
+                byte[] itemBytes;
+                try {
+                    itemBytes = reader.readBytes(item.get(), DUTY_RECORD_SIZE);
+                } catch (IOException | RuntimeException ignored) {
+                    continue;
+                }
+                if (itemBytes[0] != 0x20 || itemBytes[1] != 'C' || itemBytes[2] != 'O' || itemBytes[3] != 'T') {
+                    continue;
+                }
+                int startDay = littleEndianU16(itemBytes, 0x10) & INJURY_DATE_DAY_MASK;
+                int startYear = littleEndianU16(itemBytes, 0x12);
+                int endDay = littleEndianU16(itemBytes, 0x14) & INJURY_DATE_DAY_MASK;
+                int endYear = littleEndianU16(itemBytes, 0x16);
+                if (!GameDateFinder.validDayYear(startDay, startYear)
+                        || !GameDateFinder.validDayYear(endDay, endYear)) {
+                    continue;
+                }
+                LocalDate start = GameDateFinder.dayYearToDate(startDay, startYear);
+                LocalDate finish = GameDateFinder.dayYearToDate(endDay, endYear);
+                if (finish.isBefore(start) || start.isAfter(gameDate)
+                        || finish.plusDays(DUTY_RETURN_GRACE_DAYS).isBefore(gameDate)) {
+                    continue;
+                }
+                if (bestEnd == null || finish.isAfter(bestEnd)) {
+                    bestStart = start;
+                    bestEnd = finish;
+                }
+            }
+            if (bestEnd == null) {
+                return new DutyStatus(false, "", "");
+            }
+            return new DutyStatus(true, bestStart.toString(), bestEnd.toString());
+        } catch (IOException | RuntimeException exception) {
+            return new DutyStatus(false, "", "");
+        }
+    }
+
+    private static int littleEndianU16(byte[] bytes, int offset) {
+        return Byte.toUnsignedInt(bytes[offset]) | Byte.toUnsignedInt(bytes[offset + 1]) << 8;
     }
 
     private static InjuryStatus injuryStatus(ProcessMemoryReader reader, long record) throws IOException {
@@ -506,6 +586,7 @@ public class PlayerExporter {
                 "transfer_agreed", "future_transfer_club", "future_transfer_date", "future_transfer_contract_end_date", "injured",
                 "injury", "injury_start_date", "injury_light_training_days_remaining", "injury_full_training_days_remaining",
                 "injury_min_days_remaining", "injury_max_days_remaining", "injury_expected_return",
+                "on_duty", "duty_start_date", "duty_end_date",
                 "contract_end_date", "salary_pa",
                 "salary_weekly_raw", "date_of_birth", "age", "age_as_of", "height_cm"));
         POSITION_FIELDS.stream().map(FieldDef::name).forEach(names::add);
@@ -535,6 +616,9 @@ public class PlayerExporter {
     }
 
     private record InjuryStatus(boolean injured, String description, String startDate, int lightTrainingTotalDays, int fullTrainingTotalDays) {
+    }
+
+    private record DutyStatus(boolean onDuty, String startDate, String endDate) {
     }
 
     private record FutureTransfer(boolean transferAgreed, String club, String date, String contractEndDate) {

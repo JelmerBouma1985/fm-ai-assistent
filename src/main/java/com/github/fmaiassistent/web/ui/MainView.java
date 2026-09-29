@@ -519,6 +519,7 @@ public class MainView extends VerticalLayout {
                 new PlayerColumn("FUTURE_TRANSFER_DATE", "Future Transfer Date", PlayerEntity::getFutureTransferDate),
                 new PlayerColumn("FUTURE_TRANSFER_CONTRACT_END_DATE", "Future Contract End", PlayerEntity::getFutureTransferContractEndDate),
                 new PlayerColumn("INJURED", "Injured", PlayerEntity::getInjured),
+                new PlayerColumn("ON_DUTY", "On Duty", PlayerEntity::getOnDuty),
                 new PlayerColumn("INJURY", "Injury", PlayerEntity::getInjury),
                 new PlayerColumn("INJURY_LIGHT_TRAINING_DAYS_REMAINING", "Light Training Days", PlayerEntity::getInjuryLightTrainingDaysRemaining),
                 new PlayerColumn("INJURY_FULL_TRAINING_DAYS_REMAINING", "Full Training Days", PlayerEntity::getInjuryFullTrainingDaysRemaining),
@@ -860,9 +861,16 @@ public class MainView extends VerticalLayout {
         dialog.getElement().getThemeList().add("professional-dialog");
         dialog.getElement().getThemeList().add("player-detail-dialog");
 
-        VerticalLayout info = new VerticalLayout(detailLayout(playerInfoFields(player)));
+        List<DetailField> infoFields = playerInfoFields(player);
+        infoFields.addAll(playerDutyFields(player));
+        VerticalLayout info = new VerticalLayout(detailLayout(infoFields));
         info.setPadding(false);
         info.addClassName("detail-info");
+        if (Boolean.TRUE.equals(player.getOnDuty())) {
+            Span dutyWarning = new Span(dutySummary(player));
+            dutyWarning.addClassName("injury-warning");
+            info.addComponentAsFirst(dutyWarning);
+        }
         if (Boolean.TRUE.equals(player.getInjured())) {
             Span injuryWarning = new Span(injurySummary(player));
             injuryWarning.addClassName("injury-warning");
@@ -930,6 +938,27 @@ public class MainView extends VerticalLayout {
         dialog.add(detailTabs, detailContent);
         dialog.getFooter().add(close);
         dialog.open();
+    }
+
+    List<DetailField> playerDutyFields(PlayerEntity player) {
+        if (!Boolean.TRUE.equals(player.getOnDuty())) {
+            return List.of();
+        }
+        return List.of(
+                new DetailField("On International Duty", "Yes"),
+                new DetailField("Duty Since", display(player.getDutyStartDate())),
+                new DetailField("Duty Until", display(player.getDutyEndDate())));
+    }
+
+    static String dutySummary(PlayerEntity player) {
+        StringBuilder summary = new StringBuilder("On international duty");
+        if (player.getDutyEndDate() != null && !player.getDutyEndDate().isBlank()) {
+            summary.append(" until ").append(player.getDutyEndDate());
+        }
+        if (player.getDutyStartDate() != null && !player.getDutyStartDate().isBlank()) {
+            summary.append(" (since ").append(player.getDutyStartDate()).append(")");
+        }
+        return summary.toString();
     }
 
     List<DetailField> playerInfoFields(PlayerEntity player) {
