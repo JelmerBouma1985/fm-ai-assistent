@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
@@ -98,14 +99,15 @@ public class TacticContextService implements AiPromptContextContributor {
     private void restoreDiskSource(TacticContextEntity saved) {
         java.nio.file.Path path = java.nio.file.Path.of(saved.getSourcePath());
         byte[] diskBytes = null;
-        boolean diskReadable = false;
         try {
-            diskBytes = java.nio.file.Files.readAllBytes(path);
-            diskReadable = true;
+            diskBytes = readBounded(path, path.getFileName().toString());
+        } catch (IllegalArgumentException tooLarge) {
+            log.warn("Remembered disk tactic exceeds the size limit, using cached copy: {}",
+                    safeMessage(tooLarge));
         } catch (RuntimeException | java.io.IOException exception) {
             log.warn("Remembered disk tactic unreadable, using cached copy: {}", safeMessage(exception));
         }
-        if (diskReadable) {
+        if (diskBytes != null) {
             String diskFingerprint = sha256(diskBytes);
             if (!diskFingerprint.equals(saved.getFingerprint())) {
                 // Silent reload: the disk file changed since last start.
@@ -214,17 +216,31 @@ public class TacticContextService implements AiPromptContextContributor {
         }
         byte[] data;
         try {
-            data = java.nio.file.Files.readAllBytes(resolved);
+            data = readBounded(resolved, fileName);
         } catch (java.io.IOException exception) {
             throw new IllegalArgumentException("Could not read tactic file: " + fileName, exception);
         }
         if (data.length == 0) {
             throw new IllegalArgumentException("Tactic file is empty: " + fileName);
         }
-        if (data.length > properties.maxFileSize().toBytes()) {
+        return build(fileName, data, true, "DISK", resolved.toString());
+    }
+
+    /**
+     * Reads a tactic file without ever allocating more than the configured limit plus one byte.
+     * Oversized files are rejected before a full copy exists in memory.
+     */
+    private byte[] readBounded(java.nio.file.Path path, String fileName) throws java.io.IOException {
+        long limit = properties.maxFileSize().toBytes();
+        int cap = (int) Math.min(limit + 1, Integer.MAX_VALUE);
+        byte[] data;
+        try (java.io.InputStream in = java.nio.file.Files.newInputStream(path)) {
+            data = in.readNBytes(cap);
+        }
+        if (data.length > limit) {
             throw new IllegalArgumentException("Tactic file is too large: " + fileName);
         }
-        return build(fileName, data, true, "DISK", resolved.toString());
+        return data;
     }
 
     public TacticContext clear() {
@@ -266,23 +282,45 @@ public class TacticContextService implements AiPromptContextContributor {
     }
 
     private TacticContext build(String fileName, byte[] data, boolean persist, String sourceKind, String sourcePath) {
-        // Fail fast on corrupt archives before persisting anything.
-        fmfParser.parse(data);
+        // Single parse: corrupt archives fail here before anything is persisted or published.
+        FmfTacticParser.FmfMetadata metadata = fmfParser.parse(data);
         String fingerprint = sha256(data);
-        return buildFromBytesWithWarning(fileName, data, fingerprint, sourceKind, sourcePath, List.of(), persist);
+        TacticContext context = assemble(fileName, metadata, fingerprint, sourceKind, sourcePath, List.of());
+        if (persist && repository != null) {
+            repository.save(new TacticContextEntity(fileName, data, fingerprint, sourceKind, sourcePath));
+        }
+        // Published only after persistence succeeded, so chats never see an unsaved tactic.
+        current.set(context);
+        log.info("Loaded FM26 tactic context title={} file={} source={} warnings={}",
+                context.title(), fileName, sourceKind, context.warnings().size());
+        return context;
     }
 
     private TacticContext buildFromBytesWithWarning(
             String fileName, byte[] data, String fingerprint, String sourceKind, String sourcePath,
             List<String> warnings) {
         FmfTacticParser.FmfMetadata metadata = fmfParser.parse(data);
+        TacticContext context = assemble(fileName, metadata, fingerprint, sourceKind, sourcePath, warnings);
+        current.set(context);
+        return context;
+    }
+
+    private TacticContext assemble(
+            String fileName,
+            FmfTacticParser.FmfMetadata metadata,
+            String fingerprint,
+            String sourceKind,
+            String sourcePath,
+            List<String> warnings) {
         String title = metadata.tactic().name();
         if (title == null || title.isBlank()) {
             title = fileName;
         }
         boolean disk = "DISK".equalsIgnoreCase(sourceKind);
-        String sourceLine = disk && sourcePath != null
-                ? "Source: disk " + sourcePath + "\n"
+        // Only the file name goes into the prompt; the absolute path stays local
+        // (database + UI) so usernames and mount names never reach AI providers.
+        String sourceLine = disk
+                ? "Source: disk " + fileName + "\n"
                 : "Source: uploaded " + fileName + "\n";
         String sourceLabel = disk ? "local disk" : "browser upload";
         String markdown = "# " + title + "\n\n"
@@ -292,28 +330,16 @@ public class TacticContextService implements AiPromptContextContributor {
                 + "Contained resources: " + String.join(", ", metadata.resources()) + "\n\n"
                 + "## Decoded FM26 tactic\n"
                 + metadata.tactic().markdown() + "\n";
+        List<String> allWarnings = new ArrayList<>(warnings);
         if (markdown.length() > properties.maxContextCharacters()) {
             markdown = markdown.substring(0, properties.maxContextCharacters()) + "\n[Context truncated]\n";
-            warnings = List.of("Tactic context was truncated to "
+            allWarnings.add("Tactic context was truncated to "
                     + properties.maxContextCharacters() + " characters");
         }
-        TacticContext context = new TacticContext(
+        return new TacticContext(
                 versions.incrementAndGet(), title, sourceLabelWithPath(sourceLabel, sourceKind, sourcePath),
-                markdown, List.of(fileName), warnings, TacticDefinition.from(metadata.tactic()), fingerprint);
-        current.set(context);
-        return context;
-    }
-
-    private TacticContext buildFromBytesWithWarning(
-            String fileName, byte[] data, String fingerprint, String sourceKind, String sourcePath,
-            List<String> warnings, boolean persist) {
-        TacticContext context = buildFromBytesWithWarning(fileName, data, fingerprint, sourceKind, sourcePath, warnings);
-        if (persist && repository != null) {
-            repository.save(new TacticContextEntity(fileName, data, fingerprint, sourceKind, sourcePath));
-        }
-        log.info("Loaded FM26 tactic context title={} file={} source={} warnings={}",
-                context.title(), fileName, sourceKind, warnings.size());
-        return context;
+                markdown, List.of(fileName), List.copyOf(allWarnings),
+                TacticDefinition.from(metadata.tactic()), fingerprint);
     }
 
     private static String sourceLabelWithPath(String label, String sourceKind, String sourcePath) {

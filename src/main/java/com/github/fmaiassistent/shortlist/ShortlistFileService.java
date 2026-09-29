@@ -108,23 +108,30 @@ public class ShortlistFileService {
         if (configured != null && !configured.isBlank()) {
             return Path.of(configured);
         }
-        Path nativeDefault = home.resolve("Documents/Sports Interactive/Football Manager 26/shortlists");
-        List<Path> candidates = new ArrayList<>(List.of(nativeDefault));
+        Path nativeDefault = home.resolve("Documents/Sports Interactive/Football Manager 26/shortlists")
+                .toAbsolutePath().normalize();
+        if (Files.isDirectory(nativeDefault)) {
+            return nativeDefault;
+        }
+        // The library holding FM26 wins over stale shortlists folders in other libraries.
+        java.util.Optional<Path> gameLib = SteamLibraries.libraryWithApp(home, SteamLibraries.FM26_APP_ID);
+        if (gameLib.isPresent()) {
+            return gameLib.get()
+                    .resolve("steamapps/compatdata/" + SteamLibraries.FM26_APP_ID
+                            + "/pfx/drive_c/users/steamuser/Documents/Sports Interactive/Football Manager 26/shortlists")
+                    .toAbsolutePath().normalize();
+        }
+        List<Path> candidates = new ArrayList<>();
         for (Path userDir : SteamLibraries.fmProtonUserDirectories(home)) {
             candidates.add(userDir.resolve("Documents/Sports Interactive/Football Manager 26/shortlists"));
             candidates.add(userDir.resolve("AppData/Local/Sports Interactive/Football Manager 26/cloud/shortlists"));
         }
-        List<Path> normalized = candidates.stream()
+        return candidates.stream()
                 .map(path -> path.toAbsolutePath().normalize())
                 .distinct()
-                .toList();
-        return normalized.stream().filter(Files::isDirectory).findFirst()
-                .or(() -> SteamLibraries.libraryWithApp(home, SteamLibraries.FM26_APP_ID)
-                        .map(library -> library
-                                .resolve("steamapps/compatdata/" + SteamLibraries.FM26_APP_ID
-                                        + "/pfx/drive_c/users/steamuser/Documents/Sports Interactive/Football Manager 26/shortlists")
-                                .toAbsolutePath().normalize()))
-                .orElse(nativeDefault.toAbsolutePath().normalize());
+                .filter(Files::isDirectory)
+                .findFirst()
+                .orElse(nativeDefault);
     }
 
     public record CreatedShortlist(

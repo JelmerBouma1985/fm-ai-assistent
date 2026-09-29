@@ -88,6 +88,23 @@ class ShortlistFileServiceTest {
         assertThat(resolved.getFileName().toString()).isEqualTo("shortlists");
     }
 
+    @Test
+    void prefersManifestLibraryOverStaleExistingFolder(@TempDir Path home) throws Exception {
+        Path staleLib = home.resolve(".local/share/Steam");
+        Files.createDirectories(staleLib.resolve(
+                "steamapps/compatdata/3551340/pfx/drive_c/users/steamuser/Documents/Sports Interactive/Football Manager 26/shortlists"));
+        Path customLib = home.resolve("mnt/bcache/Steam");
+        Files.createDirectories(customLib.resolve("steamapps"));
+        Files.writeString(staleLib.resolve("steamapps/libraryfolders.vdf"),
+                "\"libraryfolders\"\n{\n\t\"0\"\n\t{\n\t\t\"path\"\t\t\"" + staleLib + "\"\n\t}\n"
+                        + "\t\"1\"\n\t{\n\t\t\"path\"\t\t\"" + customLib + "\"\n\t}\n}");
+        Files.writeString(customLib.resolve("steamapps/appmanifest_3551340.acf"), "\"AppState\"{}");
+
+        Path resolved = ShortlistFileService.resolveOutputDirectory(home);
+
+        assertThat(resolved.toString()).startsWith(customLib.toAbsolutePath().normalize().toString());
+    }
+
     private static PlayerEntity player(String name, long uniqueId) {
         Map<String, Object> row = new HashMap<>();
         PlayerExporter.FIELD_NAMES.forEach(field -> row.put(field, null));
