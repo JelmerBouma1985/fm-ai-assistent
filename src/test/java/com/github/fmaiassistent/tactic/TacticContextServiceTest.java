@@ -122,6 +122,163 @@ class TacticContextServiceTest {
                 .asString().contains("upload it again");
     }
 
+    @Test
+    void diskTacticIsListedLoadedAndRemembered(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir)
+            throws Exception {
+        byte[] fmf = FmfTacticParserTest.fmf("disk-press");
+        java.nio.file.Path file = dir.resolve("disk-press.fmf");
+        java.nio.file.Files.write(file, fmf);
+        TacticContextRepository repository = mock(TacticContextRepository.class);
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        TacticContextService service = service(repository, dir);
+
+        assertThat(service.listDiskTactics())
+                .extracting(TacticDirectoryResolver.DiskTactic::fileName)
+                .containsExactly("disk-press.fmf");
+
+        TacticContext loaded = service.loadFromDisk(file);
+
+        assertThat(loaded.active()).isTrue();
+        assertThat(loaded.title()).isEqualTo("disk-press");
+        assertThat(loaded.source()).startsWith("local disk");
+        assertThat(loaded.markdown()).contains("Source: disk disk-press.fmf");
+        assertThat(loaded.markdown()).doesNotContain(System.getProperty("user.home"));
+        var captor = org.mockito.ArgumentCaptor.forClass(TacticContextEntity.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getSourceKind()).isEqualTo("DISK");
+        assertThat(captor.getValue().getSourcePath()).isEqualTo(file.toAbsolutePath().normalize().toString());
+
+        // Restart with unchanged file restores the remembered tactic.
+        when(repository.findById(1)).thenReturn(Optional.of(captor.getValue()));
+        TacticContextService restarted = service(repository, dir);
+        restarted.restorePersistedTactic();
+
+        assertThat(restarted.current().active()).isTrue();
+        assertThat(restarted.current().title()).isEqualTo("disk-press");
+        assertThat(restarted.current().fingerprint()).isEqualTo(loaded.fingerprint());
+    }
+
+    @Test
+    void changedDiskFileIsSilentlyReloadedOnRestart(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir)
+            throws Exception {
+        java.nio.file.Files.write(dir.resolve("press.fmf"), FmfTacticParserTest.fmf("press-v1"));
+        TacticContextRepository repository = mock(TacticContextRepository.class);
+        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        TacticContextService service = service(repository, dir);
+        TacticContext loaded = service.loadFromDisk(dir.resolve("press.fmf"));
+
+        // FM26 save overwrites the file with a new tactic.
+        java.nio.file.Files.write(dir.resolve("press.fmf"), FmfTacticParserTest.fmf("press-v2"));
+        var captor = org.mockito.ArgumentCaptor.forClass(TacticContextEntity.class);
+        verify(repository).save(captor.capture());
+        when(repository.findById(1)).thenReturn(Optional.of(captor.getValue()));
+        TacticContextService restarted = service(repository, dir);
+        restarted.restorePersistedTactic();
+
+        assertThat(restarted.current().active()).isTrue();
+        assertThat(restarted.current().title()).isEqualTo("press-v2");
+        assertThat(restarted.current().fingerprint()).isNotEqualTo(loaded.fingerprint());
+        // Silent reload persists the new bytes for the next start.
+        verify(repository, org.mockito.Mockito.times(2)).save(any());
+    }
+
+    @Test
+    void missingDiskFileFallsBackToCachedCopy(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir)
+            throws Exception {
+        byte[] fmf = FmfTacticParserTest.fmf("cached-press");
+        TacticContextEntity saved = new TacticContextEntity(
+                "cached-press.fmf", fmf, sha256(fmf), "DISK", dir.resolve("gone.fmf").toString());
+        TacticContextRepository repository = mock(TacticContextRepository.class);
+        when(repository.findById(1)).thenReturn(Optional.of(saved));
+        TacticContextService service = service(repository, dir);
+
+        service.restorePersistedTactic();
+
+        assertThat(service.current().active()).isTrue();
+        assertThat(service.current().title()).isEqualTo("cached-press");
+        assertThat(service.current().warnings()).singleElement().asString().contains("cached copy");
+    }
+
+    @Test
+    void rejectsDiskPathsOutsideTheTacticsFolder(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir)
+            throws Exception {
+        TacticContextRepository repository = mock(TacticContextRepository.class);
+        TacticContextService service = service(repository, dir);
+        java.nio.file.Path outside = dir.getParent().resolve("outside.fmf");
+        java.nio.file.Files.write(outside, FmfTacticParserTest.fmf("outside"));
+
+        assertThatThrownBy(() -> service.loadFromDisk(outside))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("outside the FM26 tactics folder");
+    }
+
+    @Test
+    void oversizedDiskFileIsRejectedWithoutFullAllocation(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir)
+            throws Exception {
+        TacticContextRepository repository = mock(TacticContextRepository.class);
+        TacticContextService service = service(repository, dir,
+                DataSize.ofBytes(16), 16_000);
+        java.nio.file.Path file = dir.resolve("huge.fmf");
+        java.nio.file.Files.write(file, FmfTacticParserTest.fmf("huge"));
+
+        assertThatThrownBy(() -> service.loadFromDisk(file))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("too large");
+        assertThat(service.current().active()).isFalse();
+    }
+
+    @Test
+    void oversizedRememberedFileFallsBackToCachedCopy(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir)
+            throws Exception {
+        byte[] fmf = FmfTacticParserTest.fmf("cached-press");
+        java.nio.file.Path file = dir.resolve("grown.fmf");
+        java.nio.file.Files.write(file, new byte[64]);
+        TacticContextEntity saved = new TacticContextEntity(
+                "grown.fmf", fmf, sha256(fmf), "DISK", file.toString());
+        TacticContextRepository repository = mock(TacticContextRepository.class);
+        when(repository.findById(1)).thenReturn(Optional.of(saved));
+        TacticContextService service = service(repository, dir,
+                DataSize.ofBytes(16), 16_000);
+
+        service.restorePersistedTactic();
+
+        assertThat(service.current().active()).isTrue();
+        assertThat(service.current().title()).isEqualTo("cached-press");
+        assertThat(service.current().warnings()).singleElement().asString().contains("cached copy");
+    }
+
+    @Test
+    void failedPersistenceDoesNotPublishTheContext() {
+        TacticContextRepository repository = mock(TacticContextRepository.class);
+        when(repository.save(any())).thenThrow(new IllegalStateException("disk full"));
+        TacticContextService service = service(repository);
+
+        assertThatThrownBy(() -> service.loadUploads(Map.of(
+                "tactic.fmf", FmfTacticParserTest.fmf("press"))))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("disk full");
+        assertThat(service.current().active()).isFalse();
+    }
+
+    @Test
+    void cachedCopyKeepsItsWarningWhenTruncated(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir)
+            throws Exception {
+        byte[] fmf = FmfTacticParserTest.fmf("cached-press");
+        TacticContextEntity saved = new TacticContextEntity(
+                "cached-press.fmf", fmf, sha256(fmf), "DISK", dir.resolve("gone.fmf").toString());
+        TacticContextRepository repository = mock(TacticContextRepository.class);
+        when(repository.findById(1)).thenReturn(Optional.of(saved));
+        TacticContextService service = service(repository, dir,
+                DataSize.ofMegabytes(20), 64);
+
+        service.restorePersistedTactic();
+
+        assertThat(service.current().active()).isTrue();
+        assertThat(service.current().warnings())
+                .anyMatch(warning -> warning.contains("cached copy"))
+                .anyMatch(warning -> warning.contains("truncated"));
+    }
+
     private static TacticContextService service() {
         TacticContextProperties properties = new TacticContextProperties(
                 DataSize.ofMegabytes(20), 16_000);
@@ -132,5 +289,29 @@ class TacticContextServiceTest {
         TacticContextProperties properties = new TacticContextProperties(
                 DataSize.ofMegabytes(20), 16_000);
         return new TacticContextService(new FmfTacticParser(), properties, repository);
+    }
+
+    private static TacticContextService service(TacticContextRepository repository, java.nio.file.Path diskDirectory) {
+        TacticContextProperties properties = new TacticContextProperties(
+                DataSize.ofMegabytes(20), 16_000);
+        return new TacticContextService(new FmfTacticParser(), properties, repository, diskDirectory);
+    }
+
+    private static TacticContextService service(
+            TacticContextRepository repository,
+            java.nio.file.Path diskDirectory,
+            DataSize maxFileSize,
+            int maxContextCharacters) {
+        TacticContextProperties properties = new TacticContextProperties(maxFileSize, maxContextCharacters);
+        return new TacticContextService(new FmfTacticParser(), properties, repository, diskDirectory);
+    }
+
+    private static String sha256(byte[] data) {
+        try {
+            return java.util.HexFormat.of().formatHex(
+                    java.security.MessageDigest.getInstance("SHA-256").digest(data));
+        } catch (java.security.NoSuchAlgorithmException exception) {
+            throw new IllegalStateException(exception);
+        }
     }
 }

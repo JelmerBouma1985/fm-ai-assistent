@@ -30,16 +30,28 @@ public class TacticContextEntity {
     @Column(nullable = false)
     private boolean enabled;
 
+    @Column(name = "source_kind", length = 16)
+    private String sourceKind;
+
+    @Column(name = "source_path", length = 2048)
+    private String sourcePath;
+
     protected TacticContextEntity() {
     }
 
     public TacticContextEntity(String fileName, byte[] fmfData, String fingerprint) {
+        this(fileName, fmfData, fingerprint, "UPLOAD", null);
+    }
+
+    public TacticContextEntity(String fileName, byte[] fmfData, String fingerprint, String sourceKind, String sourcePath) {
         this.id = 1;
         this.fileName = fileName;
         this.fmfData = fmfData.clone();
         this.fingerprint = fingerprint;
         this.uploadedAt = OffsetDateTime.now().toString();
         this.enabled = true;
+        this.sourceKind = sourceKind == null || sourceKind.isBlank() ? "UPLOAD" : sourceKind;
+        this.sourcePath = sourcePath;
     }
 
     public Integer getId() { return id; }
@@ -48,4 +60,6 @@ public class TacticContextEntity {
     public String getFingerprint() { return fingerprint; }
     public String getUploadedAt() { return uploadedAt; }
     public boolean isEnabled() { return enabled; }
+    public String getSourceKind() { return sourceKind; }
+    public String getSourcePath() { return sourcePath; }
 }

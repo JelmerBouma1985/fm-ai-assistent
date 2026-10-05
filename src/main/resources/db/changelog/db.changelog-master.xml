@@ -498,4 +498,5 @@
     </changeSet>
 
     <include file="changes/009-catalog-query-modernization.xml" relativeToChangelogFile="true"/>
+    <include file="changes/010-tactic-disk-source.xml" relativeToChangelogFile="true"/>
 </databaseChangeLog>
