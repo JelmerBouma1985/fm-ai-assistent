@@ -34,7 +34,7 @@ public class PlayerExporter {
     private static final int JOINED_CLUB_DATE_REL = -0x38;
     private static final int INJURY_REFERENCE_REL = -0x190;
     private static final int INJURY_REFERENCE_FLAG_REL = -0x18C;
-    private static final int INJURY_DATE_DAY_MASK = 0x01FF;
+    private static final int DATE_DAY_MASK = 0x01FF;
     private static final int DUTY_REFERENCE_REL = -0x168;
     private static final int DUTY_CALLUP_VECTOR_REL = 0x50;
     private static final int DUTY_RECORD_SIZE = 0x20;
@@ -347,9 +347,9 @@ public class PlayerExporter {
                 if (itemBytes[0] != 0x20 || itemBytes[1] != 'C' || itemBytes[2] != 'O' || itemBytes[3] != 'T') {
                     continue;
                 }
-                int startDay = littleEndianU16(itemBytes, 0x10) & INJURY_DATE_DAY_MASK;
+                int startDay = littleEndianU16(itemBytes, 0x10) & DATE_DAY_MASK;
                 int startYear = littleEndianU16(itemBytes, 0x12);
-                int endDay = littleEndianU16(itemBytes, 0x14) & INJURY_DATE_DAY_MASK;
+                int endDay = littleEndianU16(itemBytes, 0x14) & DATE_DAY_MASK;
                 int endYear = littleEndianU16(itemBytes, 0x16);
                 if (!GameDateFinder.validDayYear(startDay, startYear)
                         || !GameDateFinder.validDayYear(endDay, endYear)) {
@@ -395,7 +395,7 @@ public class PlayerExporter {
                     .flatMap(type -> FmMemoryStrings.objectStringAt(reader, type, 0x20))
                     .map(PlayerExporter::capitalizeFirst)
                     .orElse("");
-            int day = reader.readU16(item + 0x20) & INJURY_DATE_DAY_MASK;
+            int day = reader.readU16(item + 0x20) & DATE_DAY_MASK;
             int year = reader.readU16(item + 0x22);
             String startDate = GameDateFinder.validDayYear(day, year)
                     ? GameDateFinder.dayYearToDate(day, year).toString()

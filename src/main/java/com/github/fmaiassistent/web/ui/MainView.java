@@ -868,7 +868,7 @@ public class MainView extends VerticalLayout {
         info.addClassName("detail-info");
         if (Boolean.TRUE.equals(player.getOnDuty())) {
             Span dutyWarning = new Span(dutySummary(player));
-            dutyWarning.addClassName("injury-warning");
+            dutyWarning.addClassName("duty-warning");
             info.addComponentAsFirst(dutyWarning);
         }
         if (Boolean.TRUE.equals(player.getInjured())) {
@@ -940,7 +940,7 @@ public class MainView extends VerticalLayout {
         dialog.open();
     }
 
-    List<DetailField> playerDutyFields(PlayerEntity player) {
+    private List<DetailField> playerDutyFields(PlayerEntity player) {
         if (!Boolean.TRUE.equals(player.getOnDuty())) {
             return List.of();
         }
@@ -950,7 +950,7 @@ public class MainView extends VerticalLayout {
                 new DetailField("Duty Until", display(player.getDutyEndDate())));
     }
 
-    static String dutySummary(PlayerEntity player) {
+    private String dutySummary(PlayerEntity player) {
         StringBuilder summary = new StringBuilder("On international duty");
         if (player.getDutyEndDate() != null && !player.getDutyEndDate().isBlank()) {
             summary.append(" until ").append(player.getDutyEndDate());

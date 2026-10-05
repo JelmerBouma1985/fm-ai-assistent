@@ -500,4 +500,5 @@
     <include file="changes/009-catalog-query-modernization.xml" relativeToChangelogFile="true"/>
     <include file="changes/010-tactic-disk-source.xml" relativeToChangelogFile="true"/>
     <include file="changes/011-player-duty-status.xml" relativeToChangelogFile="true"/>
+    <include file="changes/012-player-duty-not-null.xml" relativeToChangelogFile="true"/>
 </databaseChangeLog>
