@@ -116,7 +116,7 @@ public class MainView extends VerticalLayout {
     private final ProgressBar spinner = new ProgressBar();
     private final Span loadingPhase = new Span("Reading Football Manager memory");
     private final Button loadButton = new Button("Load data", VaadinIcon.DATABASE.create());
-    private final Span freshnessBadge = new Span("Freshness unknown");
+    private final Button freshnessBadge = new Button("Freshness unknown");
     private final Button settingsButton = new Button(VaadinIcon.COG.create());
     private final Button filterButton = new Button("Filter", VaadinIcon.FILTER.create());
     private final Span status = new Span();
@@ -199,6 +199,7 @@ public class MainView extends VerticalLayout {
     private Component header() {
         loadButton.addClickListener(event -> loadAllData());
         freshnessBadge.addClickListener(event -> refreshFreshnessBadge(true));
+        freshnessBadge.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
         settingsButton.addClickListener(event -> openSettingsDialog());
         filterButton.addClickListener(event -> openFilterDialog());
         loadButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
@@ -206,7 +207,6 @@ public class MainView extends VerticalLayout {
         freshnessBadge.addClassName("freshness-badge");
         freshnessBadge.getElement().setAttribute("title", "Check whether the loaded FM26 data is current");
         freshnessBadge.getElement().setAttribute("aria-label", "Check data freshness");
-        freshnessBadge.getElement().getStyle().set("cursor", "pointer");
         setBadge(FreshnessBadge.UNKNOWN);
         filterButton.addClassName("filter-button");
         settingsButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
@@ -443,6 +443,8 @@ public class MainView extends VerticalLayout {
                 pollRegistration = ui.addPollListener(this::onPoll);
             }
         });
+        lastFreshnessPoll = Instant.now();
+        refreshFreshnessBadge(false);
     }
 
     @Override
@@ -661,7 +663,8 @@ public class MainView extends VerticalLayout {
     private void deleteRecruitmentCase(Map<String, Object> item) {
         Object uid = item.get("player_unique_id");
         Long uniqueId = uid instanceof Number number ? number.longValue() : null;
-        if (uniqueId == null || !recruitment.delete(uniqueId)) {
+        String careerKey = Objects.toString(item.get("career_key"), null);
+        if (uniqueId == null || !recruitment.delete(careerKey, uniqueId)) {
             Notification.show("Recruitment evidence is already gone.", 2500, Notification.Position.TOP_CENTER);
         } else {
             Notification.show("Recruitment evidence removed.", 2500, Notification.Position.TOP_CENTER);

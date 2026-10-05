@@ -147,8 +147,7 @@ public class RecruitmentCaseService {
     }
 
     @Transactional
-    public boolean delete(Long playerUniqueId) {
-        String careerKey = currentCareerKey();
+    public boolean delete(String careerKey, Long playerUniqueId) {
         if (playerUniqueId == null || blank(careerKey)) {
             return false;
         }
@@ -170,7 +169,9 @@ public class RecruitmentCaseService {
         List<RecruitmentCaseEntity> entries = cases.findByIdCareerKey(careerKey);
         int removed = 0;
         for (RecruitmentCaseEntity entity : entries) {
-            if (!effectiveness(entity, careerKey, gameDate).effective()) {
+            // Only truly expired evidence goes. Entries that cannot currently
+            // be evaluated (missing game date, unparsable dates) are kept.
+            if ("expired".equals(effectiveness(entity, careerKey, gameDate).reason())) {
                 cases.delete(entity);
                 removed++;
             }

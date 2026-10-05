@@ -177,13 +177,18 @@ final class AiAssistantView extends Div {
                 "Shortlists created by the AI assistant in this session. Import a file in FM26 under Scouting > Shortlists.");
         introduction.addClassName("ai-shortlists-dialog-introduction");
         shortlistsGrid.addColumn(ShortlistFileService.CreatedShortlist::name).setHeader("Name")
-                .setAutoWidth(true).setFlexGrow(1);
+                .setAutoWidth(true).setFlexGrow(1)
+                .setTooltipGenerator(ShortlistFileService.CreatedShortlist::name);
         shortlistsGrid.addColumn(item -> item.players().size()).setHeader("Players")
-                .setWidth("90px").setFlexGrow(0);
+                .setWidth("90px").setFlexGrow(0)
+                .setTooltipGenerator(item -> item.players().size() + " players: "
+                        + String.join(", ", item.players()));
         shortlistsGrid.addColumn(item -> item.path() == null ? "" : item.path().toString()).setHeader("File")
-                .setAutoWidth(true).setFlexGrow(2);
-        shortlistsGrid.addColumn(item -> Files.exists(item.path()) ? "On disk" : "Missing").setHeader("Status")
-                .setWidth("100px").setFlexGrow(0);
+                .setAutoWidth(true).setFlexGrow(2)
+                .setTooltipGenerator(item -> item.path() == null ? "" : item.path().toString());
+        shortlistsGrid.addColumn(AiAssistantView::shortlistStatus).setHeader("Status")
+                .setWidth("100px").setFlexGrow(0)
+                .setTooltipGenerator(AiAssistantView::shortlistStatus);
         shortlistsGrid.addThemeVariants(GridVariant.LUMO_NO_BORDER, GridVariant.LUMO_ROW_STRIPES);
         shortlistsGrid.setWidthFull();
         shortlistsGrid.setHeight("min(420px, 55vh)");
@@ -206,6 +211,10 @@ final class AiAssistantView extends Div {
             Notification.show("No shortlists created yet. Ask the assistant to create one first.",
                     3000, Notification.Position.TOP_CENTER);
         }
+    }
+
+    private static String shortlistStatus(ShortlistFileService.CreatedShortlist item) {
+        return item.path() != null && Files.exists(item.path()) ? "On disk" : "Missing";
     }
 
     private void refreshContextButton() {

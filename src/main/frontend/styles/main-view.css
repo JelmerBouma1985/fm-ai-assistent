@@ -1104,6 +1104,11 @@ vaadin-select:hover::part(input-field) {
     color: #aebbb5;
 }
 
+.freshness-badge:focus-visible {
+    outline: 2px solid #7fe3b2;
+    outline-offset: 2px;
+}
+
 @media (max-width: 900px) {
     .ai-provider-toolbar {
         flex-wrap: wrap;

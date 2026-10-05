@@ -112,10 +112,30 @@ class RecruitmentCaseServiceTest {
         when(cases.findByIdCareerKeyAndIdPlayerUniqueId("42:test-manager", 2002000001L))
                 .thenReturn(Optional.of(entity));
 
-        assertThat(service.delete(2002000001L)).isTrue();
+        assertThat(service.delete("42:test-manager", 2002000001L)).isTrue();
         org.mockito.Mockito.verify(cases).delete(entity);
-        assertThat(service.delete(999L)).isFalse();
-        assertThat(service.delete(null)).isFalse();
+        assertThat(service.delete("84:other-manager", 2002000001L)).isFalse();
+        assertThat(service.delete("42:test-manager", 999L)).isFalse();
+        assertThat(service.delete(null, 2002000001L)).isFalse();
+        assertThat(service.delete("42:test-manager", null)).isFalse();
+    }
+
+    @Test
+    void deleteExpiredKeepsUnevaluableCases() {
+        RecruitmentCaseRepository cases = mock(RecruitmentCaseRepository.class);
+        PlayerRepository players = mock(PlayerRepository.class);
+        LoadMetadataRepository metadata = mock(LoadMetadataRepository.class);
+        ManagedClubContextService managed = mock(ManagedClubContextService.class);
+        RecruitmentCaseService service = new RecruitmentCaseService(cases, players, metadata, managed);
+        RecruitmentCaseEntity pending = new RecruitmentCaseEntity("42:test-manager", 2002000001L);
+        pending.update("interested", "monitoring", null, null, null,
+                "agent_enquiry", "2029-07-01", "2029-07-31");
+        when(managed.currentCareerKey()).thenReturn("42:test-manager");
+        when(metadata.findById("game_date")).thenReturn(Optional.empty());
+        when(cases.findByIdCareerKey("42:test-manager")).thenReturn(List.of(pending));
+
+        assertThat(service.deleteExpired()).isEqualTo(0);
+        org.mockito.Mockito.verify(cases, org.mockito.Mockito.never()).delete(pending);
     }
 
     @Test
