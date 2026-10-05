@@ -321,15 +321,23 @@ class FmfTacticParserTest {
     }
 
     static byte[] tactic(String name) {
+        return tactic(name, "Custom Wing Play", new byte[]{
+                4, 2, 5, 6, 2, 3,
+                (byte) 0x88, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0});
+    }
+
+    static byte[] tactic(String name, String style, byte[] teamSettings) {
+        if (teamSettings.length != 18) {
+            throw new IllegalArgumentException("Expected 18 tactic team-setting bytes");
+        }
         ByteArrayOutputStream tactic = new ByteArrayOutputStream();
         tactic.writeBytes(new byte[]{
                 3, 1, 'c', 'a', 't', '.', 0x22, 0, 0x22, 'B', 0, 0x1a, 3, 0, 1, 2});
         string(tactic, name);
         tactic.writeBytes(new byte[12]);
-        tactic.writeBytes(new byte[]{4, 2, 5, 6, 2, 3});
-        tactic.writeBytes(new byte[]{(byte) 0x88, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0});
+        tactic.writeBytes(teamSettings);
         tactic.write(0xff);
-        string(tactic, "Custom Wing Play");
+        string(tactic, style);
         tactic.writeBytes(new byte[]{'G', 'N', 'I', 'W'});
         role(tactic, 1, 4096L | 0x400000L);
         role(tactic, 1, 2L | 0x800000L);

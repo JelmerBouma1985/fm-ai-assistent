@@ -11,6 +11,10 @@ final class Fm26TacticDecoder {
     private static final byte[] ROLE_MARKER = {'B', 0, 2};
     private static final long LEFT_SIDED = 0x100000L;
     private static final long RIGHT_SIDED = 0x200000L;
+    // FM also writes some instruction combinations as compound byte codes instead of
+    // the independent one-hot codes used by the single-instruction test fixtures.
+    private static final int COUNTER_ATTACK_COMPOUND_CODE = 0x01;
+    private static final int NARROWER_BALANCED_COMPOUND_CODE = 0x50;
     private static final Map<Integer, String> MENTALITIES = Map.of(
             1, "Very Defensive",
             2, "Defensive",
@@ -47,7 +51,8 @@ final class Fm26TacticDecoder {
     private static final Map<Integer, String> CREATIVE_FREEDOM = Map.of(
             0x40, "More Expressive",
             0, "Balanced",
-            0x10, "More Disciplined");
+            0x10, "More Disciplined",
+            0x50, "Balanced");
     private static final Map<Integer, String> TIME_WASTING = Map.of(
             0x80, "Less Often",
             0, "Standard",
@@ -179,10 +184,16 @@ final class Fm26TacticDecoder {
         int tempoCode = (goalKickByte & 0xc0)
                 | (instructionByte & 0x03) << Byte.SIZE;
         String tempo = option(TEMPOS, tempoCode);
-        String attackingTransition = option(ATTACKING_TRANSITIONS, transitionByte & 0x18);
+        int attackingTransitionCode = transitionByte & 0x18;
+        String attackingTransition = transitionByte == COUNTER_ATTACK_COMPOUND_CODE
+                ? "Counter Attack"
+                : option(ATTACKING_TRANSITIONS, attackingTransitionCode);
         String setPieceApproach = option(SET_PIECE_APPROACHES, transitionByte & 0x04);
         String mentality = option(MENTALITIES, bytes[settingsOffset + 2]);
-        String attackingWidth = option(ATTACKING_WIDTHS, instructionByte & 0xac);
+        int attackingWidthCode = instructionByte & 0xac;
+        String attackingWidth = (instructionByte & 0xfc) == NARROWER_BALANCED_COMPOUND_CODE
+                ? "Narrower"
+                : option(ATTACKING_WIDTHS, attackingWidthCode);
         String creativeFreedom = option(CREATIVE_FREEDOM, instructionByte & 0x50);
         String dribbling = option(DRIBBLING, attackingByte & 0x60);
         String patience = option(PATIENCE, ((attackingByte & 0x02) << Byte.SIZE) | (transitionByte & 0x02));
