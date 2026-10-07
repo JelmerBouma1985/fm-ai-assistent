@@ -9,6 +9,7 @@
 - Model selection added for codex and copilot
 - Smaller MCP responses
 - Sorting is preserved when switching between tabs
+- Application will automatically search for a free port instead of always using 8080, which is still the default
 
 ### Bug fixes
 

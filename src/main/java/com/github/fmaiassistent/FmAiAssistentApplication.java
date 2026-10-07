@@ -10,6 +10,7 @@ import java.util.Arrays;
 public class FmAiAssistentApplication {
     public static void main(String[] args) {
         SpringApplication app = new SpringApplication(FmAiAssistentApplication.class);
+        app.addInitializers(new AvailablePortInitializer());
         if (Arrays.stream(args).anyMatch(arg -> arg.equals("--export-club") || arg.startsWith("--export-club="))) {
             app.setWebApplicationType(WebApplicationType.NONE);
         }

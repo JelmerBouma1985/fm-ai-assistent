@@ -1,6 +1,7 @@
 package com.github.fmaiassistent.desktop;
 
 import com.github.fmaiassistent.FmAiAssistentApplication;
+import com.github.fmaiassistent.AvailablePortInitializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
@@ -55,6 +56,7 @@ public final class DesktopLauncher {
 
     static SpringApplication createApplication() {
         SpringApplication application = new SpringApplication(FmAiAssistentApplication.class);
+        application.addInitializers(new AvailablePortInitializer());
         application.setMainApplicationClass(FmAiAssistentApplication.class);
         application.setAdditionalProfiles("desktop");
         application.setHeadless(false);

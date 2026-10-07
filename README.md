@@ -234,7 +234,7 @@ Install the selected CLI, complete its normal login, and restart FM AI Assistent
 
 ### The app does not open
 
-Open [http://127.0.0.1:8080](http://127.0.0.1:8080) manually. Only one copy of FM AI Assistent can use port 8080 at a time.
+Open [http://127.0.0.1:8080](http://127.0.0.1:8080) manually. If port 8080 is occupied, the app uses the next available port (8081, 8082, and so on). Check the startup log for the selected port and use it in the browser and MCP server address.
 
 Desktop application logs are stored in:
 
