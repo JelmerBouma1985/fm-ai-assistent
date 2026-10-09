@@ -31,7 +31,7 @@ class SteamLibrariesTest {
         List<Path> userDirs = SteamLibraries.fmProtonUserDirectories(home);
 
         assertThat(userDirs).allMatch(path -> path.endsWith("pfx/drive_c/users/steamuser"));
-        assertThat(userDirs.getFirst().toString()).contains(".local/share/Steam");
+        assertThat(userDirs.getFirst().startsWith(home.resolve(".local/share/Steam"))).isTrue();
     }
 
     @Test

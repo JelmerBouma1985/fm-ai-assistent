@@ -39,8 +39,8 @@ class TacticDirectoryResolverTest {
         List<Path> candidates = TacticDirectoryResolver.candidates(home);
 
         assertThat(candidates).hasSize(3);
-        assertThat(candidates.getFirst().toString())
-                .contains("Sports Interactive/Football Manager 26/tactics");
+        assertThat(candidates.getFirst()).isEqualTo(home.resolve(
+                "Documents/Sports Interactive/Football Manager 26/tactics").toAbsolutePath().normalize());
     }
 
     @Test
