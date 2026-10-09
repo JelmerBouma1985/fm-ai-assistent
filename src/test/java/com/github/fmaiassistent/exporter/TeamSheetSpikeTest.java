@@ -497,7 +497,6 @@ class TeamSheetSpikeTest {
     @Test
     @EnabledIfEnvironmentVariable(named = "FM_SPIKE_SET", matches = ".+")
     void scanStatCluster() throws Exception {
-        long wanted = Long.parseLong(System.getenv("FM_SPIKE_UID").trim());
         int[] set = java.util.Arrays.stream(System.getenv("FM_SPIKE_SET").split(","))
                 .mapToInt(token -> Integer.parseInt(token.trim()))
                 .toArray();
@@ -505,20 +504,27 @@ class TeamSheetSpikeTest {
                 : parseFloats(System.getenv("FM_SPIKE_RATINGS"));
         int pid = findGamePid();
         try (ProcessMemoryReader reader = ProcessReaders.open(pid)) {
-            long base = FmOffsets.findGamePluginBase(reader);
-            FmOffsets.Bounds bounds =
-                    FmOffsets.peopleBounds(reader, FmOffsets.DEFAULT_BUILD, base);
-            long record = findRecordByUid(reader, bounds, wanted);
-            if (record == 0) {
-                System.out.println("SPIKE unique_id " + wanted + " not found");
-                return;
+            long anchor;
+            String baseEnv = System.getenv("FM_SPIKE_BASE");
+            if (baseEnv != null && !baseEnv.isBlank()) {
+                anchor = Long.decode(baseEnv.trim());
+            } else {
+                long wanted = Long.parseLong(System.getenv("FM_SPIKE_UID").trim());
+                long base = FmOffsets.findGamePluginBase(reader);
+                FmOffsets.Bounds bounds =
+                        FmOffsets.peopleBounds(reader, FmOffsets.DEFAULT_BUILD, base);
+                anchor = findRecordByUid(reader, bounds, wanted);
+                if (anchor == 0) {
+                    System.out.println("SPIKE unique_id " + wanted + " not found");
+                    return;
+                }
+                System.out.println("SPIKE record at 0x" + Long.toHexString(anchor));
             }
-            System.out.println("SPIKE record at 0x" + Long.toHexString(record));
             long window = 0x8000L;
             int span = (int) (window * 2);
             byte[] data;
             try {
-                data = reader.readBytes(record - window, span);
+                data = reader.readBytes(anchor - window, span);
             } catch (IOException | RuntimeException unreadable) {
                 System.out.println("SPIKE window unreadable");
                 return;
