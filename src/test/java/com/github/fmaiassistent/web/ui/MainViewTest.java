@@ -195,6 +195,7 @@ class MainViewTest {
         return new MainView(mock(RefreshCoordinator.class),
                 mock(PlayerDatabaseService.class), mock(StaffDatabaseService.class),
                 mock(ClubDatabaseService.class), mock(CompetitionDatabaseService.class),
+                mock(com.github.fmaiassistent.repository.FixtureRepository.class),
                 mock(AppSettingsService.class), mock(SnapshotStatusService.class),
                 codex, antigravity, copilot, openRouter, tactics, managedClub,
                 mock(com.github.fmaiassistent.shortlist.ShortlistFileService.class),

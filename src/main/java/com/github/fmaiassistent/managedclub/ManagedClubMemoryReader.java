@@ -21,7 +21,7 @@ public class ManagedClubMemoryReader {
         }
     }
 
-    ManagedClubIdentity read(ProcessMemoryReader reader, int build, Long gamePluginBase) throws IOException {
+    public ManagedClubIdentity read(ProcessMemoryReader reader, int build, Long gamePluginBase) throws IOException {
         long managerRva = FmOffsets.currentHumanManagerRva(build)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "The current human-manager pointer is not known for FM build 0x"

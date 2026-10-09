@@ -2,6 +2,7 @@ package com.github.fmaiassistent.config;
 
 import com.github.fmaiassistent.mcp.FmAiAssistentTools;
 import com.github.fmaiassistent.mcp.FmDecisionTools;
+import com.github.fmaiassistent.mcp.FmFixtureTools;
 import com.github.fmaiassistent.mcp.FmSnapshotTools;
 import com.github.fmaiassistent.mcp.CompactFmToolCallback;
 import com.github.fmaiassistent.mcp.FmToolResultFormatter;
@@ -22,9 +23,10 @@ class FmAiAssistentMcpConfiguration {
             FmAiAssistentTools tools,
             FmSnapshotTools snapshotTools,
             FmDecisionTools decisionTools,
+            FmFixtureTools fixtureTools,
             ObjectMapper json) {
         ToolCallback[] callbacks = MethodToolCallbackProvider.builder()
-                .toolObjects(tools, snapshotTools, decisionTools)
+                .toolObjects(tools, snapshotTools, decisionTools, fixtureTools)
                 .build().getToolCallbacks();
         return ToolCallbackProvider.from(Arrays.stream(callbacks)
                 .map(callback -> FmToolResultFormatter.supports(callback.getToolDefinition().name())

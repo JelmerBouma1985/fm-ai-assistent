@@ -36,7 +36,7 @@ class DatabaseLoadAllServiceTest {
     @Test
     void extractsIndependentRamTablesConcurrentlyBeforeAtomicPersistence() throws Exception {
         Fixture fixture = new Fixture();
-        CountDownLatch readersStarted = new CountDownLatch(3);
+        CountDownLatch readersStarted = new CountDownLatch(4);
         AtomicBoolean databaseCleared = new AtomicBoolean(false);
         List<String> persistenceOrder = Collections.synchronizedList(new ArrayList<>());
 
@@ -52,6 +52,10 @@ class DatabaseLoadAllServiceTest {
             awaitOtherReaders(readersStarted, databaseCleared);
             return new CompetitionExporter.ExportResult(Collections.nCopies(4, Map.of()));
         });
+        when(fixture.fixtures.exportManagedClubFixtures(123, 1530, null)).thenAnswer(invocation -> {
+            awaitOtherReaders(readersStarted, databaseCleared);
+            return new com.github.fmaiassistent.exporter.FixtureExporter.ExportResult(List.of(), "2033-06-10");
+        });
         doAnswer(invocation -> {
             databaseCleared.set(true);
             return null;
@@ -66,6 +70,10 @@ class DatabaseLoadAllServiceTest {
             return Map.of();
         });
         doAnswer(invocation -> {
+            persistenceOrder.add("fixtures");
+            return null;
+        }).when(fixture.writer).saveFixtures(any(), any());
+        doAnswer(invocation -> {
             persistenceOrder.add("players");
             return null;
         }).when(fixture.writer).savePlayers(any(), any());
@@ -77,7 +85,7 @@ class DatabaseLoadAllServiceTest {
         DatabaseLoadAllService.LoadAllResult result = fixture.service.loadAll(123, 1530, null);
 
         assertThat(readersStarted.getCount()).isZero();
-        assertThat(persistenceOrder).containsExactly("competitions", "clubs", "players", "staff");
+        assertThat(persistenceOrder).containsExactly("competitions", "clubs", "fixtures", "players", "staff");
         assertThat(result.players()).isEqualTo(2);
         assertThat(result.staff()).isEqualTo(1);
         assertThat(result.clubs()).isEqualTo(3);
@@ -163,6 +171,8 @@ class DatabaseLoadAllServiceTest {
         private final ClubDatabaseService clubs = mock(ClubDatabaseService.class);
         private final CompetitionDatabaseService competitions = mock(CompetitionDatabaseService.class);
         private final PeopleExporter people = mock(PeopleExporter.class);
+        private final com.github.fmaiassistent.exporter.FixtureExporter fixtures =
+                mock(com.github.fmaiassistent.exporter.FixtureExporter.class);
         private final DatabaseService database = mock(DatabaseService.class);
         private final SnapshotDatabaseWriter writer = mock(SnapshotDatabaseWriter.class);
         private final ManagedClubContextService managedClubs = mock(ManagedClubContextService.class);
@@ -174,8 +184,11 @@ class DatabaseLoadAllServiceTest {
             when(managedClubs.current()).thenReturn(previousContext);
             when(managedClubs.detect(123, 1530, null)).thenReturn(previousContext);
             when(managedClubs.publish(any())).thenAnswer(invocation -> invocation.getArgument(0));
+            when(fixtures.exportManagedClubFixtures(123, 1530, null))
+                    .thenReturn(new com.github.fmaiassistent.exporter.FixtureExporter.ExportResult(
+                            List.of(), "2033-06-10"));
             service = new DatabaseLoadAllService(
-                    clubs, competitions, people, database, writer, managedClubs, metadata);
+                    clubs, competitions, people, fixtures, database, writer, managedClubs, metadata);
         }
     }
 }

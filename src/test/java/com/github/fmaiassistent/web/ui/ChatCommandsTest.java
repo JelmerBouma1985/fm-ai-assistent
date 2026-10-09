@@ -23,7 +23,7 @@ import static org.mockito.Mockito.when;
 class ChatCommandsTest {
     @Test
     void matchesSlashPrefixesAndKeepsTrailingRequirements() {
-        assertEquals(6, ChatCommands.matches("/").size());
+        assertEquals(7, ChatCommands.matches("/").size());
         assertEquals("/recruit", ChatCommands.matches("/rec").getFirst().name());
         assertEquals("/recruit", ChatCommands.matches("/recruit left back under 25").getFirst().name());
         assertTrue(ChatCommands.matches("/unknown").isEmpty());
@@ -43,6 +43,10 @@ class ChatCommandsTest {
         String lineup = ChatCommands.expandKnown("/lineup").orElseThrow();
         assertTrue(lineup.contains("fm26_optimize_lineup"));
         assertTrue(lineup.contains("Only if that tool reports"));
+        String opposition = ChatCommands.expandKnown("/opposition").orElseThrow();
+        assertTrue(opposition.contains("fm26_analyze_next_opposition"));
+        assertTrue(opposition.contains("strengths, weaknesses, key players and unavailable players"));
+        assertTrue(opposition.contains("Only if that tool reports"));
         assertTrue(ChatCommands.expandKnown("/unknown").isEmpty());
         assertTrue(ChatCommands.expandKnown("ordinary message").isEmpty());
     }
@@ -56,7 +60,7 @@ class ChatCommandsTest {
         picker.menuButton().click();
         Div suggestions = (Div) picker.inputGroup().getChildren().findFirst().orElseThrow();
         assertTrue(suggestions.isVisible());
-        assertEquals(6, suggestions.getChildren().count());
+        assertEquals(7, suggestions.getChildren().count());
         ((Button) suggestions.getChildren().findFirst().orElseThrow()).click();
         assertTrue(input.getValue().startsWith("Use the fm26_analyze_squad tool"));
         assertEquals(0, sends.get());
@@ -72,6 +76,21 @@ class ChatCommandsTest {
         input.setValue("ordinary message");
         picker.onEnter(sends::incrementAndGet);
         assertEquals(2, sends.get());
+    }
+
+    @Test
+    void oppositionCommandSendsImmediatelyWhenSelected() {
+        TextArea input = new TextArea();
+        AtomicInteger sends = new AtomicInteger();
+        ChatCommandPicker picker = new ChatCommandPicker(input, sends::incrementAndGet);
+
+        picker.menuButton().click();
+        Div suggestions = (Div) picker.inputGroup().getChildren().findFirst().orElseThrow();
+        ((Button) suggestions.getChildren().skip(2).findFirst().orElseThrow()).click();
+
+        assertTrue(input.getValue().contains("fm26_analyze_next_opposition"));
+        assertEquals(1, sends.get());
+        assertFalse(suggestions.isVisible());
     }
 
     @Test
@@ -102,7 +121,7 @@ class ChatCommandsTest {
             ChatCommandPicker picker = (ChatCommandPicker) field.get(view);
             picker.menuButton().click();
             Div suggestions = (Div) picker.inputGroup().getChildren().findFirst().orElseThrow();
-            assertEquals(6, suggestions.getChildren().count());
+            assertEquals(7, suggestions.getChildren().count());
             ((Button) suggestions.getChildren().findFirst().orElseThrow()).click();
             assertFalse(suggestions.isVisible());
         }

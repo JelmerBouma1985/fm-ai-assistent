@@ -13,6 +13,7 @@ import java.util.List;
 public class DatabaseService {
 
     private final List<String> TABLES_TO_TRUNCATE = List.of(
+            "FIXTURES",
             "PLAYERS",
             "STAFF",
             "CLUBS",

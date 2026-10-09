@@ -13,6 +13,7 @@ import java.util.List;
 /** Shared command discovery and expansion for all embedded chat agents. */
 final class ChatCommandPicker {
     private final TextArea input;
+    private final Runnable sendMessage;
     private final Button menuButton = new Button("Commands");
     private final Div suggestions = new Div();
     private final Div inputGroup;
@@ -22,6 +23,7 @@ final class ChatCommandPicker {
 
     ChatCommandPicker(TextArea input, Runnable sendMessage) {
         this.input = input;
+        this.sendMessage = sendMessage;
         menuButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
         menuButton.addClassName("chat-commands-toggle");
         menuButton.getElement().setAttribute("aria-label", "Show chat commands");
@@ -92,7 +94,11 @@ final class ChatCommandPicker {
         }
         input.setValue(command.expand(trailing));
         close();
-        input.focus();
+        if (command.executeImmediately()) {
+            sendMessage.run();
+        } else {
+            input.focus();
+        }
     }
 
     private void render(List<ChatCommands.Command> commands) {

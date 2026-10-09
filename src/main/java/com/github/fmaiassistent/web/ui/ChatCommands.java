@@ -5,7 +5,11 @@ import java.util.Locale;
 import java.util.Optional;
 
 final class ChatCommands {
-    record Command(String name, String description, String question, String requirement) {
+    record Command(String name, String description, String question, String requirement, boolean executeImmediately) {
+        Command(String name, String description, String question, String requirement) {
+            this(name, description, question, requirement, false);
+        }
+
         String expand(String trailing) {
             String extra = trailing == null ? "" : trailing.strip();
             return question + (extra.isEmpty() ? "" : " " + requirement + ": " + extra);
@@ -17,6 +21,8 @@ final class ChatCommands {
                     "Use the fm26_analyze_squad tool now for my detected managed club and loaded FM26 data. Then analyze squad depth, weak positions, injuries and contract risks. Only if that tool reports that FM26 data is unavailable, tell me what to load.", "Focus on"),
             new Command("/lineup", "Best XI for your uploaded tactic · tactic required",
                     "Use the fm26_optimize_lineup tool now for my detected managed club and loaded FM26 tactic. Then build the best starting XI, explain the key choices and alternatives. Only if that tool reports that the tactic or FM26 data is unavailable, tell me what to load.", "Requirements"),
+            new Command("/opposition", "Analyze your next opponent's strengths and weaknesses",
+                    "Use the fm26_analyze_next_opposition tool now for my next loaded fixture. Then summarize the opponent's strengths, weaknesses, key players and unavailable players, and recommend a practical match approach. Only if that tool reports that fixture or FM26 data is unavailable, tell me what to load.", "Focus on", true),
             new Command("/recruit", "Find transfer targets for a position or role",
                     "Use the fm26_transfer_shortlist tool now for my detected managed club and loaded FM26 data. That tool must load the current squad and player market data, then return realistic targets using squad needs, position fit and affordability. Only if that tool reports that club or FM26 data is unavailable, tell me what to load.", "Requirements"),
             new Command("/compare", "Compare players and their fit for my club",

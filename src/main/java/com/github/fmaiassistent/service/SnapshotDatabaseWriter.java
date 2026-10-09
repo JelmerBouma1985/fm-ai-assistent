@@ -2,10 +2,12 @@ package com.github.fmaiassistent.service;
 
 import com.github.fmaiassistent.domain.entity.ClubEntity;
 import com.github.fmaiassistent.domain.entity.CompetitionEntity;
+import com.github.fmaiassistent.domain.entity.FixtureEntity;
 import com.github.fmaiassistent.domain.entity.PlayerEntity;
 import com.github.fmaiassistent.domain.entity.StaffEntity;
 import com.github.fmaiassistent.exporter.ClubExporter;
 import com.github.fmaiassistent.exporter.CompetitionExporter;
+import com.github.fmaiassistent.exporter.FixtureExporter;
 import com.github.fmaiassistent.exporter.PlayerExporter;
 import com.github.fmaiassistent.exporter.StaffExporter;
 import com.github.fmaiassistent.player.PlayerColumnNames;
@@ -36,6 +38,8 @@ public class SnapshotDatabaseWriter {
             PlayerEntity.class, PlayerExporter.FIELD_NAMES, true);
     private static final List<ExportColumn> STAFF_COLUMNS = columns(
             StaffEntity.class, StaffExporter.FIELD_NAMES, true);
+    private static final List<ExportColumn> FIXTURE_COLUMNS = columns(
+            FixtureEntity.class, FixtureExporter.FIELD_NAMES, false);
 
     private final JdbcTemplate jdbc;
 
@@ -79,6 +83,15 @@ public class SnapshotDatabaseWriter {
         List<IdentifiedRow> rows = identified(result.rows());
         batchInsert("STAFF", STAFF_COLUMNS, List.of("CLUB_ID"), rows,
                 Map.of("CLUB_ID", row -> referencedId(row, "_club_address", clubIds)));
+    }
+
+    public void saveFixtures(FixtureExporter.ExportResult result, Map<Long, Long> clubIds) {
+        List<IdentifiedRow> rows = identified(result.rows());
+        batchInsert("FIXTURES", FIXTURE_COLUMNS,
+                List.of("HOME_CLUB_ID", "AWAY_CLUB_ID", "OPPONENT_CLUB_ID"), rows, Map.of(
+                        "HOME_CLUB_ID", row -> referencedId(row, "_home_club_address", clubIds),
+                        "AWAY_CLUB_ID", row -> referencedId(row, "_away_club_address", clubIds),
+                        "OPPONENT_CLUB_ID", row -> referencedId(row, "_opponent_club_address", clubIds)));
     }
 
     private void batchInsert(

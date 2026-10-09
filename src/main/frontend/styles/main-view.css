@@ -319,6 +319,15 @@ vaadin-dialog-overlay[theme~="professional-dialog"]::part(backdrop) {
     overflow: auto;
 }
 
+.report-note,
+.dialog-empty-state {
+    display: block;
+    margin-top: 18px;
+    color: var(--fmai-muted);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
 .filter-dialog-content {
     min-height: min(420px, 52vh);
 }

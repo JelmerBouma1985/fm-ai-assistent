@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="013-managed-club-fixtures" author="codex">
+        <createTable tableName="fixtures">
+            <column name="id" type="BIGINT">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="source_address" type="BIGINT"/>
+            <column name="kickoff_date" type="VARCHAR(32)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="kickoff_time" type="VARCHAR(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="competition" type="VARCHAR(1024)"/>
+            <column name="home_club" type="VARCHAR(1024)"/>
+            <column name="away_club" type="VARCHAR(1024)"/>
+            <column name="opponent" type="VARCHAR(1024)"/>
+            <column name="venue" type="VARCHAR(1024)"/>
+            <column name="home" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="home_club_id" type="BIGINT"/>
+            <column name="away_club_id" type="BIGINT"/>
+            <column name="opponent_club_id" type="BIGINT"/>
+        </createTable>
+        <addForeignKeyConstraint baseTableName="fixtures" baseColumnNames="home_club_id"
+                                 referencedTableName="clubs" referencedColumnNames="id"
+                                 constraintName="fk_fixtures_home_club"/>
+        <addForeignKeyConstraint baseTableName="fixtures" baseColumnNames="away_club_id"
+                                 referencedTableName="clubs" referencedColumnNames="id"
+                                 constraintName="fk_fixtures_away_club"/>
+        <addForeignKeyConstraint baseTableName="fixtures" baseColumnNames="opponent_club_id"
+                                 referencedTableName="clubs" referencedColumnNames="id"
+                                 constraintName="fk_fixtures_opponent_club"/>
+        <createIndex indexName="idx_fixtures_kickoff" tableName="fixtures">
+            <column name="kickoff_date"/>
+            <column name="kickoff_time"/>
+        </createIndex>
+        <rollback>
+            <dropTable tableName="fixtures"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

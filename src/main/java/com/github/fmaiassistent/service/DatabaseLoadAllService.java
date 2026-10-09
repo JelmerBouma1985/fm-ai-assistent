@@ -3,6 +3,7 @@ package com.github.fmaiassistent.service;
 import com.github.fmaiassistent.config.JCacheConfiguration;
 import com.github.fmaiassistent.exporter.ClubExporter;
 import com.github.fmaiassistent.exporter.CompetitionExporter;
+import com.github.fmaiassistent.exporter.FixtureExporter;
 import com.github.fmaiassistent.exporter.PeopleExporter;
 import com.github.fmaiassistent.exporter.PlayerExporter;
 import com.github.fmaiassistent.exporter.StaffExporter;
@@ -47,6 +48,7 @@ public class DatabaseLoadAllService {
     private final ClubDatabaseService clubs;
     private final CompetitionDatabaseService competitions;
     private final PeopleExporter peopleExporter;
+    private final FixtureExporter fixtureExporter;
     private final DatabaseService databaseService;
     private final SnapshotDatabaseWriter snapshotWriter;
     private final ManagedClubContextService managedClubContexts;
@@ -57,6 +59,7 @@ public class DatabaseLoadAllService {
             ClubDatabaseService clubs,
             CompetitionDatabaseService competitions,
             PeopleExporter peopleExporter,
+            FixtureExporter fixtureExporter,
             DatabaseService databaseService,
             SnapshotDatabaseWriter snapshotWriter,
             ManagedClubContextService managedClubContexts,
@@ -64,6 +67,7 @@ public class DatabaseLoadAllService {
         this.clubs = clubs;
         this.competitions = competitions;
         this.peopleExporter = peopleExporter;
+        this.fixtureExporter = fixtureExporter;
         this.databaseService = databaseService;
         this.snapshotWriter = snapshotWriter;
         this.managedClubContexts = managedClubContexts;
@@ -97,6 +101,10 @@ public class DatabaseLoadAllService {
             reportPhase("Saving clubs");
             Map<Long, Long> clubIds = snapshotWriter.saveClubs(ram.clubs(), competitionIds);
             log.info("FM26 club persistence completed in {} ms", elapsedMillis(stepStarted));
+            stepStarted = System.nanoTime();
+            reportPhase("Saving fixtures");
+            snapshotWriter.saveFixtures(ram.fixtures(), clubIds);
+            log.info("FM26 fixture persistence completed in {} ms", elapsedMillis(stepStarted));
             stepStarted = System.nanoTime();
             reportPhase("Saving players");
             snapshotWriter.savePlayers(ram.players(), clubIds);
@@ -136,6 +144,7 @@ public class DatabaseLoadAllService {
                     new LoadMetadataEntity("staff_count", String.valueOf(staffCount)),
                     new LoadMetadataEntity("clubs_count", String.valueOf(clubCount)),
                     new LoadMetadataEntity("competitions_count", String.valueOf(competitionCount)),
+                    new LoadMetadataEntity("fixtures_count", String.valueOf(ram.fixtures().rows().size())),
                     new LoadMetadataEntity("quality_players_missing_age",
                             String.valueOf(countMissing(ram.players().rows(), "age"))),
                     new LoadMetadataEntity("quality_players_missing_asking_price",
@@ -214,14 +223,16 @@ public class DatabaseLoadAllService {
         long deadline = System.nanoTime() + RAM_READ_TIMEOUT.toNanos();
         String gameDateBefore = liveGameDate(pid, build, gamePluginBase);
         ExecutorService executor = Executors.newFixedThreadPool(
-                3, Thread.ofPlatform().name("fm-ram-loader-", 0).factory());
+                4, Thread.ofPlatform().name("fm-ram-loader-", 0).factory());
         Future<PeopleExporter.ExportResult> peopleFuture = executor.submit(
                 () -> timedRamRead("people", () -> peopleExporter.exportAllPeople(pid, build, gamePluginBase)));
         Future<ClubExporter.ExportResult> clubFuture = executor.submit(
                 () -> timedRamRead("clubs", () -> clubs.exportAllClubs(pid, build, gamePluginBase)));
         Future<CompetitionExporter.ExportResult> competitionFuture = executor.submit(
                 () -> timedRamRead("competitions", () -> competitions.exportAllCompetitions(pid, build, gamePluginBase)));
-        List<Future<?>> futures = List.of(peopleFuture, clubFuture, competitionFuture);
+        Future<FixtureExporter.ExportResult> fixtureFuture = executor.submit(
+                () -> timedRamRead("fixtures", () -> fixtureExporter.exportManagedClubFixtures(pid, build, gamePluginBase)));
+        List<Future<?>> futures = List.of(peopleFuture, clubFuture, competitionFuture, fixtureFuture);
         try {
             reportPhase("Reading players and staff");
             PeopleExporter.ExportResult people = await(peopleFuture, "people", deadline);
@@ -229,11 +240,14 @@ public class DatabaseLoadAllService {
             ClubExporter.ExportResult clubs = await(clubFuture, "clubs", deadline);
             reportPhase("Reading competitions");
             CompetitionExporter.ExportResult competitions = await(competitionFuture, "competitions", deadline);
+            reportPhase("Reading fixtures");
+            FixtureExporter.ExportResult fixtures = await(fixtureFuture, "fixtures", deadline);
             RamSnapshot snapshot = new RamSnapshot(
                     people.players(),
                     people.staff(),
                     clubs,
                     competitions,
+                    fixtures,
                     people.diagnostics(),
                     people.slotCount(),
                     people.selectedWorkers(),
@@ -242,6 +256,7 @@ public class DatabaseLoadAllService {
                     gameDateBefore,
                     people.players().gameDate(),
                     people.staff().gameDate(),
+                    fixtures.gameDate(),
                     liveGameDate(pid, build, gamePluginBase));
             log.info("Parallel FM26 RAM extraction completed in {} ms", elapsedMillis(started));
             return snapshot;
@@ -312,12 +327,8 @@ public class DatabaseLoadAllService {
         }
     }
 
-    private static void validateCoherentGameDate(
-            String before,
-            String playerDate,
-            String staffDate,
-            String after) throws IOException {
-        List<String> observed = java.util.stream.Stream.of(before, playerDate, staffDate, after)
+    private static void validateCoherentGameDate(String... dates) throws IOException {
+        List<String> observed = java.util.Arrays.stream(dates)
                 .filter(value -> value != null && !value.isBlank())
                 .distinct()
                 .toList();
@@ -389,6 +400,7 @@ public class DatabaseLoadAllService {
             StaffExporter.ExportResult staff,
             ClubExporter.ExportResult clubs,
             CompetitionExporter.ExportResult competitions,
+            FixtureExporter.ExportResult fixtures,
             PeopleExporter.Diagnostics peopleDiagnostics,
             int peopleSlots,
             int peopleWorkers,

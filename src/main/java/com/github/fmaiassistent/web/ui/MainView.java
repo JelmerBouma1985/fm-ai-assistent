@@ -2,6 +2,7 @@ package com.github.fmaiassistent.web.ui;
 
 import com.github.fmaiassistent.domain.entity.ClubEntity;
 import com.github.fmaiassistent.domain.entity.CompetitionEntity;
+import com.github.fmaiassistent.domain.entity.FixtureEntity;
 import com.github.fmaiassistent.domain.entity.PlayerEntity;
 import com.github.fmaiassistent.domain.entity.StaffEntity;
 import com.github.fmaiassistent.staff.StaffAttributeDefinitions;
@@ -64,6 +65,7 @@ import java.text.NumberFormat;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -108,6 +110,7 @@ public class MainView extends VerticalLayout {
     private final StaffDatabaseService staff;
     private final ClubDatabaseService clubs;
     private final CompetitionDatabaseService competitions;
+    private final FixtureRepository fixtures;
     private final RecruitmentCaseService recruitment;
     private final AppSettingsService settings;
     private final SnapshotStatusService snapshots;
@@ -129,6 +132,7 @@ public class MainView extends VerticalLayout {
     private final Grid<StaffEntity> staffGrid = new Grid<>();
     private final Grid<ClubEntity> clubsGrid = new Grid<>();
     private final Grid<CompetitionEntity> competitionsGrid = new Grid<>();
+    private final Grid<FixtureEntity> fixturesGrid = new Grid<>();
     private final Grid<Map<String, Object>> recruitmentGrid = new Grid<>();
     private final AiAssistantView aiAssistant;
 
@@ -136,6 +140,7 @@ public class MainView extends VerticalLayout {
     private final Tab staffTab = new Tab("Staff");
     private final Tab clubsTab = new Tab("Clubs");
     private final Tab competitionsTab = new Tab("Competitions");
+    private final Tab fixturesTab = new Tab("Fixtures");
     private final Tab recruitmentTab = new Tab("Recruitment");
     private final Tab aiAssistantTab = new Tab("AI assistent");
     private PlayerFilterCriteria playerFilter = PlayerFilterCriteria.empty();
@@ -151,6 +156,7 @@ public class MainView extends VerticalLayout {
             StaffDatabaseService staff,
             ClubDatabaseService clubs,
             CompetitionDatabaseService competitions,
+            FixtureRepository fixtures,
             AppSettingsService settings,
             SnapshotStatusService snapshots,
             CodexConversationService codexConversations,
@@ -166,6 +172,7 @@ public class MainView extends VerticalLayout {
         this.staff = staff;
         this.clubs = clubs;
         this.competitions = competitions;
+        this.fixtures = fixtures;
         this.recruitment = recruitment;
         this.settings = settings;
         this.snapshots = snapshots;
@@ -188,10 +195,12 @@ public class MainView extends VerticalLayout {
         configureGrid(staffGrid);
         configureGrid(clubsGrid);
         configureGrid(competitionsGrid);
+        configureGrid(fixturesGrid);
         configureGrid(recruitmentGrid);
         configureLoadingDialog();
         playersGrid.addItemClickListener(event -> openPlayerDetailsDialog(event.getItem()));
         staffGrid.addItemClickListener(event -> openStaffDetailsDialog(event.getItem()));
+        fixturesGrid.addItemClickListener(event -> openOpponentDetailsDialog(event.getItem()));
         updateStatus(null);
         showPlayers();
     }
@@ -255,13 +264,14 @@ public class MainView extends VerticalLayout {
     }
 
     private void configureTabs() {
-        tabs.add(playersTab, staffTab, clubsTab, competitionsTab, recruitmentTab, aiAssistantTab);
+        tabs.add(playersTab, staffTab, clubsTab, competitionsTab, fixturesTab, recruitmentTab, aiAssistantTab);
         tabs.setWidthFull();
         tabs.addClassName("workspace-tabs");
         playersTab.addComponentAsFirst(VaadinIcon.USERS.create());
         staffTab.addComponentAsFirst(VaadinIcon.USER_STAR.create());
         clubsTab.addComponentAsFirst(VaadinIcon.OFFICE.create());
         competitionsTab.addComponentAsFirst(VaadinIcon.TROPHY.create());
+        fixturesTab.addComponentAsFirst(VaadinIcon.CALENDAR.create());
         recruitmentTab.addComponentAsFirst(VaadinIcon.CLIPBOARD_TEXT.create());
         aiAssistantTab.addComponentAsFirst(VaadinIcon.CHAT.create());
         tabs.addSelectedChangeListener(event -> {
@@ -277,6 +287,8 @@ public class MainView extends VerticalLayout {
                 showClubs();
             } else if (event.getSelectedTab() == competitionsTab) {
                 showCompetitions();
+            } else if (event.getSelectedTab() == fixturesTab) {
+                showFixtures();
             } else if (event.getSelectedTab() == recruitmentTab) {
                 showRecruitment();
             } else {
@@ -484,6 +496,8 @@ public class MainView extends VerticalLayout {
             showClubs();
         } else if (tabs.getSelectedTab() == competitionsTab) {
             showCompetitions();
+        } else if (tabs.getSelectedTab() == fixturesTab) {
+            showFixtures();
         } else if (tabs.getSelectedTab() == recruitmentTab) {
             showRecruitment();
         } else {
@@ -597,6 +611,180 @@ public class MainView extends VerticalLayout {
                     + " | Total competitions " + competitions.countCompetitions());
         }
     }
+
+    private void showFixtures() {
+        if (fixturesGrid.getColumns().isEmpty()) {
+            fixturesGrid.addColumn(FixtureEntity::getKickoffDate)
+                    .setKey("KICKOFF_DATE").setHeader("Date").setAutoWidth(true).setResizable(true).setSortable(true);
+            fixturesGrid.addColumn(FixtureEntity::getKickoffTime)
+                    .setKey("KICKOFF_TIME").setHeader("Time").setAutoWidth(true).setResizable(true).setSortable(true);
+            fixturesGrid.addColumn(FixtureEntity::getOpponent)
+                    .setKey("OPPONENT").setHeader("Opponent").setAutoWidth(true).setResizable(true).setSortable(true);
+            fixturesGrid.addColumn(fixture -> Boolean.TRUE.equals(fixture.getHome()) ? "H" : "A")
+                    .setKey("HOME_AWAY").setHeader("H/A").setAutoWidth(true).setResizable(true).setSortable(true);
+            fixturesGrid.addColumn(FixtureEntity::getCompetition)
+                    .setKey("COMPETITION").setHeader("Competition").setAutoWidth(true).setResizable(true).setSortable(true);
+            fixturesGrid.addColumn(FixtureEntity::getVenue)
+                    .setKey("VENUE").setHeader("Venue").setAutoWidth(true).setResizable(true).setSortable(true);
+            fixturesGrid.addColumn(FixtureEntity::getHomeClub)
+                    .setKey("HOME_CLUB").setHeader("Home club").setAutoWidth(true).setResizable(true).setSortable(true);
+            fixturesGrid.addColumn(FixtureEntity::getAwayClub)
+                    .setKey("AWAY_CLUB").setHeader("Away club").setAutoWidth(true).setResizable(true).setSortable(true);
+        }
+        LocalDate gameDate = snapshotGameDate();
+        List<FixtureEntity> upcoming = fixtures.findAllByOrderByKickoffDateAscKickoffTimeAsc().stream()
+                .filter(fixture -> isUpcoming(fixture, gameDate))
+                .toList();
+        fixturesGrid.setItems(upcoming);
+        setFilterActive(false);
+        status.setText("Upcoming fixtures " + upcoming.size());
+        content.removeAll();
+        content.setSizeFull();
+        content.add(fixturesGrid);
+        content.addClassName("data-workspace");
+    }
+
+    private LocalDate snapshotGameDate() {
+        Map<String, Object> snapshot = snapshots.reference();
+        return parseDate(snapshot == null ? null : Objects.toString(snapshot.get("game_date"), ""));
+    }
+
+    private static boolean isUpcoming(FixtureEntity fixture, LocalDate gameDate) {
+        LocalDate kickoff = parseDate(fixture.getKickoffDate());
+        return gameDate == null || kickoff == null || !kickoff.isBefore(gameDate);
+    }
+
+    private static LocalDate parseDate(String value) {
+        try {
+            return value == null || value.isBlank() ? null : LocalDate.parse(value);
+        } catch (RuntimeException exception) {
+            return null;
+        }
+    }
+
+    private void openOpponentDetailsDialog(FixtureEntity fixture) {
+        String opponentName = display(fixture.getOpponent());
+        ClubEntity opponent = fixture.getOpponentClubEntity();
+        if (opponent == null) {
+            opponent = clubs.findAllClubs().stream()
+                    .filter(club -> equalsText(club.getName(), fixture.getOpponent()))
+                    .max(Comparator.comparingInt(club -> value(club.getReputation())))
+                    .orElse(null);
+        }
+
+        List<PlayerEntity> squad = players.findAllPlayerEntities().stream()
+                .filter(player -> equalsText(player.getPlayingClub(), fixture.getOpponent())
+                        || (blank(player.getPlayingClub()) && equalsText(player.getClub(), fixture.getOpponent())))
+                .sorted(Comparator.comparingInt((PlayerEntity player) -> value(player.getCa())).reversed()
+                        .thenComparing(player -> Objects.toString(player.getName(), "")))
+                .toList();
+
+        Dialog dialog = new Dialog();
+        dialog.setHeaderTitle(opponentName + " — opposition report");
+        dialog.setWidth("1100px");
+        dialog.setMaxWidth("calc(100vw - 32px)");
+        dialog.getElement().getThemeList().add("professional-dialog");
+        dialog.getElement().getThemeList().add("opponent-detail-dialog");
+
+        Component playersView = opponentPlayersView(squad);
+        Component clubView = opponentClubView(opponent, fixture.getOpponent());
+        Component reportView = opponentReportView(squad);
+        Tab squadTab = new Tab("Players");
+        Tab clubTab = new Tab("Club");
+        Tab reportTab = new Tab("Report");
+        Tabs detailTabs = new Tabs(squadTab, clubTab, reportTab);
+        detailTabs.addClassName("dialog-tabs");
+        Div detailContent = new Div(playersView);
+        detailContent.setWidthFull();
+        detailContent.addClassName("dialog-content");
+        detailTabs.addSelectedChangeListener(event -> {
+            detailContent.removeAll();
+            detailContent.add(event.getSelectedTab() == squadTab ? playersView
+                    : event.getSelectedTab() == clubTab ? clubView : reportView);
+        });
+
+        Button close = new Button("Close", VaadinIcon.CLOSE_SMALL.create(), event -> dialog.close());
+        close.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        dialog.add(detailTabs, detailContent);
+        dialog.getFooter().add(close);
+        dialog.open();
+    }
+
+    private Component opponentPlayersView(List<PlayerEntity> squad) {
+        if (squad.isEmpty()) return emptyDialogMessage("No players are loaded for this opponent.");
+        Grid<PlayerEntity> grid = new Grid<>();
+        configureGrid(grid);
+        grid.setHeight("min(52vh, 520px)");
+        grid.addColumn(PlayerEntity::getName).setHeader("Name").setAutoWidth(true).setFlexGrow(1).setSortable(true);
+        grid.addColumn(PositionTextFormatter::format).setHeader("Position").setAutoWidth(true).setSortable(true);
+        grid.addColumn(PlayerEntity::getCa).setHeader("Current Ability").setAutoWidth(true).setSortable(true);
+        grid.addColumn(PlayerEntity::getPa).setHeader("Potential Ability").setAutoWidth(true).setSortable(true);
+        grid.setItems(squad);
+        grid.addItemClickListener(event -> openPlayerDetailsDialog(event.getItem()));
+        return grid;
+    }
+
+    private Component opponentClubView(ClubEntity club, String fallbackName) {
+        if (club == null) return emptyDialogMessage("No club information is loaded for " + display(fallbackName) + ".");
+        return detailLayout(List.of(
+                new DetailField("Name", club.getName()), new DetailField("Competition", club.getCompetition()),
+                new DetailField("Nation", club.getNation()), new DetailField("Reputation", club.getReputation()),
+                new DetailField("Training Facilities", club.getTrainingFacilities()),
+                new DetailField("Youth Facilities", club.getYouthFacilities()),
+                new DetailField("Youth Coaching", club.getYouthCoaching()),
+                new DetailField("Youth Recruitment", club.getYouthRecruitment()),
+                new DetailField("Corporate Facilities", club.getCorporateFacilities()),
+                new DetailField("Balance", moneyDisplay(club.getBalance())),
+                new DetailField("Transfer Budget", moneyDisplay(club.getTransferBudget())),
+                new DetailField("Payroll Budget", moneyDisplay(club.getPayrollBudget()))));
+    }
+
+    private Component opponentReportView(List<PlayerEntity> squad) {
+        if (squad.isEmpty()) return emptyDialogMessage("A strengths and weaknesses report needs loaded opponent players.");
+        List<PlayerEntity> firstTeam = squad.stream().limit(18).toList();
+        List<OppositionProfile> profiles = oppositionProfiles(firstTeam);
+        List<DetailField> fields = new ArrayList<>();
+        double averageCa = firstTeam.stream().map(PlayerEntity::getCa).filter(Objects::nonNull)
+                .mapToInt(Integer::intValue).average().orElse(0);
+        fields.add(new DetailField("First-team average CA", round1(averageCa)));
+        profiles.stream().sorted(Comparator.comparingDouble(OppositionProfile::rating).reversed()).limit(3)
+                .forEach(profile -> fields.add(new DetailField("Strength — " + profile.label(), profile.rating() + " / 20")));
+        profiles.stream().sorted(Comparator.comparingDouble(OppositionProfile::rating)).limit(3)
+                .forEach(profile -> fields.add(new DetailField("Weakness — " + profile.label(), profile.rating() + " / 20")));
+        Span note = new Span("Based on the best " + firstTeam.size()
+                + " loaded players by current ability. Opponent tactics, form, morale, condition, suspensions and rotation are not loaded.");
+        note.addClassName("report-note");
+        VerticalLayout layout = new VerticalLayout(detailLayout(fields), note);
+        layout.setPadding(false);
+        return layout;
+    }
+
+    static List<OppositionProfile> oppositionProfiles(List<PlayerEntity> squad) {
+        return List.of(
+                oppositionProfile("Attacking", squad, List.of(PlayerEntity::getFinishing, PlayerEntity::getOffTheBall, PlayerEntity::getDribbling, PlayerEntity::getFirstTouch, PlayerEntity::getComposure)),
+                oppositionProfile("Chance creation", squad, List.of(PlayerEntity::getPassing, PlayerEntity::getVision, PlayerEntity::getTechnique, PlayerEntity::getDecisions, PlayerEntity::getFlair)),
+                oppositionProfile("Defending", squad, List.of(PlayerEntity::getMarking, PlayerEntity::getTackling, PlayerEntity::getPositioning, PlayerEntity::getConcentration, PlayerEntity::getAnticipation)),
+                oppositionProfile("Aerial", squad, List.of(PlayerEntity::getHeading, PlayerEntity::getJumpingReach, PlayerEntity::getStrength, PlayerEntity::getBravery)),
+                oppositionProfile("Pace and mobility", squad, List.of(PlayerEntity::getPace, PlayerEntity::getAcceleration, PlayerEntity::getAgility, PlayerEntity::getStamina)),
+                oppositionProfile("Work and mentality", squad, List.of(PlayerEntity::getWorkRate, PlayerEntity::getTeamwork, PlayerEntity::getDetermination, PlayerEntity::getLeadership, PlayerEntity::getPressure)));
+    }
+
+    private static OppositionProfile oppositionProfile(String label, List<PlayerEntity> squad, List<Function<PlayerEntity, Integer>> attributes) {
+        double average = squad.stream().flatMapToInt(player -> attributes.stream().mapToInt(attribute -> value(attribute.apply(player))))
+                .filter(attribute -> attribute > 0).average().orElse(0);
+        return new OppositionProfile(label, round1(average));
+    }
+
+    private static Component emptyDialogMessage(String message) {
+        Span empty = new Span(message);
+        empty.addClassName("dialog-empty-state");
+        return empty;
+    }
+
+    private static boolean blank(String value) { return value == null || value.isBlank(); }
+    private static boolean equalsText(String left, String right) { return left != null && right != null && left.equalsIgnoreCase(right); }
+    private static int value(Integer value) { return value == null ? 0 : value; }
+    private static double round1(double value) { return Math.round(value * 10.0) / 10.0; }
 
     private void showRecruitment() {
         if (recruitmentGrid.getColumns().isEmpty()) {
@@ -2487,6 +2675,9 @@ public class MainView extends VerticalLayout {
     }
 
     record DetailField(String label, Object value) {
+    }
+
+    record OppositionProfile(String label, double rating) {
     }
 
     private record PositionTile(String shortName, String fullName, Object value) {

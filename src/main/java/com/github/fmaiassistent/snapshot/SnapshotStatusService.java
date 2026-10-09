@@ -112,6 +112,7 @@ public class SnapshotStatusService {
         putNumber(out, "staff", values.get("staff_count"));
         putNumber(out, "clubs", values.get("clubs_count"));
         putNumber(out, "competitions", values.get("competitions_count"));
+        putNumber(out, "fixtures", values.get("fixtures_count"));
         RefreshCoordinator.Status refresh = refreshes.status();
         out.put("refresh_state", refresh.state().name().toLowerCase(java.util.Locale.ROOT));
         out.put("refresh_started_at", refresh.startedAt());
