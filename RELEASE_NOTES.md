@@ -4,6 +4,7 @@
 ### Features
 
 - Tactics and shortlists are auto loaded. (thx to @hostlund)
+- GUI improvements: freshness badge, load phases, shortlists, recruitment, injury details (thx to @hostlund)
 - added a `Commands` button to AI chat for quick interaction with the AI agent
 - [openrouter.ai](https://openrouter.ai) can be used as AI agent
 - Model selection added for codex and copilot
