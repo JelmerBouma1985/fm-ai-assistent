@@ -3,6 +3,7 @@ package com.github.fmaiassistent.exporter;
 import com.github.fmaiassistent.linux.FmMemoryStrings;
 import com.github.fmaiassistent.linux.GameDateFinder;
 import com.github.fmaiassistent.memory.ProcessMemoryReader;
+import com.github.fmaiassistent.memory.StaffRecordLayout;
 import com.github.fmaiassistent.staff.StaffAttributeDefinitions;
 
 import java.io.IOException;
@@ -14,14 +15,17 @@ import java.util.List;
 import java.util.Map;
 
 public class StaffExporter {
-    private static final int UNIQUE_ID_REL = 0x0C;
-    private static final int STAFF_CA_REL = 0xDA;
-    private static final int STAFF_PA_REL = 0xDC;
-    private static final int HOME_REPUTATION_REL = 0xD4;
-    private static final int CURRENT_REPUTATION_REL = 0xD6;
-    private static final int WORLD_REPUTATION_REL = 0xD8;
-
     public static final List<String> FIELD_NAMES = buildFieldNames();
+
+    private final StaffRecordLayout recordLayout;
+
+    public StaffExporter() {
+        this(StaffRecordLayout.current());
+    }
+
+    public StaffExporter(StaffRecordLayout recordLayout) {
+        this.recordLayout = recordLayout;
+    }
 
     public ExportResult exportAllStaff(int pid, int build, Long gamePluginBase) throws IOException {
         return new PeopleExporter().exportAllStaff(pid, build, gamePluginBase);
@@ -30,46 +34,46 @@ public class StaffExporter {
     Map<String, Object> decodeRow(ProcessMemoryReader reader, int index, long person, int dynamicOffset) throws IOException {
         long staffBase = person - dynamicOffset;
         byte[] attributes = reader.readBytes(
-                staffBase + StaffAttributeDefinitions.ATTRIBUTES_REL,
+                staffBase + recordLayout.attributesRel(),
                 StaffAttributeDefinitions.ALL.stream().mapToInt(StaffAttributeDefinitions.StaffAttribute::offset).max().orElseThrow() + 1);
-        var contract = reader.qwordOrNull(person + 0xA8);
-        var team = contract.flatMap(value -> reader.qwordOrNull(value + 0x10));
-        var club = team.flatMap(value -> reader.qwordOrNull(value + 0x30));
+        var contract = reader.qwordOrNull(person + recordLayout.contractRefRel());
+        var team = contract.flatMap(value -> reader.qwordOrNull(value + recordLayout.contractTeamRel()));
+        var club = team.flatMap(value -> reader.qwordOrNull(value + recordLayout.contractClubRel()));
 
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("staff_index", index);
         row.put("record_address", "0x" + Long.toHexString(person));
-        row.put("unique_id", reader.readU32(person + UNIQUE_ID_REL));
+        row.put("unique_id", reader.readU32(person + recordLayout.uniqueIdRel()));
         row.put("name", FmMemoryStrings.playerName(reader, person).orElse(""));
-        row.put("gender", (reader.readU8(person + 0x19) & 0x10) != 0 ? "female" : "male");
+        row.put("gender", (reader.readU8(person + recordLayout.genderRel()) & 0x10) != 0 ? "female" : "male");
         row.put("nationality", FmMemoryStrings.playerNationality(reader, person).orElse(""));
         row.put("club", FmMemoryStrings.clubDisplayName(reader, club.orElse(null)).orElse(""));
         club.ifPresent(address -> row.put("_club_address", address));
         row.put("division", division(reader, team.orElse(null)));
-        int jobId = contract.map(value -> readU8(reader, value + 0x26, 0)).orElse(0);
+        int jobId = contract.map(value -> readU8(reader, value + recordLayout.contractJobIdRel(), 0)).orElse(0);
         row.put("job_id", jobId);
         row.put("job", jobName(jobId));
-        row.put("date_of_birth", date(reader, person + 0x88));
+        row.put("date_of_birth", date(reader, person + recordLayout.dateOfBirthRel()));
         row.put("age", "");
         row.put("age_as_of", "");
-        row.put("salary_weekly_raw", contract.map(value -> readU32(reader, value + 0x20, 0)).orElse(0L));
-        row.put("contract_end_date", contract.map(value -> date(reader, value + 0x48)).orElse(""));
-        row.put("home_reputation", reader.readU16(staffBase + HOME_REPUTATION_REL));
-        row.put("current_reputation", reader.readU16(staffBase + CURRENT_REPUTATION_REL));
-        row.put("world_reputation", reader.readU16(staffBase + WORLD_REPUTATION_REL));
-        row.put("ca", reader.readU16(staffBase + STAFF_CA_REL));
-        row.put("pa", (int) reader.readI16(staffBase + STAFF_PA_REL));
+        row.put("salary_weekly_raw", contract.map(value -> readU32(reader, value + recordLayout.contractSalaryWeeklyRel(), 0)).orElse(0L));
+        row.put("contract_end_date", contract.map(value -> date(reader, value + recordLayout.contractDateRel())).orElse(""));
+        row.put("home_reputation", reader.readU16(staffBase + recordLayout.homeReputationRel()));
+        row.put("current_reputation", reader.readU16(staffBase + recordLayout.currentReputationRel()));
+        row.put("world_reputation", reader.readU16(staffBase + recordLayout.worldReputationRel()));
+        row.put("ca", reader.readU16(staffBase + recordLayout.caRel()));
+        row.put("pa", (int) reader.readI16(staffBase + recordLayout.paRel()));
         for (StaffAttributeDefinitions.StaffAttribute attribute : StaffAttributeDefinitions.ALL) {
             row.put(attribute.key(), staffAttribute(attribute, attributes[attribute.offset()] & 0xff));
         }
         return row;
     }
 
-    private static String division(ProcessMemoryReader reader, Long team) {
+    private String division(ProcessMemoryReader reader, Long team) {
         if (team == null) {
             return "";
         }
-        for (long offset : List.of(0x50L, 0x60L)) {
+        for (long offset : List.of((long) recordLayout.divisionScanRelA(), (long) recordLayout.divisionScanRelB())) {
             var competition = reader.qwordOrNull(team + offset);
             if (competition.isPresent()) {
                 var name = FmMemoryStrings.competitionDisplayName(reader, competition.get());
