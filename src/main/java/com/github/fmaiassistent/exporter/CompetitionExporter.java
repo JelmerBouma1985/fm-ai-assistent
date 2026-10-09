@@ -2,6 +2,7 @@ package com.github.fmaiassistent.exporter;
 
 import com.github.fmaiassistent.linux.FmMemoryStrings;
 import com.github.fmaiassistent.linux.FmOffsets;
+import com.github.fmaiassistent.memory.CompetitionRecordLayout;
 import com.github.fmaiassistent.memory.ProcessMemoryReader;
 import com.github.fmaiassistent.memory.ProcessReaders;
 
@@ -15,10 +16,15 @@ import java.util.Map;
 public class CompetitionExporter {
     public static final List<String> FIELD_NAMES = List.of("sourceAddress", "name", "nation", "reputation", "gender");
 
-    private static final long NAME_REL = 0x40;
-    private static final long NATION_REL = 0x60;
-    private static final long GENDER_FLAG_REL = 0xF9;
-    private static final long REPUTATION_REL = 0x188;
+    private final CompetitionRecordLayout recordLayout;
+
+    public CompetitionExporter() {
+        this(CompetitionRecordLayout.current());
+    }
+
+    public CompetitionExporter(CompetitionRecordLayout recordLayout) {
+        this.recordLayout = recordLayout;
+    }
 
     public ExportResult exportAllCompetitions(int pid, int build, Long gamePluginBase) throws IOException {
         try (ProcessMemoryReader reader = ProcessReaders.open(pid)) {
@@ -46,19 +52,19 @@ public class CompetitionExporter {
     }
 
     private Map<String, Object> decodeCompetition(ProcessMemoryReader reader, long competition) throws IOException {
-        String name = FmMemoryStrings.objectStringAt(reader, competition, NAME_REL)
+        String name = FmMemoryStrings.objectStringAt(reader, competition, recordLayout.nameRel())
                 .or(() -> FmMemoryStrings.competitionDisplayName(reader, competition))
                 .orElse("");
         if (name.isBlank()) {
             return Map.of();
         }
-        int reputation = reader.readU16(competition + REPUTATION_REL);
+        int reputation = reader.readU16(competition + recordLayout.reputationRel());
         if (reputation <= 0 || reputation > 200) {
             return Map.of();
         }
-        String nation = reader.qwordOrNull(competition + NATION_REL)
-                .flatMap(value -> FmMemoryStrings.objectStringAt(reader, value, 0x18)
-                        .or(() -> FmMemoryStrings.objectStringAt(reader, value, 0x20)))
+        String nation = reader.qwordOrNull(competition + recordLayout.nationRel())
+                .flatMap(value -> FmMemoryStrings.objectStringAt(reader, value, recordLayout.nationNameRelA())
+                        .or(() -> FmMemoryStrings.objectStringAt(reader, value, recordLayout.nationNameRelB())))
                 .orElse("");
         if (nation.isBlank()) {
             return Map.of();
@@ -69,7 +75,7 @@ public class CompetitionExporter {
         row.put("name", name);
         row.put("nation", nation);
         row.put("reputation", reputation);
-        row.put("gender", reader.readU8(competition + GENDER_FLAG_REL) == 1 ? "female" : "male");
+        row.put("gender", reader.readU8(competition + recordLayout.genderFlagRel()) == 1 ? "female" : "male");
         return row;
     }
 

@@ -30,7 +30,7 @@ class ClubExporterTest {
         memory.putU16(EXTRA, 0xB318);
         memory.putU8(EXTRA + 0x8B5, 9);
 
-        ClubExporter.Facilities facilities = ClubExporter.readFacilities(memory, CLUB);
+        ClubExporter.Facilities facilities = new ClubExporter().readFacilities(memory, CLUB);
 
         assertThat(facilities.training()).isEqualTo(18);
         assertThat(facilities.youth()).isEqualTo(13);
