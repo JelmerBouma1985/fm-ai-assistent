@@ -795,6 +795,90 @@ class TeamSheetSpikeTest {
         }
     }
 
+    /**
+     * Heap-wide hunt for FM_SPIKE_RATINGS as float64 pairs: scans all
+     * heap/anonymous regions for the first rating and reports hits with a
+     * neighbour containing any other listed rating within +-4 doubles.
+     */
+    @Test
+    @EnabledIfEnvironmentVariable(named = "FM_SPIKE_TRIPLE64", matches = ".+")
+    void scanRatingTripleDouble() throws Exception {
+        String[] tokens = System.getenv("FM_SPIKE_RATINGS").split(",");
+        org.junit.jupiter.api.Assumptions.assumeTrue(tokens.length >= 2, "need two ratings");
+        double first = Double.parseDouble(tokens[0].trim());
+        double[] rest = new double[tokens.length - 1];
+        for (int i = 1; i < tokens.length; i++) {
+            rest[i - 1] = Double.parseDouble(tokens[i].trim());
+        }
+        byte[] pattern = doublePattern(first);
+        int pid = findGamePid();
+        try (ProcessMemoryReader reader = ProcessReaders.open(pid)) {
+            int hits = 0;
+            long scanned = 0;
+            for (MemoryRegion region : reader.maps()) {
+                if (!region.readable() || !region.writable()) {
+                    continue;
+                }
+                String path = region.path();
+                if (!(path.isEmpty() || path.startsWith("[heap]") || path.startsWith("[anon"))) {
+                    continue;
+                }
+                int chunk = 1 << 20;
+                for (long base = region.start(); base < region.end() && hits < 20; base += chunk) {
+                    int size = (int) Math.min((long) chunk + 8, region.end() - base);
+                    byte[] data;
+                    try {
+                        data = reader.readBytes(base, size);
+                    } catch (IOException | RuntimeException unreadable) {
+                        continue;
+                    }
+                    scanned += size;
+                    for (int i = indexOfBytes(data, pattern, 0);
+                            i >= 0 && hits < 20;
+                            i = indexOfBytes(data, pattern, i + 1)) {
+                        long address = base + i;
+                        boolean linked = false;
+                        StringBuilder context = new StringBuilder();
+                        for (int j = -4; j <= 4; j++) {
+                            double neighbour;
+                            try {
+                                byte[] word = reader.readBytes(address + (long) j * 8, 8);
+                                neighbour = Double.longBitsToDouble(getLong(word, 0));
+                            } catch (IOException | RuntimeException unreadable) {
+                                continue;
+                            }
+                            for (double want : rest) {
+                                if (Math.abs(neighbour - want) < 0.0001) {
+                                    linked = true;
+                                }
+                            }
+                            context.append(String.format(java.util.Locale.ROOT, j == -4 ? "%.2f" : ",%.2f",
+                                    neighbour));
+                        }
+                        if (linked) {
+                            hits++;
+                            System.out.println("SPIKE triple64 @" + Long.toHexString(address)
+                                    + " [" + context + "]");
+                        }
+                    }
+                }
+                if (hits >= 20) {
+                    break;
+                }
+            }
+            System.out.println("SPIKE triple64 done hits=" + hits + " scanned=" + scanned);
+        }
+    }
+
+    private static byte[] doublePattern(double value) {
+        long bits = Double.doubleToLongBits(value);
+        byte[] out = new byte[8];
+        for (int i = 0; i < 8; i++) {
+            out[i] = (byte) (bits >> (8 * i));
+        }
+        return out;
+    }
+
     private static byte[] floatPattern(float value) {
         int bits = Float.floatToIntBits(value);
         return new byte[]{(byte) bits, (byte) (bits >> 8), (byte) (bits >> 16), (byte) (bits >> 24)};
