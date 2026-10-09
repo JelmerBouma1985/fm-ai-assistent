@@ -115,7 +115,7 @@ class PlayerSnapshotValidatorTest {
     @Test
     void acceptsValidStaffRow() {
         assertThatNoException().isThrownBy(() ->
-                PlayerSnapshotValidator.validateStaff(List.of(validStaffRow()), "2026-09-01"));
+                PlayerSnapshotValidator.validateStaff(List.of(validStaffRow()), "2026-09-01", 5));
     }
 
     @Test
@@ -123,7 +123,7 @@ class PlayerSnapshotValidatorTest {
         Map<String, Object> row = validStaffRow();
         row.put("ca", 3500);
 
-        assertThatThrownBy(() -> PlayerSnapshotValidator.validateStaff(List.of(row), "2026-09-01"))
+        assertThatThrownBy(() -> PlayerSnapshotValidator.validateStaff(List.of(row), "2026-09-01", 5))
                 .isInstanceOf(IOException.class)
                 .hasMessageContaining("ca=3500")
                 .hasMessageContaining("Staff snapshot");
@@ -132,7 +132,7 @@ class PlayerSnapshotValidatorTest {
     @Test
     void acceptsValidClubRow() {
         assertThatNoException().isThrownBy(() ->
-                PlayerSnapshotValidator.validateClubs(List.of(validClubRow())));
+                PlayerSnapshotValidator.validateClubs(List.of(validClubRow()), 5));
     }
 
     @Test
@@ -140,7 +140,7 @@ class PlayerSnapshotValidatorTest {
         Map<String, Object> row = validClubRow();
         row.put("transferBudget", -1L);
 
-        assertThatThrownBy(() -> PlayerSnapshotValidator.validateClubs(List.of(row)))
+        assertThatThrownBy(() -> PlayerSnapshotValidator.validateClubs(List.of(row), 5))
                 .isInstanceOf(IOException.class)
                 .hasMessageContaining("transferBudget=-1");
     }
@@ -173,5 +173,51 @@ class PlayerSnapshotValidatorTest {
         row.put("transferBudget", 5_000_000L);
         row.put("payrollBudget", 2_000_000L);
         return row;
+    }
+
+    @Test
+    void rejectsEmptyStaffAlongsidePlayers() {
+        assertThatThrownBy(() -> PlayerSnapshotValidator.validateStaff(List.of(), "2026-09-01", 100))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("no staff decoded while 100 players decoded");
+    }
+
+    @Test
+    void rejectsEmptyClubsAlongsidePlayers() {
+        assertThatThrownBy(() -> PlayerSnapshotValidator.validateClubs(List.of(), 100))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("no clubs decoded while 100 players decoded");
+    }
+
+    @Test
+    void acceptsEmptyTablesWithoutPlayers() {
+        assertThatNoException().isThrownBy(() -> {
+            PlayerSnapshotValidator.validateStaff(List.of(), "", 0);
+            PlayerSnapshotValidator.validateClubs(List.of(), 0);
+            PlayerSnapshotValidator.validateCompetitions(List.of(), 0);
+        });
+    }
+
+    @Test
+    void acceptsVeteranStaffBirthDate() {
+        Map<String, Object> row = validStaffRow();
+        row.put("age", 75);
+        row.put("date_of_birth", "1951-05-05");
+
+        assertThatNoException().isThrownBy(() ->
+                PlayerSnapshotValidator.validateStaff(List.of(row), "2026-09-01", 5));
+    }
+
+    @Test
+    void rejectsEmptyCompetitionsAlongsidePlayers() {
+        assertThatThrownBy(() -> PlayerSnapshotValidator.validateCompetitions(List.of(), 100))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("no competitions decoded while 100 players decoded");
+    }
+
+    @Test
+    void acceptsNonEmptyCompetitions() {
+        assertThatNoException().isThrownBy(() -> PlayerSnapshotValidator.validateCompetitions(
+                List.of(Map.of("name", "Premier Division")), 100));
     }
 }

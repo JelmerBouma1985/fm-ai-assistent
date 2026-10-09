@@ -35,7 +35,9 @@ public class StaffExporter {
     }
 
     public ExportResult exportAllStaff(int pid, int build, Long gamePluginBase) throws IOException {
-        return new PeopleExporter().exportAllStaff(pid, build, gamePluginBase);
+        PeopleExporter people = new PeopleExporter();
+        people.setStaffRecordLayout(recordLayout);
+        return people.exportAllStaff(pid, build, gamePluginBase);
     }
 
     Map<String, Object> decodeRow(ProcessMemoryReader reader, int index, long person, int dynamicOffset) throws IOException {

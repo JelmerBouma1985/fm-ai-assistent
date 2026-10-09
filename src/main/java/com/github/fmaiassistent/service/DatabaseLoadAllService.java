@@ -107,9 +107,12 @@ public class DatabaseLoadAllService {
             reportPhase("Validating player data");
             PlayerSnapshotValidator.validate(ram.players().rows(), ram.peopleSlots(), ram.players().gameDate());
             reportPhase("Validating staff data");
-            PlayerSnapshotValidator.validateStaff(ram.staff().rows(), ram.staff().gameDate());
+            PlayerSnapshotValidator.validateStaff(
+                    ram.staff().rows(), ram.staff().gameDate(), ram.players().rows().size());
             reportPhase("Validating club data");
-            PlayerSnapshotValidator.validateClubs(ram.clubs().rows());
+            PlayerSnapshotValidator.validateClubs(ram.clubs().rows(), ram.players().rows().size());
+            PlayerSnapshotValidator.validateCompetitions(
+                    ram.competitions().rows(), ram.players().rows().size());
             long persistenceStarted = System.nanoTime();
             logAfterCommit(persistenceStarted);
             long stepStarted = System.nanoTime();

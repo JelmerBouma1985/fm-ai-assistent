@@ -56,7 +56,7 @@ class ClubExporterTest {
         ClubExporter.Finance finance = new ClubExporter().readFinance(memory, CLUB);
         assertThat(finance.transferBudget()).isEqualTo(5_000_000L);
         assertThatNoException().isThrownBy(() -> PlayerSnapshotValidator.validateClubs(
-                List.of(clubRow(finance.transferBudget(), finance.payrollBudget()))));
+                List.of(clubRow(finance.transferBudget(), finance.payrollBudget())), 1));
 
         ClubRecordLayout base = ClubRecordLayout.current();
         ClubRecordLayout drifted = new ClubRecordLayout(
@@ -76,7 +76,7 @@ class ClubExporterTest {
                 base.clubYouthRecruitmentRel());
         ClubExporter.Finance driftedFinance = new ClubExporter(drifted).readFinance(memory, CLUB);
         assertThatThrownBy(() -> PlayerSnapshotValidator.validateClubs(List.of(
-                        clubRow(driftedFinance.transferBudget(), driftedFinance.payrollBudget()))))
+                        clubRow(driftedFinance.transferBudget(), driftedFinance.payrollBudget())), 1))
                 .isInstanceOf(IOException.class)
                 .hasMessageContaining("transferBudget=-50000000");
     }

@@ -61,7 +61,7 @@ class StaffExporterTest {
         Map<String, Object> row = new StaffExporter().decodeRow(memory, 7, PERSON, 0x100);
         assertThat(row.get("ca")).isEqualTo(145);
         assertThatNoException().isThrownBy(
-                () -> PlayerSnapshotValidator.validateStaff(List.of(row), "2026-09-01"));
+                () -> PlayerSnapshotValidator.validateStaff(List.of(row), "2026-09-01", 1));
 
         StaffRecordLayout base = StaffRecordLayout.current();
         StaffExporter driftedDecoder = new StaffExporter(new StaffRecordLayout(
@@ -83,7 +83,7 @@ class StaffExporterTest {
                 base.divisionScanRelA(),
                 base.divisionScanRelB()));
         Map<String, Object> driftedRow = driftedDecoder.decodeRow(memory, 7, PERSON, 0x100);
-        assertThatThrownBy(() -> PlayerSnapshotValidator.validateStaff(List.of(driftedRow), "2026-09-01"))
+        assertThatThrownBy(() -> PlayerSnapshotValidator.validateStaff(List.of(driftedRow), "2026-09-01", 1))
                 .isInstanceOf(IOException.class)
                 .hasMessageContaining("ca=3500");
     }

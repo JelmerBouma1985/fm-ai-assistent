@@ -58,7 +58,7 @@ public class CompetitionExporter {
         }
     }
 
-    private Map<String, Object> decodeCompetition(ProcessMemoryReader reader, long competition) throws IOException {
+    Map<String, Object> decodeCompetition(ProcessMemoryReader reader, long competition) throws IOException {
         String name = FmMemoryStrings.objectStringAt(reader, competition, recordLayout.nameRel())
                 .or(() -> FmMemoryStrings.competitionDisplayName(reader, competition))
                 .orElse("");
