@@ -709,6 +709,110 @@ class TeamSheetSpikeTest {
         }
     }
 
+    /**
+     * Heap-wide hunt for FM_SPIKE_RATINGS float triples: scans all
+     * heap/anonymous regions for the first rating and reports hits with a
+     * neighbour containing any other listed rating within +-8 floats.
+     * Needs at least two ratings. Independent of any record anchor.
+     */
+    @Test
+    @EnabledIfEnvironmentVariable(named = "FM_SPIKE_RATINGS", matches = ".+")
+    void scanRatingTriple() throws Exception {
+        String[] tokens = System.getenv("FM_SPIKE_RATINGS").split(",");
+        org.junit.jupiter.api.Assumptions.assumeTrue(tokens.length >= 2, "need two ratings");
+        float first = Float.parseFloat(tokens[0].trim());
+        float[] rest = new float[tokens.length - 1];
+        for (int i = 1; i < tokens.length; i++) {
+            rest[i - 1] = Float.parseFloat(tokens[i].trim());
+        }
+        byte[] pattern = floatPattern(first);
+        int pid = findGamePid();
+        try (ProcessMemoryReader reader = ProcessReaders.open(pid)) {
+            int hits = 0;
+            long scanned = 0;
+            for (MemoryRegion region : reader.maps()) {
+                if (!region.readable() || !region.writable()) {
+                    continue;
+                }
+                String path = region.path();
+                if (!(path.isEmpty() || path.startsWith("[heap]") || path.startsWith("[anon"))) {
+                    continue;
+                }
+                int chunk = 1 << 20;
+                for (long base = region.start(); base < region.end() && hits < 20; base += chunk) {
+                    int size = (int) Math.min((long) chunk + 4, region.end() - base);
+                    byte[] data;
+                    try {
+                        data = reader.readBytes(base, size);
+                    } catch (IOException | RuntimeException unreadable) {
+                        continue;
+                    }
+                    scanned += size;
+                    for (int i = indexOfBytes(data, pattern, 0);
+                            i >= 0 && hits < 20;
+                            i = indexOfBytes(data, pattern, i + 1)) {
+                        long address = base + i;
+                        float[] neighbours = new float[17];
+                        boolean ok = true;
+                        for (int j = -8; j <= 8; j++) {
+                            try {
+                                byte[] word = reader.readBytes(address + (long) j * 4, 4);
+                                neighbours[j + 8] = Float.intBitsToFloat(
+                                        (word[0] & 0xff) | ((word[1] & 0xff) << 8)
+                                                | ((word[2] & 0xff) << 16) | ((word[3] & 0xff) << 24));
+                            } catch (IOException | RuntimeException unreadable) {
+                                ok = false;
+                                break;
+                            }
+                        }
+                        if (!ok) {
+                            continue;
+                        }
+                        boolean linked = false;
+                        StringBuilder context = new StringBuilder();
+                        for (int j = 0; j < neighbours.length; j++) {
+                            for (float want : rest) {
+                                if (Math.abs(neighbours[j] - want) < 0.001f) {
+                                    linked = true;
+                                }
+                            }
+                            context.append(String.format(java.util.Locale.ROOT, "%.2f", neighbours[j]));
+                            if (j + 1 < neighbours.length) {
+                                context.append(',');
+                            }
+                        }
+                        if (linked) {
+                            hits++;
+                            System.out.println("SPIKE triple @" + Long.toHexString(address) + " [" + context + "]");
+                        }
+                    }
+                }
+                if (hits >= 20) {
+                    break;
+                }
+            }
+            System.out.println("SPIKE triple done hits=" + hits + " scanned=" + scanned);
+        }
+    }
+
+    private static byte[] floatPattern(float value) {
+        int bits = Float.floatToIntBits(value);
+        return new byte[]{(byte) bits, (byte) (bits >> 8), (byte) (bits >> 16), (byte) (bits >> 24)};
+    }
+
+    private static int indexOfBytes(byte[] data, byte[] needle, int from) {
+        outer:
+        for (int i = Math.max(0, from); i + needle.length <= data.length; i++) {
+            for (int j = 0; j < needle.length; j++) {
+                if (data[i + j] != needle[j]) {
+                    continue outer;
+                }
+            }
+            return i;
+        }
+        return -1;
+    }
+
     private static float[] parseFloats(String csv) {
         String[] tokens = csv.split(",");
         float[] out = new float[tokens.length];
