@@ -157,7 +157,7 @@ public class FmDecisionTools {
         List<PlayerEntity> squad = currentSquad(all, clubName);
         Map<Long, RecruitmentCaseEntity> evidenceByPlayer = recruitmentCases.byPlayerUniqueId();
         LineupOptimizerService.Constraints baseConstraints = lineupConstraints(
-                minimum, false, false, List.of(), List.of(), 0, snapshot, tacticContext);
+                minimum, false, List.of(), List.of(), 0, snapshot, tacticContext);
         LineupOptimizerService.Result baseline = lineups.optimize(
                 squad, tacticContext.definition(), baseConstraints);
         LineupOptimizerService.Assignment incumbent = baseline.assignmentFor(slot.index());
@@ -374,7 +374,7 @@ public class FmDecisionTools {
         out.put("tactic_slots", slotRows);
         LineupOptimizerService.Result optimized = tactic.definition() == null ? null
                 : lineups.optimize(squad, tactic.definition(), lineupConstraints(
-                        minimum, false, false, List.of(), List.of(), 3, snapshot, tactic));
+                        minimum, false, List.of(), List.of(), 3, snapshot, tactic));
         out.put("optimized_lineup", optimized == null ? null : lineupMap(optimized));
         out.put("recruitment_priorities", optimized == null
                 ? recruitmentPriorities(slotRows)
@@ -426,7 +426,7 @@ public class FmDecisionTools {
         int squadBenchmark = firstTeamAverageCa(squad);
         Map<String, Object> snapshot = snapshots.reference();
         LineupOptimizerService.Constraints baseConstraints = requestedSlot == null ? null : lineupConstraints(
-                15, false, false, List.of(), List.of(), 0, snapshot, tacticContext);
+                15, false, List.of(), List.of(), 0, snapshot, tacticContext);
         LineupOptimizerService.Result baseline = requestedSlot == null ? null
                 : lineups.optimize(squad, tactic, baseConstraints);
 
@@ -439,7 +439,7 @@ public class FmDecisionTools {
                         if (simulated.stream().noneMatch(value -> Objects.equals(
                                 value.getUniqueId(), player.getUniqueId()))) simulated.add(player);
                         LineupOptimizerService.Constraints locked = lineupConstraints(
-                                15, false, false, List.of(),
+                                15, false, List.of(),
                                 List.of(new LineupOptimizerService.LockedAssignment(
                                         requestedSlot.index(), player.getUniqueId())),
                                 0, snapshot, tacticContext);
@@ -597,7 +597,7 @@ public class FmDecisionTools {
             out.put("tactic_coverage_before", coverageSummary(tacticSlots(before, tactic, 15)));
             out.put("tactic_coverage_after", coverageSummary(tacticSlots(after, tactic, 15)));
             LineupOptimizerService.Constraints constraints = lineupConstraints(
-                    15, false, false, List.of(), List.of(), 0, snapshot, tacticContext);
+                    15, false, List.of(), List.of(), 0, snapshot, tacticContext);
             LineupOptimizerService.Result beforeLineup = lineups.optimize(before, tactic, constraints);
             LineupOptimizerService.Result afterLineup = lineups.optimize(after, tactic, constraints);
             out.put("optimized_lineup_before", lineupMap(beforeLineup));
@@ -749,6 +749,18 @@ public class FmDecisionTools {
         out.put("assigned_tactic_slot", alternative.assignedTacticSlot());
         out.put("disrupts_another_slot", alternative.disruptsAnotherSlot());
         return out;
+    }
+
+    private LineupOptimizerService.Constraints lineupConstraints(
+            Integer minimumPositionScore,
+            Boolean includeInjured,
+            List<Long> unavailablePlayerUniqueIds,
+            List<LineupOptimizerService.LockedAssignment> lockedAssignments,
+            Integer alternativeLimit,
+            Map<String, Object> snapshot,
+            TacticContext tactic) {
+        return lineupConstraints(minimumPositionScore, includeInjured, false, unavailablePlayerUniqueIds,
+                lockedAssignments, alternativeLimit, snapshot, tactic);
     }
 
     private LineupOptimizerService.Constraints lineupConstraints(
