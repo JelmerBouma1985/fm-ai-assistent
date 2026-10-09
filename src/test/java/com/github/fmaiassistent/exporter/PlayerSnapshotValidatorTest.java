@@ -112,6 +112,39 @@ class PlayerSnapshotValidatorTest {
                 .hasMessageContaining("malformed date_of_birth=not-a-date");
     }
 
+    @Test
+    void acceptsValidStaffRow() {
+        assertThatNoException().isThrownBy(() ->
+                PlayerSnapshotValidator.validateStaff(List.of(validStaffRow()), "2026-09-01"));
+    }
+
+    @Test
+    void rejectsDriftedStaffAbility() {
+        Map<String, Object> row = validStaffRow();
+        row.put("ca", 3500);
+
+        assertThatThrownBy(() -> PlayerSnapshotValidator.validateStaff(List.of(row), "2026-09-01"))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("ca=3500")
+                .hasMessageContaining("Staff snapshot");
+    }
+
+    @Test
+    void acceptsValidClubRow() {
+        assertThatNoException().isThrownBy(() ->
+                PlayerSnapshotValidator.validateClubs(List.of(validClubRow())));
+    }
+
+    @Test
+    void rejectsNegativeClubBudget() {
+        Map<String, Object> row = validClubRow();
+        row.put("transferBudget", -1L);
+
+        assertThatThrownBy(() -> PlayerSnapshotValidator.validateClubs(List.of(row)))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("transferBudget=-1");
+    }
+
     private static Map<String, Object> validRow() {
         Map<String, Object> row = new HashMap<>();
         row.put("unique_id", 42L);
@@ -120,6 +153,25 @@ class PlayerSnapshotValidatorTest {
         row.put("age", 24);
         row.put("height_cm", 185);
         row.put("date_of_birth", "2002-03-04");
+        return row;
+    }
+
+    private static Map<String, Object> validStaffRow() {
+        Map<String, Object> row = new HashMap<>();
+        row.put("unique_id", 123456L);
+        row.put("ca", 145);
+        row.put("pa", 160);
+        row.put("age", 36);
+        row.put("date_of_birth", "1990-04-10");
+        return row;
+    }
+
+    private static Map<String, Object> validClubRow() {
+        Map<String, Object> row = new HashMap<>();
+        row.put("name", "Test FC");
+        row.put("reputation", 7500);
+        row.put("transferBudget", 5_000_000L);
+        row.put("payrollBudget", 2_000_000L);
         return row;
     }
 }

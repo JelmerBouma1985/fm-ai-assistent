@@ -125,7 +125,7 @@ public class ClubExporter {
         return score;
     }
 
-    private Finance readFinance(ProcessMemoryReader reader, long club) throws IOException {
+    Finance readFinance(ProcessMemoryReader reader, long club) throws IOException {
         var extraOpt = reader.qwordOrNull(club + recordLayout.clubFinanceBlockRel());
         if (extraOpt.isEmpty()) {
             return new Finance(0L, 0L, 0L);
@@ -231,7 +231,7 @@ public class ClubExporter {
     public record ExportResult(List<Map<String, Object>> rows) {
     }
 
-    private record Finance(long balance, long transferBudget, long payrollBudget) {
+    record Finance(long balance, long transferBudget, long payrollBudget) {
     }
 
     record Facilities(int training, int youth, int coaching, int recruitment, int corporate) {

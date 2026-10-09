@@ -106,6 +106,10 @@ public class DatabaseLoadAllService {
             RamSnapshot ram = readRamInParallel(resolvedPid, build, gamePluginBase);
             reportPhase("Validating player data");
             PlayerSnapshotValidator.validate(ram.players().rows(), ram.peopleSlots(), ram.players().gameDate());
+            reportPhase("Validating staff data");
+            PlayerSnapshotValidator.validateStaff(ram.staff().rows(), ram.staff().gameDate());
+            reportPhase("Validating club data");
+            PlayerSnapshotValidator.validateClubs(ram.clubs().rows());
             long persistenceStarted = System.nanoTime();
             logAfterCommit(persistenceStarted);
             long stepStarted = System.nanoTime();

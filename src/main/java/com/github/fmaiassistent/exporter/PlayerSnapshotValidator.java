@@ -41,27 +41,86 @@ public final class PlayerSnapshotValidator {
                             + "invalid unique_id (" + identity + ")");
                 }
             }
-            checkRange(row, "ca", 1, 200, identity);
-            checkRange(row, "pa", 1, 200, identity);
-            checkRange(row, "age", 14, 60, identity);
-            checkRange(row, "height_cm", 130, 230, identity);
-            checkBirthDate(row, reference, identity);
+            checkRange(row, "ca", 1, 200, identity, "Player");
+            checkRange(row, "pa", 1, 200, identity, "Player");
+            checkRange(row, "age", 14, 60, identity, "Player");
+            checkRange(row, "height_cm", 130, 230, identity, "Player");
+            checkBirthDate(row, reference, identity, "Player");
+        }
+    }
+
+    /**
+     * Validates decoded staff rows. Staff records carry no height and their
+     * abilities use a zero-tolerant range because, unlike players, they pass
+     * no classification gate.
+     *
+     * @throws IOException when any anchor fails
+     */
+    public static void validateStaff(List<Map<String, Object>> rows, String gameDate) throws IOException {
+        LocalDate reference = parseDate(gameDate);
+        for (Map<String, Object> row : rows) {
+            String identity = "unique_id=" + row.get("unique_id");
+            if (row.containsKey("unique_id")) {
+                Long uniqueId = asLong(row.get("unique_id"));
+                if (uniqueId == null || uniqueId <= 0) {
+                    throw new IOException("Staff snapshot failed anchor validation: "
+                            + "invalid unique_id (" + identity + ")");
+                }
+            }
+            checkRange(row, "ca", 0, 200, identity, "Staff");
+            checkRange(row, "pa", 0, 200, identity, "Staff");
+            checkRange(row, "age", 16, 90, identity, "Staff");
+            checkBirthDate(row, reference, identity, "Staff");
+        }
+    }
+
+    /**
+     * Validates decoded club rows. Monetary values are exact reads, so budgets
+     * below zero mean layout drift; the balance is skipped because debt is
+     * legitimate. Reputation duplicates the decode gate as defense in depth.
+     *
+     * @throws IOException when any anchor fails
+     */
+    public static void validateClubs(List<Map<String, Object>> rows) throws IOException {
+        for (Map<String, Object> row : rows) {
+            String identity = "name=" + row.get("name");
+            checkRange(row, "reputation", 1, 10000, identity, "Club");
+            checkMinimum(row, "transferBudget", 0, identity);
+            checkMinimum(row, "payrollBudget", 0, identity);
         }
     }
 
     private static void checkRange(
-            Map<String, Object> row, String field, long min, long max, String identity) throws IOException {
+            Map<String, Object> row,
+            String field,
+            long min,
+            long max,
+            String identity,
+            String subject) throws IOException {
         Long value = asLong(row.get(field));
         if (value == null) {
             return;
         }
         if (value < min || value > max) {
-            throw new IOException("Player snapshot failed anchor validation: "
+            throw new IOException(subject + " snapshot failed anchor validation: "
                     + field + "=" + value + " out of range [" + min + ".." + max + "] (" + identity + ")");
         }
     }
 
-    private static void checkBirthDate(Map<String, Object> row, LocalDate reference, String identity)
+    private static void checkMinimum(
+            Map<String, Object> row, String field, long min, String identity) throws IOException {
+        Long value = asLong(row.get(field));
+        if (value == null) {
+            return;
+        }
+        if (value < min) {
+            throw new IOException("Club snapshot failed anchor validation: "
+                    + field + "=" + value + " below minimum " + min + " (" + identity + ")");
+        }
+    }
+
+    private static void checkBirthDate(
+            Map<String, Object> row, LocalDate reference, String identity, String subject)
             throws IOException {
         Object raw = row.get("date_of_birth");
         if (raw == null || String.valueOf(raw).isBlank()) {
@@ -69,14 +128,14 @@ public final class PlayerSnapshotValidator {
         }
         LocalDate birthDate = parseDate(String.valueOf(raw));
         if (birthDate == null) {
-            throw new IOException("Player snapshot failed anchor validation: "
+            throw new IOException(subject + " snapshot failed anchor validation: "
                     + "malformed date_of_birth=" + raw + " (" + identity + ")");
         }
         if (reference == null) {
             return;
         }
         if (birthDate.isAfter(reference) || birthDate.isBefore(reference.minusYears(70))) {
-            throw new IOException("Player snapshot failed anchor validation: "
+            throw new IOException(subject + " snapshot failed anchor validation: "
                     + "implausible date_of_birth=" + raw + " (" + identity + ")");
         }
     }
