@@ -610,13 +610,15 @@ class TeamSheetSpikeTest {
                 } catch (IOException | RuntimeException unreadable) {
                     continue;
                 }
-                scanBufferForSet(data, pointer - 1024, set, "block record+0x"
+                scanBufferForSet(data, pointer - 8192, set, "block record+0x"
                         + Long.toHexString(offset));
-                scanBufferForFloats(data, pointer - 1024, ratings);
+                scanBufferForFloats(data, pointer - 8192, ratings);
             }
             System.out.println("SPIKE deep done");
         }
     }
+
+    private static int contextDumps = 0;
 
     private static void scanBufferForSet(byte[] data, long base, int[] set, String tag) {
         int[] u16 = new int[data.length / 2];
@@ -650,6 +652,21 @@ class TeamSheetSpikeTest {
                 }
                 context.append(']');
                 System.out.println(context);
+                if (contextDumps < 12) {
+                    contextDumps++;
+                    StringBuilder wide = new StringBuilder("SPIKE wide @0x")
+                            .append(Long.toHexString(base + (long) i * 2))
+                            .append(" =[");
+                    for (int j = -32; j < 32; j++) {
+                        if (j != -32) {
+                            wide.append(',');
+                        }
+                        int k = i + j;
+                        wide.append(k < 0 || k >= u16.length ? "?" : u16[k]);
+                    }
+                    wide.append(']');
+                    System.out.println(wide);
+                }
             }
         }
         for (int i = 0; i < data.length; i++) {
