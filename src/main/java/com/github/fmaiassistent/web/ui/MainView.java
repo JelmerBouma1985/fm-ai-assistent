@@ -7,6 +7,8 @@ import com.github.fmaiassistent.domain.entity.StaffEntity;
 import com.github.fmaiassistent.staff.StaffAttributeDefinitions;
 import com.github.fmaiassistent.staff.StaffRoleRatingCalculator;
 import com.github.fmaiassistent.service.*;
+import com.github.fmaiassistent.recruitment.RecruitmentCaseService;
+import com.github.fmaiassistent.shortlist.ShortlistFileService;
 import com.github.fmaiassistent.codex.CodexConversationService;
 import com.github.fmaiassistent.antigravity.AntigravityConversationService;
 import com.github.fmaiassistent.copilot.CopilotConversationService;
@@ -20,8 +22,11 @@ import com.github.fmaiassistent.player.AttributeDefinitions;
 import com.github.fmaiassistent.player.FieldDef;
 import com.github.fmaiassistent.player.PositionTextFormatter;
 import com.github.fmaiassistent.player.PlayerColumnNames;
+import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.DetachEvent;
 import com.vaadin.flow.component.ModalityMode;
+import com.vaadin.flow.component.PollEvent;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -57,6 +62,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.NumberFormat;
 import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -64,6 +71,7 @@ import java.util.function.Function;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import com.vaadin.flow.shared.Registration;
 
 @Route("")
 @PageTitle("FM AI Assistent")
@@ -91,36 +99,47 @@ public class MainView extends VerticalLayout {
     private static final Set<String> MONEY_COLUMNS = Set.of(
             "ASKING_PRICE", "ASKING_PRICE_RAW", "SALARY_PA", "SALARY_WEEKLY_RAW",
             "BALANCE", "TRANSFER_BUDGET", "PAYROLL_BUDGET");
+    private static final int BADGE_POLL_INTERVAL_MS = 60_000;
+    private static final int LOADING_POLL_INTERVAL_MS = 2_000;
+    private static final Duration FRESHNESS_INTERVAL = Duration.ofMinutes(1);
 
     private final RefreshCoordinator refreshes;
     private final PlayerDatabaseService players;
     private final StaffDatabaseService staff;
     private final ClubDatabaseService clubs;
     private final CompetitionDatabaseService competitions;
+    private final RecruitmentCaseService recruitment;
     private final AppSettingsService settings;
     private final SnapshotStatusService snapshots;
 
     private final Dialog loadingDialog = new Dialog();
     private final ProgressBar spinner = new ProgressBar();
+    private final Span loadingPhase = new Span("Reading Football Manager memory");
     private final Button loadButton = new Button("Load data", VaadinIcon.DATABASE.create());
-    private final Button freshnessButton = new Button(VaadinIcon.CLOCK.create());
+    private final Button freshnessBadge = new Button("Freshness unknown");
     private final Button settingsButton = new Button(VaadinIcon.COG.create());
     private final Button filterButton = new Button("Filter", VaadinIcon.FILTER.create());
     private final Span status = new Span();
+    private Instant lastFreshnessPoll;
+    private Boolean lastStale;
+    private Registration pollRegistration;
     private final Tabs tabs = new Tabs();
     private final Div content = new Div();
     private final Grid<PlayerEntity> playersGrid = new Grid<>();
     private final Grid<StaffEntity> staffGrid = new Grid<>();
     private final Grid<ClubEntity> clubsGrid = new Grid<>();
     private final Grid<CompetitionEntity> competitionsGrid = new Grid<>();
+    private final Grid<Map<String, Object>> recruitmentGrid = new Grid<>();
     private final AiAssistantView aiAssistant;
 
     private final Tab playersTab = new Tab("Players");
     private final Tab staffTab = new Tab("Staff");
     private final Tab clubsTab = new Tab("Clubs");
     private final Tab competitionsTab = new Tab("Competitions");
+    private final Tab recruitmentTab = new Tab("Recruitment");
     private final Tab aiAssistantTab = new Tab("AI assistent");
     private PlayerFilterCriteria playerFilter = PlayerFilterCriteria.empty();
+    private final Map<String, PlayerFilterCriteria> savedPlayerFilters = new LinkedHashMap<>();
     private StaffFilterCriteria staffFilter = StaffFilterCriteria.empty();
     private ClubFilterCriteria clubFilter = ClubFilterCriteria.empty();
     private CompetitionFilterCriteria competitionFilter = CompetitionFilterCriteria.empty();
@@ -139,18 +158,21 @@ public class MainView extends VerticalLayout {
             CopilotConversationService copilotConversations,
             OpenRouterSession openRouterSession,
             TacticContextService tacticContexts,
-            ManagedClubContextService managedClubContexts) {
+            ManagedClubContextService managedClubContexts,
+            ShortlistFileService shortlistFiles,
+            RecruitmentCaseService recruitment) {
         this.refreshes = refreshes;
         this.players = players;
         this.staff = staff;
         this.clubs = clubs;
         this.competitions = competitions;
+        this.recruitment = recruitment;
         this.settings = settings;
         this.snapshots = snapshots;
         this.aiAssistant = new AiAssistantView(
                 codexConversations, antigravityConversations, copilotConversations,
                 openRouterSession.conversations(),
-                tacticContexts, managedClubContexts);
+                tacticContexts, managedClubContexts, shortlistFiles);
         this.currency = settings.currency();
 
         setSizeFull();
@@ -166,6 +188,7 @@ public class MainView extends VerticalLayout {
         configureGrid(staffGrid);
         configureGrid(clubsGrid);
         configureGrid(competitionsGrid);
+        configureGrid(recruitmentGrid);
         configureLoadingDialog();
         playersGrid.addItemClickListener(event -> openPlayerDetailsDialog(event.getItem()));
         staffGrid.addItemClickListener(event -> openStaffDetailsDialog(event.getItem()));
@@ -175,14 +198,16 @@ public class MainView extends VerticalLayout {
 
     private Component header() {
         loadButton.addClickListener(event -> loadAllData());
-        freshnessButton.addClickListener(event -> checkSnapshotFreshness());
+        freshnessBadge.addClickListener(event -> refreshFreshnessBadge(true));
+        freshnessBadge.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
         settingsButton.addClickListener(event -> openSettingsDialog());
         filterButton.addClickListener(event -> openFilterDialog());
         loadButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         loadButton.addClassName("load-button");
-        freshnessButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
-        freshnessButton.setTooltipText("Check whether the loaded FM26 data is current");
-        freshnessButton.getElement().setAttribute("aria-label", "Check data freshness");
+        freshnessBadge.addClassName("freshness-badge");
+        freshnessBadge.getElement().setAttribute("title", "Check whether the loaded FM26 data is current");
+        freshnessBadge.getElement().setAttribute("aria-label", "Check data freshness");
+        setBadge(FreshnessBadge.UNKNOWN);
         filterButton.addClassName("filter-button");
         settingsButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
         settingsButton.addClassName("icon-button");
@@ -203,7 +228,7 @@ public class MainView extends VerticalLayout {
         brand.setSpacing(false);
         brand.addClassName("brand");
 
-        HorizontalLayout actions = new HorizontalLayout(status, freshnessButton, loadButton, settingsButton);
+        HorizontalLayout actions = new HorizontalLayout(status, freshnessBadge, loadButton, settingsButton);
         actions.setAlignItems(Alignment.CENTER);
         actions.setSpacing(false);
         actions.addClassName("app-actions");
@@ -230,13 +255,14 @@ public class MainView extends VerticalLayout {
     }
 
     private void configureTabs() {
-        tabs.add(playersTab, staffTab, clubsTab, competitionsTab, aiAssistantTab);
+        tabs.add(playersTab, staffTab, clubsTab, competitionsTab, recruitmentTab, aiAssistantTab);
         tabs.setWidthFull();
         tabs.addClassName("workspace-tabs");
         playersTab.addComponentAsFirst(VaadinIcon.USERS.create());
         staffTab.addComponentAsFirst(VaadinIcon.USER_STAR.create());
         clubsTab.addComponentAsFirst(VaadinIcon.OFFICE.create());
         competitionsTab.addComponentAsFirst(VaadinIcon.TROPHY.create());
+        recruitmentTab.addComponentAsFirst(VaadinIcon.CLIPBOARD_TEXT.create());
         aiAssistantTab.addComponentAsFirst(VaadinIcon.CHAT.create());
         tabs.addSelectedChangeListener(event -> {
             filterButton.setVisible(event.getSelectedTab() == playersTab
@@ -251,6 +277,8 @@ public class MainView extends VerticalLayout {
                 showClubs();
             } else if (event.getSelectedTab() == competitionsTab) {
                 showCompetitions();
+            } else if (event.getSelectedTab() == recruitmentTab) {
+                showRecruitment();
             } else {
                 showAiAssistant();
             }
@@ -270,7 +298,9 @@ public class MainView extends VerticalLayout {
         loadButton.setText("Loading...");
         loadButton.setIcon(VaadinIcon.REFRESH.create());
         loadButton.addClassName("is-loading");
+        loadingPhase.setText("Starting FM26 memory read...");
         loadingDialog.open();
+        ui.setPollInterval(LOADING_POLL_INTERVAL_MS);
 
         refreshes.refresh(
                         null,
@@ -305,6 +335,8 @@ public class MainView extends VerticalLayout {
                 })
                 .whenComplete((result, ex) -> ui.access(() -> {
                     loadingDialog.close();
+                    ui.setPollInterval(BADGE_POLL_INTERVAL_MS);
+                    refreshFreshnessBadge(false);
                     loadButton.setEnabled(true);
                     loadButton.setText("Load data");
                     loadButton.setIcon(VaadinIcon.DATABASE.create());
@@ -312,39 +344,135 @@ public class MainView extends VerticalLayout {
                 }));
     }
 
-    private void checkSnapshotFreshness() {
-        freshnessButton.setEnabled(false);
-        UI ui = UI.getCurrent();
+    private void refreshFreshnessBadge(boolean manual) {
         snapshots.statusAsync(true)
-                .thenAccept(snapshot -> ui.access(() -> {
-                    Boolean stale = (Boolean) snapshot.get("stale");
-                    String liveDate = Objects.toString(snapshot.get("live_game_date"), "unknown");
-                    String loadedDate = Objects.toString(snapshot.get("game_date"), "unknown");
-                    if (Boolean.TRUE.equals(stale)) {
-                        status.setText("Data stale | Loaded " + loadedDate + " | FM " + liveDate);
-                        Notification.show(
-                                "FM26 has changed since the last load. Select Load data before asking for decisions.",
-                                7000,
-                                Notification.Position.TOP_CENTER);
-                    } else if (Boolean.FALSE.equals(stale)) {
-                        status.setText("Data current | Game date " + loadedDate);
-                        Notification.show("Loaded FM26 snapshot is current", 2500, Notification.Position.TOP_CENTER);
-                    } else {
-                        status.setText("Data freshness unverified | Loaded " + loadedDate);
-                        Notification.show(
-                                "Could not verify the live FM26 game date. The loaded snapshot was left unchanged.",
-                                5000,
-                                Notification.Position.TOP_CENTER);
-                    }
-                }))
+                .thenAccept(snapshot -> getUI().ifPresent(ui -> ui.access(() -> applyFreshness(snapshot, manual))))
                 .exceptionally(exception -> {
-                    ui.access(() -> Notification.show(
-                            "Freshness check failed: " + exception.getMessage(),
-                            5000,
-                            Notification.Position.TOP_CENTER));
+                    getUI().ifPresent(ui -> ui.access(() -> {
+                        if (manual) {
+                            Notification.show(
+                                    "Freshness check failed: " + exception.getMessage(),
+                                    5000,
+                                    Notification.Position.TOP_CENTER);
+                        }
+                        setBadge(FreshnessBadge.UNKNOWN);
+                    }));
                     return null;
                 })
-                .whenComplete((ignored, exception) -> ui.access(() -> freshnessButton.setEnabled(true)));
+                .whenComplete((ignored, exception) -> lastFreshnessPoll = Instant.now());
+    }
+
+    private void applyFreshness(Map<String, Object> snapshot, boolean manual) {
+        FreshnessBadge badge = badgeFor(snapshot);
+        setBadge(badge);
+        Boolean stale = (Boolean) snapshot.get("stale");
+        String liveDate = Objects.toString(snapshot.get("live_game_date"), "unknown");
+        String loadedDate = Objects.toString(snapshot.get("game_date"), "unknown");
+        if (manual) {
+            if (Boolean.TRUE.equals(stale)) {
+                status.setText("Data stale | Loaded " + loadedDate + " | FM " + liveDate);
+                Notification.show(
+                        "FM26 has changed since the last load. Select Load data before asking for decisions.",
+                        7000,
+                        Notification.Position.TOP_CENTER);
+            } else if (Boolean.FALSE.equals(stale)) {
+                status.setText("Data current | Game date " + loadedDate);
+                Notification.show("Loaded FM26 snapshot is current", 2500, Notification.Position.TOP_CENTER);
+            } else {
+                status.setText("Data freshness unverified | Loaded " + loadedDate);
+                Notification.show(
+                        "Could not verify the live FM26 game date. The loaded snapshot was left unchanged.",
+                        5000,
+                        Notification.Position.TOP_CENTER);
+            }
+        } else if (Boolean.TRUE.equals(stale) && !Boolean.TRUE.equals(lastStale)) {
+            Notification.show(
+                    "FM26 has changed since the last load. Select Load data before asking for decisions.",
+                    7000,
+                    Notification.Position.TOP_CENTER);
+        }
+        lastStale = stale;
+    }
+
+    static FreshnessBadge badgeFor(Map<String, Object> snapshot) {
+        if (!"loaded".equals(snapshot.get("state"))) {
+            return FreshnessBadge.EMPTY;
+        }
+        Boolean stale = (Boolean) snapshot.get("stale");
+        if (Boolean.TRUE.equals(stale)) {
+            return FreshnessBadge.STALE;
+        }
+        if (Boolean.FALSE.equals(stale)) {
+            return FreshnessBadge.CURRENT;
+        }
+        return FreshnessBadge.UNKNOWN;
+    }
+
+    private void setBadge(FreshnessBadge badge) {
+        freshnessBadge.setText(switch (badge) {
+            case CURRENT -> "Data current";
+            case STALE -> "Data stale — reload";
+            case UNKNOWN -> "Freshness unknown";
+            case EMPTY -> "No data loaded";
+        });
+        freshnessBadge.getElement().getClassList().remove("is-current");
+        freshnessBadge.getElement().getClassList().remove("is-stale");
+        freshnessBadge.getElement().getClassList().remove("is-unknown");
+        freshnessBadge.getElement().getClassList().remove("is-empty");
+        freshnessBadge.getElement().getClassList().add(switch (badge) {
+            case CURRENT -> "is-current";
+            case STALE -> "is-stale";
+            case UNKNOWN -> "is-unknown";
+            case EMPTY -> "is-empty";
+        });
+    }
+
+    enum FreshnessBadge {
+        CURRENT,
+        STALE,
+        UNKNOWN,
+        EMPTY
+    }
+
+    @Override
+    protected void onAttach(AttachEvent event) {
+        super.onAttach(event);
+        getUI().ifPresent(ui -> {
+            ui.setPollInterval(BADGE_POLL_INTERVAL_MS);
+            if (pollRegistration == null) {
+                pollRegistration = ui.addPollListener(this::onPoll);
+            }
+        });
+        lastFreshnessPoll = Instant.now();
+        refreshFreshnessBadge(false);
+    }
+
+    @Override
+    protected void onDetach(DetachEvent event) {
+        if (pollRegistration != null) {
+            pollRegistration.remove();
+            pollRegistration = null;
+        }
+        super.onDetach(event);
+    }
+
+    private void onPoll(PollEvent event) {
+        if (loadingDialog.isOpened()) {
+            updateLoadingPhase();
+            return;
+        }
+        if (lastFreshnessPoll != null
+                && Duration.between(lastFreshnessPoll, Instant.now()).compareTo(FRESHNESS_INTERVAL) < 0) {
+            return;
+        }
+        refreshFreshnessBadge(false);
+    }
+
+    private void updateLoadingPhase() {
+        String phase = refreshes.phase();
+        if (phase != null && !phase.isBlank()) {
+            loadingPhase.setText(phase + "...");
+        }
     }
 
     private void refreshSelectedTab() {
@@ -356,6 +484,8 @@ public class MainView extends VerticalLayout {
             showClubs();
         } else if (tabs.getSelectedTab() == competitionsTab) {
             showCompetitions();
+        } else if (tabs.getSelectedTab() == recruitmentTab) {
+            showRecruitment();
         } else {
             showAiAssistant();
         }
@@ -467,6 +597,81 @@ public class MainView extends VerticalLayout {
         }
     }
 
+    private void showRecruitment() {
+        if (recruitmentGrid.getColumns().isEmpty()) {
+            recruitmentGrid.addColumn(item -> display(item.get("name")))
+                    .setKey("NAME").setHeader("Player").setAutoWidth(true).setResizable(true)
+                    .setTooltipGenerator(item -> display(item.get("name")));
+            recruitmentGrid.addColumn(item -> display(item.get("club")))
+                    .setKey("CLUB").setHeader("Club").setAutoWidth(true).setResizable(true)
+                    .setTooltipGenerator(item -> display(item.get("club")));
+            recruitmentGrid.addColumn(item -> display(item.get("interest_status")))
+                    .setKey("INTEREST").setHeader("Interest").setAutoWidth(true).setResizable(true)
+                    .setTooltipGenerator(item -> display(item.get("interest_status")));
+            recruitmentGrid.addColumn(item -> display(item.get("deal_stage")))
+                    .setKey("STAGE").setHeader("Stage").setAutoWidth(true).setResizable(true)
+                    .setTooltipGenerator(item -> display(item.get("deal_stage")));
+            recruitmentGrid.addColumn(item -> display(item.get("source")))
+                    .setKey("SOURCE").setHeader("Source").setAutoWidth(true).setResizable(true)
+                    .setTooltipGenerator(item -> display(item.get("source")));
+            recruitmentGrid.addColumn(item -> display(item.get("observed_game_date")))
+                    .setKey("OBSERVED").setHeader("Observed").setAutoWidth(true).setResizable(true)
+                    .setTooltipGenerator(item -> display(item.get("observed_game_date")));
+            recruitmentGrid.addColumn(item -> display(item.get("valid_until_game_date")))
+                    .setKey("VALID_UNTIL").setHeader("Valid until").setAutoWidth(true).setResizable(true)
+                    .setTooltipGenerator(item -> display(item.get("valid_until_game_date")));
+            recruitmentGrid.addColumn(item -> Boolean.TRUE.equals(item.get("effective")) ? "Active" : "Expired")
+                    .setKey("STATUS").setHeader("Status").setAutoWidth(true).setResizable(true)
+                    .setTooltipGenerator(item -> Boolean.TRUE.equals(item.get("effective")) ? "Active" : "Expired");
+            recruitmentGrid.addComponentColumn(item -> {
+                Button delete = new Button("Delete", VaadinIcon.TRASH.create());
+                delete.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE, ButtonVariant.LUMO_ERROR);
+                delete.addClickListener(ignored -> deleteRecruitmentCase(item));
+                return delete;
+            }).setKey("DELETE").setHeader("").setWidth("110px").setFlexGrow(0);
+        }
+        List<Map<String, Object>> rows = recruitment.board();
+        recruitmentGrid.setItems(rows);
+        long active = rows.stream().filter(row -> Boolean.TRUE.equals(row.get("effective"))).count();
+        Span summary = new Span("Recruitment evidence: " + active + " active, "
+                + (rows.size() - active) + " expired");
+        summary.addClassName("app-status");
+        Button clearExpired = new Button("Clear expired", VaadinIcon.TRASH.create(), ignored -> {
+            int removed = recruitment.deleteExpired();
+            Notification.show(removed == 0
+                            ? "No expired recruitment evidence to clear."
+                            : "Cleared " + removed + " expired recruitment " + (removed == 1 ? "case." : "cases."),
+                    3000, Notification.Position.TOP_CENTER);
+            showRecruitment();
+        });
+        clearExpired.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+        HorizontalLayout toolbar = new HorizontalLayout(summary, clearExpired);
+        toolbar.setAlignItems(HorizontalLayout.Alignment.CENTER);
+        toolbar.expand(summary);
+        toolbar.setWidthFull();
+        VerticalLayout view = new VerticalLayout(toolbar, recruitmentGrid);
+        view.setSizeFull();
+        view.setPadding(false);
+        view.setSpacing(false);
+        view.expand(recruitmentGrid);
+        content.removeAll();
+        content.setSizeFull();
+        content.add(view);
+        content.addClassName("data-workspace");
+    }
+
+    private void deleteRecruitmentCase(Map<String, Object> item) {
+        Object uid = item.get("player_unique_id");
+        Long uniqueId = uid instanceof Number number ? number.longValue() : null;
+        String careerKey = Objects.toString(item.get("career_key"), null);
+        if (uniqueId == null || !recruitment.delete(careerKey, uniqueId)) {
+            Notification.show("Recruitment evidence is already gone.", 2500, Notification.Position.TOP_CENTER);
+        } else {
+            Notification.show("Recruitment evidence removed.", 2500, Notification.Position.TOP_CENTER);
+        }
+        showRecruitment();
+    }
+
     private void setClubGrid(List<GridColumn> columns, ClubFilterCriteria filter) {
         if (clubsGrid.getColumns().isEmpty()) {
             for (GridColumn column : columns) {
@@ -476,7 +681,8 @@ public class MainView extends VerticalLayout {
                         .setAutoWidth(true)
                         .setResizable(true)
                         .setSortProperty(column.key())
-                        .setSortable(true);
+                        .setSortable(true)
+                        .setTooltipGenerator(club -> displayColumn(column.key(), clubColumnValue(club, column.key())));
             }
         }
         clubsGrid.setDataProvider(DataProvider.fromCallbacks(
@@ -495,6 +701,7 @@ public class MainView extends VerticalLayout {
                 Grid.Column<StaffEntity> gridColumn = staffGrid.addColumn(
                                 value -> displayColumn(column.key(), column.value(value)))
                         .setKey(column.key()).setHeader(column.header()).setAutoWidth(true).setResizable(true);
+                gridColumn.setTooltipGenerator(staff -> displayColumn(column.key(), column.value(staff)));
                 String sortProperty = staffSortProperty(column.key());
                 if (sortProperty != null) {
                     gridColumn.setSortProperty(column.key()).setSortable(true);
@@ -520,7 +727,8 @@ public class MainView extends VerticalLayout {
                         .setAutoWidth(true)
                         .setResizable(true)
                         .setSortProperty(column.key())
-                        .setSortable(true);
+                        .setSortable(true)
+                        .setTooltipGenerator(competition -> displayColumn(column.key(), competitionColumnValue(competition, column.key())));
             }
         }
         competitionsGrid.setDataProvider(DataProvider.fromCallbacks(
@@ -543,6 +751,7 @@ public class MainView extends VerticalLayout {
                         .setHeader(column.header())
                         .setAutoWidth(true)
                         .setResizable(true);
+                gridColumn.setTooltipGenerator(player -> displayColumn(column.key(), column.value(player)));
                 String sortProperty = playerSortProperty(column.key());
                 if (sortProperty != null) {
                     gridColumn.setSortProperty(column.key()).setSortable(true);
@@ -632,6 +841,7 @@ public class MainView extends VerticalLayout {
                 new Div(VaadinIcon.DATABASE.create()),
                 spinner,
                 new Span("Reading Football Manager memory"),
+                loadingPhase,
                 new Span("Players, staff, clubs and competitions will refresh automatically.")
         );
         content.setAlignItems(FlexComponent.Alignment.CENTER);
@@ -650,23 +860,14 @@ public class MainView extends VerticalLayout {
         dialog.getElement().getThemeList().add("professional-dialog");
         dialog.getElement().getThemeList().add("player-detail-dialog");
 
-        VerticalLayout info = new VerticalLayout(detailLayout(List.of(
-                new DetailField("Name", player.getName()),
-                new DetailField("Age", player.getAge()),
-                new DetailField("Height", heightDisplay(player)),
-                new DetailField("Nationality", player.getNationality()),
-                new DetailField("Club", player.getClub()),
-                new DetailField("Playing Club", player.getPlayingClub()),
-                new DetailField("Position", PositionTextFormatter.format(player)),
-                new DetailField("Salary Weekly", salaryWeeklyDisplay(player.getSalaryWeeklyRaw())),
-                new DetailField("Asking Price", moneyDisplay(player.getAskingPrice())),
-                new DetailField("Joined Club Date", player.getJoinedClubDate()),
-                new DetailField("Contract End Date", player.getContractEndDate()),
-                new DetailField("Current Reputation", player.getCurrentReputation()),
-                new DetailField("Home Reputation", player.getHomeReputation()),
-                new DetailField("World Reputation", player.getWorldReputation()))));
+        VerticalLayout info = new VerticalLayout(detailLayout(playerInfoFields(player)));
         info.setPadding(false);
         info.addClassName("detail-info");
+        if (Boolean.TRUE.equals(player.getInjured())) {
+            Span injuryWarning = new Span(injurySummary(player));
+            injuryWarning.addClassName("injury-warning");
+            info.addComponentAsFirst(injuryWarning);
+        }
 
         Checkbox showGoalkeeping = new Checkbox("Show goalkeeping attributes");
         showGoalkeeping.setValue(isGoalkeeper(player));
@@ -729,6 +930,51 @@ public class MainView extends VerticalLayout {
         dialog.add(detailTabs, detailContent);
         dialog.getFooter().add(close);
         dialog.open();
+    }
+
+    List<DetailField> playerInfoFields(PlayerEntity player) {
+        List<DetailField> fields = new ArrayList<>(List.of(
+                new DetailField("Name", player.getName()),
+                new DetailField("Age", player.getAge()),
+                new DetailField("Height", heightDisplay(player)),
+                new DetailField("Nationality", player.getNationality()),
+                new DetailField("Club", player.getClub()),
+                new DetailField("Playing Club", player.getPlayingClub()),
+                new DetailField("Position", PositionTextFormatter.format(player)),
+                new DetailField("Salary Weekly", salaryWeeklyDisplay(player.getSalaryWeeklyRaw())),
+                new DetailField("Asking Price", moneyDisplay(player.getAskingPrice())),
+                new DetailField("Joined Club Date", player.getJoinedClubDate()),
+                new DetailField("Contract End Date", player.getContractEndDate()),
+                new DetailField("Current Reputation", player.getCurrentReputation()),
+                new DetailField("Home Reputation", player.getHomeReputation()),
+                new DetailField("World Reputation", player.getWorldReputation())));
+        if (Boolean.TRUE.equals(player.getInjured())) {
+            fields.add(new DetailField("Injured", "Yes"));
+            fields.add(new DetailField("Injury", display(player.getInjury())));
+            fields.add(new DetailField("Injury Start Date", display(player.getInjuryStartDate())));
+            fields.add(new DetailField("Expected Return", display(player.getInjuryExpectedReturn())));
+            fields.add(new DetailField("Full Training In (days)",
+                    display(player.getInjuryFullTrainingDaysRemaining())));
+            fields.add(new DetailField("Light Training In (days)",
+                    display(player.getInjuryLightTrainingDaysRemaining())));
+        }
+        return fields;
+    }
+
+    static String injurySummary(PlayerEntity player) {
+        String injury = Objects.toString(player.getInjury(), "").trim();
+        String expected = Objects.toString(player.getInjuryExpectedReturn(), "").trim();
+        StringBuilder summary = new StringBuilder("Injured");
+        if (!injury.isEmpty()) {
+            summary.append(": ").append(injury);
+        }
+        if (player.getInjuryFullTrainingDaysRemaining() != null) {
+            summary.append(" — full training in ").append(player.getInjuryFullTrainingDaysRemaining()).append(" days");
+        }
+        if (!expected.isEmpty()) {
+            summary.append(" (expected return ").append(expected).append(")");
+        }
+        return summary.toString();
     }
 
     private void openStaffDetailsDialog(StaffEntity staffMember) {
@@ -963,40 +1209,77 @@ public class MainView extends VerticalLayout {
         });
 
         Button apply = new Button("Apply filters", VaadinIcon.CHECK.create(), event -> {
-            createAttributeFields(attributeFields, attributeLayout);
-            if (!validPlayerFilter(
-                    currentRepMin, currentRepMax,
-                    homeRepMin, homeRepMax,
-                    worldRepMin, worldRepMax,
-                    caMin, caMax,
-                    paMin, paMax,
-                    heightMin, heightMax,
-                    attributeFields)) {
+            PlayerFilterCriteria next = buildPlayerFilterFromDialog(
+                    name, gender, playingNation, playingCompetition, club, nationality,
+                    ageMin, ageMax, heightMin, heightMax,
+                    currentRepMin, currentRepMax, homeRepMin, homeRepMax,
+                    worldRepMin, worldRepMax, caMin, caMax, paMin, paMax,
+                    askingMin, askingMax, salaryMax, contractFrom, contractTo,
+                    selectedPositions, attributeFields, attributeLayout);
+            if (next == null) {
                 return;
             }
-            playerFilter = new PlayerFilterCriteria(
-                    name.getValue(),
-                    gender.getValue(),
-                    playingNation.getValue(),
-                    playingCompetition.getValue(),
-                    club.getValue(),
-                    ageMin.getValue(), ageMax.getValue(),
-                    heightMin.getValue(), heightMax.getValue(),
-                    nationality.getValue(),
-                    defaultInt(currentRepMin.getValue(), 1), currentRepMax.getValue(),
-                    defaultInt(homeRepMin.getValue(), 1), homeRepMax.getValue(),
-                    defaultInt(worldRepMin.getValue(), 1), worldRepMax.getValue(),
-                    defaultInt(caMin.getValue(), 1), caMax.getValue(),
-                    defaultInt(paMin.getValue(), 1), paMax.getValue(),
-                    contractFrom.getValue(), contractTo.getValue(),
-                    askingMin.value(), askingMax.value(),
-                    salaryMax.value(),
-                    selectedPositionMinimums(selectedPositions),
-                    selectedAttributeMinimums(attributeFields));
+            playerFilter = next;
             showPlayers();
             dialog.close();
         });
         apply.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+
+        ComboBox<String> savedSets = new ComboBox<>("Saved sets");
+        savedSets.setPlaceholder("Select a saved set");
+        savedSets.setItems(savedPlayerFilters.keySet());
+        savedSets.setWidth("220px");
+        Button loadSet = new Button("Load", VaadinIcon.UPLOAD.create(), event -> {
+            String selected = savedSets.getValue();
+            PlayerFilterCriteria saved = selected == null ? null : savedPlayerFilters.get(selected);
+            if (saved == null) {
+                Notification.show("Select a saved set first.", 2500, Notification.Position.TOP_CENTER);
+                return;
+            }
+            playerFilter = saved;
+            showPlayers();
+            Notification.show("Filter set \"" + selected + "\" applied.", 2500, Notification.Position.TOP_CENTER);
+            dialog.close();
+        });
+        TextField setName = new TextField("Set name");
+        setName.setPlaceholder("Name this filter");
+        setName.setWidth("200px");
+        Button saveSet = new Button("Save", VaadinIcon.CHECK.create(), event -> {
+            String setLabel = setName.getValue() == null ? "" : setName.getValue().trim();
+            if (setLabel.isEmpty()) {
+                Notification.show("Enter a name for the filter set.", 2500, Notification.Position.TOP_CENTER);
+                return;
+            }
+            PlayerFilterCriteria next = buildPlayerFilterFromDialog(
+                    name, gender, playingNation, playingCompetition, club, nationality,
+                    ageMin, ageMax, heightMin, heightMax,
+                    currentRepMin, currentRepMax, homeRepMin, homeRepMax,
+                    worldRepMin, worldRepMax, caMin, caMax, paMin, paMax,
+                    askingMin, askingMax, salaryMax, contractFrom, contractTo,
+                    selectedPositions, attributeFields, attributeLayout);
+            if (next == null) {
+                return;
+            }
+            savedPlayerFilters.put(setLabel, next);
+            savedSets.setItems(savedPlayerFilters.keySet());
+            savedSets.setValue(setLabel);
+            Notification.show("Filter set \"" + setLabel + "\" saved.", 2500, Notification.Position.TOP_CENTER);
+        });
+        Button deleteSet = new Button("Delete", VaadinIcon.TRASH.create(), event -> {
+            String selected = savedSets.getValue();
+            if (selected == null || savedPlayerFilters.remove(selected) == null) {
+                Notification.show("Select a saved set first.", 2500, Notification.Position.TOP_CENTER);
+                return;
+            }
+            savedSets.setItems(savedPlayerFilters.keySet());
+            savedSets.clear();
+            Notification.show("Filter set \"" + selected + "\" deleted.", 2500, Notification.Position.TOP_CENTER);
+        });
+        deleteSet.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_ERROR);
+        HorizontalLayout savedRow = new HorizontalLayout(savedSets, loadSet, setName, saveSet, deleteSet);
+        savedRow.setAlignItems(HorizontalLayout.Alignment.END);
+        savedRow.setWidthFull();
+        savedRow.addClassName("saved-filter-row");
 
         Button clear = new Button("Clear", VaadinIcon.TRASH.create(), event -> {
             playerFilter = PlayerFilterCriteria.empty();
@@ -1006,9 +1289,73 @@ public class MainView extends VerticalLayout {
         });
         Button cancel = new Button("Cancel", VaadinIcon.CLOSE_SMALL.create(), event -> dialog.close());
 
-        dialog.add(dialogTabs, dialogContent);
+        VerticalLayout filterBody = new VerticalLayout(savedRow, dialogTabs, dialogContent);
+        filterBody.setPadding(false);
+        filterBody.setSpacing(true);
+        dialog.add(filterBody);
         dialog.getFooter().add(clear, cancel, apply);
         dialog.open();
+    }
+
+    PlayerFilterCriteria buildPlayerFilterFromDialog(
+            TextField name,
+            Select<String> gender,
+            ComboBox<String> playingNation,
+            ComboBox<String> playingCompetition,
+            ComboBox<String> club,
+            ComboBox<String> nationality,
+            IntegerField ageMin,
+            IntegerField ageMax,
+            IntegerField heightMin,
+            IntegerField heightMax,
+            IntegerField currentRepMin,
+            IntegerField currentRepMax,
+            IntegerField homeRepMin,
+            IntegerField homeRepMax,
+            IntegerField worldRepMin,
+            IntegerField worldRepMax,
+            IntegerField caMin,
+            IntegerField caMax,
+            IntegerField paMin,
+            IntegerField paMax,
+            LongField askingMin,
+            LongField askingMax,
+            LongField salaryMax,
+            DatePicker contractFrom,
+            DatePicker contractTo,
+            Map<String, PositionLevel> selectedPositions,
+            Map<String, IntegerField> attributeFields,
+            Div attributeLayout) {
+        createAttributeFields(attributeFields, attributeLayout);
+        if (!validPlayerFilter(
+                currentRepMin, currentRepMax,
+                homeRepMin, homeRepMax,
+                worldRepMin, worldRepMax,
+                caMin, caMax,
+                paMin, paMax,
+                heightMin, heightMax,
+                attributeFields)) {
+            return null;
+        }
+        return new PlayerFilterCriteria(
+                name.getValue(),
+                gender.getValue(),
+                playingNation.getValue(),
+                playingCompetition.getValue(),
+                club.getValue(),
+                ageMin.getValue(), ageMax.getValue(),
+                heightMin.getValue(), heightMax.getValue(),
+                nationality.getValue(),
+                defaultInt(currentRepMin.getValue(), 1), currentRepMax.getValue(),
+                defaultInt(homeRepMin.getValue(), 1), homeRepMax.getValue(),
+                defaultInt(worldRepMin.getValue(), 1), worldRepMax.getValue(),
+                defaultInt(caMin.getValue(), 1), caMax.getValue(),
+                defaultInt(paMin.getValue(), 1), paMax.getValue(),
+                contractFrom.getValue(), contractTo.getValue(),
+                askingMin.value(), askingMax.value(),
+                salaryMax.value(),
+                selectedPositionMinimums(selectedPositions),
+                selectedAttributeMinimums(attributeFields));
     }
 
     private void openStaffFilterDialog() {
@@ -2110,7 +2457,7 @@ public class MainView extends VerticalLayout {
     private record GridColumn(String key, String header) {
     }
 
-    private record DetailField(String label, Object value) {
+    record DetailField(String label, Object value) {
     }
 
     private record PositionTile(String shortName, String fullName, Object value) {
@@ -2170,10 +2517,10 @@ public class MainView extends VerticalLayout {
         }
     }
 
-    private static final class LongField {
+    static final class LongField {
         private final com.vaadin.flow.component.textfield.NumberField field;
 
-        private LongField(String label, Long value) {
+        LongField(String label, Long value) {
             field = new com.vaadin.flow.component.textfield.NumberField(label);
             field.setMin(0);
             field.setStep(1000);
@@ -2181,11 +2528,11 @@ public class MainView extends VerticalLayout {
             field.setValue(value == null ? null : value.doubleValue());
         }
 
-        private com.vaadin.flow.component.textfield.NumberField field() {
+        NumberField field() {
             return field;
         }
 
-        private Long value() {
+        Long value() {
             return field.getValue() == null ? null : field.getValue().longValue();
         }
     }

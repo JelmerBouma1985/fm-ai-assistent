@@ -36,6 +36,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 @Service
 public class DatabaseLoadAllService {
@@ -49,6 +51,7 @@ public class DatabaseLoadAllService {
     private final SnapshotDatabaseWriter snapshotWriter;
     private final ManagedClubContextService managedClubContexts;
     private final LoadMetadataRepository metadata;
+    private final AtomicReference<Consumer<String>> phaseListener = new AtomicReference<>();
 
     public DatabaseLoadAllService(
             ClubDatabaseService clubs,
@@ -78,25 +81,32 @@ public class DatabaseLoadAllService {
         ManagedClubContext previousContext = managedClubContexts.current();
         try {
             int resolvedPid = pid == null ? detectFmPid() : pid;
+            reportPhase("Reading FM26 memory");
             RamSnapshot ram = readRamInParallel(resolvedPid, build, gamePluginBase);
             long persistenceStarted = System.nanoTime();
             logAfterCommit(persistenceStarted);
             long stepStarted = System.nanoTime();
+            reportPhase("Clearing local database");
             databaseService.clearAllTables();
             log.info("FM26 database clear completed in {} ms", elapsedMillis(stepStarted));
             stepStarted = System.nanoTime();
+            reportPhase("Saving competitions");
             Map<Long, Long> competitionIds = snapshotWriter.saveCompetitions(ram.competitions());
             log.info("FM26 competition persistence completed in {} ms", elapsedMillis(stepStarted));
             stepStarted = System.nanoTime();
+            reportPhase("Saving clubs");
             Map<Long, Long> clubIds = snapshotWriter.saveClubs(ram.clubs(), competitionIds);
             log.info("FM26 club persistence completed in {} ms", elapsedMillis(stepStarted));
             stepStarted = System.nanoTime();
+            reportPhase("Saving players");
             snapshotWriter.savePlayers(ram.players(), clubIds);
             log.info("FM26 player persistence completed in {} ms", elapsedMillis(stepStarted));
             stepStarted = System.nanoTime();
+            reportPhase("Saving staff");
             snapshotWriter.saveStaff(ram.staff(), clubIds);
             log.info("FM26 staff persistence completed in {} ms", elapsedMillis(stepStarted));
             stepStarted = System.nanoTime();
+            reportPhase("Detecting managed club");
             ManagedClubContext detectedManagedClub;
             try {
                 detectedManagedClub = managedClubContexts.detect(resolvedPid, build, gamePluginBase);
@@ -110,6 +120,7 @@ public class DatabaseLoadAllService {
             publishManagedClubAfterCommit(detectedManagedClub);
             log.info("FM26 managed-club finalization completed in {} ms", elapsedMillis(stepStarted));
             stepStarted = System.nanoTime();
+            reportPhase("Saving snapshot");
             String snapshotId = UUID.randomUUID().toString();
             long playerCount = ram.players().rows().size();
             long staffCount = ram.staff().rows().size();
@@ -171,8 +182,27 @@ public class DatabaseLoadAllService {
         }
     }
 
-    public int detectFmPid() throws IOException {
-        return ProcessReaders.findProcesses("fm.exe").stream()
+    /**
+     * Receives human-readable load phases while {@link #loadAll} runs.
+     * Used by the UI to show progress. A {@code null} listener clears reporting.
+     * Only one refresh runs at a time, so a single listener slot is sufficient.
+     */
+    public void setPhaseListener(Consumer<String> listener) {
+        if (listener == null) {
+            phaseListener.set(null);
+        } else {
+            phaseListener.set(listener);
+        }
+    }
+
+    private void reportPhase(String phase) {
+        Consumer<String> listener = phaseListener.get();
+        if (listener != null) {
+            listener.accept(phase);
+        }
+    }
+
+    public int detectFmPid() throws IOException {        return ProcessReaders.findProcesses("fm.exe").stream()
                 .max(Comparator.comparingInt(DatabaseLoadAllService::processScore))
                 .filter(process -> processScore(process) > 0)
                 .map(ProcessInfo::pid)
@@ -193,12 +223,17 @@ public class DatabaseLoadAllService {
                 () -> timedRamRead("competitions", () -> competitions.exportAllCompetitions(pid, build, gamePluginBase)));
         List<Future<?>> futures = List.of(peopleFuture, clubFuture, competitionFuture);
         try {
+            reportPhase("Reading players and staff");
             PeopleExporter.ExportResult people = await(peopleFuture, "people", deadline);
+            reportPhase("Reading clubs");
+            ClubExporter.ExportResult clubs = await(clubFuture, "clubs", deadline);
+            reportPhase("Reading competitions");
+            CompetitionExporter.ExportResult competitions = await(competitionFuture, "competitions", deadline);
             RamSnapshot snapshot = new RamSnapshot(
                     people.players(),
                     people.staff(),
-                    await(clubFuture, "clubs", deadline),
-                    await(competitionFuture, "competitions", deadline),
+                    clubs,
+                    competitions,
                     people.diagnostics(),
                     people.slotCount(),
                     people.selectedWorkers(),

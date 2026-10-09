@@ -100,6 +100,66 @@ class RecruitmentCaseServiceTest {
                 .containsEntry("effective_reason", "expired");
     }
 
+    @Test
+    void deleteRemovesOnlyTheCurrentCareerCase() {
+        RecruitmentCaseRepository cases = mock(RecruitmentCaseRepository.class);
+        PlayerRepository players = mock(PlayerRepository.class);
+        LoadMetadataRepository metadata = mock(LoadMetadataRepository.class);
+        ManagedClubContextService managed = mock(ManagedClubContextService.class);
+        RecruitmentCaseService service = new RecruitmentCaseService(cases, players, metadata, managed);
+        RecruitmentCaseEntity entity = new RecruitmentCaseEntity("42:test-manager", 2002000001L);
+        when(managed.currentCareerKey()).thenReturn("42:test-manager");
+        when(cases.findByIdCareerKeyAndIdPlayerUniqueId("42:test-manager", 2002000001L))
+                .thenReturn(Optional.of(entity));
+
+        assertThat(service.delete("42:test-manager", 2002000001L)).isTrue();
+        org.mockito.Mockito.verify(cases).delete(entity);
+        assertThat(service.delete("84:other-manager", 2002000001L)).isFalse();
+        assertThat(service.delete("42:test-manager", 999L)).isFalse();
+        assertThat(service.delete(null, 2002000001L)).isFalse();
+        assertThat(service.delete("42:test-manager", null)).isFalse();
+    }
+
+    @Test
+    void deleteExpiredKeepsUnevaluableCases() {
+        RecruitmentCaseRepository cases = mock(RecruitmentCaseRepository.class);
+        PlayerRepository players = mock(PlayerRepository.class);
+        LoadMetadataRepository metadata = mock(LoadMetadataRepository.class);
+        ManagedClubContextService managed = mock(ManagedClubContextService.class);
+        RecruitmentCaseService service = new RecruitmentCaseService(cases, players, metadata, managed);
+        RecruitmentCaseEntity pending = new RecruitmentCaseEntity("42:test-manager", 2002000001L);
+        pending.update("interested", "monitoring", null, null, null,
+                "agent_enquiry", "2029-07-01", "2029-07-31");
+        when(managed.currentCareerKey()).thenReturn("42:test-manager");
+        when(metadata.findById("game_date")).thenReturn(Optional.empty());
+        when(cases.findByIdCareerKey("42:test-manager")).thenReturn(List.of(pending));
+
+        assertThat(service.deleteExpired()).isEqualTo(0);
+        org.mockito.Mockito.verify(cases, org.mockito.Mockito.never()).delete(pending);
+    }
+
+    @Test
+    void deleteExpiredKeepsEffectiveCases() {
+        RecruitmentCaseRepository cases = mock(RecruitmentCaseRepository.class);
+        PlayerRepository players = mock(PlayerRepository.class);
+        LoadMetadataRepository metadata = mock(LoadMetadataRepository.class);
+        ManagedClubContextService managed = mock(ManagedClubContextService.class);
+        RecruitmentCaseService service = new RecruitmentCaseService(cases, players, metadata, managed);
+        RecruitmentCaseEntity effective = new RecruitmentCaseEntity("42:test-manager", 2002000001L);
+        effective.update("interested", "monitoring", null, null, null,
+                "agent_enquiry", "2029-07-01", "2029-07-31");
+        RecruitmentCaseEntity expired = new RecruitmentCaseEntity("42:test-manager", 2002000002L);
+        expired.update("interested", "monitoring", null, null, null,
+                "agent_enquiry", "2029-06-01", "2029-06-15");
+        when(managed.currentCareerKey()).thenReturn("42:test-manager");
+        when(metadata.findById("game_date")).thenReturn(Optional.of(new LoadMetadataEntity("game_date", "2029-07-10")));
+        when(cases.findByIdCareerKey("42:test-manager")).thenReturn(List.of(effective, expired));
+
+        assertThat(service.deleteExpired()).isEqualTo(1);
+        org.mockito.Mockito.verify(cases).delete(expired);
+        org.mockito.Mockito.verify(cases, org.mockito.Mockito.never()).delete(effective);
+    }
+
     private static PlayerEntity player(String name, long uniqueId) {
         Map<String, Object> row = new HashMap<>();
         PlayerExporter.FIELD_NAMES.forEach(field -> row.put(field, null));

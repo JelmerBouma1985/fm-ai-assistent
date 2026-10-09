@@ -87,7 +87,8 @@ class AiAssistantViewTest {
         when(managedClub.current()).thenReturn(ManagedClubContext.notLoaded(0));
 
         return new AiAssistantView(codex, antigravity, copilot,
-                mock(com.github.fmaiassistent.openrouter.OpenRouterConversationService.class), tactics, managedClub);
+                mock(com.github.fmaiassistent.openrouter.OpenRouterConversationService.class), tactics, managedClub,
+                mock(com.github.fmaiassistent.shortlist.ShortlistFileService.class));
     }
 
     @SuppressWarnings("unchecked")

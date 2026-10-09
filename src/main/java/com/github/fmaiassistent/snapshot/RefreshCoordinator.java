@@ -39,6 +39,7 @@ public class RefreshCoordinator {
             new AtomicReference<>();
     private final AtomicReference<Status> status =
             new AtomicReference<>(new Status(State.IDLE, null, null, null, null));
+    private final AtomicReference<String> phase = new AtomicReference<>("");
 
     @Autowired
     public RefreshCoordinator(
@@ -104,10 +105,16 @@ public class RefreshCoordinator {
         return status.get();
     }
 
+    /** Latest human-readable load phase, or empty when idle. Updated while a refresh is running. */
+    public String phase() {
+        return phase.get();
+    }
+
     private void execute(
             CompletableFuture<DatabaseLoadAllService.LoadAllResult> refresh,
             Request request,
             Instant started) {
+        loader.setPhaseListener(phase::set);
         try {
             DatabaseLoadAllService.LoadAllResult result = loader.loadAll(
                     request.pid(), request.build(), request.gamePluginBase());
@@ -120,6 +127,8 @@ public class RefreshCoordinator {
             refreshFailures.increment();
             refresh.completeExceptionally(failure);
         } finally {
+            loader.setPhaseListener(null);
+            phase.set("");
             refreshDuration.record(java.time.Duration.between(started, Instant.now()));
             inFlight.compareAndSet(refresh, null);
         }
