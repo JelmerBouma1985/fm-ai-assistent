@@ -55,6 +55,7 @@ public class LineupOptimizerService {
                 .filter(player -> !lockedPlayerIds.contains(player.getUniqueId()))
                 .filter(player -> !safe.unavailablePlayerUniqueIds().contains(player.getUniqueId()))
                 .filter(player -> safe.includeInjured() || !Boolean.TRUE.equals(player.getInjured()))
+                .filter(player -> safe.includeOnDuty() || !Boolean.TRUE.equals(player.getOnDuty()))
                 .sorted(Comparator.comparing(PlayerEntity::getUniqueId))
                 .toList();
 
@@ -83,6 +84,7 @@ public class LineupOptimizerService {
                     .filter(player -> !Objects.equals(player.getUniqueId(), selectedId))
                     .filter(player -> !safe.unavailablePlayerUniqueIds().contains(player.getUniqueId()))
                     .filter(player -> safe.includeInjured() || !Boolean.TRUE.equals(player.getInjured()))
+                    .filter(player -> safe.includeOnDuty() || !Boolean.TRUE.equals(player.getOnDuty()))
                     .map(player -> new Alternative(player, fit(player, slot, safe), assignedSlotByPlayer.get(player.getUniqueId())))
                     .filter(option -> viable(option.fit(), safe.minimumPositionScore()))
                     .sorted(Comparator.comparingDouble((Alternative option) -> option.fit().overall()).reversed()
@@ -263,6 +265,7 @@ public class LineupOptimizerService {
                     "player is locked to more than one slot: " + lock.playerUniqueId());
             RoleFitService.SlotFit fit = fit(player, slot, constraints);
             if (Boolean.TRUE.equals(player.getInjured())) warnings.add("locked_player_injured:" + lock.playerUniqueId());
+            if (Boolean.TRUE.equals(player.getOnDuty())) warnings.add("locked_player_on_duty:" + lock.playerUniqueId());
             if (!viable(fit, constraints.minimumPositionScore())) warnings.add(
                     "locked_player_below_position_threshold:" + lock.playerUniqueId());
             locked.put(slot.index(), new Assignment(slot, player, fit, true));
@@ -300,19 +303,21 @@ public class LineupOptimizerService {
     public record Constraints(
             int minimumPositionScore,
             boolean includeInjured,
+            boolean includeOnDuty,
             Set<Long> unavailablePlayerUniqueIds,
             List<LockedAssignment> lockedAssignments,
             int alternativeLimit,
             String snapshotId,
             String tacticFingerprint) {
         public static Constraints defaults() {
-            return new Constraints(15, false, Set.of(), List.of(), 3, null, null);
+            return new Constraints(15, false, false, Set.of(), List.of(), 3, null, null);
         }
 
         Constraints normalized() {
             return new Constraints(
                     Math.max(1, Math.min(20, minimumPositionScore)),
                     includeInjured,
+                    includeOnDuty,
                     unavailablePlayerUniqueIds == null ? Set.of() : Set.copyOf(unavailablePlayerUniqueIds),
                     lockedAssignments == null ? List.of() : List.copyOf(lockedAssignments),
                     Math.max(0, Math.min(10, alternativeLimit)),

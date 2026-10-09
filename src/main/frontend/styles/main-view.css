@@ -1313,3 +1313,14 @@ vaadin-select:hover::part(input-field) {
         transition: none;
     }
 }
+
+/* International-duty warning banner in the player details dialog. */
+.duty-warning {
+    padding: 8px 12px;
+    border: 1px solid rgba(232, 161, 61, 0.45);
+    border-radius: 8px;
+    background: rgba(232, 161, 61, 0.12);
+    color: #f2c879;
+    font-size: 13px;
+    font-weight: 650;
+}

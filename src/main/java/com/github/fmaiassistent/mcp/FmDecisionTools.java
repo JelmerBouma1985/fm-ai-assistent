@@ -95,6 +95,7 @@ public class FmDecisionTools {
             @ToolParam(required = false, description = "Club name. Defaults to the club managed by the human manager.") String managingClub,
             @ToolParam(required = false, description = "Minimum positional ability in every present tactic phase, 1-20. Defaults to 15.") Integer minimumPositionScore,
             @ToolParam(required = false, description = "Include injured players in automatic selection. Defaults to false; explicit locks are still honored with a warning.") Boolean includeInjured,
+            @ToolParam(required = false, description = "Include players away on international duty in automatic selection. Defaults to false; explicit locks are still honored with a warning.") Boolean includeOnDuty,
             @ToolParam(required = false, description = "Player UNIQUE_ID values to exclude from selection.") List<Long> unavailablePlayerUniqueIds,
             @ToolParam(required = false, description = "Assignments that must be used, each containing tacticSlot and playerUniqueId.") List<LineupOptimizerService.LockedAssignment> lockedAssignments,
             @ToolParam(required = false, description = "Alternatives per tactic slot. Defaults to 3, maximum 10.") Integer alternativeLimit) {
@@ -103,7 +104,7 @@ public class FmDecisionTools {
         TacticContext tactic = requireTactic();
         Map<String, Object> snapshot = snapshots.reference();
         LineupOptimizerService.Constraints constraints = lineupConstraints(
-                minimumPositionScore, includeInjured, unavailablePlayerUniqueIds,
+                minimumPositionScore, includeInjured, includeOnDuty, unavailablePlayerUniqueIds,
                 lockedAssignments, alternativeLimit, snapshot, tactic);
         LineupOptimizerService.Result result = lineups.optimize(squad, tactic.definition(), constraints);
 
@@ -115,7 +116,7 @@ public class FmDecisionTools {
         out.put("constraints", constraintsMap(constraints));
         out.putAll(lineupMap(result));
         out.put("limitations", List.of(
-                "Condition, morale, match sharpness and suspensions are not available.",
+                "Condition, morale, match sharpness, suspensions and squad registration are not available. International duty is detected.",
                 "This is an attribute-and-availability XI, not a match-day prediction."));
         return out;
     }
@@ -156,7 +157,7 @@ public class FmDecisionTools {
         List<PlayerEntity> squad = currentSquad(all, clubName);
         Map<Long, RecruitmentCaseEntity> evidenceByPlayer = recruitmentCases.byPlayerUniqueId();
         LineupOptimizerService.Constraints baseConstraints = lineupConstraints(
-                minimum, false, List.of(), List.of(), 0, snapshot, tacticContext);
+                minimum, false, false, List.of(), List.of(), 0, snapshot, tacticContext);
         LineupOptimizerService.Result baseline = lineups.optimize(
                 squad, tacticContext.definition(), baseConstraints);
         LineupOptimizerService.Assignment incumbent = baseline.assignmentFor(slot.index());
@@ -296,6 +297,7 @@ public class FmDecisionTools {
         LineupOptimizerService.Constraints constraints = new LineupOptimizerService.Constraints(
                 baseConstraints.minimumPositionScore(),
                 baseConstraints.includeInjured(),
+                baseConstraints.includeOnDuty(),
                 baseConstraints.unavailablePlayerUniqueIds(),
                 List.of(new LineupOptimizerService.LockedAssignment(
                         slot.index(), candidate.player().getUniqueId())),
@@ -372,7 +374,7 @@ public class FmDecisionTools {
         out.put("tactic_slots", slotRows);
         LineupOptimizerService.Result optimized = tactic.definition() == null ? null
                 : lineups.optimize(squad, tactic.definition(), lineupConstraints(
-                        minimum, false, List.of(), List.of(), 3, snapshot, tactic));
+                        minimum, false, false, List.of(), List.of(), 3, snapshot, tactic));
         out.put("optimized_lineup", optimized == null ? null : lineupMap(optimized));
         out.put("recruitment_priorities", optimized == null
                 ? recruitmentPriorities(slotRows)
@@ -401,7 +403,7 @@ public class FmDecisionTools {
                 .sorted(Comparator.comparingInt((PlayerEntity player) -> value(player.getPa())).reversed())
                 .map(this::compactPlayer).toList());
         out.put("limitations", List.of(
-                "No condition, morale, match sharpness, suspension or match-performance data is loaded.",
+                "No condition, morale, match sharpness, suspension, squad registration or match-performance data is loaded. International duty is detected.",
                 "Best-XI suggestions are attribute and availability estimates, not match-day selections."));
         return out;
     }
@@ -424,7 +426,7 @@ public class FmDecisionTools {
         int squadBenchmark = firstTeamAverageCa(squad);
         Map<String, Object> snapshot = snapshots.reference();
         LineupOptimizerService.Constraints baseConstraints = requestedSlot == null ? null : lineupConstraints(
-                15, false, List.of(), List.of(), 0, snapshot, tacticContext);
+                15, false, false, List.of(), List.of(), 0, snapshot, tacticContext);
         LineupOptimizerService.Result baseline = requestedSlot == null ? null
                 : lineups.optimize(squad, tactic, baseConstraints);
 
@@ -437,7 +439,7 @@ public class FmDecisionTools {
                         if (simulated.stream().noneMatch(value -> Objects.equals(
                                 value.getUniqueId(), player.getUniqueId()))) simulated.add(player);
                         LineupOptimizerService.Constraints locked = lineupConstraints(
-                                15, false, List.of(),
+                                15, false, false, List.of(),
                                 List.of(new LineupOptimizerService.LockedAssignment(
                                         requestedSlot.index(), player.getUniqueId())),
                                 0, snapshot, tacticContext);
@@ -595,7 +597,7 @@ public class FmDecisionTools {
             out.put("tactic_coverage_before", coverageSummary(tacticSlots(before, tactic, 15)));
             out.put("tactic_coverage_after", coverageSummary(tacticSlots(after, tactic, 15)));
             LineupOptimizerService.Constraints constraints = lineupConstraints(
-                    15, false, List.of(), List.of(), 0, snapshot, tacticContext);
+                    15, false, false, List.of(), List.of(), 0, snapshot, tacticContext);
             LineupOptimizerService.Result beforeLineup = lineups.optimize(before, tactic, constraints);
             LineupOptimizerService.Result afterLineup = lineups.optimize(after, tactic, constraints);
             out.put("optimized_lineup_before", lineupMap(beforeLineup));
@@ -752,6 +754,7 @@ public class FmDecisionTools {
     private LineupOptimizerService.Constraints lineupConstraints(
             Integer minimumPositionScore,
             Boolean includeInjured,
+            Boolean includeOnDuty,
             List<Long> unavailablePlayerUniqueIds,
             List<LineupOptimizerService.LockedAssignment> lockedAssignments,
             Integer alternativeLimit,
@@ -760,6 +763,7 @@ public class FmDecisionTools {
         return new LineupOptimizerService.Constraints(
                 clamp(minimumPositionScore == null ? 15 : minimumPositionScore, 1, 20),
                 Boolean.TRUE.equals(includeInjured),
+                Boolean.TRUE.equals(includeOnDuty),
                 Set.copyOf(optionalIds(unavailablePlayerUniqueIds)),
                 lockedAssignments == null ? List.of() : lockedAssignments,
                 clamp(alternativeLimit == null ? 3 : alternativeLimit, 0, 10),
@@ -771,6 +775,7 @@ public class FmDecisionTools {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("minimum_position_score", constraints.minimumPositionScore());
         out.put("include_injured", constraints.includeInjured());
+        out.put("include_on_duty", constraints.includeOnDuty());
         out.put("unavailable_player_unique_ids", constraints.unavailablePlayerUniqueIds());
         out.put("locked_assignments", constraints.lockedAssignments());
         out.put("alternative_limit", constraints.alternativeLimit());

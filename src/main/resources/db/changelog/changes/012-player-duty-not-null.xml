@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="012-player-duty-not-null" author="codex">
+        <comment>Existing rows predate duty detection; treat unknown as not on duty.</comment>
+        <addNotNullConstraint
+                tableName="players"
+                columnName="on_duty"
+                columnDataType="BOOLEAN"
+                defaultNullValue="false"/>
+        <rollback>
+            <dropNotNullConstraint
+                    tableName="players"
+                    columnName="on_duty"
+                    columnDataType="BOOLEAN"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

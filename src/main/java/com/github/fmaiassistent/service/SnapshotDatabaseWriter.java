@@ -114,11 +114,11 @@ public class SnapshotDatabaseWriter {
     private static Object normalizedValue(IdentifiedRow row, ExportColumn column) {
         Object value = row.values().get(column.exportName());
         if (value == null) {
-            return column.staffText() ? "" : null;
+            return missingValue(column);
         }
         String text = String.valueOf(value);
         if (text.isBlank()) {
-            return column.staffText() ? "" : null;
+            return missingValue(column);
         }
         if (column.type() == String.class) {
             return text;
@@ -139,6 +139,13 @@ public class SnapshotDatabaseWriter {
             return number.intValue() != 0;
         }
         throw new IllegalArgumentException("Unsupported snapshot field type: " + column.type().getName());
+    }
+
+    private static Object missingValue(ExportColumn column) {
+        if (column.type() == Boolean.class && "on_duty".equals(column.exportName())) {
+            return Boolean.FALSE;
+        }
+        return column.staffText() ? "" : null;
     }
 
     private static List<ExportColumn> columns(Class<?> entityType, List<String> exportNames, boolean snakeCaseFields) {

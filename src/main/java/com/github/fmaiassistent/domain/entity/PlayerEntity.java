@@ -10,6 +10,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
 import java.lang.reflect.Field;
@@ -93,6 +95,12 @@ public class PlayerEntity {
     private Integer injuryMaxDaysRemaining;
     @Column(name = "injury_expected_return", length = 1024)
     private String injuryExpectedReturn;
+    @Column(name = "on_duty", nullable = false)
+    private Boolean onDuty = false;
+    @Column(name = "duty_start_date", length = 1024)
+    private String dutyStartDate;
+    @Column(name = "duty_end_date", length = 1024)
+    private String dutyEndDate;
     @Column(name = "contract_end_date", length = 1024)
     private String contractEndDate;
     @Column(name = "salary_pa")
@@ -263,6 +271,14 @@ public class PlayerEntity {
     protected PlayerEntity() {
     }
 
+    @PrePersist
+    @PreUpdate
+    private void normalizeDutyStatus() {
+        if (onDuty == null) {
+            onDuty = false;
+        }
+    }
+
     public static PlayerEntity fromExportRow(Map<String, Object> row) {
         PlayerEntity entity = new PlayerEntity();
         for (String exportField : PlayerExporter.FIELD_NAMES) {
@@ -428,6 +444,18 @@ public class PlayerEntity {
 
     public String getInjuryExpectedReturn() {
         return injuryExpectedReturn;
+    }
+
+    public Boolean getOnDuty() {
+        return onDuty;
+    }
+
+    public String getDutyStartDate() {
+        return dutyStartDate;
+    }
+
+    public String getDutyEndDate() {
+        return dutyEndDate;
     }
 
     public String getContractEndDate() {
