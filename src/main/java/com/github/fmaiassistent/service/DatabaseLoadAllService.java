@@ -6,6 +6,7 @@ import com.github.fmaiassistent.exporter.CompetitionExporter;
 import com.github.fmaiassistent.exporter.FixtureExporter;
 import com.github.fmaiassistent.exporter.PeopleExporter;
 import com.github.fmaiassistent.exporter.PlayerExporter;
+import com.github.fmaiassistent.exporter.PlayerSnapshotValidator;
 import com.github.fmaiassistent.exporter.StaffExporter;
 import com.github.fmaiassistent.linux.FmOffsets;
 import com.github.fmaiassistent.linux.ProcessInfo;
@@ -98,6 +99,8 @@ public class DatabaseLoadAllService {
             }
             reportPhase("Reading FM26 memory");
             RamSnapshot ram = readRamInParallel(resolvedPid, build, gamePluginBase);
+            reportPhase("Validating player data");
+            PlayerSnapshotValidator.validate(ram.players().rows(), ram.peopleSlots(), ram.players().gameDate());
             long persistenceStarted = System.nanoTime();
             logAfterCommit(persistenceStarted);
             long stepStarted = System.nanoTime();
