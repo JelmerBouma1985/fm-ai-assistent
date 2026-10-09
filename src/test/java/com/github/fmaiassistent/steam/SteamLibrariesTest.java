@@ -53,4 +53,43 @@ class SteamLibrariesTest {
                 .hasValue(customLib.toAbsolutePath().normalize());
         assertThat(SteamLibraries.libraryWithApp(home, 12345)).isEmpty();
     }
+
+    @Test
+    void parsesBuildIdFromAppManifest(@TempDir Path home) throws Exception {
+        writeLibraryWithManifest(home,
+                "\"AppState\"\n{\n\t\"appid\"\t\t\"3551340\"\n\t\"name\"\t\t\"Football Manager 26\"\n"
+                        + "\t\"buildid\"\t\t\"23583635\"\n}");
+
+        assertThat(SteamLibraries.installedBuildId(home, 3551340)).hasValue(23583635L);
+    }
+
+    @Test
+    void emptyBuildIdWhenManifestMissing(@TempDir Path home) {
+        assertThat(SteamLibraries.installedBuildId(home, 12345)).isEmpty();
+    }
+
+    @Test
+    void emptyBuildIdWhenManifestLacksBuildId(@TempDir Path home) throws Exception {
+        writeLibraryWithManifest(home, "\"AppState\"{}");
+
+        assertThat(SteamLibraries.installedBuildId(home, 3551340)).isEmpty();
+    }
+
+    @Test
+    void emptyBuildIdWhenManifestOversized(@TempDir Path home) throws Exception {
+        writeLibraryWithManifest(home, "\"AppState\"\n{\n\t\"buildid\"\t\t\"1\"\n}\n" + "x".repeat(64 * 1024));
+
+        assertThat(SteamLibraries.installedBuildId(home, 3551340)).isEmpty();
+    }
+
+    private static Path writeLibraryWithManifest(Path home, String manifest) throws Exception {
+        Path customLib = home.resolve("mnt/bcache/Steam");
+        Path steamApps = home.resolve(".local/share/Steam/steamapps");
+        Files.createDirectories(steamApps);
+        Files.createDirectories(customLib.resolve("steamapps"));
+        Files.writeString(steamApps.resolve("libraryfolders.vdf"),
+                "\"libraryfolders\"\n{\n\t\"1\"\n\t{\n\t\t\"path\"\t\t\"" + customLib + "\"\n\t}\n}");
+        Files.writeString(customLib.resolve("steamapps/appmanifest_3551340.acf"), manifest);
+        return customLib;
+    }
 }

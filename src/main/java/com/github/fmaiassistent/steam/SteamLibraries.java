@@ -1,11 +1,14 @@
 package com.github.fmaiassistent.steam;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -19,6 +22,9 @@ import java.util.regex.Pattern;
 public final class SteamLibraries {
     public static final int FM26_APP_ID = 3551340;
     static final Pattern VDF_PATH = Pattern.compile("\"path\"\\s+\"([^\"]+)\"");
+    static final Pattern MANIFEST_BUILD_ID = Pattern.compile("\"buildid\"\\s+\"(\\d+)\"");
+    /** Size cap for Steam app manifests (normally about 1 KiB). */
+    static final int MAX_MANIFEST_BYTES = 64 * 1024;
 
     private SteamLibraries() {
     }
@@ -60,6 +66,44 @@ public final class SteamLibraries {
                 .filter(library -> Files.isRegularFile(
                         library.resolve("steamapps/appmanifest_" + appId + ".acf")))
                 .findFirst();
+    }
+
+    /**
+     * The installed Steam build id for the given app, read from its
+     * {@code appmanifest_*.acf}; empty when the game or manifest is missing,
+     * unreadable, oversized or lacks a numeric build id. Read-only.
+     */
+    public static OptionalLong installedBuildId(Path home, int appId) {
+        var manifest = libraryWithApp(home, appId)
+                .map(library -> library.resolve("steamapps/appmanifest_" + appId + ".acf"));
+        if (manifest.isEmpty()) {
+            return OptionalLong.empty();
+        }
+        String text = readBounded(manifest.get(), MAX_MANIFEST_BYTES);
+        if (text == null) {
+            return OptionalLong.empty();
+        }
+        Matcher matcher = MANIFEST_BUILD_ID.matcher(text);
+        if (!matcher.find()) {
+            return OptionalLong.empty();
+        }
+        try {
+            return OptionalLong.of(Long.parseLong(matcher.group(1)));
+        } catch (NumberFormatException notNumeric) {
+            return OptionalLong.empty();
+        }
+    }
+
+    private static String readBounded(Path file, int limit) {
+        try (InputStream in = Files.newInputStream(file)) {
+            byte[] bytes = in.readNBytes(limit + 1);
+            if (bytes.length > limit) {
+                return null;
+            }
+            return new String(bytes, StandardCharsets.UTF_8);
+        } catch (IOException | RuntimeException exception) {
+            return null;
+        }
     }
 
     public static List<Path> parseLibraryFolders(Path vdf) {
