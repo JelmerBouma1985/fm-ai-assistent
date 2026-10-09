@@ -6,6 +6,7 @@ import com.github.fmaiassistent.repository.CatalogSpecifications;
 import com.github.fmaiassistent.domain.entity.LoadMetadataEntity;
 import com.github.fmaiassistent.repository.LoadMetadataRepository;
 import com.github.fmaiassistent.exporter.CompetitionExporter;
+import com.github.fmaiassistent.memory.CompetitionRecordLayout;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -37,6 +38,14 @@ public class CompetitionDatabaseService {
 
     public CompetitionExporter.ExportResult exportAllCompetitions(int pid, int build, Long gamePluginBase) throws IOException {
         return exporter.exportAllCompetitions(pid, build, gamePluginBase);
+    }
+
+    /**
+     * Record layout for the next export. Set once per load; safe because only
+     * one refresh runs at a time.
+     */
+    public void setRecordLayout(CompetitionRecordLayout recordLayout) {
+        exporter.setRecordLayout(recordLayout);
     }
 
     @Transactional

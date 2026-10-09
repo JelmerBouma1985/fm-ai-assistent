@@ -16,13 +16,20 @@ import java.util.Map;
 public class CompetitionExporter {
     public static final List<String> FIELD_NAMES = List.of("sourceAddress", "name", "nation", "reputation", "gender");
 
-    private final CompetitionRecordLayout recordLayout;
+    private CompetitionRecordLayout recordLayout = CompetitionRecordLayout.current();
 
     public CompetitionExporter() {
-        this(CompetitionRecordLayout.current());
     }
 
     public CompetitionExporter(CompetitionRecordLayout recordLayout) {
+        this.recordLayout = recordLayout;
+    }
+
+    /**
+     * Record layout for the next export. Set once per load; safe because only
+     * one refresh runs at a time.
+     */
+    public void setRecordLayout(CompetitionRecordLayout recordLayout) {
         this.recordLayout = recordLayout;
     }
 

@@ -5,6 +5,7 @@ import com.github.fmaiassistent.linux.GameDateFinder;
 import com.github.fmaiassistent.memory.PlayerRecordLayout;
 import com.github.fmaiassistent.memory.ProcessMemoryReader;
 import com.github.fmaiassistent.memory.ProcessReaders;
+import com.github.fmaiassistent.memory.StaffRecordLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -46,6 +47,7 @@ public class PeopleExporter {
     private final ReaderFactory readers;
     private final IntSupplier availableProcessors;
     private PlayerRecordLayout recordLayout = PlayerRecordLayout.current();
+    private StaffRecordLayout staffRecordLayout = StaffRecordLayout.current();
 
     public PeopleExporter() {
         this(ProcessReaders::open, () -> Runtime.getRuntime().availableProcessors());
@@ -62,6 +64,14 @@ public class PeopleExporter {
      */
     public void setRecordLayout(PlayerRecordLayout recordLayout) {
         this.recordLayout = recordLayout;
+    }
+
+    /**
+     * Staff record layout for the next export. Set once per load before the
+     * parallel read starts; safe because only one refresh runs at a time.
+     */
+    public void setStaffRecordLayout(StaffRecordLayout staffRecordLayout) {
+        this.staffRecordLayout = staffRecordLayout;
     }
 
     public ExportResult exportAllPeople(int pid, int build, Long gamePluginBase) throws IOException {
@@ -190,7 +200,7 @@ public class PeopleExporter {
         MutableDiagnostics diagnostics = new MutableDiagnostics();
         try (ProcessMemoryReader reader = readers.open(pid)) {
             PersonMemoryClassifier classifier = new PersonMemoryClassifier(reader);
-            StaffExporter staffDecoder = new StaffExporter();
+            StaffExporter staffDecoder = new StaffExporter(staffRecordLayout);
             PlayerExporter playerDecoder = new PlayerExporter(recordLayout);
             processChunks(pointerTable.length / Long.BYTES, nextIndex, index -> {
                 long person = pointerAt(pointerTable, index);

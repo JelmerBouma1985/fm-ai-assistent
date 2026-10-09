@@ -20,13 +20,20 @@ public class ClubExporter {
 
     private static final List<Integer> CLUB_FINANCE_MARKERS = List.of(0xB318, 0xD2E8);
 
-    private final ClubRecordLayout recordLayout;
+    private ClubRecordLayout recordLayout = ClubRecordLayout.current();
 
     public ClubExporter() {
-        this(ClubRecordLayout.current());
     }
 
     public ClubExporter(ClubRecordLayout recordLayout) {
+        this.recordLayout = recordLayout;
+    }
+
+    /**
+     * Record layout for the next export. Set once per load; safe because only
+     * one refresh runs at a time.
+     */
+    public void setRecordLayout(ClubRecordLayout recordLayout) {
         this.recordLayout = recordLayout;
     }
 

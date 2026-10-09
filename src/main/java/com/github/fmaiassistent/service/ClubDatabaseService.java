@@ -5,6 +5,7 @@ import com.github.fmaiassistent.domain.entity.ClubEntity;
 import com.github.fmaiassistent.domain.entity.CompetitionEntity;
 import com.github.fmaiassistent.domain.entity.LoadMetadataEntity;
 import com.github.fmaiassistent.exporter.ClubExporter;
+import com.github.fmaiassistent.memory.ClubRecordLayout;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -43,6 +44,14 @@ public class ClubDatabaseService {
 
     public ClubExporter.ExportResult exportAllClubs(int pid, int build, Long gamePluginBase) throws IOException {
         return exporter.exportAllClubs(pid, build, gamePluginBase);
+    }
+
+    /**
+     * Record layout for the next export. Set once per load; safe because only
+     * one refresh runs at a time.
+     */
+    public void setRecordLayout(ClubRecordLayout recordLayout) {
+        exporter.setRecordLayout(recordLayout);
     }
 
     @Transactional

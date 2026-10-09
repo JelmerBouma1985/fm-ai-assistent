@@ -1,6 +1,9 @@
 package com.github.fmaiassistent.service;
 
+import com.github.fmaiassistent.memory.ClubRecordLayout;
+import com.github.fmaiassistent.memory.CompetitionRecordLayout;
 import com.github.fmaiassistent.memory.PlayerRecordLayout;
+import com.github.fmaiassistent.memory.StaffRecordLayout;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -18,6 +21,10 @@ class PlayerRecordLayoutsTest {
 
         assertThat(match.knownBuild()).isTrue();
         assertThat(match.installedBuildId()).isEqualTo(23583635L);
+        assertThat(match.layouts().players()).isEqualTo(PlayerRecordLayout.current());
+        assertThat(match.layouts().staff()).isEqualTo(StaffRecordLayout.current());
+        assertThat(match.layouts().clubs()).isEqualTo(ClubRecordLayout.current());
+        assertThat(match.layouts().competitions()).isEqualTo(CompetitionRecordLayout.current());
     }
 
     @Test
@@ -28,7 +35,10 @@ class PlayerRecordLayoutsTest {
 
         assertThat(match.knownBuild()).isFalse();
         assertThat(match.installedBuildId()).isEqualTo(99999999L);
-        assertThat(match.layout()).isEqualTo(PlayerRecordLayout.current());
+        assertThat(match.layouts().players()).isEqualTo(PlayerRecordLayout.current());
+        assertThat(match.layouts().staff()).isEqualTo(StaffRecordLayout.current());
+        assertThat(match.layouts().clubs()).isEqualTo(ClubRecordLayout.current());
+        assertThat(match.layouts().competitions()).isEqualTo(CompetitionRecordLayout.current());
     }
 
     @Test

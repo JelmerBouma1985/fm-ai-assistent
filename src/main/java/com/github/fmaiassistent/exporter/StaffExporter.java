@@ -17,13 +17,20 @@ import java.util.Map;
 public class StaffExporter {
     public static final List<String> FIELD_NAMES = buildFieldNames();
 
-    private final StaffRecordLayout recordLayout;
+    private StaffRecordLayout recordLayout = StaffRecordLayout.current();
 
     public StaffExporter() {
-        this(StaffRecordLayout.current());
     }
 
     public StaffExporter(StaffRecordLayout recordLayout) {
+        this.recordLayout = recordLayout;
+    }
+
+    /**
+     * Record layout for the next export. Set once per load; safe because only
+     * one refresh runs at a time.
+     */
+    public void setRecordLayout(StaffRecordLayout recordLayout) {
         this.recordLayout = recordLayout;
     }
 
