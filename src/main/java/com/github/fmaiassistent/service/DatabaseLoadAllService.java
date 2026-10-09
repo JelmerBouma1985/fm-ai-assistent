@@ -85,6 +85,17 @@ public class DatabaseLoadAllService {
         ManagedClubContext previousContext = managedClubContexts.current();
         try {
             int resolvedPid = pid == null ? detectFmPid() : pid;
+            PlayerRecordLayouts.LayoutMatch layoutMatch =
+                    PlayerRecordLayouts.resolve(java.nio.file.Path.of(System.getProperty("user.home")));
+            peopleExporter.setRecordLayout(layoutMatch.layout());
+            if (!layoutMatch.knownBuild()) {
+                String installed = layoutMatch.installedBuildId() < 0
+                        ? "unknown"
+                        : String.valueOf(layoutMatch.installedBuildId());
+                log.warn("FM26 Steam build {} is not in the known memory-layout registry; "
+                        + "continuing with the last known player layout", installed);
+                reportPhase("Warning: unknown FM26 build " + installed + " - continuing with last known memory layout");
+            }
             reportPhase("Reading FM26 memory");
             RamSnapshot ram = readRamInParallel(resolvedPid, build, gamePluginBase);
             long persistenceStarted = System.nanoTime();
@@ -140,6 +151,10 @@ public class DatabaseLoadAllService {
                     new LoadMetadataEntity("snapshot_id", snapshotId),
                     new LoadMetadataEntity("fm_pid", String.valueOf(resolvedPid)),
                     new LoadMetadataEntity("fm_build", String.valueOf(build)),
+                    new LoadMetadataEntity("record_layout_known", String.valueOf(layoutMatch.knownBuild())),
+                    new LoadMetadataEntity("steam_build_id", layoutMatch.installedBuildId() < 0
+                            ? ""
+                            : String.valueOf(layoutMatch.installedBuildId())),
                     new LoadMetadataEntity("players_count", String.valueOf(playerCount)),
                     new LoadMetadataEntity("staff_count", String.valueOf(staffCount)),
                     new LoadMetadataEntity("clubs_count", String.valueOf(clubCount)),

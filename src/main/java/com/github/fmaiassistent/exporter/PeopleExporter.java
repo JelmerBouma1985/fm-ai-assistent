@@ -45,20 +45,23 @@ public class PeopleExporter {
 
     private final ReaderFactory readers;
     private final IntSupplier availableProcessors;
-    private final PlayerExporter playerExporter;
+    private PlayerRecordLayout recordLayout = PlayerRecordLayout.current();
 
     public PeopleExporter() {
         this(ProcessReaders::open, () -> Runtime.getRuntime().availableProcessors());
     }
 
     PeopleExporter(ReaderFactory readers, IntSupplier availableProcessors) {
-        this(readers, availableProcessors, new PlayerExporter(PlayerRecordLayout.current()));
-    }
-
-    PeopleExporter(ReaderFactory readers, IntSupplier availableProcessors, PlayerExporter playerExporter) {
         this.readers = readers;
         this.availableProcessors = availableProcessors;
-        this.playerExporter = playerExporter;
+    }
+
+    /**
+     * Player record layout for the next export. Set once per load before the
+     * parallel read starts; safe because only one refresh runs at a time.
+     */
+    public void setRecordLayout(PlayerRecordLayout recordLayout) {
+        this.recordLayout = recordLayout;
     }
 
     public ExportResult exportAllPeople(int pid, int build, Long gamePluginBase) throws IOException {
@@ -188,6 +191,7 @@ public class PeopleExporter {
         try (ProcessMemoryReader reader = readers.open(pid)) {
             PersonMemoryClassifier classifier = new PersonMemoryClassifier(reader);
             StaffExporter staffDecoder = new StaffExporter();
+            PlayerExporter playerDecoder = new PlayerExporter(recordLayout);
             processChunks(pointerTable.length / Long.BYTES, nextIndex, index -> {
                 long person = pointerAt(pointerTable, index);
                 if (person == 0) {
