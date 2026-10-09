@@ -89,10 +89,10 @@ public class PeopleExporter {
             int workers = forcedWorkers == null
                     ? selectedWorkerCount(processors, slotCount)
                     : Math.min(forcedWorkers, Math.max(1, slotCount));
-            ScanResult scan = scanPointerTable(pid, pointerTable, mode, workers);
             LocalDate gameDate = new GameDateFinder()
-                    .find(coordinator, scan.playerRows().size(), build, gamePluginBase)
+                    .find(coordinator, 0, build, gamePluginBase)
                     .orElse(null);
+            ScanResult scan = scanPointerTable(pid, pointerTable, mode, workers, gameDate);
             List<Map<String, Object>> playerRows = finishPlayers(scan.playerRows(), gameDate);
             List<Map<String, Object>> staffRows = finishStaff(scan.staffRows(), gameDate);
             String gameDateValue = gameDate == null ? "" : gameDate.toString();
@@ -131,6 +131,15 @@ public class PeopleExporter {
     }
 
     ScanResult scanPointerTable(int pid, byte[] pointerTable, ExportMode mode, int workers) throws IOException {
+        return scanPointerTable(pid, pointerTable, mode, workers, null);
+    }
+
+    ScanResult scanPointerTable(
+            int pid,
+            byte[] pointerTable,
+            ExportMode mode,
+            int workers,
+            LocalDate gameDate) throws IOException {
         if (pointerTable.length % Long.BYTES != 0) {
             throw new IOException("People pointer table size is not aligned to 64-bit slots");
         }
@@ -143,7 +152,7 @@ public class PeopleExporter {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(SCAN_TIMEOUT_SECONDS);
         try {
             for (int worker = 0; worker < actualWorkers; worker++) {
-                futures.add(executor.submit(() -> scanWorker(pid, pointerTable, mode, nextIndex)));
+                futures.add(executor.submit(() -> scanWorker(pid, pointerTable, mode, nextIndex, gameDate)));
             }
             List<WorkerResult> results = new ArrayList<>(actualWorkers);
             for (Future<WorkerResult> future : futures) {
@@ -163,7 +172,8 @@ public class PeopleExporter {
             int pid,
             byte[] pointerTable,
             ExportMode mode,
-            AtomicInteger nextIndex) throws Exception {
+            AtomicInteger nextIndex,
+            LocalDate gameDate) throws Exception {
         long started = System.nanoTime();
         List<Map<String, Object>> players = new ArrayList<>();
         List<Map<String, Object>> staff = new ArrayList<>();
@@ -184,7 +194,8 @@ public class PeopleExporter {
                     PersonMemoryClassifier.Classification classification = classifier.classify(person);
                     diagnostics.classified(classification.type());
                     if (mode.includesPlayers() && classification.type().hasPlayerData()) {
-                        var row = PlayerExporter.decodeClassifiedRow(reader, index, person, classification.type());
+                        var row = PlayerExporter.decodeClassifiedRow(
+                                reader, index, person, classification.type(), gameDate);
                         if (row.isPresent()) {
                             players.add(row.get());
                         } else {

@@ -35,10 +35,11 @@ public class PlayerExporter {
     private static final int INJURY_REFERENCE_REL = -0x190;
     private static final int DATE_DAY_MASK = 0x01FF;
     private static final int DUTY_REFERENCE_REL = -0x168;
+    private static final int DUTY_TEAM_REFERENCE_REL = -0x160;
     private static final int DUTY_CALLUP_VECTOR_REL = 0x50;
+    private static final int DUTY_RETURN_DATE_REL = 0xBC;
     private static final int DUTY_RECORD_SIZE = 0x20;
     private static final int DUTY_MAX_RECORDS_BYTES = 512;
-    private static final int DUTY_RETURN_GRACE_DAYS = 7;
     private static final int TRANSFER_STATUS_REL = 0x57;
     private static final int TRANSFER_AGREED_MARKER_REL = 0x51;
     private static final int FUTURE_TRANSFER_TABLE_REL = 0xD8;
@@ -74,6 +75,15 @@ public class PlayerExporter {
             int index,
             long record,
             PersonMemoryClassifier.PersonType type) throws IOException {
+        return decodeClassifiedRow(reader, index, record, type, null);
+    }
+
+    static Optional<Map<String, Object>> decodeClassifiedRow(
+            ProcessMemoryReader reader,
+            int index,
+            long record,
+            PersonMemoryClassifier.PersonType type,
+            LocalDate gameDate) throws IOException {
         Optional<PlayerMemoryLayout> layout = playerMemoryLayout(reader, record, type);
         if (layout.isEmpty()) {
             return Optional.empty();
@@ -92,7 +102,7 @@ public class PlayerExporter {
             contractedClub = playingClub;
         }
         Map<String, Object> row = decodeRow(
-                reader, index, record, contractedClub, playingClub, null, layout.get());
+                reader, index, record, contractedClub, playingClub, gameDate, layout.get());
         contractedClubAddress.ifPresent(value -> row.put("_club_address", value));
         playingClubAddress.ifPresent(value -> row.put("_playing_club_address", value));
         return Optional.of(row);
@@ -310,15 +320,24 @@ public class PlayerExporter {
     /**
      * International-duty availability from the player's international-career
      * container ({@code record-0x168}). The container holds a vector of
-     * {@code " COT"} callup records with day-of-year duty windows. A player
-     * counts as on duty when a window covers the game date, plus a short
-     * grace period for the return trip home.
+     * 0x20-byte callup records. Each record starts with an international-team
+     * reference and stores day-of-year duty windows at offsets 0x10 and 0x14.
+     * The adjacent {@code record-0x160} reference identifies the current
+     * international team, whose {@code +0xBC} date is FM's estimated return.
      */
     private static DutyStatus dutyStatus(ProcessMemoryReader reader, long record, LocalDate gameDate) {
         if (gameDate == null) {
             return new DutyStatus(false, "", "");
         }
         try {
+            var currentTeam = reader.qwordOrNull(record + DUTY_TEAM_REFERENCE_REL);
+            if (currentTeam.isEmpty()) {
+                return new DutyStatus(false, "", "");
+            }
+            LocalDate returnDate = dutyDate(reader, currentTeam.get() + DUTY_RETURN_DATE_REL);
+            if (returnDate == null || returnDate.isBefore(gameDate)) {
+                return new DutyStatus(false, "", "");
+            }
             var container = reader.qwordOrNull(record + DUTY_REFERENCE_REL);
             if (container.isEmpty()) {
                 return new DutyStatus(false, "", "");
@@ -330,8 +349,7 @@ public class PlayerExporter {
                     || end > ProcessMemoryReader.MAX_USER_ADDRESS) {
                 return new DutyStatus(false, "", "");
             }
-            LocalDate bestStart = null;
-            LocalDate bestEnd = null;
+            LocalDate latestStart = null;
             for (long reference = begin; reference < end; reference += Long.BYTES) {
                 var item = reader.qwordOrNull(reference);
                 if (item.isEmpty()) {
@@ -343,7 +361,7 @@ public class PlayerExporter {
                 } catch (IOException | RuntimeException ignored) {
                     continue;
                 }
-                if (itemBytes[0] != 0x20 || itemBytes[1] != 'C' || itemBytes[2] != 'O' || itemBytes[3] != 'T') {
+                if (littleEndianU64(itemBytes, 0) != currentTeam.get()) {
                     continue;
                 }
                 int startDay = littleEndianU16(itemBytes, 0x10) & DATE_DAY_MASK;
@@ -356,26 +374,44 @@ public class PlayerExporter {
                 }
                 LocalDate start = GameDateFinder.dayYearToDate(startDay, startYear);
                 LocalDate finish = GameDateFinder.dayYearToDate(endDay, endYear);
-                if (finish.isBefore(start) || start.isAfter(gameDate)
-                        || finish.plusDays(DUTY_RETURN_GRACE_DAYS).isBefore(gameDate)) {
+                if (finish.isBefore(start) || finish.isAfter(returnDate) || start.isAfter(gameDate)) {
                     continue;
                 }
-                if (bestEnd == null || finish.isAfter(bestEnd)) {
-                    bestStart = start;
-                    bestEnd = finish;
+                if (latestStart == null || start.isAfter(latestStart)) {
+                    latestStart = start;
                 }
             }
-            if (bestEnd == null) {
+            if (latestStart == null) {
                 return new DutyStatus(false, "", "");
             }
-            return new DutyStatus(true, bestStart.toString(), bestEnd.toString());
+            return new DutyStatus(true, latestStart.toString(), returnDate.toString());
         } catch (IOException | RuntimeException exception) {
             return new DutyStatus(false, "", "");
         }
     }
 
+    private static LocalDate dutyDate(ProcessMemoryReader reader, long address) throws IOException {
+        int day = reader.readU16(address) & DATE_DAY_MASK;
+        int year = reader.readU16(address + Short.BYTES);
+        return GameDateFinder.validDayYear(day, year)
+                ? GameDateFinder.dayYearToDate(day, year)
+                : null;
+    }
+
     private static int littleEndianU16(byte[] bytes, int offset) {
         return Byte.toUnsignedInt(bytes[offset]) | Byte.toUnsignedInt(bytes[offset + 1]) << 8;
+    }
+
+    private static long littleEndianU64(byte[] bytes, int offset) {
+        return Integer.toUnsignedLong(littleEndianI32(bytes, offset))
+                | (long) littleEndianI32(bytes, offset + Integer.BYTES) << 32;
+    }
+
+    private static int littleEndianI32(byte[] bytes, int offset) {
+        return Byte.toUnsignedInt(bytes[offset])
+                | Byte.toUnsignedInt(bytes[offset + 1]) << 8
+                | Byte.toUnsignedInt(bytes[offset + 2]) << 16
+                | bytes[offset + 3] << 24;
     }
 
     private static InjuryStatus injuryStatus(ProcessMemoryReader reader, long record) throws IOException {

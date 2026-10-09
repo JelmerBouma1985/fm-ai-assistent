@@ -152,36 +152,36 @@ class PlayerExporterTest {
     @Test
     void reportsDutyForCurrentCallupWindow() throws Exception {
         FakeMemory memory = minimalPlayerRow();
-        putDutyContainer(memory, new DutyRecord(13, 2026, 17, 2026));
+        putDutyContainer(memory, 31, 2026, new DutyRecord(13, 2026, 17, 2026));
 
         Map<String, Object> row = new PlayerExporter().decodeRow(
                 memory, 1, PERSON, "", java.time.LocalDate.of(2026, 1, 17));
 
         assertThat(row.get("on_duty")).isEqualTo(true);
         assertThat(row.get("duty_start_date")).isEqualTo("2026-01-13");
-        assertThat(row.get("duty_end_date")).isEqualTo("2026-01-17");
+        assertThat(row.get("duty_end_date")).isEqualTo("2026-01-31");
     }
 
     @Test
-    void coversReturnGracePeriodAfterDutyEnds() throws Exception {
+    void remainsOnDutyUntilInternationalTeamReturnDate() throws Exception {
         FakeMemory memory = minimalPlayerRow();
-        putDutyContainer(memory, new DutyRecord(13, 2026, 14, 2026));
+        putDutyContainer(memory, 31, 2026, new DutyRecord(13, 2026, 14, 2026));
 
         Map<String, Object> row = new PlayerExporter().decodeRow(
-                memory, 1, PERSON, "", java.time.LocalDate.of(2026, 1, 17));
+                memory, 1, PERSON, "", java.time.LocalDate.of(2026, 1, 25));
 
         assertThat(row.get("on_duty")).isEqualTo(true);
-        assertThat(row.get("duty_end_date")).isEqualTo("2026-01-14");
+        assertThat(row.get("duty_end_date")).isEqualTo("2026-01-31");
     }
 
     @Test
-    void ignoresExpiredFutureAndCorruptDutyRecords() throws Exception {
+    void ignoresExpiredFutureAndInvalidDutyRecords() throws Exception {
         FakeMemory memory = minimalPlayerRow();
-        // Expired window, future window and a record without magic.
-        putDutyContainer(memory,
+        // Expired window, future window and a record with an invalid year.
+        putDutyContainer(memory, 10, 2026,
                 new DutyRecord(17, 2025, 21, 2025),
                 new DutyRecord(20, 2026, 25, 2026),
-                new DutyRecord(13, 2026, 14, 2026, false));
+                new DutyRecord(13, 0, 14, 0));
 
         Map<String, Object> row = new PlayerExporter().decodeRow(
                 memory, 1, PERSON, "", java.time.LocalDate.of(2026, 1, 17));
@@ -191,10 +191,7 @@ class PlayerExporterTest {
         assertThat(row.get("duty_end_date")).isEqualTo("");
     }
 
-    private record DutyRecord(int startDay, int startYear, int endDay, int endYear, boolean magic) {
-        DutyRecord(int startDay, int startYear, int endDay, int endYear) {
-            this(startDay, startYear, endDay, endYear, true);
-        }
+    private record DutyRecord(int startDay, int startYear, int endDay, int endYear) {
     }
 
     private static FakeMemory minimalPlayerRow() {
@@ -207,27 +204,31 @@ class PlayerExporterTest {
         return memory;
     }
 
-    private static void putDutyContainer(FakeMemory memory, DutyRecord... records) {
+    private static void putDutyContainer(
+            FakeMemory memory, int returnDay, int returnYear, DutyRecord... records) {
         long container = 0x8000;
         long vector = 0x8100;
+        long team = 0x9000;
         memory.putLong(PERSON - 0x168, container);
+        memory.putLong(PERSON - 0x160, team);
         memory.putLong(container + 0x50, vector);
         memory.putLong(container + 0x58, vector + (long) records.length * Long.BYTES);
+        memory.putI16(team + 0xBC, returnDay);
+        memory.putI16(team + 0xBE, returnYear);
         for (int index = 0; index < records.length; index++) {
             long item = 0x8200 + (long) index * 0x20;
             memory.putLong(vector + (long) index * Long.BYTES, item);
             memory.fill(item, 0x20, 0);
             DutyRecord record = records[index];
-            if (record.magic()) {
-                memory.putU8(item, 0x20);
-                memory.putU8(item + 1, 'C');
-                memory.putU8(item + 2, 'O');
-                memory.putU8(item + 3, 'T');
-            }
+            // Live FM26 records start with a pointer to the international team,
+            // not an ASCII type marker.
+            memory.putLong(item, team);
             memory.putI16(item + 0x10, record.startDay());
             memory.putI16(item + 0x12, record.startYear());
             memory.putI16(item + 0x14, record.endDay());
             memory.putI16(item + 0x16, record.endYear());
+            memory.putU8(item + 0x18, 1);
+            memory.putU8(item + 0x1D, 3);
         }
     }
 

@@ -139,6 +139,26 @@ class PeopleExporterTest {
     }
 
     @Test
+    void suppliesGameDateWhileWorkersDecodeDutyStatus() throws Exception {
+        MemoryImage image = new MemoryImage();
+        byte[] pointers = new byte[Long.BYTES];
+        long player = 0x10_0000;
+        putPlayer(image, player, PersonMemoryClassifier.PLAYER_DYNAMIC_OFFSET, 101, "Duty Player", 150, 170);
+        putDuty(image, player, 167, 2033, 174, 2033, 195, 2033);
+        putPointer(pointers, 0, player);
+
+        PeopleExporter exporter = new PeopleExporter(pid -> image.reader(), () -> 1);
+        PeopleExporter.ScanResult scan = exporter.scanPointerTable(
+                1, pointers, PeopleExporter.ExportMode.PLAYERS, 1, GAME_DATE);
+
+        assertThat(scan.playerRows()).singleElement().satisfies(row -> {
+            assertThat(row).containsEntry("on_duty", true);
+            assertThat(row).containsEntry("duty_start_date", "2033-06-16");
+            assertThat(row).containsEntry("duty_end_date", "2033-07-14");
+        });
+    }
+
+    @Test
     void readerCreationFailureAbortsTheScan() {
         AtomicInteger opens = new AtomicInteger();
         IOException failure = new IOException("reader unavailable");
@@ -220,6 +240,36 @@ class PeopleExporterTest {
         image.putU16(staffBase + 0xd8, 3_000);
         image.putU16(staffBase + 0xda, ca);
         image.putI16(staffBase + 0xdc, pa);
+    }
+
+    private static void putDuty(
+            MemoryImage image,
+            long person,
+            int startDay,
+            int startYear,
+            int endDay,
+            int endYear,
+            int returnDay,
+            int returnYear) {
+        long container = person + 0x3_000;
+        long vector = person + 0x3_100;
+        long item = person + 0x3_200;
+        long team = person + 0x4_000;
+        image.putLong(person - 0x168, container);
+        image.putLong(person - 0x160, team);
+        image.putLong(container + 0x50, vector);
+        image.putLong(container + 0x58, vector + Long.BYTES);
+        image.putLong(vector, item);
+        image.fill(item, 0x20, 0);
+        image.putLong(item, team);
+        image.putU16(team + 0xBC, returnDay);
+        image.putU16(team + 0xBE, returnYear);
+        image.putU16(item + 0x10, startDay);
+        image.putU16(item + 0x12, startYear);
+        image.putU16(item + 0x14, endDay);
+        image.putU16(item + 0x16, endYear);
+        image.putU8(item + 0x18, 1);
+        image.putU8(item + 0x1D, 3);
     }
 
     private static void putPlausibleFalsePlayerBlock(MemoryImage image, long person) {
