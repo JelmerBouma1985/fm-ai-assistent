@@ -54,7 +54,9 @@ public class PlayerExporter {
     }
 
     public ExportResult exportAllPlayers(int pid, int build, Long gamePluginBase) throws IOException {
-        return new PeopleExporter().exportAllPlayers(pid, build, gamePluginBase);
+        PeopleExporter people = new PeopleExporter();
+        people.setRecordLayout(recordLayout);
+        return people.exportAllPlayers(pid, build, gamePluginBase);
     }
 
     Optional<Map<String, Object>> decodeClassifiedRow(

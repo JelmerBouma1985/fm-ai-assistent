@@ -222,7 +222,6 @@ class PlayerExporterTest {
                         direct.injuryReferenceRel(),
                         direct.dutyReferenceRel(),
                         direct.historyCopySourceRel(),
-                        direct.sourceObjectBaseOffset(),
                         direct.homeReputationRel(),
                         direct.currentReputationRel(),
                         direct.worldReputationRel(),

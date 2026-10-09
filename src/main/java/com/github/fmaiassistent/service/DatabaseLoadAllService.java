@@ -55,6 +55,7 @@ public class DatabaseLoadAllService {
     private final ManagedClubContextService managedClubContexts;
     private final LoadMetadataRepository metadata;
     private final AtomicReference<Consumer<String>> phaseListener = new AtomicReference<>();
+    private final AtomicReference<String> warningPrefix = new AtomicReference<>();
 
     public DatabaseLoadAllService(
             ClubDatabaseService clubs,
@@ -86,6 +87,7 @@ public class DatabaseLoadAllService {
         ManagedClubContext previousContext = managedClubContexts.current();
         try {
             int resolvedPid = pid == null ? detectFmPid() : pid;
+            warningPrefix.set(null);
             PlayerRecordLayouts.LayoutMatch layoutMatch =
                     PlayerRecordLayouts.resolve(java.nio.file.Path.of(System.getProperty("user.home")));
             peopleExporter.setRecordLayout(layoutMatch.layout());
@@ -95,7 +97,7 @@ public class DatabaseLoadAllService {
                         : String.valueOf(layoutMatch.installedBuildId());
                 log.warn("FM26 Steam build {} is not in the known memory-layout registry; "
                         + "continuing with the last known player layout", installed);
-                reportPhase("Warning: unknown FM26 build " + installed + " - continuing with last known memory layout");
+                warningPrefix.set("Unknown FM26 build " + installed + " - using last known memory layout");
             }
             reportPhase("Reading FM26 memory");
             RamSnapshot ram = readRamInParallel(resolvedPid, build, gamePluginBase);
@@ -225,7 +227,8 @@ public class DatabaseLoadAllService {
     private void reportPhase(String phase) {
         Consumer<String> listener = phaseListener.get();
         if (listener != null) {
-            listener.accept(phase);
+            String prefix = warningPrefix.get();
+            listener.accept(prefix == null ? phase : prefix + " | " + phase);
         }
     }
 

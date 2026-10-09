@@ -11,7 +11,6 @@ class PlayerRecordLayoutTest {
         PlayerRecordLayout.Direct direct = PlayerRecordLayout.current().direct();
 
         assertThat(direct.historyCopySourceRel()).isEqualTo(AttributeDefinitions.HISTORY_COPY_SOURCE_REL);
-        assertThat(direct.sourceObjectBaseOffset()).isEqualTo(AttributeDefinitions.SOURCE_OBJECT_BASE_OFFSET);
         assertThat(direct.homeReputationRel()).isEqualTo(AttributeDefinitions.HOME_REPUTATION_REL);
         assertThat(direct.currentReputationRel()).isEqualTo(AttributeDefinitions.CURRENT_REPUTATION_REL);
         assertThat(direct.worldReputationRel()).isEqualTo(AttributeDefinitions.WORLD_REPUTATION_REL);

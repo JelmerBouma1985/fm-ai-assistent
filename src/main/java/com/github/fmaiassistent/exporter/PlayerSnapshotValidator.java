@@ -68,8 +68,14 @@ public final class PlayerSnapshotValidator {
             return;
         }
         LocalDate birthDate = parseDate(String.valueOf(raw));
-        LocalDate latest = reference == null ? LocalDate.now() : reference;
-        if (birthDate == null || birthDate.isAfter(latest) || birthDate.isBefore(latest.minusYears(70))) {
+        if (birthDate == null) {
+            throw new IOException("Player snapshot failed anchor validation: "
+                    + "malformed date_of_birth=" + raw + " (" + identity + ")");
+        }
+        if (reference == null) {
+            return;
+        }
+        if (birthDate.isAfter(reference) || birthDate.isBefore(reference.minusYears(70))) {
             throw new IOException("Player snapshot failed anchor validation: "
                     + "implausible date_of_birth=" + raw + " (" + identity + ")");
         }

@@ -90,7 +90,26 @@ class PlayerSnapshotValidatorTest {
 
         assertThatThrownBy(() -> PlayerSnapshotValidator.validate(List.of(row), 1, "2026-09-01"))
                 .isInstanceOf(IOException.class)
-                .hasMessageContaining("date_of_birth=2030-01-01");
+                .hasMessageContaining("implausible date_of_birth=2030-01-01");
+    }
+
+    @Test
+    void skipsDateBoundsWithoutGameDate() {
+        Map<String, Object> row = validRow();
+        row.put("date_of_birth", "2030-01-01");
+
+        assertThatNoException().isThrownBy(() ->
+                PlayerSnapshotValidator.validate(List.of(row), 1, ""));
+    }
+
+    @Test
+    void rejectsMalformedBirthDateWithoutGameDate() {
+        Map<String, Object> row = validRow();
+        row.put("date_of_birth", "not-a-date");
+
+        assertThatThrownBy(() -> PlayerSnapshotValidator.validate(List.of(row), 1, ""))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("malformed date_of_birth=not-a-date");
     }
 
     private static Map<String, Object> validRow() {

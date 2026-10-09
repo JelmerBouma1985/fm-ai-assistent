@@ -11,7 +11,7 @@ browsing plus AI-assisted recruitment/tactics advice.
   `src/main/frontend/styles/`.
 - H2 file database + Liquibase (`src/main/resources/db/changelog/`). JPA entities
   in `domain.entity`, queries via Spring Data repositories + specifications.
--FM26 RAM access via JNA (`memory`, `linux`, `windows`, `exporter` packages).
+- FM26 RAM access via JNA (`memory`, `linux`, `windows`, `exporter` packages).
 - AI agents: local Codex / Antigravity / Copilot CLIs plus OpenRouter HTTPS.
   MCP tools in `mcp` expose FM data to the agents.
 
