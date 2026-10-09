@@ -10,6 +10,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
 import java.lang.reflect.Field;
@@ -93,8 +95,8 @@ public class PlayerEntity {
     private Integer injuryMaxDaysRemaining;
     @Column(name = "injury_expected_return", length = 1024)
     private String injuryExpectedReturn;
-    @Column(name = "on_duty")
-    private Boolean onDuty;
+    @Column(name = "on_duty", nullable = false)
+    private Boolean onDuty = false;
     @Column(name = "duty_start_date", length = 1024)
     private String dutyStartDate;
     @Column(name = "duty_end_date", length = 1024)
@@ -267,6 +269,14 @@ public class PlayerEntity {
     private Integer controversy;
 
     protected PlayerEntity() {
+    }
+
+    @PrePersist
+    @PreUpdate
+    private void normalizeDutyStatus() {
+        if (onDuty == null) {
+            onDuty = false;
+        }
     }
 
     public static PlayerEntity fromExportRow(Map<String, Object> row) {
