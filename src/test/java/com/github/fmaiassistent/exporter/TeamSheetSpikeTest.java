@@ -533,35 +533,20 @@ class TeamSheetSpikeTest {
             for (int i = 0; i < u16.length; i++) {
                 u16[i] = (data[2 * i] & 0xff) | ((data[2 * i + 1] & 0xff) << 8);
             }
-            for (int i = 0; i + 8 <= u16.length; i++) {
-                boolean all = true;
-                for (int want : set) {
-                    boolean found = false;
-                    for (int j = 0; j < 8; j++) {
-                        if (u16[i + j] == want) {
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found) {
-                        all = false;
-                        break;
-                    }
-                }
-                if (all) {
-                    StringBuilder context = new StringBuilder("SPIKE cluster +0x")
-                            .append(Long.toHexString((long) (i * 2) - window))
-                            .append(" =[");
-                    for (int j = 0; j < 8; j++) {
-                        if (j != 0) {
-                            context.append(',');
-                        }
-                        context.append(u16[i + j]);
-                    }
-                    context.append(']');
-                    System.out.println(context);
-                }
+            reportCooccurrences(u16, set, 8, anchor, window, "u16");
+            int[] u8 = new int[span];
+            for (int i = 0; i < u8.length; i++) {
+                u8[i] = data[i] & 0xff;
             }
+            reportCooccurrences(u8, set, 8, anchor, window, "u8");
+            int[] u32 = new int[span / 4];
+            for (int i = 0; i < u32.length; i++) {
+                u32[i] = (data[4 * i] & 0xff)
+                        | ((data[4 * i + 1] & 0xff) << 8)
+                        | ((data[4 * i + 2] & 0xff) << 16)
+                        | ((data[4 * i + 3] & 0xff) << 24);
+            }
+            reportCooccurrences(u32, set, 8, anchor, window, "u32");
             for (float rating : ratings) {
                 int bits = Float.floatToIntBits(rating);
                 byte[] pattern = new byte[]{
@@ -621,7 +606,7 @@ class TeamSheetSpikeTest {
                 }
                 byte[] data;
                 try {
-                    data = reader.readBytes(pointer - 1024, 2048);
+                    data = reader.readBytes(pointer - 8192, 16384);
                 } catch (IOException | RuntimeException unreadable) {
                     continue;
                 }
@@ -895,6 +880,43 @@ class TeamSheetSpikeTest {
             return i;
         }
         return -1;
+    }
+
+    private static void reportCooccurrences(
+            int[] values, int[] set, int span, long anchor, long window, String kind) {
+        for (int i = 0; i + span <= values.length; i++) {
+            boolean all = true;
+            for (int want : set) {
+                boolean found = false;
+                for (int j = 0; j < span; j++) {
+                    if (values[i + j] == want) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    all = false;
+                    break;
+                }
+            }
+            if (all) {
+                int unit = kind.equals("u8") ? 1 : kind.equals("u16") ? 2 : 4;
+                StringBuilder context = new StringBuilder("SPIKE cluster-")
+                        .append(kind)
+                        .append(" +0x")
+                        .append(Long.toHexString((long) i * unit - window))
+                        .append(" =[");
+                for (int j = 0; j < span; j++) {
+                    if (j != 0) {
+                        context.append(',');
+                    }
+                    context.append(values[i + j]);
+                }
+                context.append(']');
+                System.out.println(context);
+                i += span;
+            }
+        }
     }
 
     private static float[] parseFloats(String csv) {
