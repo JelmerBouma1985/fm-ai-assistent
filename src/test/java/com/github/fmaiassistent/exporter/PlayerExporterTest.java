@@ -40,7 +40,7 @@ class PlayerExporterTest {
         PersonMemoryClassifier.PersonType type = new PersonMemoryClassifier(memory).classify(PERSON).type();
 
         assertThat(type).isEqualTo(PersonMemoryClassifier.PersonType.UNKNOWN);
-        assertThat(PlayerExporter.playerMemoryLayout(memory, PERSON, type)).isEmpty();
+        assertThat(new PlayerExporter().playerMemoryLayout(memory, PERSON, type)).isEmpty();
     }
 
     @Test
@@ -51,7 +51,7 @@ class PlayerExporterTest {
         putPlausiblePlayerBlock(memory, 0, true);
 
         PersonMemoryClassifier.PersonType type = new PersonMemoryClassifier(memory).classify(PERSON).type();
-        PlayerExporter.PlayerMemoryLayout layout = PlayerExporter.playerMemoryLayout(memory, PERSON, type).orElseThrow();
+        PlayerExporter.PlayerMemoryLayout layout = new PlayerExporter().playerMemoryLayout(memory, PERSON, type).orElseThrow();
 
         assertThat(type).isEqualTo(PersonMemoryClassifier.PersonType.PLAYER);
         assertThat(layout.recordRelShift()).isZero();
@@ -69,7 +69,7 @@ class PlayerExporterTest {
         putPlausiblePlayerBlock(memory, relativeShift, true);
 
         PersonMemoryClassifier.PersonType type = new PersonMemoryClassifier(memory).classify(PERSON).type();
-        PlayerExporter.PlayerMemoryLayout layout = PlayerExporter.playerMemoryLayout(memory, PERSON, type).orElseThrow();
+        PlayerExporter.PlayerMemoryLayout layout = new PlayerExporter().playerMemoryLayout(memory, PERSON, type).orElseThrow();
 
         assertThat(type).isEqualTo(PersonMemoryClassifier.PersonType.PLAYER_STAFF);
         assertThat(layout.recordRelShift()).isEqualTo(-0xf8);
@@ -87,7 +87,7 @@ class PlayerExporterTest {
 
         PersonMemoryClassifier.PersonType type = new PersonMemoryClassifier(memory).classify(PERSON).type();
 
-        assertThat(PlayerExporter.playerMemoryLayout(memory, PERSON, type)).isEmpty();
+        assertThat(new PlayerExporter().playerMemoryLayout(memory, PERSON, type)).isEmpty();
     }
 
     @Test
