@@ -184,8 +184,14 @@ public class CodexConversationService {
     }
 
     public void decideApproval(String requestKey, ApprovalDecision decision) {
-        PendingApproval pending = approvals.remove(requestKey);
+        PendingApproval pending = approvals.get(requestKey);
         if (pending == null) {
+            throw new CodexException("This approval request is no longer active");
+        }
+        if (decision == ApprovalDecision.ALLOW_ALWAYS && !canAllowAlways(pending)) {
+            throw new CodexException("Codex did not provide a persistent rule for this approval request");
+        }
+        if (!approvals.remove(requestKey, pending)) {
             throw new CodexException("This approval request is no longer active");
         }
         ObjectNode result;
@@ -193,7 +199,7 @@ public class CodexConversationService {
             result = mapper.createObjectNode().put("action", switch (decision) {
                 case ALLOW_ONCE, ALLOW_SESSION -> "accept";
                 case DENY -> "decline";
-                case DENY_AND_STOP -> "cancel";
+                case ALLOW_ALWAYS -> throw new IllegalStateException("Persistent MCP approval is not supported");
             });
             if (decision == ApprovalDecision.ALLOW_ONCE || decision == ApprovalDecision.ALLOW_SESSION) {
                 result.set("content", mapper.createObjectNode());
@@ -209,21 +215,69 @@ public class CodexConversationService {
             result = mapper.createObjectNode()
                     .put("scope", decision == ApprovalDecision.ALLOW_SESSION ? "session" : "turn")
                     .set("permissions", granted);
+        } else if (decision == ApprovalDecision.ALLOW_ALWAYS) {
+            result = persistentApprovalResult(pending.params());
         } else {
             result = mapper.createObjectNode().put("decision", switch (decision) {
                 case ALLOW_ONCE -> "accept";
                 case ALLOW_SESSION -> "acceptForSession";
                 case DENY -> "decline";
-                case DENY_AND_STOP -> "cancel";
+                case ALLOW_ALWAYS -> throw new IllegalStateException("Persistent approval was not handled");
             });
         }
         client.respond(pending.id(), result);
-        if (decision == ApprovalDecision.DENY_AND_STOP
-                && "item/permissions/requestApproval".equals(pending.method())) {
-            client.interruptTurn(pending.threadId(), pending.params().path("turnId").asString());
-        }
         log.info("Resolved Codex approval method={} decision={} threadId={}",
                 pending.method(), decision, pending.threadId());
+    }
+
+    private ObjectNode persistentApprovalResult(JsonNode params) {
+        JsonNode execPolicy = params.path("proposedExecpolicyAmendment");
+        if (hasValues(execPolicy) && decisionAvailable(params, "acceptWithExecpolicyAmendment")) {
+            ObjectNode amendment = mapper.createObjectNode().set("execpolicy_amendment", execPolicy);
+            return mapper.createObjectNode().set("decision",
+                    mapper.createObjectNode().set("acceptWithExecpolicyAmendment", amendment));
+        }
+        JsonNode networkPolicy = allowNetworkPolicy(params);
+        ObjectNode amendment = mapper.createObjectNode().set("network_policy_amendment", networkPolicy);
+        return mapper.createObjectNode().set("decision",
+                mapper.createObjectNode().set("applyNetworkPolicyAmendment", amendment));
+    }
+
+    private static boolean canAllowAlways(PendingApproval pending) {
+        if (!"item/commandExecution/requestApproval".equals(pending.method())) {
+            return false;
+        }
+        JsonNode params = pending.params();
+        return (hasValues(params.path("proposedExecpolicyAmendment"))
+                && decisionAvailable(params, "acceptWithExecpolicyAmendment"))
+                || (allowNetworkPolicy(params) != null
+                && decisionAvailable(params, "applyNetworkPolicyAmendment"));
+    }
+
+    private static boolean hasValues(JsonNode value) {
+        return value.isArray() && !value.isEmpty();
+    }
+
+    private static JsonNode allowNetworkPolicy(JsonNode params) {
+        for (JsonNode amendment : params.path("proposedNetworkPolicyAmendments")) {
+            if ("allow".equals(amendment.path("action").asString())) {
+                return amendment;
+            }
+        }
+        return null;
+    }
+
+    private static boolean decisionAvailable(JsonNode params, String decision) {
+        JsonNode available = params.path("availableDecisions");
+        if (!available.isArray()) {
+            return true;
+        }
+        for (JsonNode value : available) {
+            if (value.has(decision)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public CompletableFuture<Void> restart() {
@@ -277,8 +331,8 @@ public class CodexConversationService {
     public enum ApprovalDecision {
         ALLOW_ONCE,
         ALLOW_SESSION,
-        DENY,
-        DENY_AND_STOP
+        ALLOW_ALWAYS,
+        DENY
     }
 
     private <T> CompletableFuture<T> readyThen(Supplier<CompletableFuture<T>> operation) {
@@ -472,14 +526,16 @@ public class CodexConversationService {
         String threadId = params.path("threadId").asString();
         String requestKey = request.id().toString();
         String details = approvalDetails(params);
-        approvals.put(requestKey, new PendingApproval(request.id(), method, threadId, params));
+        PendingApproval pending = new PendingApproval(request.id(), method, threadId, params);
+        approvals.put(requestKey, pending);
         emit(new CodexEvent.ApprovalRequested(
                 threadId,
                 params.path("turnId").asString(),
                 requestKey,
                 kind,
                 summary,
-                details));
+                details,
+                canAllowAlways(pending)));
     }
 
     private CodexConversationSnapshot snapshot(JsonNode thread) {

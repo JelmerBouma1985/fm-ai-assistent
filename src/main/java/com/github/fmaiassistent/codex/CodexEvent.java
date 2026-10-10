@@ -44,7 +44,8 @@ public sealed interface CodexEvent {
             String requestKey,
             ApprovalKind kind,
             String summary,
-            String details) implements CodexEvent {
+            String details,
+            boolean allowAlways) implements CodexEvent {
     }
 
     record McpStatusChanged(String threadId, String server, String status, String error) implements CodexEvent {

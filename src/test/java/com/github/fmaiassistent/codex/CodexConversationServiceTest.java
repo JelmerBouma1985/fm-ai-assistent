@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -179,6 +180,55 @@ class CodexConversationServiceTest {
         ArgumentCaptor<JsonNode> response = ArgumentCaptor.forClass(JsonNode.class);
         verify(client).respond(org.mockito.ArgumentMatchers.eq(requestId), response.capture());
         assertEquals("decline", response.getValue().path("decision").asText());
+    }
+
+    @Test
+    void acceptsProposedCommandRulePermanently() {
+        List<CodexEvent> events = new CopyOnWriteArrayList<>();
+        service.subscribe("thread-1", events::add);
+        JsonNode requestId = mapper.getNodeFactory().numberNode(101);
+
+        serverRequests.accept(new CodexJsonRpcClient.ServerRequest(
+                requestId,
+                "item/commandExecution/requestApproval",
+                mapper.createObjectNode()
+                        .put("threadId", "thread-1")
+                        .put("turnId", "turn-1")
+                        .put("command", "./mvnw spring-boot:run")
+                        .set("proposedExecpolicyAmendment", mapper.createArrayNode()
+                                .add("./mvnw")
+                                .add("spring-boot:run"))));
+
+        CodexEvent.ApprovalRequested approval = (CodexEvent.ApprovalRequested) events.getFirst();
+        assertTrue(approval.allowAlways());
+        service.decideApproval(approval.requestKey(), CodexConversationService.ApprovalDecision.ALLOW_ALWAYS);
+
+        ArgumentCaptor<JsonNode> response = ArgumentCaptor.forClass(JsonNode.class);
+        verify(client).respond(org.mockito.ArgumentMatchers.eq(requestId), response.capture());
+        JsonNode amendment = response.getValue().path("decision")
+                .path("acceptWithExecpolicyAmendment").path("execpolicy_amendment");
+        assertEquals(List.of("./mvnw", "spring-boot:run"),
+                java.util.stream.StreamSupport.stream(amendment.spliterator(), false)
+                        .map(JsonNode::asText)
+                        .toList());
+    }
+
+    @Test
+    void rejectsPermanentApprovalWhenCodexProvidesNoPersistentRule() {
+        List<CodexEvent> events = new CopyOnWriteArrayList<>();
+        service.subscribe("thread-1", events::add);
+
+        serverRequests.accept(new CodexJsonRpcClient.ServerRequest(
+                mapper.getNodeFactory().numberNode(102),
+                "item/fileChange/requestApproval",
+                mapper.createObjectNode()
+                        .put("threadId", "thread-1")
+                        .put("turnId", "turn-1")));
+
+        CodexEvent.ApprovalRequested approval = (CodexEvent.ApprovalRequested) events.getFirst();
+        assertFalse(approval.allowAlways());
+        assertThrows(CodexException.class, () -> service.decideApproval(
+                approval.requestKey(), CodexConversationService.ApprovalDecision.ALLOW_ALWAYS));
     }
 
     @Test

@@ -592,11 +592,15 @@ final class CodexChatView extends Div {
         dialog.add(body);
 
         Button deny = approvalButton("Deny", CodexConversationService.ApprovalDecision.DENY, approval, dialog);
-        Button denyAndStop = approvalButton("Deny & stop", CodexConversationService.ApprovalDecision.DENY_AND_STOP, approval, dialog);
+        Button allow = approvalButton("Allow", CodexConversationService.ApprovalDecision.ALLOW_ONCE, approval, dialog);
         Button allowSession = approvalButton("Allow for session", CodexConversationService.ApprovalDecision.ALLOW_SESSION, approval, dialog);
-        Button allow = approvalButton("Allow once", CodexConversationService.ApprovalDecision.ALLOW_ONCE, approval, dialog);
+        Button allowAlways = approvalButton("Allow always", CodexConversationService.ApprovalDecision.ALLOW_ALWAYS, approval, dialog);
+        allowAlways.setEnabled(approval.allowAlways());
+        if (!approval.allowAlways()) {
+            allowAlways.setTooltipText("Codex did not provide a persistent rule for this request");
+        }
         allow.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        dialog.getFooter().add(deny, denyAndStop, allowSession, allow);
+        dialog.getFooter().add(deny, allow, allowSession, allowAlways);
         dialog.open();
     }
 
