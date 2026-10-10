@@ -2,6 +2,7 @@ package com.github.fmaiassistent.exporter;
 
 import com.github.fmaiassistent.memory.MemoryRegion;
 import com.github.fmaiassistent.memory.ProcessMemoryReader;
+import com.github.fmaiassistent.memory.StaffRecordLayout;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -13,6 +14,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class StaffExporterTest {
     private static final long PERSON = 0x2000;
@@ -25,6 +28,67 @@ class StaffExporterTest {
 
     @Test
     void decodesEnglishStaffFieldsAndFivePointAttributes() throws Exception {
+        FakeMemory memory = validStaffMemory();
+
+        Map<String, Object> row = new StaffExporter().decodeRow(memory, 7, PERSON, 0x100);
+
+        assertThat(row).containsEntry("unique_id", 123456L)
+                .containsEntry("name", "Jane Coach")
+                .containsEntry("nationality", "England")
+                .containsEntry("club", "Test FC")
+                .containsEntry("division", "Premier Division")
+                .containsEntry("job", "Coach")
+                .containsEntry("salary_weekly_raw", 12500L)
+                .containsEntry("ca", 145)
+                .containsEntry("pa", 160)
+                .containsEntry("authority", 16)
+                .containsEntry("attacking", 17)
+                .containsEntry("goalkeeping", 15)
+                .containsEntry("working_with_youngsters", 19)
+                .containsEntry("judging_player_ability", 18);
+    }
+
+    @Test
+    void exposesEnglishJobNamesAndSafeFallback() {
+        assertThat(StaffExporter.jobName(64)).isEqualTo("Head of Youth Development");
+        assertThat(StaffExporter.jobName(999)).isEqualTo("Staff Member");
+    }
+
+    @Test
+    void shiftedAbilityOffsetFailsValidationWhileCurrentPasses() throws Exception {
+        FakeMemory memory = validStaffMemory();
+
+        Map<String, Object> row = new StaffExporter().decodeRow(memory, 7, PERSON, 0x100);
+        assertThat(row.get("ca")).isEqualTo(145);
+        assertThatNoException().isThrownBy(
+                () -> PlayerSnapshotValidator.validateStaff(List.of(row), "2026-09-01", 1));
+
+        StaffRecordLayout base = StaffRecordLayout.current();
+        StaffExporter driftedDecoder = new StaffExporter(new StaffRecordLayout(
+                base.uniqueIdRel(),
+                base.genderRel(),
+                base.dateOfBirthRel(),
+                base.contractRefRel(),
+                base.contractTeamRel(),
+                base.contractClubRel(),
+                base.contractJobIdRel(),
+                base.contractSalaryWeeklyRel(),
+                base.contractDateRel(),
+                base.homeReputationRel(),
+                base.currentReputationRel(),
+                base.worldReputationRel(),
+                base.caRel() - 2,
+                base.paRel(),
+                base.attributesRel(),
+                base.divisionScanRelA(),
+                base.divisionScanRelB()));
+        Map<String, Object> driftedRow = driftedDecoder.decodeRow(memory, 7, PERSON, 0x100);
+        assertThatThrownBy(() -> PlayerSnapshotValidator.validateStaff(List.of(driftedRow), "2026-09-01", 1))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("ca=3500");
+    }
+
+    private static FakeMemory validStaffMemory() {
         FakeMemory memory = new FakeMemory();
         memory.fill(BASE + 0x10, 0x34, 0);
         memory.putU32(PERSON + 0x0c, 123456);
@@ -52,29 +116,7 @@ class StaffExporterTest {
         memory.putU8(BASE + 0x10 + 0x04, 16);
         memory.putU8(BASE + 0x10 + 0x0c, 19);
         memory.putU8(BASE + 0x10 + 0x1b, 75);
-
-        Map<String, Object> row = new StaffExporter().decodeRow(memory, 7, PERSON, 0x100);
-
-        assertThat(row).containsEntry("unique_id", 123456L)
-                .containsEntry("name", "Jane Coach")
-                .containsEntry("nationality", "England")
-                .containsEntry("club", "Test FC")
-                .containsEntry("division", "Premier Division")
-                .containsEntry("job", "Coach")
-                .containsEntry("salary_weekly_raw", 12500L)
-                .containsEntry("ca", 145)
-                .containsEntry("pa", 160)
-                .containsEntry("authority", 16)
-                .containsEntry("attacking", 17)
-                .containsEntry("goalkeeping", 15)
-                .containsEntry("working_with_youngsters", 19)
-                .containsEntry("judging_player_ability", 18);
-    }
-
-    @Test
-    void exposesEnglishJobNamesAndSafeFallback() {
-        assertThat(StaffExporter.jobName(64)).isEqualTo("Head of Youth Development");
-        assertThat(StaffExporter.jobName(999)).isEqualTo("Staff Member");
+        return memory;
     }
 
     private static final class FakeMemory implements ProcessMemoryReader {

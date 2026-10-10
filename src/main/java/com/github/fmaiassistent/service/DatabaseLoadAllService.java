@@ -90,19 +90,29 @@ public class DatabaseLoadAllService {
             warningPrefix.set(null);
             PlayerRecordLayouts.LayoutMatch layoutMatch =
                     PlayerRecordLayouts.resolve(java.nio.file.Path.of(System.getProperty("user.home")));
-            peopleExporter.setRecordLayout(layoutMatch.layout());
+            peopleExporter.setRecordLayout(layoutMatch.layouts().players());
+            peopleExporter.setStaffRecordLayout(layoutMatch.layouts().staff());
+            clubs.setRecordLayout(layoutMatch.layouts().clubs());
+            competitions.setRecordLayout(layoutMatch.layouts().competitions());
             if (!layoutMatch.knownBuild()) {
                 String installed = layoutMatch.installedBuildId() < 0
                         ? "unknown"
                         : String.valueOf(layoutMatch.installedBuildId());
                 log.warn("FM26 Steam build {} is not in the known memory-layout registry; "
-                        + "continuing with the last known player layout", installed);
+                        + "continuing with the last known record layouts", installed);
                 warningPrefix.set("Unknown FM26 build " + installed + " - using last known memory layout");
             }
             reportPhase("Reading FM26 memory");
             RamSnapshot ram = readRamInParallel(resolvedPid, build, gamePluginBase);
             reportPhase("Validating player data");
             PlayerSnapshotValidator.validate(ram.players().rows(), ram.peopleSlots(), ram.players().gameDate());
+            reportPhase("Validating staff data");
+            PlayerSnapshotValidator.validateStaff(
+                    ram.staff().rows(), ram.staff().gameDate(), ram.players().rows().size());
+            reportPhase("Validating club data");
+            PlayerSnapshotValidator.validateClubs(ram.clubs().rows(), ram.players().rows().size());
+            PlayerSnapshotValidator.validateCompetitions(
+                    ram.competitions().rows(), ram.players().rows().size());
             long persistenceStarted = System.nanoTime();
             logAfterCommit(persistenceStarted);
             long stepStarted = System.nanoTime();
