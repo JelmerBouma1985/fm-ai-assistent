@@ -1,0 +1,21 @@
+---
+import { toAbsoluteUrl } from '../config/site';
+interface Crumb { label: string; href?: string }
+interface Props { items: Crumb[] }
+const { items } = Astro.props;
+const allItems = [{ label: 'Home', href: '/' }, ...items];
+const schema = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: allItems.map((item, index) => ({
+    '@type': 'ListItem', position: index + 1, name: item.label,
+    ...(item.href ? { item: toAbsoluteUrl(item.href) } : {})
+  }))
+};
+---
+<nav class="breadcrumbs" aria-label="Breadcrumb">
+  <ol>
+    {allItems.map((item, index) => <li>{item.href && index < allItems.length - 1 ? <a href={item.href}>{item.label}</a> : <span aria-current={index === allItems.length - 1 ? 'page' : undefined}>{item.label}</span>}</li>)}
+  </ol>
+</nav>
+<script type="application/ld+json" set:html={JSON.stringify(schema)} />

@@ -1,0 +1,7 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro'; import Breadcrumbs from '../components/Breadcrumbs.astro'; import CallToAction from '../components/CallToAction.astro'; import { faqs } from '../content/faqs';
+const schema = {'@context':'https://schema.org','@type':'FAQPage',mainEntity:faqs.map(({question,answer})=>({'@type':'Question',name:question,acceptedAnswer:{'@type':'Answer',text:answer}}))};
+---
+<BaseLayout title="FM AI Assistent Frequently Asked Questions" description="Answers about FM26 compatibility, RAM snapshots, supported platforms, AI provider costs, privacy, tactics and releases." path="/faq/" structuredData={schema}>
+  <div class="page-shell"><Breadcrumbs items={[{label:'FAQ'}]} /><header class="page-hero"><p class="eyebrow">Straight answers</p><h1>Frequently asked questions.</h1><p class="lead">What the application does, what it sends to AI providers and what you need before your first FM26 data load.</p></header><section class="section"><div class="faq-list">{faqs.map((item) => <details><summary>{item.question}</summary><p>{item.answer}</p></details>)}</div></section></div><CallToAction />
+</BaseLayout>

@@ -1,0 +1,26 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import FeatureCard from '../../components/FeatureCard.astro';
+import CallToAction from '../../components/CallToAction.astro';
+---
+<BaseLayout title="FM26 Scouting and Squad Tools | FM AI Assistent" description="Explore FM AI Assistent features for player scouting, tactics, recruitment, staff analysis and context-aware AI assistance." path="/features/">
+  <div class="page-shell"><Breadcrumbs items={[{label:'Features'}]} />
+    <header class="page-hero"><p class="eyebrow">Capability map</p><h1>Explore FM AI Assistent features.</h1><p class="lead">A local database for hands-on inspection, plus focused AI tools for the decisions that usually require many searches and comparisons.</p></header>
+    <section class="section">
+      <div class="feature-grid">
+        <FeatureCard number="01" title="Scout players" description="Search the current snapshot and examine attributes, positions, contracts, wages, asking prices and club context." href="/features/scouting/" />
+        <FeatureCard number="02" title="Analyze tactics" description="Decode an exported tactic, inspect role requirements, diagnose depth and build a unique optimized lineup." href="/features/tactics/" />
+        <FeatureCard number="03" title="Plan recruitment" description="Find role-specific targets and replacements, compare finalists, model moves and preserve verified evidence." href="/features/recruitment/" />
+        <FeatureCard number="04" title="Assess staff" description="Filter staff and compare all nine supported coaching assignments with transparent role calculations." href="/features/staff/" />
+        <FeatureCard number="05" title="Ask an AI assistant" description="Choose Codex, Antigravity, Copilot or OpenRouter and control which save and tactic context is enabled." href="/features/ai-assistant/" />
+        <FeatureCard number="06" title="Browse the database" description="Inspect players, staff, clubs and competitions in the local interface without needing an AI conversation." href="/how-it-works/" linkLabel="Understand the data flow" />
+      </div>
+    </section>
+    <section class="section feature-showcase">
+      <div><p class="eyebrow">Designed for verification</p><h2>See the rows behind the recommendation.</h2><p class="lead">The browser interface keeps the underlying data visible. AI decision tools return snapshot identity, tactic fingerprint, player IDs and the values used to compare options.</p><p>AI output is still advice—not an instruction sent into your save. Check uncertain prices, availability and tactical fit in FM26 before acting.</p></div>
+      <figure class="screenshot-frame"><a href="/images/player-details.png" target="_blank" rel="noopener" aria-label="Open the player detail screenshot at full size"><img src="/images/player-details.png" width="1600" height="900" loading="lazy" alt="FM AI Assistent player detail panel with attributes, positions and contract information" /></a><figcaption><span>A genuine player-detail view from the application.</span><a href="/images/player-details.png" target="_blank" rel="noopener">View full size ↗</a></figcaption></figure>
+    </section>
+  </div>
+  <CallToAction />
+</BaseLayout>

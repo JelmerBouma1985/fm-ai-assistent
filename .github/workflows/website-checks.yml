@@ -1,0 +1,41 @@
+name: Website checks
+
+on:
+  pull_request:
+    paths:
+      - 'website/**'
+      - '.github/workflows/pages.yml'
+      - '.github/workflows/website-checks.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: website-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        working-directory: website
+        run: npm ci
+
+      - name: Check Astro source
+        working-directory: website
+        run: npm run check
+
+      - name: Build and validate static output
+        working-directory: website
+        run: npm run build

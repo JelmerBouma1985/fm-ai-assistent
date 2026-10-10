@@ -16,3 +16,6 @@ src/main/frontend/index.html
 /node_modules/
 /vite.generated.ts
 /.vaadin-node-tasks.lock
+/website/node_modules/
+/website/dist/
+/website/.astro/

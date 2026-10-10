@@ -1,0 +1,16 @@
+---
+import { site } from '../config/site';
+interface Props { eyebrow?: string; title?: string; text?: string }
+const { eyebrow = 'Ready for the next window?', title = 'Put your save data to work.', text = 'Download the current release from the project’s official GitHub page, then load your FM26 save.' } = Astro.props;
+---
+<section class="cta-panel">
+  <div>
+    <p class="eyebrow">{eyebrow}</p>
+    <h2>{title}</h2>
+    <p>{text}</p>
+  </div>
+  <div class="button-row">
+    <a class="button" href={site.latestRelease} rel="noopener noreferrer">Download latest release</a>
+    <a class="button button-ghost" href="/getting-started/">Installation guide</a>
+  </div>
+</section>

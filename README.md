@@ -2,6 +2,8 @@
 
 FM AI Assistent is a local companion app for **Football Manager 2026** on Windows 11 and Linux.
 
+Visit [fmaiassistant.com](https://fmaiassistant.com/) for the product overview, feature guides and installation walkthrough.
+
 It reads your loaded FM26 save directly from memory so you can:
 
 - search and compare players, staff, clubs and competitions;

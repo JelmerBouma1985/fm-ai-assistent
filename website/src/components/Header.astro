@@ -1,0 +1,43 @@
+---
+import { site } from '../config/site';
+---
+<header class="site-header">
+  <div class="nav-shell">
+    <a class="brand" href="/" aria-label="FM AI Assistent home">
+      <span class="brand-mark" aria-hidden="true"><span>FA</span></span>
+      <span><strong>{site.name}</strong><small>Recruitment intelligence</small></span>
+    </a>
+    <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-navigation">
+      <span class="sr-only">Toggle navigation</span>
+      <span></span><span></span><span></span>
+    </button>
+    <nav id="site-navigation" class="site-nav" aria-label="Primary navigation">
+      <a href="/features/">Features</a>
+      <a href="/how-it-works/">How it works</a>
+      <a href="/getting-started/">Get started</a>
+      <a href="/faq/">FAQ</a>
+      <a href={site.repository} rel="noopener noreferrer">GitHub</a>
+      <a class="button button-small" href="/download/">Download</a>
+    </nav>
+  </div>
+</header>
+<script is:inline>
+  const button = document.querySelector('.menu-toggle');
+  const navigation = document.querySelector('#site-navigation');
+  const closeMenu = () => {
+    button?.setAttribute('aria-expanded', 'false');
+    navigation?.classList.remove('is-open');
+  };
+  button?.addEventListener('click', () => {
+    const open = button.getAttribute('aria-expanded') === 'true';
+    button.setAttribute('aria-expanded', String(!open));
+    navigation?.classList.toggle('is-open', !open);
+  });
+  navigation?.querySelectorAll('a').forEach((link) => link.addEventListener('click', closeMenu));
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeMenu();
+      button?.focus();
+    }
+  });
+</script>

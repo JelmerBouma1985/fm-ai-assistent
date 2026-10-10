@@ -1,0 +1,39 @@
+---
+import { featureLinks, site } from '../config/site';
+---
+<footer class="site-footer">
+  <div class="footer-grid">
+    <div>
+      <a class="brand footer-brand" href="/">
+        <span class="brand-mark" aria-hidden="true"><span>FA</span></span>
+        <span><strong>{site.name}</strong><small>{site.tagline}</small></span>
+      </a>
+      <p class="muted">An independent local companion for turning a loaded FM26 save into useful scouting, squad and recruitment context.</p>
+    </div>
+    <div>
+      <h2>Explore</h2>
+      <ul>{featureLinks.map((item) => <li><a href={item.href}>{item.label}</a></li>)}</ul>
+    </div>
+    <div>
+      <h2>Project</h2>
+      <ul>
+        <li><a href="/download/">Download</a></li>
+        <li><a href="/getting-started/">Getting started</a></li>
+        <li><a href={site.releaseNotes} rel="noopener noreferrer">Release notes</a></li>
+        <li><a href={site.issues} rel="noopener noreferrer">Report an issue</a></li>
+      </ul>
+    </div>
+    <div>
+      <h2>Trust</h2>
+      <ul>
+        <li><a href="/privacy/">Privacy & data</a></li>
+        <li><a href="/disclaimer/">Disclaimer</a></li>
+        <li><a href={site.repository} rel="noopener noreferrer">Source on GitHub</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>FM AI Assistent is not affiliated with, endorsed by or sponsored by Sports Interactive or SEGA.</p>
+    <p>© {new Date().getFullYear()} FM AI Assistent.</p>
+  </div>
+</footer>

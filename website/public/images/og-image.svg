@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#061411"/>
+      <stop offset="1" stop-color="#0e3027"/>
+    </linearGradient>
+    <pattern id="grid" width="55" height="55" patternUnits="userSpaceOnUse">
+      <path d="M55 0H0V55" fill="none" stroke="#ccebdd" stroke-opacity=".08"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+  <circle cx="1070" cy="90" r="230" fill="#55e5a4" fill-opacity=".10"/>
+  <rect x="72" y="70" width="74" height="74" rx="18" fill="#55e5a4"/>
+  <path d="M91 123V91h10v23h11V99h10v15h14v9H91Z" fill="#032117"/>
+  <circle cx="129" cy="91" r="6" fill="#ffd270"/>
+  <text x="170" y="104" fill="#f4f7f5" font-family="Arial, sans-serif" font-size="34" font-weight="700">FM AI Assistent</text>
+  <text x="170" y="136" fill="#9fb6ac" font-family="Arial, sans-serif" font-size="17" font-weight="700" letter-spacing="3">RECRUITMENT INTELLIGENCE</text>
+  <text x="72" y="276" fill="#55e5a4" font-family="Arial, sans-serif" font-size="20" font-weight="700" letter-spacing="4">YOUR SAVE. YOUR CONTEXT.</text>
+  <text x="72" y="357" fill="#f4f7f5" font-family="Arial, sans-serif" font-size="67" font-weight="800">AI companion for</text>
+  <text x="72" y="432" fill="#f4f7f5" font-family="Arial, sans-serif" font-size="67" font-weight="800">Football Manager 2026</text>
+  <text x="72" y="510" fill="#b8c8c1" font-family="Arial, sans-serif" font-size="25">Scout players · analyze tactics · plan recruitment</text>
+  <rect x="72" y="552" width="327" height="3" fill="#55e5a4"/>
+  <rect x="413" y="552" width="82" height="3" fill="#ffd270"/>
+</svg>

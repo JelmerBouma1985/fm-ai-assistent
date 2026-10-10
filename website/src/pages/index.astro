@@ -1,0 +1,113 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import FeatureCard from '../components/FeatureCard.astro';
+import CallToAction from '../components/CallToAction.astro';
+import { faqs } from '../content/faqs';
+import { site, toAbsoluteUrl } from '../config/site';
+
+const title = 'FM AI Assistent | Football Manager 2026 AI Companion';
+const description = 'Explore real FM26 save data for scouting, recruitment and squad analysis, then ask an AI assistant with useful in-game context.';
+const structuredData = [
+  {
+    '@context': 'https://schema.org', '@type': 'WebSite', '@id': `${site.origin}/#website`,
+    url: `${site.origin}/`, name: site.name, description
+  },
+  {
+    '@context': 'https://schema.org', '@type': 'SoftwareApplication', '@id': `${site.origin}/#software`,
+    name: site.name, url: `${site.origin}/`, description: site.description,
+    applicationCategory: 'UtilitiesApplication', operatingSystem: ['Windows 11', 'Linux'],
+    downloadUrl: site.latestRelease, softwareHelp: toAbsoluteUrl('/getting-started/')
+  }
+];
+---
+<BaseLayout title={title} description={description} path="/" structuredData={structuredData}>
+  <section class="hero">
+    <div class="hero-copy">
+      <div class="hero-kicker"><span class="live-dot"></span> Built around your loaded FM26 save</div>
+      <p class="eyebrow">Scout smarter. Decide with context.</p>
+      <h1>An AI companion for your Football Manager 2026 save.</h1>
+      <p class="lead">Explore real player and staff data from your loaded save, compare recruitment options, analyze squad needs and ask an AI assistant questions with relevant in-game context.</p>
+      <div class="button-row">
+        <a class="button" href={site.latestRelease} rel="noopener noreferrer">Download latest release</a>
+        <a class="button button-ghost" href="/how-it-works/">See how it works</a>
+      </div>
+    </div>
+    <figure class="hero-visual">
+      <img src="/images/players.png" width="1600" height="900" alt="FM AI Assistent player database showing sortable FM26 player attributes and financial data" fetchpriority="high" />
+      <figcaption class="sr-only">The genuine player database interface after loading a Football Manager 2026 save.</figcaption>
+    </figure>
+    <div class="stat-strip" aria-label="Product compatibility">
+      <div><strong>Windows 11 + Linux</strong><span>Documented desktop support</span></div>
+      <div><strong>Local snapshot</strong><span>Loaded from the running game</span></div>
+      <div><strong>Four AI routes</strong><span>Codex, Antigravity, Copilot, OpenRouter</span></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-heading">
+      <div><p class="eyebrow">Not a generic chatbot</p><h2>Your save is the starting point.</h2></div>
+      <p>FM AI Assistent reads a snapshot from your running FM26 game when you choose <strong>Load data</strong>. Search it directly, or let an enabled assistant use focused tools to reason about the same squad and market.</p>
+    </div>
+    <div class="feature-grid">
+      <FeatureCard number="01" title="Player scouting" description="Filter the loaded database by position, attributes, age, ability, contracts, wages and asking price; inspect and compare the candidates that matter." href="/features/scouting/" />
+      <FeatureCard number="02" title="Tactics & squad" description="Add an exported .fmf tactic, diagnose squad depth and ask for a unique optimized XI with role-aware alternatives." href="/features/tactics/" />
+      <FeatureCard number="03" title="Recruitment planning" description="Find replacements, compare finalists and model incoming and outgoing moves while leaving unknown costs explicit." href="/features/recruitment/" />
+      <FeatureCard number="04" title="Staff analysis" description="Search staff, assess all nine coaching assignments and understand the weighted attributes behind each role rating." href="/features/staff/" />
+      <FeatureCard number="05" title="Context-aware AI" description="Chat through Codex, Antigravity, GitHub Copilot or OpenRouter, with the context and provider boundaries made visible." href="/features/ai-assistant/" />
+      <FeatureCard number="06" title="Local browsing" description="Players, staff, clubs and competitions remain useful without connecting an AI provider." href="/features/" linkLabel="View all capabilities" />
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-heading">
+      <div><p class="eyebrow">Four steps</p><h2>From loaded save to useful answer.</h2></div>
+      <p>The app does not silently control the game. You choose when to load a snapshot and what context an AI conversation receives.</p>
+    </div>
+    <div class="steps">
+      <article class="step"><h3>Load your save</h3><p>Start Football Manager 2026 and open the career you want to analyze.</p></article>
+      <article class="step"><h3>Launch the app</h3><p>Run FM AI Assistent as the same computer user as FM26.</p></article>
+      <article class="step"><h3>Select Load data</h3><p>The app extracts the available data and commits one local snapshot.</p></article>
+      <article class="step"><h3>Explore or ask</h3><p>Browse directly, add optional context and question your selected AI assistant.</p></article>
+    </div>
+  </section>
+
+  <section class="section feature-showcase">
+    <div>
+      <p class="eyebrow">One workspace</p>
+      <h2>Move from evidence to a football decision.</h2>
+      <p class="lead">The assistant can use focused tools for squad depth, optimized lineups, replacements, player comparisons, transfer plans and staff coaching roles.</p>
+      <ul class="check-list">
+        <li>Keep player IDs and decision values attached to evidence</li>
+        <li>Make unknown asking prices, wages and proceeds explicit</li>
+        <li>Create an FM26-importable shortlist from selected player IDs</li>
+        <li>Refresh only when you choose or when an agent is permitted to</li>
+      </ul>
+      <a class="text-link" href="/features/ai-assistant/">Understand the AI workflow →</a>
+    </div>
+    <figure class="screenshot-frame">
+      <a href="/images/ai-assistant.png" target="_blank" rel="noopener" aria-label="Open the AI assistant screenshot at full size"><img src="/images/ai-assistant.png" width="1600" height="900" loading="lazy" alt="FM AI Assistent embedded chat with agent selection, context access and command starters" /></a>
+      <figcaption><span>Genuine AI assistant view with agent selection and explicit context controls.</span><a href="/images/ai-assistant.png" target="_blank" rel="noopener">View full size ↗</a></figcaption>
+    </figure>
+  </section>
+
+  <section class="section">
+    <div class="section-heading">
+      <div><p class="eyebrow">Clear privacy boundary</p><h2>Local data processing. Optional external AI.</h2></div>
+      <p>The static website collects no save data. In the installed app, save and tactic processing is local; AI messages and enabled context go to the provider you select.</p>
+    </div>
+    <div class="comparison">
+      <div class="local"><h3>On your computer</h3><p>RAM extraction, the local snapshot, filters, tactic decoding and the app database run locally. You can browse core data without an AI provider.</p></div>
+      <div class="external"><h3>When AI is enabled</h3><p>Messages, enabled club/tactic/snapshot context and relevant tool results may reach Codex, Antigravity, GitHub Copilot, OpenRouter and their model providers.</p></div>
+    </div>
+    <p style="margin-top:1.2rem"><a class="text-link" href="/privacy/">Read the complete privacy and data explanation →</a></p>
+  </section>
+
+  <section class="section">
+    <div class="section-heading"><div><p class="eyebrow">Quick answers</p><h2>Before you install.</h2></div><p>Practical answers grounded in the current project documentation.</p></div>
+    <div class="faq-list">
+      {faqs.slice(0, 4).map((item) => <details><summary>{item.question}</summary><p>{item.answer}</p></details>)}
+    </div>
+    <p style="margin-top:1.5rem"><a class="text-link" href="/faq/">Read every frequently asked question →</a></p>
+  </section>
+  <CallToAction />
+</BaseLayout>
