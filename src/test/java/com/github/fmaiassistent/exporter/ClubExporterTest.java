@@ -50,7 +50,7 @@ class ClubExporterTest {
         memory.putI32(EXTRA + 0x14, 1_000_000);
         memory.putI32(EXTRA + 0x7CC, 5_000_000);
         memory.putI32(EXTRA + 0x810, 2_000_000);
-        memory.putI32(EXTRA + 0x7D0, -50_000_000);
+        memory.putI32(EXTRA + 0x7D0, -1_500_000_000);
         memory.putI32(EXTRA + 0x814, 1_000_000);
 
         ClubExporter.Finance finance = new ClubExporter().readFinance(memory, CLUB);
@@ -78,7 +78,7 @@ class ClubExporterTest {
         assertThatThrownBy(() -> PlayerSnapshotValidator.validateClubs(List.of(
                         clubRow(driftedFinance.transferBudget(), driftedFinance.payrollBudget())), 1))
                 .isInstanceOf(IOException.class)
-                .hasMessageContaining("transferBudget=-50000000");
+                .hasMessageContaining("transferBudget=-1500000000");
     }
 
     private static Map<String, Object> clubRow(long transferBudget, long payrollBudget) {

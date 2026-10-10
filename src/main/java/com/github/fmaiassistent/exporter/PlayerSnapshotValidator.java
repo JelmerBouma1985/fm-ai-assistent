@@ -13,6 +13,8 @@ import java.util.Map;
  * several fields are legitimately absent for some records.
  */
 public final class PlayerSnapshotValidator {
+    private static final long MIN_PLAUSIBLE_CLUB_BUDGET = -1_000_000_000L;
+
     private PlayerSnapshotValidator() {
     }
 
@@ -81,9 +83,11 @@ public final class PlayerSnapshotValidator {
     }
 
     /**
-     * Validates decoded club rows. Monetary values are exact reads, so budgets
-     * below zero mean layout drift; the balance is skipped because debt is
-     * legitimate. Reputation duplicates the decode gate as defense in depth.
+     * Validates decoded club rows. Reputation duplicates the decode gate as
+     * defense in depth. Club finances are not required to be non-negative:
+     * FM uses negative transfer budgets for clubs that have already exceeded
+     * their allocation, just as a negative balance can represent real debt.
+     * Only extreme negative values retain a useful layout-drift anchor.
      * An empty club table alongside decoded players aborts the load.
      *
      * @throws IOException when any anchor fails
@@ -96,8 +100,8 @@ public final class PlayerSnapshotValidator {
         for (Map<String, Object> row : rows) {
             String identity = "name=" + row.get("name");
             checkRange(row, "reputation", 1, 10000, identity, "Club");
-            checkMinimum(row, "transferBudget", 0, identity);
-            checkMinimum(row, "payrollBudget", 0, identity);
+            checkMinimum(row, "transferBudget", MIN_PLAUSIBLE_CLUB_BUDGET, identity);
+            checkMinimum(row, "payrollBudget", MIN_PLAUSIBLE_CLUB_BUDGET, identity);
         }
     }
 

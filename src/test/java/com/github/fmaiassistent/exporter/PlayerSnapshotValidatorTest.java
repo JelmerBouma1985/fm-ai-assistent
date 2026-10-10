@@ -136,13 +136,14 @@ class PlayerSnapshotValidatorTest {
     }
 
     @Test
-    void rejectsNegativeClubBudget() {
+    void acceptsNegativeClubBudgetsUsedForOverspentAllocations() {
         Map<String, Object> row = validClubRow();
-        row.put("transferBudget", -1L);
+        row.put("name", "AZ");
+        row.put("transferBudget", -40_000_000L);
+        row.put("payrollBudget", -250_000L);
 
-        assertThatThrownBy(() -> PlayerSnapshotValidator.validateClubs(List.of(row), 5))
-                .isInstanceOf(IOException.class)
-                .hasMessageContaining("transferBudget=-1");
+        assertThatNoException().isThrownBy(() ->
+                PlayerSnapshotValidator.validateClubs(List.of(row), 5));
     }
 
     private static Map<String, Object> validRow() {
