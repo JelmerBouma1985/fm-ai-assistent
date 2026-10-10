@@ -205,7 +205,7 @@ public class PeopleExporter {
                     PersonMemoryClassifier.Classification classification = classifier.classify(person);
                     diagnostics.classified(classification.type());
                     if (mode.includesPlayers() && classification.type().hasPlayerData()) {
-                        var row = playerExporter.decodeClassifiedRow(
+                        var row = playerDecoder.decodeClassifiedRow(
                                 reader, index, person, classification.type(), gameDate);
                         if (row.isPresent()) {
                             players.add(row.get());
