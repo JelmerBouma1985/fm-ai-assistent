@@ -1,6 +1,7 @@
 package com.github.fmaiassistent.exporter;
 
 import com.github.fmaiassistent.memory.MemoryRegion;
+import com.github.fmaiassistent.memory.PlayerRecordLayout;
 import com.github.fmaiassistent.memory.ProcessMemoryReader;
 import com.github.fmaiassistent.player.AttributeDefinitions;
 import com.github.fmaiassistent.player.FieldDef;
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PlayerExporterTest {
@@ -40,7 +42,7 @@ class PlayerExporterTest {
         PersonMemoryClassifier.PersonType type = new PersonMemoryClassifier(memory).classify(PERSON).type();
 
         assertThat(type).isEqualTo(PersonMemoryClassifier.PersonType.UNKNOWN);
-        assertThat(PlayerExporter.playerMemoryLayout(memory, PERSON, type)).isEmpty();
+        assertThat(new PlayerExporter().playerMemoryLayout(memory, PERSON, type)).isEmpty();
     }
 
     @Test
@@ -51,7 +53,7 @@ class PlayerExporterTest {
         putPlausiblePlayerBlock(memory, 0, true);
 
         PersonMemoryClassifier.PersonType type = new PersonMemoryClassifier(memory).classify(PERSON).type();
-        PlayerExporter.PlayerMemoryLayout layout = PlayerExporter.playerMemoryLayout(memory, PERSON, type).orElseThrow();
+        PlayerExporter.PlayerMemoryLayout layout = new PlayerExporter().playerMemoryLayout(memory, PERSON, type).orElseThrow();
 
         assertThat(type).isEqualTo(PersonMemoryClassifier.PersonType.PLAYER);
         assertThat(layout.recordRelShift()).isZero();
@@ -69,7 +71,7 @@ class PlayerExporterTest {
         putPlausiblePlayerBlock(memory, relativeShift, true);
 
         PersonMemoryClassifier.PersonType type = new PersonMemoryClassifier(memory).classify(PERSON).type();
-        PlayerExporter.PlayerMemoryLayout layout = PlayerExporter.playerMemoryLayout(memory, PERSON, type).orElseThrow();
+        PlayerExporter.PlayerMemoryLayout layout = new PlayerExporter().playerMemoryLayout(memory, PERSON, type).orElseThrow();
 
         assertThat(type).isEqualTo(PersonMemoryClassifier.PersonType.PLAYER_STAFF);
         assertThat(layout.recordRelShift()).isEqualTo(-0xf8);
@@ -87,7 +89,7 @@ class PlayerExporterTest {
 
         PersonMemoryClassifier.PersonType type = new PersonMemoryClassifier(memory).classify(PERSON).type();
 
-        assertThat(PlayerExporter.playerMemoryLayout(memory, PERSON, type)).isEmpty();
+        assertThat(new PlayerExporter().playerMemoryLayout(memory, PERSON, type)).isEmpty();
     }
 
     @Test
@@ -192,6 +194,47 @@ class PlayerExporterTest {
     }
 
     private record DutyRecord(int startDay, int startYear, int endDay, int endYear) {
+    }
+
+    @Test
+    void shiftedRecordOffsetFailsValidationWhileCurrentPasses() throws Exception {
+        FakeMemory memory = minimalPlayerRow();
+        memory.putI32(PERSON + 0x0C, 12345);
+        memory.putU8(PERSON - 0x5A, 185);
+        java.time.LocalDate gameDate = java.time.LocalDate.of(2026, 2, 13);
+
+        Map<String, Object> row = new PlayerExporter().decodeRow(memory, 1, PERSON, "", gameDate);
+        assertThatNoException().isThrownBy(
+                () -> PlayerSnapshotValidator.validate(List.of(row), 1, "2026-02-13"));
+
+        PlayerRecordLayout base = PlayerRecordLayout.current();
+        PlayerRecordLayout.Direct direct = base.direct();
+        PlayerRecordLayout drifted = new PlayerRecordLayout(
+                new PlayerRecordLayout.Direct(
+                        direct.uniqueIdRel(),
+                        direct.dateOfBirthRel(),
+                        direct.genderRel(),
+                        direct.heightCmRel() + 8,
+                        direct.joinedClubDateRel(),
+                        direct.registrationRefRel(),
+                        direct.playingClubRefRel(),
+                        direct.playingClubBodyRel(),
+                        direct.injuryReferenceRel(),
+                        direct.dutyReferenceRel(),
+                        direct.historyCopySourceRel(),
+                        direct.homeReputationRel(),
+                        direct.currentReputationRel(),
+                        direct.worldReputationRel(),
+                        direct.currentAbilityRel(),
+                        direct.potentialAbilityRel(),
+                        direct.displayValueRel()),
+                base.registration(),
+                base.duty(),
+                base.injury());
+        Map<String, Object> driftedRow = new PlayerExporter(drifted).decodeRow(memory, 1, PERSON, "", gameDate);
+        assertThatThrownBy(() -> PlayerSnapshotValidator.validate(List.of(driftedRow), 1, "2026-02-13"))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("height_cm=0");
     }
 
     private static FakeMemory minimalPlayerRow() {

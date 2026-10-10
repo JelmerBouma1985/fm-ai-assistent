@@ -1,6 +1,7 @@
 package com.github.fmaiassistent.exporter;
 
 import com.github.fmaiassistent.linux.FmMemoryStrings;
+import com.github.fmaiassistent.memory.PlayerRecordLayout;
 import com.github.fmaiassistent.memory.ProcessMemoryReader;
 import com.github.fmaiassistent.player.AttributeDefinitions;
 import com.github.fmaiassistent.player.FieldDef;
@@ -16,38 +17,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static com.github.fmaiassistent.player.AttributeDefinitions.CURRENT_ABILITY_REL;
-import static com.github.fmaiassistent.player.AttributeDefinitions.CURRENT_REPUTATION_REL;
-import static com.github.fmaiassistent.player.AttributeDefinitions.DISPLAY_VALUE_REL;
 import static com.github.fmaiassistent.player.AttributeDefinitions.HIDDEN_DIRECT_FIELDS;
-import static com.github.fmaiassistent.player.AttributeDefinitions.HISTORY_COPY_SOURCE_REL;
-import static com.github.fmaiassistent.player.AttributeDefinitions.HOME_REPUTATION_REL;
 import static com.github.fmaiassistent.player.AttributeDefinitions.POSITION_FIELDS;
-import static com.github.fmaiassistent.player.AttributeDefinitions.POTENTIAL_ABILITY_REL;
 import static com.github.fmaiassistent.player.AttributeDefinitions.SOURCE_OBJECT_BASE_OFFSET;
 import static com.github.fmaiassistent.player.AttributeDefinitions.VISIBLE_FIELDS;
-import static com.github.fmaiassistent.player.AttributeDefinitions.WORLD_REPUTATION_REL;
 
 public class PlayerExporter {
-    private static final int UNIQUE_ID_REL = 0x0C;
-    private static final int HEIGHT_CM_REL = -0x5A;
-    private static final int JOINED_CLUB_DATE_REL = -0x38;
-    private static final int INJURY_REFERENCE_REL = -0x190;
     private static final int DATE_DAY_MASK = 0x01FF;
-    private static final int DUTY_REFERENCE_REL = -0x168;
-    private static final int DUTY_TEAM_REFERENCE_REL = -0x160;
-    private static final int DUTY_CALLUP_VECTOR_REL = 0x50;
-    private static final int DUTY_RETURN_DATE_REL = 0xBC;
-    private static final int DUTY_RECORD_SIZE = 0x20;
     private static final int DUTY_MAX_RECORDS_BYTES = 512;
-    private static final int TRANSFER_STATUS_REL = 0x57;
-    private static final int TRANSFER_AGREED_MARKER_REL = 0x51;
-    private static final int FUTURE_TRANSFER_TABLE_REL = 0xD8;
-    private static final int FUTURE_TRANSFER_CLUB_REL = 0x30;
-    private static final int FUTURE_TRANSFER_DATE_REL = 0x10C;
-    private static final int FUTURE_TRANSFER_CONTRACT_END_DATE_REL = 0x110;
-    private static final int FUTURE_TRANSFER_ACTIVE_REL = 0x100;
-    private static final int FUTURE_TRANSFER_SENTINEL_REL = 0x104;
+
+    private final PlayerRecordLayout recordLayout;
+
+    public PlayerExporter() {
+        this(PlayerRecordLayout.current());
+    }
+
+    public PlayerExporter(PlayerRecordLayout recordLayout) {
+        this.recordLayout = recordLayout;
+    }
     private static final int MAX_SOURCE_OFFSET = Math.max(
             POSITION_FIELDS.stream().mapToInt(FieldDef::offset).max().orElseThrow(),
             VISIBLE_FIELDS.stream().mapToInt(FieldDef::offset).max().orElseThrow())
@@ -67,10 +54,12 @@ public class PlayerExporter {
     }
 
     public ExportResult exportAllPlayers(int pid, int build, Long gamePluginBase) throws IOException {
-        return new PeopleExporter().exportAllPlayers(pid, build, gamePluginBase);
+        PeopleExporter people = new PeopleExporter();
+        people.setRecordLayout(recordLayout);
+        return people.exportAllPlayers(pid, build, gamePluginBase);
     }
 
-    static Optional<Map<String, Object>> decodeClassifiedRow(
+    Optional<Map<String, Object>> decodeClassifiedRow(
             ProcessMemoryReader reader,
             int index,
             long record,
@@ -78,7 +67,7 @@ public class PlayerExporter {
         return decodeClassifiedRow(reader, index, record, type, null);
     }
 
-    static Optional<Map<String, Object>> decodeClassifiedRow(
+    Optional<Map<String, Object>> decodeClassifiedRow(
             ProcessMemoryReader reader,
             int index,
             long record,
@@ -126,7 +115,7 @@ public class PlayerExporter {
         return decodeRow(reader, index, record, club, playingClub, gameDate, layout);
     }
 
-    private static Map<String, Object> decodeRow(
+    private Map<String, Object> decodeRow(
             ProcessMemoryReader reader,
             int index,
             long record,
@@ -138,13 +127,13 @@ public class PlayerExporter {
 
         String loanClub = !club.isBlank() && !playingClub.equalsIgnoreCase(club) ? playingClub : "";
         LocalDate dob = dateOfBirth(reader, record);
-        long displayValue = club.isBlank() ? 0L : reader.readU32(record + DISPLAY_VALUE_REL);
+        long displayValue = club.isBlank() ? 0L : reader.readU32(record + recordLayout.direct().displayValueRel());
         Salary salary = salaryValues(reader, record);
 
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("index", index);
         row.put("record", "0x" + Long.toHexString(record));
-        row.put("unique_id", reader.readU32(record + UNIQUE_ID_REL));
+        row.put("unique_id", reader.readU32(record + recordLayout.direct().uniqueIdRel()));
         row.put("name", FmMemoryStrings.playerName(reader, record).orElse("0x" + Long.toHexString(record)));
         row.put("gender", playerGender(reader, record));
         row.put("nationality", FmMemoryStrings.playerNationality(reader, record).orElse(""));
@@ -152,9 +141,9 @@ public class PlayerExporter {
         row.put("playing_club", playingClub);
         row.put("loan_club", loanClub);
         row.put("is_loaned_out", loanClub.isBlank() ? "no" : "yes");
-        row.put("current_reputation", reader.readU16(record + layout.relative(CURRENT_REPUTATION_REL)));
-        row.put("home_reputation", reader.readU16(record + layout.relative(HOME_REPUTATION_REL)));
-        row.put("world_reputation", reader.readU16(record + layout.relative(WORLD_REPUTATION_REL)));
+        row.put("current_reputation", reader.readU16(record + layout.relative(recordLayout.direct().currentReputationRel())));
+        row.put("home_reputation", reader.readU16(record + layout.relative(recordLayout.direct().homeReputationRel())));
+        row.put("world_reputation", reader.readU16(record + layout.relative(recordLayout.direct().worldReputationRel())));
         row.put("ca", layout.ca());
         row.put("pa", layout.pa());
         row.put("asking_price", AttributeDefinitions.roundObservedAskingPrice(displayValue));
@@ -186,7 +175,7 @@ public class PlayerExporter {
         row.put("date_of_birth", dob == null ? "" : dob.toString());
         row.put("age", dob == null || gameDate == null ? "" : ageOn(dob, gameDate));
         row.put("age_as_of", gameDate == null ? "" : gameDate.toString());
-        row.put("height_cm", reader.readU8(record + layout.relative(HEIGHT_CM_REL)));
+        row.put("height_cm", reader.readU8(record + layout.relative(recordLayout.direct().heightCmRel())));
 
         for (FieldDef field : POSITION_FIELDS) {
             int raw = data[field.offset() - SOURCE_OBJECT_BASE_OFFSET] & 0xff;
@@ -202,7 +191,7 @@ public class PlayerExporter {
         return row;
     }
 
-    static Optional<PlayerMemoryLayout> playerMemoryLayout(
+    Optional<PlayerMemoryLayout> playerMemoryLayout(
             ProcessMemoryReader reader,
             long record,
             PersonMemoryClassifier.PersonType type) throws IOException {
@@ -213,9 +202,9 @@ public class PlayerExporter {
                 ? PersonMemoryClassifier.PLAYER_STAFF_SHIFT
                 : 0;
         int relativeShift = -shift;
-        int sourceRel = HISTORY_COPY_SOURCE_REL + relativeShift;
-        int ca = reader.readI16(record + CURRENT_ABILITY_REL + relativeShift);
-        int pa = reader.readI16(record + POTENTIAL_ABILITY_REL + relativeShift);
+        int sourceRel = recordLayout.direct().historyCopySourceRel() + relativeShift;
+        int ca = reader.readI16(record + recordLayout.direct().currentAbilityRel() + relativeShift);
+        int pa = reader.readI16(record + recordLayout.direct().potentialAbilityRel() + relativeShift);
         if (!validAbility(ca)
                 || !validAbility(pa)
                 || !plausiblePlayerBlock(reader, record + sourceRel)) {
@@ -248,23 +237,23 @@ public class PlayerExporter {
         }
     }
 
-    private static LocalDate dateOfBirth(ProcessMemoryReader reader, long record) throws IOException {
-        DatePair pair = readDatePair(reader, record + 0x88);
+    private LocalDate dateOfBirth(ProcessMemoryReader reader, long record) throws IOException {
+        DatePair pair = readDatePair(reader, record + recordLayout.direct().dateOfBirthRel());
         return GameDateFinder.validDayYear(pair.day(), pair.year()) ? GameDateFinder.dayYearToDate(pair.day(), pair.year()) : null;
     }
 
-    private static String joinedClubDate(ProcessMemoryReader reader, long record, String club) throws IOException {
+    private String joinedClubDate(ProcessMemoryReader reader, long record, String club) throws IOException {
         if (club == null || club.isBlank()) {
             return "";
         }
-        var registration = reader.qwordOrNull(record + 0xA8);
+        var registration = reader.qwordOrNull(record + recordLayout.direct().registrationRefRel());
         if (registration.isPresent()) {
-            String registrationDate = validDate(reader, registration.get() + 0x4C);
+            String registrationDate = validDate(reader, registration.get() + recordLayout.registration().joinedDateRel());
             if (!registrationDate.isBlank()) {
                 return registrationDate;
             }
         }
-        return validDate(reader, record + JOINED_CLUB_DATE_REL);
+        return validDate(reader, record + recordLayout.direct().joinedClubDateRel());
     }
 
     private static String validDate(ProcessMemoryReader reader, long address) throws IOException {
@@ -274,29 +263,29 @@ public class PlayerExporter {
                 : "";
     }
 
-    private static String contractEndDate(ProcessMemoryReader reader, long record) throws IOException {
-        var registration = reader.qwordOrNull(record + 0xA8);
+    private String contractEndDate(ProcessMemoryReader reader, long record) throws IOException {
+        var registration = reader.qwordOrNull(record + recordLayout.direct().registrationRefRel());
         if (registration.isEmpty()) {
             return "";
         }
-        DatePair pair = readDatePair(reader, registration.get() + 0x48);
+        DatePair pair = readDatePair(reader, registration.get() + recordLayout.registration().contractDateRel());
         return GameDateFinder.validDayYear(pair.day(), pair.year())
                 ? GameDateFinder.dayYearToDate(pair.day(), pair.year()).toString()
                 : "";
     }
 
-    private static PlayerStatus playerStatus(
+    private PlayerStatus playerStatus(
             ProcessMemoryReader reader,
             long record,
             PlayerMemoryLayout layout,
             String club,
             String playingClub,
             LocalDate gameDate) throws IOException {
-        var registrationOpt = reader.qwordOrNull(record + 0xA8);
+        var registrationOpt = reader.qwordOrNull(record + recordLayout.direct().registrationRefRel());
         int transferStatus = registrationOpt
                 .map(registration -> {
                     try {
-                        return reader.readU8(registration + TRANSFER_STATUS_REL);
+                        return reader.readU8(registration + recordLayout.registration().transferStatusRel());
                     } catch (IOException ex) {
                         return 0;
                     }
@@ -325,25 +314,25 @@ public class PlayerExporter {
      * The adjacent {@code record-0x160} reference identifies the current
      * international team, whose {@code +0xBC} date is FM's estimated return.
      */
-    private static DutyStatus dutyStatus(ProcessMemoryReader reader, long record, LocalDate gameDate) {
+    private DutyStatus dutyStatus(ProcessMemoryReader reader, long record, LocalDate gameDate) {
         if (gameDate == null) {
             return new DutyStatus(false, "", "");
         }
         try {
-            var currentTeam = reader.qwordOrNull(record + DUTY_TEAM_REFERENCE_REL);
+            var currentTeam = reader.qwordOrNull(record + recordLayout.duty().teamReferenceRel());
             if (currentTeam.isEmpty()) {
                 return new DutyStatus(false, "", "");
             }
-            LocalDate returnDate = dutyDate(reader, currentTeam.get() + DUTY_RETURN_DATE_REL);
+            LocalDate returnDate = dutyDate(reader, currentTeam.get() + recordLayout.duty().returnDateRel());
             if (returnDate == null || returnDate.isBefore(gameDate)) {
                 return new DutyStatus(false, "", "");
             }
-            var container = reader.qwordOrNull(record + DUTY_REFERENCE_REL);
+            var container = reader.qwordOrNull(record + recordLayout.direct().dutyReferenceRel());
             if (container.isEmpty()) {
                 return new DutyStatus(false, "", "");
             }
-            long begin = reader.readU64(container.get() + DUTY_CALLUP_VECTOR_REL);
-            long end = reader.readU64(container.get() + DUTY_CALLUP_VECTOR_REL + Long.BYTES);
+            long begin = reader.readU64(container.get() + recordLayout.duty().vectorRel());
+            long end = reader.readU64(container.get() + recordLayout.duty().vectorRel() + Long.BYTES);
             if (begin <= 0 || end < begin || end - begin > DUTY_MAX_RECORDS_BYTES
                     || (end - begin) % Long.BYTES != 0
                     || end > ProcessMemoryReader.MAX_USER_ADDRESS) {
@@ -357,17 +346,17 @@ public class PlayerExporter {
                 }
                 byte[] itemBytes;
                 try {
-                    itemBytes = reader.readBytes(item.get(), DUTY_RECORD_SIZE);
+                    itemBytes = reader.readBytes(item.get(), recordLayout.duty().recordSize());
                 } catch (IOException | RuntimeException ignored) {
                     continue;
                 }
                 if (littleEndianU64(itemBytes, 0) != currentTeam.get()) {
                     continue;
                 }
-                int startDay = littleEndianU16(itemBytes, 0x10) & DATE_DAY_MASK;
-                int startYear = littleEndianU16(itemBytes, 0x12);
-                int endDay = littleEndianU16(itemBytes, 0x14) & DATE_DAY_MASK;
-                int endYear = littleEndianU16(itemBytes, 0x16);
+                int startDay = littleEndianU16(itemBytes, recordLayout.duty().startDayRel()) & DATE_DAY_MASK;
+                int startYear = littleEndianU16(itemBytes, recordLayout.duty().startYearRel());
+                int endDay = littleEndianU16(itemBytes, recordLayout.duty().endDayRel()) & DATE_DAY_MASK;
+                int endYear = littleEndianU16(itemBytes, recordLayout.duty().endYearRel());
                 if (!GameDateFinder.validDayYear(startDay, startYear)
                         || !GameDateFinder.validDayYear(endDay, endYear)) {
                     continue;
@@ -414,8 +403,8 @@ public class PlayerExporter {
                 | bytes[offset + 3] << 24;
     }
 
-    private static InjuryStatus injuryStatus(ProcessMemoryReader reader, long record) throws IOException {
-        long injuryReference = reader.readU64(record + INJURY_REFERENCE_REL);
+    private InjuryStatus injuryStatus(ProcessMemoryReader reader, long record) throws IOException {
+        long injuryReference = reader.readU64(record + recordLayout.direct().injuryReferenceRel());
         // Note: the four bytes at -0x18C are the high half of this same
         // 64-bit pointer, not an independent status flag. Past code required
         // them to equal 1, which only matched references in the 0x1... heap
@@ -428,17 +417,17 @@ public class PlayerExporter {
         }
         try {
             long item = reader.readU64(vectorStart.get());
-            String description = reader.qwordOrNull(item + 0x08)
-                    .flatMap(type -> FmMemoryStrings.objectStringAt(reader, type, 0x20))
+            String description = reader.qwordOrNull(item + recordLayout.injury().typeRel())
+                    .flatMap(type -> FmMemoryStrings.objectStringAt(reader, type, recordLayout.injury().typeNameRel()))
                     .map(PlayerExporter::capitalizeFirst)
                     .orElse("");
-            int day = reader.readU16(item + 0x20) & DATE_DAY_MASK;
-            int year = reader.readU16(item + 0x22);
+            int day = reader.readU16(item + recordLayout.injury().dayRel()) & DATE_DAY_MASK;
+            int year = reader.readU16(item + recordLayout.injury().yearRel());
             String startDate = GameDateFinder.validDayYear(day, year)
                     ? GameDateFinder.dayYearToDate(day, year).toString()
                     : "";
-            int fullTrainingTotalDays = reader.readU16(item + 0x28);
-            int lightTrainingTotalDays = reader.readU16(item + 0x2A);
+            int fullTrainingTotalDays = reader.readU16(item + recordLayout.injury().fullTrainingRel());
+            int lightTrainingTotalDays = reader.readU16(item + recordLayout.injury().lightTrainingRel());
             if (lightTrainingTotalDays > fullTrainingTotalDays) {
                 lightTrainingTotalDays = fullTrainingTotalDays;
             }
@@ -448,20 +437,20 @@ public class PlayerExporter {
         }
     }
 
-    private static FutureTransfer futureTransfer(
+    private FutureTransfer futureTransfer(
             ProcessMemoryReader reader,
             long registration,
             String club,
             String playingClub,
             LocalDate gameDate) {
         try {
-            if (reader.readU8(registration + TRANSFER_AGREED_MARKER_REL) == 0
-                    || reader.readI32(registration + FUTURE_TRANSFER_ACTIVE_REL) != 0
-                    || reader.readI32(registration + FUTURE_TRANSFER_SENTINEL_REL) != -1) {
+            if (reader.readU8(registration + recordLayout.registration().transferAgreedMarkerRel()) == 0
+                    || reader.readI32(registration + recordLayout.registration().futureTransferActiveRel()) != 0
+                    || reader.readI32(registration + recordLayout.registration().futureTransferSentinelRel()) != -1) {
                 return new FutureTransfer(false, "", "", "");
             }
-            String futureClub = reader.qwordOrNull(registration + FUTURE_TRANSFER_TABLE_REL)
-                    .flatMap(table -> reader.qwordOrNull(table + FUTURE_TRANSFER_CLUB_REL))
+            String futureClub = reader.qwordOrNull(registration + recordLayout.registration().futureTransferTableRel())
+                    .flatMap(table -> reader.qwordOrNull(table + recordLayout.registration().futureTransferClubRel()))
                     .flatMap(futureClubAddress -> FmMemoryStrings.clubDisplayName(reader, futureClubAddress))
                     .orElse("");
             if (futureClub.isBlank()
@@ -469,14 +458,14 @@ public class PlayerExporter {
                     || futureClub.equalsIgnoreCase(playingClub == null ? "" : playingClub)) {
                 return new FutureTransfer(false, "", "", "");
             }
-            DatePair pair = readDatePair(reader, registration + FUTURE_TRANSFER_DATE_REL);
+            DatePair pair = readDatePair(reader, registration + recordLayout.registration().futureTransferDateRel());
             if (!GameDateFinder.validDayYear(pair.day(), pair.year())) {
                 return new FutureTransfer(false, "", "", "");
             }
             LocalDate date = GameDateFinder.dayYearToDate(pair.day(), pair.year());
             boolean agreed = gameDate != null && date.isAfter(gameDate);
             String contractEndDate = "";
-            DatePair contractEndPair = readDatePair(reader, registration + FUTURE_TRANSFER_CONTRACT_END_DATE_REL);
+            DatePair contractEndPair = readDatePair(reader, registration + recordLayout.registration().futureTransferContractEndDateRel());
             if (GameDateFinder.validDayYear(contractEndPair.day(), contractEndPair.year())) {
                 contractEndDate = GameDateFinder.dayYearToDate(contractEndPair.day(), contractEndPair.year()).toString();
             }
@@ -486,28 +475,28 @@ public class PlayerExporter {
         }
     }
 
-    private static java.util.Optional<Long> currentClubAddress(ProcessMemoryReader reader, long record) {
-        return reader.qwordOrNull(record + 0xA8)
-                .flatMap(registration -> reader.qwordOrNull(registration + 0x10))
-                .flatMap(registrationBody -> reader.qwordOrNull(registrationBody + 0x30));
+    private java.util.Optional<Long> currentClubAddress(ProcessMemoryReader reader, long record) {
+        return reader.qwordOrNull(record + recordLayout.direct().registrationRefRel())
+                .flatMap(registration -> reader.qwordOrNull(registration + recordLayout.registration().clubRel()))
+                .flatMap(registrationBody -> reader.qwordOrNull(registrationBody + recordLayout.registration().clubBodyRel()));
     }
 
-    private static java.util.Optional<Long> playingClubAddress(ProcessMemoryReader reader, long record) {
-        return reader.qwordOrNull(record - 0x158)
-                .flatMap(teamBody -> reader.qwordOrNull(teamBody + 0x30));
+    private java.util.Optional<Long> playingClubAddress(ProcessMemoryReader reader, long record) {
+        return reader.qwordOrNull(record + recordLayout.direct().playingClubRefRel())
+                .flatMap(teamBody -> reader.qwordOrNull(teamBody + recordLayout.direct().playingClubBodyRel()));
     }
 
-    private static String playerGender(ProcessMemoryReader reader, long record) throws IOException {
-        int value = reader.readU8(record + 0x19);
+    private String playerGender(ProcessMemoryReader reader, long record) throws IOException {
+        int value = reader.readU8(record + recordLayout.direct().genderRel());
         return (value & 0x10) != 0 ? "female" : "male";
     }
 
-    private static Salary salaryValues(ProcessMemoryReader reader, long record) throws IOException {
-        var registration = reader.qwordOrNull(record + 0xA8);
+    private Salary salaryValues(ProcessMemoryReader reader, long record) throws IOException {
+        var registration = reader.qwordOrNull(record + recordLayout.direct().registrationRefRel());
         if (registration.isEmpty()) {
             return new Salary(0, 0);
         }
-        long weeklyRaw = reader.readU32(registration.get() + 0x20);
+        long weeklyRaw = reader.readU32(registration.get() + recordLayout.registration().salaryWeeklyRel());
         long annualRaw = weeklyRaw * 52;
         return new Salary(weeklyRaw, Math.round(annualRaw / 1000.0) * 1000);
     }

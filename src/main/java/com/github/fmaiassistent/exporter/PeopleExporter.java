@@ -2,6 +2,7 @@ package com.github.fmaiassistent.exporter;
 
 import com.github.fmaiassistent.linux.FmOffsets;
 import com.github.fmaiassistent.linux.GameDateFinder;
+import com.github.fmaiassistent.memory.PlayerRecordLayout;
 import com.github.fmaiassistent.memory.ProcessMemoryReader;
 import com.github.fmaiassistent.memory.ProcessReaders;
 import org.slf4j.Logger;
@@ -44,6 +45,7 @@ public class PeopleExporter {
 
     private final ReaderFactory readers;
     private final IntSupplier availableProcessors;
+    private PlayerRecordLayout recordLayout = PlayerRecordLayout.current();
 
     public PeopleExporter() {
         this(ProcessReaders::open, () -> Runtime.getRuntime().availableProcessors());
@@ -52,6 +54,14 @@ public class PeopleExporter {
     PeopleExporter(ReaderFactory readers, IntSupplier availableProcessors) {
         this.readers = readers;
         this.availableProcessors = availableProcessors;
+    }
+
+    /**
+     * Player record layout for the next export. Set once per load before the
+     * parallel read starts; safe because only one refresh runs at a time.
+     */
+    public void setRecordLayout(PlayerRecordLayout recordLayout) {
+        this.recordLayout = recordLayout;
     }
 
     public ExportResult exportAllPeople(int pid, int build, Long gamePluginBase) throws IOException {
@@ -181,6 +191,7 @@ public class PeopleExporter {
         try (ProcessMemoryReader reader = readers.open(pid)) {
             PersonMemoryClassifier classifier = new PersonMemoryClassifier(reader);
             StaffExporter staffDecoder = new StaffExporter();
+            PlayerExporter playerDecoder = new PlayerExporter(recordLayout);
             processChunks(pointerTable.length / Long.BYTES, nextIndex, index -> {
                 long person = pointerAt(pointerTable, index);
                 if (person == 0) {
@@ -194,7 +205,7 @@ public class PeopleExporter {
                     PersonMemoryClassifier.Classification classification = classifier.classify(person);
                     diagnostics.classified(classification.type());
                     if (mode.includesPlayers() && classification.type().hasPlayerData()) {
-                        var row = PlayerExporter.decodeClassifiedRow(
+                        var row = playerDecoder.decodeClassifiedRow(
                                 reader, index, person, classification.type(), gameDate);
                         if (row.isPresent()) {
                             players.add(row.get());

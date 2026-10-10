@@ -6,6 +6,7 @@ import com.github.fmaiassistent.exporter.CompetitionExporter;
 import com.github.fmaiassistent.exporter.FixtureExporter;
 import com.github.fmaiassistent.exporter.PeopleExporter;
 import com.github.fmaiassistent.exporter.PlayerExporter;
+import com.github.fmaiassistent.exporter.PlayerSnapshotValidator;
 import com.github.fmaiassistent.exporter.StaffExporter;
 import com.github.fmaiassistent.linux.FmOffsets;
 import com.github.fmaiassistent.linux.ProcessInfo;
@@ -54,6 +55,7 @@ public class DatabaseLoadAllService {
     private final ManagedClubContextService managedClubContexts;
     private final LoadMetadataRepository metadata;
     private final AtomicReference<Consumer<String>> phaseListener = new AtomicReference<>();
+    private final AtomicReference<String> warningPrefix = new AtomicReference<>();
 
     public DatabaseLoadAllService(
             ClubDatabaseService clubs,
@@ -85,8 +87,22 @@ public class DatabaseLoadAllService {
         ManagedClubContext previousContext = managedClubContexts.current();
         try {
             int resolvedPid = pid == null ? detectFmPid() : pid;
+            warningPrefix.set(null);
+            PlayerRecordLayouts.LayoutMatch layoutMatch =
+                    PlayerRecordLayouts.resolve(java.nio.file.Path.of(System.getProperty("user.home")));
+            peopleExporter.setRecordLayout(layoutMatch.layout());
+            if (!layoutMatch.knownBuild()) {
+                String installed = layoutMatch.installedBuildId() < 0
+                        ? "unknown"
+                        : String.valueOf(layoutMatch.installedBuildId());
+                log.warn("FM26 Steam build {} is not in the known memory-layout registry; "
+                        + "continuing with the last known player layout", installed);
+                warningPrefix.set("Unknown FM26 build " + installed + " - using last known memory layout");
+            }
             reportPhase("Reading FM26 memory");
             RamSnapshot ram = readRamInParallel(resolvedPid, build, gamePluginBase);
+            reportPhase("Validating player data");
+            PlayerSnapshotValidator.validate(ram.players().rows(), ram.peopleSlots(), ram.players().gameDate());
             long persistenceStarted = System.nanoTime();
             logAfterCommit(persistenceStarted);
             long stepStarted = System.nanoTime();
@@ -140,6 +156,10 @@ public class DatabaseLoadAllService {
                     new LoadMetadataEntity("snapshot_id", snapshotId),
                     new LoadMetadataEntity("fm_pid", String.valueOf(resolvedPid)),
                     new LoadMetadataEntity("fm_build", String.valueOf(build)),
+                    new LoadMetadataEntity("record_layout_known", String.valueOf(layoutMatch.knownBuild())),
+                    new LoadMetadataEntity("steam_build_id", layoutMatch.installedBuildId() < 0
+                            ? ""
+                            : String.valueOf(layoutMatch.installedBuildId())),
                     new LoadMetadataEntity("players_count", String.valueOf(playerCount)),
                     new LoadMetadataEntity("staff_count", String.valueOf(staffCount)),
                     new LoadMetadataEntity("clubs_count", String.valueOf(clubCount)),
@@ -207,7 +227,8 @@ public class DatabaseLoadAllService {
     private void reportPhase(String phase) {
         Consumer<String> listener = phaseListener.get();
         if (listener != null) {
-            listener.accept(phase);
+            String prefix = warningPrefix.get();
+            listener.accept(prefix == null ? phase : prefix + " | " + phase);
         }
     }
 
