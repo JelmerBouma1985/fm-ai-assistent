@@ -64,6 +64,33 @@ class SteamLibrariesTest {
     }
 
     @Test
+    void findsBuildInWindowsSteamInstall(@TempDir Path home) throws Exception {
+        Path steam = home.resolve("Program Files (x86)/Steam");
+        Path steamApps = steam.resolve("steamapps");
+        Files.createDirectories(steamApps);
+        Files.writeString(steamApps.resolve("libraryfolders.vdf"),
+                "\"libraryfolders\"\n{\n\t\"0\"\n\t{\n\t\t\"path\"\t\t\""
+                        + steam.toString().replace("\\", "\\\\") + "\"\n\t}\n}");
+        Files.writeString(steamApps.resolve("appmanifest_3551340.acf"),
+                "\"AppState\"\n{\n\t\"buildid\"\t\t\"23583635\"\n}");
+
+        assertThat(SteamLibraries.libraries(home, List.of(steam))).contains(steam.toAbsolutePath().normalize());
+        assertThat(SteamLibraries.parseLibraryFolders(steamApps.resolve("libraryfolders.vdf")))
+                .contains(steam.toAbsolutePath().normalize());
+        String previous = System.getProperty(SteamLibraries.DIRECTORY_PROPERTY);
+        System.setProperty(SteamLibraries.DIRECTORY_PROPERTY, steam.toString());
+        try {
+            assertThat(SteamLibraries.installedBuildId(home, 3551340)).hasValue(23583635L);
+        } finally {
+            if (previous == null) {
+                System.clearProperty(SteamLibraries.DIRECTORY_PROPERTY);
+            } else {
+                System.setProperty(SteamLibraries.DIRECTORY_PROPERTY, previous);
+            }
+        }
+    }
+
+    @Test
     void emptyBuildIdWhenManifestMissing(@TempDir Path home) {
         assertThat(SteamLibraries.installedBuildId(home, 12345)).isEmpty();
     }

@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -21,6 +22,7 @@ import java.util.regex.Pattern;
  */
 public final class SteamLibraries {
     public static final int FM26_APP_ID = 3551340;
+    public static final String DIRECTORY_PROPERTY = "fmaiassistent.steam.directory";
     static final Pattern VDF_PATH = Pattern.compile("\"path\"\\s+\"([^\"]+)\"");
     static final Pattern MANIFEST_BUILD_ID = Pattern.compile("\"buildid\"\\s+\"(\\d+)\"");
     /** Size cap for Steam app manifests (normally about 1 KiB). */
@@ -34,15 +36,44 @@ public final class SteamLibraries {
      * {@code libraryfolders.vdf} plus the default location as fallback.
      */
     public static List<Path> libraries(Path home) {
+        return libraries(home, steamInstallRoots(home));
+    }
+
+    static List<Path> libraries(Path home, List<Path> installRoots) {
         Set<Path> libraries = new LinkedHashSet<>();
-        List<Path> roots = List.of(
-                home.resolve(".local/share/Steam"),
-                home.resolve(".steam/steam"));
+        List<Path> roots = new ArrayList<>(installRoots);
+        roots.add(home.resolve(".local/share/Steam"));
+        roots.add(home.resolve(".steam/steam"));
         for (Path root : roots) {
             libraries.addAll(parseLibraryFolders(root.resolve("steamapps/libraryfolders.vdf")));
         }
+        libraries.addAll(installRoots);
         libraries.add(home.resolve(".local/share/Steam"));
         return libraries.stream().map(path -> path.toAbsolutePath().normalize()).distinct().toList();
+    }
+
+    private static List<Path> steamInstallRoots(Path home) {
+        String configured = System.getProperty(DIRECTORY_PROPERTY);
+        if (configured != null && !configured.isBlank()) {
+            try {
+                return List.of(Path.of(configured));
+            } catch (RuntimeException invalidPath) {
+                return List.of();
+            }
+        }
+        if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows")
+                || !home.toAbsolutePath().normalize().equals(
+                        Path.of(System.getProperty("user.home")).toAbsolutePath().normalize())) {
+            return List.of();
+        }
+        List<Path> roots = new ArrayList<>();
+        for (String variable : List.of("ProgramFiles(x86)", "ProgramFiles")) {
+            String programFiles = System.getenv(variable);
+            if (programFiles != null && !programFiles.isBlank()) {
+                roots.add(Path.of(programFiles, "Steam"));
+            }
+        }
+        return roots;
     }
 
     /**
@@ -107,17 +138,16 @@ public final class SteamLibraries {
     }
 
     public static List<Path> parseLibraryFolders(Path vdf) {
-        String text;
-        try {
-            text = Files.readString(vdf);
-        } catch (IOException | RuntimeException exception) {
+        String text = readBounded(vdf, 256 * 1024);
+        if (text == null) {
             return List.of();
         }
         List<Path> libraries = new ArrayList<>();
         Matcher matcher = VDF_PATH.matcher(text);
         while (matcher.find()) {
             try {
-                libraries.add(Path.of(matcher.group(1)).toAbsolutePath().normalize());
+                libraries.add(Path.of(matcher.group(1).replace("\\\\", "\\"))
+                        .toAbsolutePath().normalize());
             } catch (RuntimeException ignored) {
                 // Skip malformed entries.
             }
