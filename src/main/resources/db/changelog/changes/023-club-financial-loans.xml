@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+ <changeSet id="023-club-financial-loans" author="codex">
+  <addColumn tableName="club_records">
+   <column name="financial_loans_hex" type="VARCHAR(28672)"/>
+   <column name="financial_loan_clock" type="INT"/>
+  </addColumn>
+  <sql>ALTER TABLE club_records ADD CONSTRAINT ck_club_financial_loans CHECK
+   (CASE WHEN financial_loans_hex IS NOT NULL AND financial_loan_clock IS NOT NULL
+    THEN MOD(LENGTH(financial_loans_hex),56)=0 AND LENGTH(financial_loans_hex)&lt;=28672 AND kind='CLUB'
+    ELSE financial_loans_hex IS NULL AND financial_loan_clock IS NULL END)</sql>
+  <rollback>
+   <sql>SELECT 1 / CASE WHEN
+    (SELECT COUNT(*) FROM club_records WHERE financial_loans_hex IS NOT NULL OR financial_loan_clock IS NOT NULL)=0
+    THEN 1 ELSE 0 END</sql>
+   <sql>ALTER TABLE club_records DROP CONSTRAINT ck_club_financial_loans</sql>
+   <dropColumn tableName="club_records" columnName="financial_loans_hex"/>
+   <dropColumn tableName="club_records" columnName="financial_loan_clock"/>
+  </rollback>
+ </changeSet>
+</databaseChangeLog>

@@ -21,6 +21,42 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PlayerExporterTest {
     private static final long PERSON = 0x4000;
 
+    @Test void windowsDoesNotReadFutureFieldsBeyondPrimaryFullAllocationAndPreservesUnknownStatus()throws Exception {
+        var memory=minimalPlayerRow();memory.windows=true;
+        long contract=0xA000;memory.fill(contract,0xC8,0);
+        memory.putLong(PERSON+PlayerRecordLayout.current().direct().registrationRefRel(),contract);
+        memory.forbidden=contract+0xC8;memory.forbiddenEnd=contract+0x118;
+        var row=new PlayerExporter().decodeRow(memory,1,PERSON,"",java.time.LocalDate.of(2036,5,20));
+        assertThat(row.get("transfer_agreed")).isNull();assertThat(row.get("_future_transfer_profile")).isEqualTo("UNVERIFIED");
+        PlayerExporter.applyGameDate(List.of(row),java.time.LocalDate.of(2036,5,20));
+        assertThat(row.get("transfer_agreed")).isNull();
+    }
+
+    @Test
+    void contractDateUsesNativeDayBitsAndStillRejectsInvalidDates() throws Exception {
+        FakeMemory memory = minimalPlayerRow();
+        long contract = 0xa000;
+        memory.fill(contract, 0xc8, 0);
+        memory.putLong(PERSON + PlayerRecordLayout.current().direct().registrationRefRel(), contract);
+        long date = contract + PlayerRecordLayout.current().registration().contractDateRel();
+        memory.putI16(date + 2, 2039);
+        // Day 181/year 2039 comes from Sierd's independent contract capture.
+        // Native helpers mask packed day flags with 0x1ff before date arithmetic.
+        for (int flags : new int[]{0, 0x200, 0x1a00, 0xfe00}) {
+            memory.putI16(date, 181 | flags);
+            Map<String, Object> row = new PlayerExporter().decodeRow(
+                    memory, 1, PERSON, "", java.time.LocalDate.of(2036, 5, 20));
+            assertThat(row.get("contract_end_date")).as("packed date flags 0x%x", flags)
+                    .isEqualTo("2039-06-30");
+        }
+        for (int day : new int[]{0, 367, 511}) {
+            memory.putI16(date, day | 0x200);
+            Map<String, Object> row = new PlayerExporter().decodeRow(
+                    memory, 1, PERSON, "", java.time.LocalDate.of(2036, 5, 20));
+            assertThat(row.get("contract_end_date")).isEqualTo("");
+        }
+    }
+
     @Test
     void rejectsStaffWhosePotentialAbilityOverlapsPlayerCurrentAbility() {
         FakeMemory memory = memoryWithType(PersonMemoryClassifier.STAFF_DYNAMIC_OFFSET);
@@ -299,6 +335,8 @@ class PlayerExporterTest {
     }
 
     private static final class FakeMemory implements ProcessMemoryReader {
+        boolean windows;long forbidden=-1,forbiddenEnd=-1;
+        @Override public Platform platform(){return windows?Platform.WINDOWS:Platform.UNKNOWN;}
         private final Map<Long, Byte> bytes = new HashMap<>();
 
         void fill(long address, int length, int value) {
@@ -336,6 +374,7 @@ class PlayerExporterTest {
 
         @Override
         public byte[] readBytes(long address, int size) throws IOException {
+            if(address<forbiddenEnd&&forbidden<address+size)throw new AssertionError("Wrong-owner future transfer read");
             byte[] out = new byte[size];
             for (int i = 0; i < size; i++) {
                 Byte value = bytes.get(address + i);

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+ <changeSet id="020-non-playing-profiles" author="codex">
+  <addColumn tableName="players">
+   <column name="non_playing_profile_hex" type="VARCHAR(104)"/>
+   <column name="non_playing_profile_sha256" type="VARCHAR(64)"/>
+  </addColumn>
+  <addColumn tableName="staff">
+   <column name="non_playing_profile_hex" type="VARCHAR(104)"/>
+   <column name="non_playing_profile_sha256" type="VARCHAR(64)"/>
+  </addColumn>
+  <sql>ALTER TABLE players ADD CONSTRAINT ck_player_non_playing_profile CHECK
+   (CASE WHEN non_playing_profile_hex IS NOT NULL AND non_playing_profile_sha256 IS NOT NULL
+    THEN LENGTH(non_playing_profile_hex)=104 AND LENGTH(non_playing_profile_sha256)=64
+    ELSE non_playing_profile_hex IS NULL AND non_playing_profile_sha256 IS NULL END)</sql>
+  <sql>ALTER TABLE staff ADD CONSTRAINT ck_staff_non_playing_profile CHECK
+   (CASE WHEN non_playing_profile_hex IS NOT NULL AND non_playing_profile_sha256 IS NOT NULL
+    THEN LENGTH(non_playing_profile_hex)=104 AND LENGTH(non_playing_profile_sha256)=64
+    ELSE non_playing_profile_hex IS NULL AND non_playing_profile_sha256 IS NULL END)</sql>
+  <rollback>
+   <!-- Profiles have no representation in019: refuse populated rollback before any drop. -->
+   <sql>SELECT 1 / CASE WHEN
+    (SELECT COUNT(*) FROM players WHERE non_playing_profile_hex IS NOT NULL OR non_playing_profile_sha256 IS NOT NULL)
+    +(SELECT COUNT(*) FROM staff WHERE non_playing_profile_hex IS NOT NULL OR non_playing_profile_sha256 IS NOT NULL)=0
+    THEN 1 ELSE 0 END</sql>
+   <sql>ALTER TABLE players DROP CONSTRAINT ck_player_non_playing_profile</sql>
+   <sql>ALTER TABLE staff DROP CONSTRAINT ck_staff_non_playing_profile</sql>
+   <dropColumn tableName="players" columnName="non_playing_profile_hex"/>
+   <dropColumn tableName="players" columnName="non_playing_profile_sha256"/>
+   <dropColumn tableName="staff" columnName="non_playing_profile_hex"/>
+   <dropColumn tableName="staff" columnName="non_playing_profile_sha256"/>
+  </rollback>
+ </changeSet>
+</databaseChangeLog>

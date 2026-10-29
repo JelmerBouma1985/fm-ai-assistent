@@ -24,6 +24,8 @@ public class StaffEntity {
     @Column(name = "staff_index") private Integer staffIndex;
     @Column(name = "record_address", length = 32) private String recordAddress;
     @Column(name = "unique_id") private Long uniqueId;
+    @Column(name = "non_playing_profile_hex", length = 104) private String nonPlayingProfileHex;
+    @Column(name = "non_playing_profile_sha256", length = 64) private String nonPlayingProfileSha256;
     @Column(length = 1024) private String name;
     @Column(length = 16) private String gender;
     @Column(length = 1024) private String nationality;
@@ -74,6 +76,8 @@ public class StaffEntity {
         staff.staffIndex = integer(row, "staff_index");
         staff.recordAddress = text(row, "record_address");
         staff.uniqueId = longValue(row, "unique_id");
+        staff.nonPlayingProfileHex = java.util.Objects.toString(row.get("non_playing_profile_hex"), null);
+        staff.nonPlayingProfileSha256 = java.util.Objects.toString(row.get("non_playing_profile_sha256"), null);
         staff.name = text(row, "name");
         staff.gender = text(row, "gender");
         staff.nationality = text(row, "nationality");
@@ -118,6 +122,8 @@ public class StaffEntity {
     public Map<String, Object> toApiMap() {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("staff_unique_id", uniqueId);
+        out.put("non_playing_profile_hex", nonPlayingProfileHex);
+        out.put("non_playing_profile_sha256", nonPlayingProfileSha256);
         out.put("name", name);
         out.put("gender", gender);
         out.put("nationality", nationality);
@@ -183,6 +189,8 @@ public class StaffEntity {
 
     public Long getId() { return id; }
     public Long getUniqueId() { return uniqueId; }
+    public String getNonPlayingProfileHex() { return nonPlayingProfileHex; }
+    public String getNonPlayingProfileSha256() { return nonPlayingProfileSha256; }
     public String getName() { return name; }
     public String getGender() { return gender; }
     public String getNationality() { return nationality; }

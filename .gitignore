@@ -19,3 +19,4 @@ src/main/frontend/index.html
 /website/node_modules/
 /website/dist/
 /website/.astro/
+/docs/

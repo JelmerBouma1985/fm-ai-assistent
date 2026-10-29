@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+ <changeSet id="025-club-financial-competitions" author="codex">
+  <addColumn tableName="club_records"><column name="financial_competitions_hex" type="VARCHAR(122960)"/></addColumn>
+  <sql>ALTER TABLE club_records ADD CONSTRAINT ck_club_financial_competitions CHECK
+   (financial_competitions_hex IS NULL OR
+    (kind='CLUB' AND financial_ledger_hex IS NOT NULL AND financial_ledger_clock IS NOT NULL
+     AND LENGTH(financial_competitions_hex) BETWEEN 80 AND 122960
+     AND MOD(LENGTH(financial_competitions_hex)-80,24)=0))</sql>
+  <rollback>
+   <sql>SELECT 1 / CASE WHEN (SELECT COUNT(*) FROM club_records WHERE financial_competitions_hex IS NOT NULL)=0 THEN 1 ELSE 0 END</sql>
+   <sql>ALTER TABLE club_records DROP CONSTRAINT ck_club_financial_competitions</sql>
+   <dropColumn tableName="club_records" columnName="financial_competitions_hex"/>
+  </rollback>
+ </changeSet>
+</databaseChangeLog>

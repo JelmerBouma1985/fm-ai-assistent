@@ -88,4 +88,26 @@ public class CompetitionExporter {
 
     public record ExportResult(List<Map<String, Object>> rows) {
     }
+
+    /** Preserve named lookup targets actually read by clubs even when optional country/reputation
+     * filters omit them from the competition catalogue. Never invent those omitted attributes or
+     * rescue an empty primary capture, which must still fail the snapshot's drift validation. */
+    public static ExportResult withClubReferences(ExportResult primary,ClubExporter.ExportResult clubs) {
+        if(primary.rows().isEmpty())return primary;
+        var known=new java.util.HashSet<Long>();
+        for(var row:primary.rows())if(row.get("sourceAddress") instanceof Number address)known.add(address.longValue());
+        List<Map<String,Object>> rows=new ArrayList<>(primary.rows());
+        for(var club:clubs.rows()) {
+            if(!(club.get("_competition_address") instanceof Number value)
+                    ||!(club.get("competition") instanceof String name)||name.isBlank())continue;
+            long address=value.longValue();
+            if(address<=0||address>ProcessMemoryReader.MAX_USER_ADDRESS||!known.add(address))continue;
+            var reference=new LinkedHashMap<String,Object>();reference.put("sourceAddress",address);reference.put("name",name);
+            if(club.get("gender") instanceof String gender)reference.put("gender",gender);
+            reference.put("_reference_only",true);rows.add(java.util.Collections.unmodifiableMap(reference));
+        }
+        if(rows.size()==primary.rows().size())return primary;
+        rows.sort(Comparator.comparing(row->String.valueOf(row.getOrDefault("name","")).toLowerCase()));
+        return new ExportResult(List.copyOf(rows));
+    }
 }

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+ <changeSet id="021-club-uefa-coefficients" author="codex">
+  <addColumn tableName="club_records">
+   <column name="uefa_coefficient_hex" type="VARCHAR(152)"/>
+   <column name="uefa_rule_version" type="INT"/>
+  </addColumn>
+  <sql>ALTER TABLE club_records ADD CONSTRAINT ck_club_uefa_coefficient CHECK
+   (CASE WHEN uefa_coefficient_hex IS NOT NULL AND uefa_rule_version IS NOT NULL
+    THEN LENGTH(uefa_coefficient_hex)=152 AND uefa_rule_version BETWEEN 0 AND 65535 AND kind='CLUB'
+    ELSE uefa_coefficient_hex IS NULL AND uefa_rule_version IS NULL END)</sql>
+  <rollback>
+   <!-- Refuse losing populated profiles; old rows with both nullable fields empty are reversible. -->
+   <sql>SELECT 1 / CASE WHEN
+    (SELECT COUNT(*) FROM club_records WHERE uefa_coefficient_hex IS NOT NULL OR uefa_rule_version IS NOT NULL)=0
+    THEN 1 ELSE 0 END</sql>
+   <sql>ALTER TABLE club_records DROP CONSTRAINT ck_club_uefa_coefficient</sql>
+   <dropColumn tableName="club_records" columnName="uefa_coefficient_hex"/>
+   <dropColumn tableName="club_records" columnName="uefa_rule_version"/>
+  </rollback>
+ </changeSet>
+</databaseChangeLog>

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+ <changeSet id="019-native-club-identities" author="codex">
+  <createTable tableName="club_records">
+   <column name="unique_id" type="BIGINT"><constraints primaryKey="true" nullable="false"/></column>
+   <column name="record_index" type="INT"><constraints nullable="false"/></column>
+   <column name="kind" type="VARCHAR(48)"><constraints nullable="false"/></column>
+   <column name="name" type="VARCHAR(1024)"/>
+   <column name="source_address" type="BIGINT"><constraints nullable="false"/></column>
+   <column name="prefix_hex" type="VARCHAR(32)"><constraints nullable="false"/></column>
+   <column name="module_sha256" type="VARCHAR(64)"><constraints nullable="false"/></column>
+  </createTable>
+  <addColumn tableName="clubs"><column name="unique_id" type="BIGINT"/></addColumn>
+  <!-- Deliberately not unique: the existing rows are competition/gender views of a club. -->
+  <addForeignKeyConstraint baseTableName="clubs" baseColumnNames="unique_id" referencedTableName="club_records"
+   referencedColumnNames="unique_id" constraintName="fk_club_view_native"/>
+  <sql>ALTER TABLE club_records ADD CONSTRAINT ck_native_club_identity CHECK
+   (unique_id&gt;0 AND unique_id&lt;=4294967295 AND record_index&gt;=0 AND
+    CASE kind WHEN 'CLUB' THEN TRUE WHEN 'LEAGUE_BODY_CLUB' THEN TRUE ELSE FALSE END)</sql>
+  <rollback>
+   <!-- Canonical-only identities have no old-schema representation: refuse before dropping any data. -->
+   <sql>SELECT 1 / CASE WHEN COUNT(*)=0 THEN 1 ELSE 0 END FROM club_records</sql>
+   <dropForeignKeyConstraint baseTableName="clubs" constraintName="fk_club_view_native"/>
+   <dropColumn tableName="clubs" columnName="unique_id"/>
+   <dropTable tableName="club_records"/>
+  </rollback>
+ </changeSet>
+</databaseChangeLog>

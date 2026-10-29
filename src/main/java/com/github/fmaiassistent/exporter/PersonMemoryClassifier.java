@@ -9,9 +9,9 @@ import java.util.Map;
 /**
  * Classifies objects from FM's shared people collection using their RTTI metadata.
  *
- * <p>The dynamic offsets are specific to the supported FM26 26.3.1 b1530 memory
- * layout. Keep them together here so a future game build cannot accidentally use
- * ability values as a substitute for person-type detection.</p>
+ * <p>The dynamic offsets were runtime-checked against FM26 build
+ * 26.3.2+2329565. Recheck them for every build; do not use ability values as a
+ * substitute for person-type detection.</p>
  */
 final class PersonMemoryClassifier {
     static final int STAFF_DYNAMIC_OFFSET = 0x100;

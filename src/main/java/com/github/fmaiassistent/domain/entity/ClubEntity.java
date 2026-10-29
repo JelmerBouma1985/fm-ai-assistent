@@ -28,6 +28,9 @@ public class ClubEntity {
     @Column(name = "source_address")
     private Long sourceAddress;
 
+    @Column(name="unique_id")
+    private Long uniqueId;
+
     @Column(length = 1024)
     private String gender;
 
@@ -52,6 +55,9 @@ public class ClubEntity {
 
     @Column(name = "payroll_budget")
     private Long payrollBudget;
+
+    @Column(name = "current_wages_including_bonuses")
+    private Long currentWagesIncludingBonuses;
 
     @Column(name = "training_facilities")
     private Integer trainingFacilities;
@@ -101,6 +107,8 @@ public class ClubEntity {
         return sourceAddress;
     }
 
+    public Long getUniqueId(){return uniqueId;}
+
     public Integer getReputation() {
         return reputation;
     }
@@ -136,6 +144,8 @@ public class ClubEntity {
     public Long getPayrollBudget() {
         return payrollBudget;
     }
+
+    public Long getCurrentWagesIncludingBonuses() { return currentWagesIncludingBonuses; }
 
     public Integer getTrainingFacilities() {
         return trainingFacilities;

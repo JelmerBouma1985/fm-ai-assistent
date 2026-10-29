@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+ <changeSet id="018-future-employment-contracts" author="codex">
+  <addColumn tableName="player_contracts">
+   <column name="source" type="VARCHAR(32)" defaultValue="PERSON_LINK"><constraints nullable="false"/></column>
+   <column name="offer_index" type="INT"/>
+   <column name="future_transfer_date" type="DATE"/>
+   <column name="future_end_date" type="DATE"/>
+   <column name="future_wage_raw" type="INT"/>
+   <column name="future_record_hex" type="VARCHAR(144)"/>
+   <column name="future_record_state" type="INT"/>
+   <column name="future_end_uses_game_date" type="BOOLEAN"/>
+  </addColumn>
+  <dropNotNullConstraint tableName="player_contracts" columnName="slot" columnDataType="INT"/>
+  <addUniqueConstraint tableName="player_contracts" columnNames="player_id,offer_index" constraintName="uq_player_future_offer"/>
+  <addUniqueConstraint tableName="player_contracts" columnNames="staff_id,offer_index" constraintName="uq_staff_future_offer"/>
+  <sql>ALTER TABLE player_contracts ADD CONSTRAINT ck_contract_source CHECK
+   ((source='PERSON_LINK' AND slot IS NOT NULL AND offer_index IS NULL)
+    OR (source='FUTURE_EMPLOYMENT' AND slot IS NULL AND offer_index IS NOT NULL AND offer_index>=0
+     AND future_end_date IS NOT NULL AND future_wage_raw IS NOT NULL
+     AND future_record_hex IS NOT NULL AND future_record_state IS NOT NULL AND future_end_uses_game_date IS NOT NULL))</sql>
+  <rollback>
+   <!-- Refuse before dropping any future data when future-only rows still exist. -->
+   <addNotNullConstraint tableName="player_contracts" columnName="slot" columnDataType="INT"/>
+   <sql>ALTER TABLE player_contracts DROP CONSTRAINT ck_contract_source</sql>
+   <dropUniqueConstraint tableName="player_contracts" constraintName="uq_player_future_offer"/>
+   <dropUniqueConstraint tableName="player_contracts" constraintName="uq_staff_future_offer"/>
+   <dropColumn tableName="player_contracts" columnName="source"/>
+   <dropColumn tableName="player_contracts" columnName="offer_index"/>
+   <dropColumn tableName="player_contracts" columnName="future_transfer_date"/>
+   <dropColumn tableName="player_contracts" columnName="future_end_date"/>
+   <dropColumn tableName="player_contracts" columnName="future_wage_raw"/>
+   <dropColumn tableName="player_contracts" columnName="future_record_hex"/>
+   <dropColumn tableName="player_contracts" columnName="future_record_state"/>
+   <dropColumn tableName="player_contracts" columnName="future_end_uses_game_date"/>
+  </rollback>
+ </changeSet>
+</databaseChangeLog>

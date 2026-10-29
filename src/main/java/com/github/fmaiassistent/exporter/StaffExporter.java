@@ -4,6 +4,7 @@ import com.github.fmaiassistent.linux.FmMemoryStrings;
 import com.github.fmaiassistent.linux.GameDateFinder;
 import com.github.fmaiassistent.memory.ProcessMemoryReader;
 import com.github.fmaiassistent.memory.StaffRecordLayout;
+import com.github.fmaiassistent.memory.ContractRecordLayout;
 import com.github.fmaiassistent.staff.StaffAttributeDefinitions;
 
 import java.io.IOException;
@@ -18,12 +19,19 @@ public class StaffExporter {
     public static final List<String> FIELD_NAMES = buildFieldNames();
 
     private StaffRecordLayout recordLayout = StaffRecordLayout.current();
+    private final Long windowsModuleBase;
 
     public StaffExporter() {
+        this.windowsModuleBase = null;
     }
 
     public StaffExporter(StaffRecordLayout recordLayout) {
+        this(recordLayout, null);
+    }
+
+    StaffExporter(StaffRecordLayout recordLayout, Long windowsModuleBase) {
         this.recordLayout = recordLayout;
+        this.windowsModuleBase = windowsModuleBase;
     }
 
     /**
@@ -66,7 +74,10 @@ public class StaffExporter {
         row.put("age", "");
         row.put("age_as_of", "");
         row.put("salary_weekly_raw", contract.map(value -> readU32(reader, value + recordLayout.contractSalaryWeeklyRel(), 0)).orElse(0L));
-        row.put("contract_end_date", contract.map(value -> date(reader, value + recordLayout.contractDateRel())).orElse(""));
+        // BASIC has no+0x48: its Ceda property returns a shared placeholder without reading this object.
+        boolean basic = contract.isPresent() && windowsModuleBase != null
+                && reader.readU64(contract.get()) == windowsModuleBase + ContractRecordLayout.current().basic().vtable();
+        row.put("contract_end_date", basic ? "" : contract.map(value -> date(reader, value + recordLayout.contractDateRel())).orElse(""));
         row.put("home_reputation", reader.readU16(staffBase + recordLayout.homeReputationRel()));
         row.put("current_reputation", reader.readU16(staffBase + recordLayout.currentReputationRel()));
         row.put("world_reputation", reader.readU16(staffBase + recordLayout.worldReputationRel()));
@@ -97,6 +108,11 @@ public class StaffExporter {
     private static int staffAttribute(StaffAttributeDefinitions.StaffAttribute attribute, int raw) {
         int value = attribute.storage() == StaffAttributeDefinitions.Storage.DIRECT
                 ? raw : Math.round(raw / 5.0f);
+        // Native15B2350 normalizes positive scaled bytes to1..20. Raw1/2 are valid low attributes,
+        // not missing values (captured Adrian Viveash Fitness2 -> FM1). Preserve raw0's existing behavior pending separate evidence.
+        if (attribute.storage() != StaffAttributeDefinitions.Storage.DIRECT && raw > 0) {
+            value = Math.max(1, value);
+        }
         return Math.max(0, Math.min(20, value));
     }
 
@@ -201,6 +217,7 @@ public class StaffExporter {
                 "salary_weekly_raw", "contract_end_date", "home_reputation", "current_reputation",
                 "world_reputation", "ca", "pa"));
         StaffAttributeDefinitions.ALL.stream().map(StaffAttributeDefinitions.StaffAttribute::key).forEach(fields::add);
+        fields.addAll(List.of("non_playing_profile_hex", "non_playing_profile_sha256"));
         return List.copyOf(fields);
     }
 

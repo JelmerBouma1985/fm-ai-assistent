@@ -104,6 +104,9 @@ public class DatabaseLoadAllService {
             }
             reportPhase("Reading FM26 memory");
             RamSnapshot ram = readRamInParallel(resolvedPid, build, gamePluginBase);
+            if (ram.peopleSlots() <= 0) {
+                throw new IOException("FM26 people registry is empty; wait until the save has finished loading");
+            }
             reportPhase("Validating player data");
             PlayerSnapshotValidator.validate(ram.players().rows(), ram.peopleSlots(), ram.players().gameDate());
             reportPhase("Validating staff data");
@@ -171,9 +174,29 @@ public class DatabaseLoadAllService {
                             ? ""
                             : String.valueOf(layoutMatch.installedBuildId())),
                     new LoadMetadataEntity("players_count", String.valueOf(playerCount)),
+                    new LoadMetadataEntity("contract_profile", ram.players().rows().stream()
+                            .map(row -> row.get("_contract_profile")).filter(java.util.Objects::nonNull)
+                            .map(String::valueOf).findFirst().orElse("NOT_CAPTURED")),
+                    new LoadMetadataEntity("contracts_count", String.valueOf(ram.players().rows().stream()
+                            .map(row -> row.get("_contracts")).filter(List.class::isInstance)
+                            .map(List.class::cast).mapToLong(List::size).sum())),
+                    new LoadMetadataEntity("staff_contracts_count", String.valueOf(ram.staff().rows().stream()
+                            .map(row -> row.get("_contracts")).filter(List.class::isInstance)
+                            .map(List.class::cast).mapToLong(List::size).sum())),
+                    new LoadMetadataEntity("future_contracts_count", String.valueOf(java.util.stream.Stream.concat(
+                            ram.players().rows().stream(),ram.staff().rows().stream())
+                            .map(row->row.get("_future_contracts")).filter(List.class::isInstance)
+                            .map(List.class::cast).mapToLong(List::size).sum())),
+                    new LoadMetadataEntity("future_contracts_partial_owner_count",String.valueOf(java.util.stream.Stream.concat(
+                            ram.players().rows().stream(),ram.staff().rows().stream())
+                            .filter(row->"PARTIAL".equals(row.get("_future_transfer_profile"))).count())),
                     new LoadMetadataEntity("staff_count", String.valueOf(staffCount)),
                     new LoadMetadataEntity("clubs_count", String.valueOf(clubCount)),
+                    new LoadMetadataEntity("native_club_records_count",String.valueOf(ram.clubs().nativeRecords().size())),
+                    new LoadMetadataEntity("native_club_identity_profile",ram.clubs().identityProfile()==null?"UNSUPPORTED_OR_UNAVAILABLE":ram.clubs().identityProfile()),
                     new LoadMetadataEntity("competitions_count", String.valueOf(competitionCount)),
+                    new LoadMetadataEntity("competitions_reference_only_count",String.valueOf(ram.competitions().rows().stream()
+                            .filter(row->Boolean.TRUE.equals(row.get("_reference_only"))).count())),
                     new LoadMetadataEntity("fixtures_count", String.valueOf(ram.fixtures().rows().size())),
                     new LoadMetadataEntity("quality_players_missing_age",
                             String.valueOf(countMissing(ram.players().rows(), "age"))),
@@ -271,6 +294,7 @@ public class DatabaseLoadAllService {
             ClubExporter.ExportResult clubs = await(clubFuture, "clubs", deadline);
             reportPhase("Reading competitions");
             CompetitionExporter.ExportResult competitions = await(competitionFuture, "competitions", deadline);
+            competitions=CompetitionExporter.withClubReferences(competitions,clubs);
             reportPhase("Reading fixtures");
             FixtureExporter.ExportResult fixtures = await(fixtureFuture, "fixtures", deadline);
             RamSnapshot snapshot = new RamSnapshot(

@@ -83,7 +83,7 @@ public class MainView extends VerticalLayout {
     private static final Set<String> NUMERIC_SORT_COLUMNS = Set.of(
             "ID", "CLUB_ID", "PLAYING_CLUB_ID", "CURRENT_REPUTATION", "HOME_REPUTATION", "WORLD_REPUTATION",
             "CA", "PA", "ASKING_PRICE", "ASKING_PRICE_RAW", "SALARY_PA", "SALARY_WEEKLY_RAW", "AGE", "HEIGHT_CM",
-            "REPUTATION", "TRANSFER_BUDGET", "PAYROLL_BUDGET", "TRAINING_FACILITIES", "YOUTH_FACILITIES",
+            "REPUTATION", "TRANSFER_BUDGET", "PAYROLL_BUDGET", "CURRENT_WAGES_INCLUDING_BONUSES", "TRAINING_FACILITIES", "YOUTH_FACILITIES",
             "YOUTH_COACHING", "YOUTH_RECRUITMENT", "CORPORATE_FACILITIES",
             "GOALKEEPER", "DEFENDER_LEFT", "DEFENDER_CENTRAL", "DEFENDER_RIGHT", "WING_BACK_LEFT",
             "DEFENSIVE_MIDFIELDER", "WING_BACK_RIGHT", "MIDFIELDER_LEFT", "MIDFIELDER_CENTRAL",
@@ -100,7 +100,7 @@ public class MainView extends VerticalLayout {
             "NATURAL_FITNESS", "DETERMINATION", "COMPOSURE", "CONCENTRATION");
     private static final Set<String> MONEY_COLUMNS = Set.of(
             "ASKING_PRICE", "ASKING_PRICE_RAW", "SALARY_PA", "SALARY_WEEKLY_RAW",
-            "BALANCE", "TRANSFER_BUDGET", "PAYROLL_BUDGET");
+            "BALANCE", "TRANSFER_BUDGET", "PAYROLL_BUDGET", "CURRENT_WAGES_INCLUDING_BONUSES");
     private static final int BADGE_POLL_INTERVAL_MS = 60_000;
     private static final int LOADING_POLL_INTERVAL_MS = 2_000;
     private static final Duration FRESHNESS_INTERVAL = Duration.ofMinutes(1);
@@ -114,6 +114,7 @@ public class MainView extends VerticalLayout {
     private final RecruitmentCaseService recruitment;
     private final AppSettingsService settings;
     private final SnapshotStatusService snapshots;
+    private final ContractRepository contracts;
 
     private final Dialog loadingDialog = new Dialog();
     private final ProgressBar spinner = new ProgressBar();
@@ -139,6 +140,7 @@ public class MainView extends VerticalLayout {
     private final Tab playersTab = new Tab("Players");
     private final Tab staffTab = new Tab("Staff");
     private final Tab clubsTab = new Tab("Clubs");
+    private final Tab coefficientsTab = new Tab("Club coefficients");
     private final Tab competitionsTab = new Tab("Competitions");
     private final Tab fixturesTab = new Tab("Fixtures");
     private final Tab recruitmentTab = new Tab("Recruitment");
@@ -166,7 +168,8 @@ public class MainView extends VerticalLayout {
             TacticContextService tacticContexts,
             ManagedClubContextService managedClubContexts,
             ShortlistFileService shortlistFiles,
-            RecruitmentCaseService recruitment) {
+            RecruitmentCaseService recruitment,
+            ContractRepository contracts) {
         this.refreshes = refreshes;
         this.players = players;
         this.staff = staff;
@@ -176,6 +179,7 @@ public class MainView extends VerticalLayout {
         this.recruitment = recruitment;
         this.settings = settings;
         this.snapshots = snapshots;
+        this.contracts = contracts;
         this.aiAssistant = new AiAssistantView(
                 codexConversations, antigravityConversations, copilotConversations,
                 openRouterSession.conversations(),
@@ -201,6 +205,11 @@ public class MainView extends VerticalLayout {
         playersGrid.addItemClickListener(event -> openPlayerDetailsDialog(event.getItem()));
         staffGrid.addItemClickListener(event -> openStaffDetailsDialog(event.getItem()));
         fixturesGrid.addItemClickListener(event -> openOpponentDetailsDialog(event.getItem()));
+        clubsGrid.addItemClickListener(event -> {
+            var club=event.getItem();var dialog=new Dialog();dialog.setHeaderTitle(display(club.getName()));
+            dialog.add(opponentClubView(club,club.getName()));
+            dialog.getFooter().add(new Button("Close",e->dialog.close()));dialog.open();
+        });
         updateStatus(null);
         showPlayers();
     }
@@ -264,7 +273,7 @@ public class MainView extends VerticalLayout {
     }
 
     private void configureTabs() {
-        tabs.add(playersTab, staffTab, clubsTab, competitionsTab, fixturesTab, recruitmentTab, aiAssistantTab);
+        tabs.add(playersTab, staffTab, clubsTab, coefficientsTab, competitionsTab, fixturesTab, recruitmentTab, aiAssistantTab);
         tabs.setWidthFull();
         tabs.addClassName("workspace-tabs");
         playersTab.addComponentAsFirst(VaadinIcon.USERS.create());
@@ -285,6 +294,8 @@ public class MainView extends VerticalLayout {
                 showStaff();
             } else if (event.getSelectedTab() == clubsTab) {
                 showClubs();
+            } else if (event.getSelectedTab() == coefficientsTab) {
+                showClubCoefficients();
             } else if (event.getSelectedTab() == competitionsTab) {
                 showCompetitions();
             } else if (event.getSelectedTab() == fixturesTab) {
@@ -494,6 +505,8 @@ public class MainView extends VerticalLayout {
             showStaff();
         } else if (tabs.getSelectedTab() == clubsTab) {
             showClubs();
+        } else if (tabs.getSelectedTab() == coefficientsTab) {
+            showClubCoefficients();
         } else if (tabs.getSelectedTab() == competitionsTab) {
             showCompetitions();
         } else if (tabs.getSelectedTab() == fixturesTab) {
@@ -577,6 +590,7 @@ public class MainView extends VerticalLayout {
     private void showClubs() {
         List<GridColumn> columns = List.of(
                 new GridColumn("NAME", "Name"),
+                new GridColumn("UNIQUE_ID", "Unique ID"),
                 new GridColumn("COMPETITION", "Competition"),
                 new GridColumn("NATION", "Nation"),
                 new GridColumn("REPUTATION", "Reputation"),
@@ -587,7 +601,8 @@ public class MainView extends VerticalLayout {
                 new GridColumn("CORPORATE_FACILITIES", "Corporate Facilities"),
                 new GridColumn("BALANCE", "Balance"),
                 new GridColumn("TRANSFER_BUDGET", "Transfer Budget"),
-                new GridColumn("PAYROLL_BUDGET", "Payroll Budget"));
+                new GridColumn("PAYROLL_BUDGET", "Payroll Budget"),
+                new GridColumn("CURRENT_WAGES_INCLUDING_BONUSES", "Current wages incl. bonuses (per week)"));
         ClubFilterCriteria activeFilter = clubFilter;
         setClubGrid(columns, activeFilter);
         setFilterActive(!clubFilter.isEmpty());
@@ -726,7 +741,7 @@ public class MainView extends VerticalLayout {
 
     private Component opponentClubView(ClubEntity club, String fallbackName) {
         if (club == null) return emptyDialogMessage("No club information is loaded for " + display(fallbackName) + ".");
-        return detailLayout(List.of(
+        var details=detailLayout(List.of(
                 new DetailField("Name", club.getName()), new DetailField("Competition", club.getCompetition()),
                 new DetailField("Nation", club.getNation()), new DetailField("Reputation", club.getReputation()),
                 new DetailField("Training Facilities", club.getTrainingFacilities()),
@@ -736,7 +751,45 @@ public class MainView extends VerticalLayout {
                 new DetailField("Corporate Facilities", club.getCorporateFacilities()),
                 new DetailField("Balance", moneyDisplay(club.getBalance())),
                 new DetailField("Transfer Budget", moneyDisplay(club.getTransferBudget())),
-                new DetailField("Payroll Budget", moneyDisplay(club.getPayrollBudget()))));
+                new DetailField("Payroll Budget (per week)", moneyDisplay(club.getPayrollBudget())),
+                new DetailField("Current wages incl. bonuses (per week)",moneyDisplay(club.getCurrentWagesIncludingBonuses()))));
+        var coefficient=clubs.findClubCoefficients(club.getUniqueId());
+        var loans=clubs.findClubFinancialLoans(club.getUniqueId());
+        var ledger=clubs.findClubFinancialLedger(club.getUniqueId());
+        var competitionIncome=clubs.findClubCompetitionIncome(club.getUniqueId());
+        var history=clubs.findClubFinancialHistory(club.getUniqueId());
+        if(coefficient.isEmpty()&&loans.isEmpty()&&ledger.isEmpty()&&competitionIncome.isEmpty()&&history.isEmpty())return details;
+        var layout=new VerticalLayout(details);
+        coefficient.ifPresent(c->layout.add(new ClubCoefficientsPanel(c.coefficients())));
+        loans.ifPresent(l->layout.add(new ClubFinancialLoansPanel(l)));
+        ledger.ifPresent(l->layout.add(new ClubFinancialLedgerPanel(l)));
+        competitionIncome.ifPresent(p->layout.add(new ClubFinancialCompetitionsPanel(p.profile(),p.names())));
+        history.ifPresent(p->layout.add(new ClubFinancialHistoryPanel(p)));
+        layout.setPadding(false);return layout;
+    }
+
+    private void showClubCoefficients() {
+        var grid=new Grid<ClubDatabaseService.CoefficientClub>();configureGrid(grid);
+        var search=new TextField("Club name");search.setPlaceholder("Search club coefficients");search.setMaxLength(128);
+        search.setClearButtonVisible(true);search.setValueChangeMode(com.vaadin.flow.data.value.ValueChangeMode.LAZY);
+        grid.addColumn(ClubDatabaseService.CoefficientClub::uniqueId).setHeader("Unique ID");
+        grid.addColumn(ClubDatabaseService.CoefficientClub::name).setHeader("Club").setAutoWidth(true);
+        grid.addColumn(c->ClubCoefficientsPanel.number(c.coefficients().fiveYearCoefficient())).setHeader("Five-year coefficient");
+        grid.addColumn(c->c.coefficients().fiveYearRank()).setHeader("Five-year ranking");
+        grid.addColumn(c->ClubCoefficientsPanel.number(c.coefficients().tenYearCoefficient())).setHeader("Ten-year coefficient");
+        grid.addColumn(c->c.coefficients().tenYearRank()).setHeader("Ten-year ranking");
+        grid.addColumn(c->ClubCoefficientsPanel.number(c.coefficients().currentSeasonPoints())).setHeader("Current-season points");
+        grid.setDataProvider(DataProvider.fromCallbacks(q->clubs.findCoefficientClubs(search.getValue(),
+                PageRequest.of(q.getPage(),q.getPageSize(),Sort.by("name").ascending().and(Sort.by("uniqueId")))).stream(),
+                q->boundedCount(clubs.countCoefficientClubs(search.getValue()))));
+        search.addValueChangeListener(e->grid.getDataProvider().refreshAll());
+        grid.addItemClickListener(e->{
+            var club=e.getItem();var dialog=new Dialog();dialog.setHeaderTitle(display(club.name()));
+            dialog.add(new ClubCoefficientsPanel(club.coefficients()));
+            dialog.getFooter().add(new Button("Close",click->dialog.close()));dialog.open();
+        });
+        var layout=new VerticalLayout(search,grid);layout.setPadding(false);layout.setSizeFull();layout.expand(grid);
+        content.removeAll();content.setSizeFull();content.add(layout);
     }
 
     private Component opponentReportView(List<PlayerEntity> squad) {
@@ -1105,7 +1158,11 @@ public class MainView extends VerticalLayout {
         Tab infoTab = new Tab("Info");
         Tab attributesTab = new Tab("Attributes");
         Tab positionsTab = new Tab("Positions");
-        Tabs detailTabs = new Tabs(infoTab, attributesTab, positionsTab);
+        Tab contractsTab = new Tab("Contracts");
+        Tabs detailTabs = new Tabs(infoTab, attributesTab, positionsTab, contractsTab);
+        Tab managementTab = new Tab("Management profile");
+        if (NonPlayingProfilePanel.hasData(player.getNonPlayingProfileHex(), player.getNonPlayingProfileSha256()))
+            detailTabs.add(managementTab);
         detailTabs.addClassName("dialog-tabs");
         Div detailContent = new Div(info);
         detailContent.setWidthFull();
@@ -1116,6 +1173,10 @@ public class MainView extends VerticalLayout {
                 detailContent.add(info);
             } else if (event.getSelectedTab() == attributesTab) {
                 detailContent.add(attributesView);
+            } else if (event.getSelectedTab() == contractsTab) {
+                detailContent.add(new ContractDetailsPanel(contracts.findPlayerContracts(player.getId(), player.getUniqueId()), this::moneyDisplay, this::salaryWeeklyDisplay, true));
+            } else if (event.getSelectedTab() == managementTab) {
+                detailContent.add(new NonPlayingProfilePanel(player.getNonPlayingProfileHex(), player.getNonPlayingProfileSha256()));
             } else {
                 detailContent.add(positions);
             }
@@ -1250,12 +1311,20 @@ public class MainView extends VerticalLayout {
         Tab infoTab = new Tab("Info");
         Tab attributesTab = new Tab("Attributes");
         Tab rolesTab = new Tab("Coaching roles");
-        Tabs detailTabs = new Tabs(infoTab, attributesTab, rolesTab);
+        Tab contractsTab = new Tab("Contracts");
+        Tabs detailTabs = new Tabs(infoTab, attributesTab, rolesTab, contractsTab);
+        Tab managementTab = new Tab("Management profile");
+        if (NonPlayingProfilePanel.hasData(staffMember.getNonPlayingProfileHex(), staffMember.getNonPlayingProfileSha256()))
+            detailTabs.add(managementTab);
         Div detailContent = new Div(info);
         detailContent.setWidthFull();
         detailTabs.addSelectedChangeListener(event -> {
             detailContent.removeAll();
-            detailContent.add(event.getSelectedTab() == attributesTab ? attributes
+            if(event.getSelectedTab()==contractsTab) {
+                detailContent.add(new ContractDetailsPanel(contracts.findStaffContracts(staffMember.getId(), staffMember.getUniqueId()), this::moneyDisplay, this::salaryWeeklyDisplay, false));
+            } else if (event.getSelectedTab()==managementTab) {
+                detailContent.add(new NonPlayingProfilePanel(staffMember.getNonPlayingProfileHex(), staffMember.getNonPlayingProfileSha256()));
+            } else detailContent.add(event.getSelectedTab() == attributesTab ? attributes
                     : event.getSelectedTab() == rolesTab ? roleGrid : info);
         });
         Button close = new Button("Close", VaadinIcon.CLOSE_SMALL.create(), event -> dialog.close());
@@ -2581,6 +2650,7 @@ public class MainView extends VerticalLayout {
     private static Object clubColumnValue(ClubEntity club, String column) {
         return switch (column) {
             case "NAME" -> club.getName();
+            case "UNIQUE_ID" -> club.getUniqueId();
             case "COMPETITION" -> club.getCompetition();
             case "NATION" -> club.getNation();
             case "REPUTATION" -> club.getReputation();
@@ -2592,6 +2662,7 @@ public class MainView extends VerticalLayout {
             case "BALANCE" -> club.getBalance();
             case "TRANSFER_BUDGET" -> club.getTransferBudget();
             case "PAYROLL_BUDGET" -> club.getPayrollBudget();
+            case "CURRENT_WAGES_INCLUDING_BONUSES" -> club.getCurrentWagesIncludingBonuses();
             default -> null;
         };
     }

@@ -33,6 +33,57 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class DatabaseLoadAllServiceTest {
+    @Test void completesClubCompetitionReferencesBeforePersistenceWithoutReplacingRicherCompetitionRows()throws Exception {
+        var fixture=new Fixture();
+        when(fixture.people.exportAllPeople(123,1530,null)).thenReturn(peopleResult(1,1));
+        when(fixture.clubs.exportAllClubs(123,1530,null)).thenReturn(new ClubExporter.ExportResult(List.of(
+                Map.of("_competition_address",0xB000L,"competition","Lower Leagues","gender","female"))));
+        when(fixture.competitions.exportAllCompetitions(123,1530,null)).thenReturn(new CompetitionExporter.ExportResult(List.of(
+                Map.of("sourceAddress",0xA000L,"name","Complete league","nation","England","reputation",150))));
+        when(fixture.writer.saveCompetitions(any())).thenReturn(Map.of(0xA000L,1L,0xB000L,2L));
+        when(fixture.writer.saveClubs(any(),any())).thenReturn(Map.of());
+        fixture.service.loadAll(123,1530,null);
+        var capture=org.mockito.ArgumentCaptor.forClass(CompetitionExporter.ExportResult.class);
+        verify(fixture.writer).saveCompetitions(capture.capture());assertThat(capture.getValue().rows()).hasSize(2);
+        assertThat(capture.getValue().rows()).anyMatch(r->Long.valueOf(0xB000L).equals(r.get("sourceAddress"))
+                &&Boolean.TRUE.equals(r.get("_reference_only"))&&!r.containsKey("nation")&&!r.containsKey("reputation"));
+        verify(fixture.writer).saveClubs(any(),org.mockito.ArgumentMatchers.eq(Map.of(0xA000L,1L,0xB000L,2L)));
+    }
+    @Test
+    void rejectsTheCapturedEmptyPeopleWindowBeforeClearingThePreviousSnapshot() throws Exception {
+        var reportPath = java.nio.file.Path.of("docs/reverse-engineering/fm26/evidence",
+                "load_readiness_reload_1792826397_verification.json");
+        tools.jackson.databind.JsonNode capture;
+        try (var input = java.nio.file.Files.newInputStream(reportPath)) {
+            byte[] bytes = input.readNBytes(1_048_577);
+            if (bytes.length > 1_048_576) throw new IOException("Fixture too large");
+            capture = tools.jackson.databind.json.JsonMapper.builder().build().readTree(bytes);
+        }
+        int capturedPeopleSlots = -1;
+        for (var sample : capture.get("rows")) {
+            if (sample.get("person").get("slots").asInt() == 0) {
+                capturedPeopleSlots = sample.get("person").get("slots").asInt();
+                break;
+            }
+        }
+        assertThat(capturedPeopleSlots).isZero();
+        Fixture fixture = new Fixture();
+        when(fixture.people.exportAllPeople(123, 1530, null)).thenReturn(peopleResult(0, 0));
+        when(fixture.clubs.exportAllClubs(123, 1530, null)).thenReturn(new ClubExporter.ExportResult(List.of()));
+        // Competition contents/date are controls; the live sampler did not capture COMP slots.
+        when(fixture.competitions.exportAllCompetitions(123, 1530, null))
+                .thenReturn(new CompetitionExporter.ExportResult(List.of(Map.of())));
+
+        assertThatThrownBy(() -> {
+            var result = fixture.service.loadAll(123, 1530, null);
+            assertThat(result.players()).isZero();
+            verify(fixture.database).clearAllTables();
+        }).isInstanceOf(IOException.class).hasMessageContaining("people registry");
+        verify(fixture.database, never()).clearAllTables();
+        verify(fixture.metadata, never()).saveAll(anyList());
+        verify(fixture.managedClubs).restore(fixture.previousContext);
+    }
+
     @Test
     void extractsIndependentRamTablesConcurrentlyBeforeAtomicPersistence() throws Exception {
         Fixture fixture = new Fixture();
@@ -128,10 +179,11 @@ class DatabaseLoadAllServiceTest {
     @Test
     void publishesManagedClubOnlyAfterTheSnapshotTransactionCommits() throws Exception {
         Fixture fixture = new Fixture();
-        when(fixture.people.exportAllPeople(123, 1530, null)).thenReturn(peopleResult(0, 0));
-        when(fixture.clubs.exportAllClubs(123, 1530, null)).thenReturn(new ClubExporter.ExportResult(List.of()));
+        when(fixture.people.exportAllPeople(123, 1530, null)).thenReturn(peopleResult(1, 1));
+        when(fixture.clubs.exportAllClubs(123, 1530, null))
+                .thenReturn(new ClubExporter.ExportResult(List.of(Map.of())));
         when(fixture.competitions.exportAllCompetitions(123, 1530, null))
-                .thenReturn(new CompetitionExporter.ExportResult(List.of()));
+                .thenReturn(new CompetitionExporter.ExportResult(List.of(Map.of())));
         when(fixture.writer.saveCompetitions(any())).thenReturn(Map.of());
         when(fixture.writer.saveClubs(any(), any())).thenReturn(Map.of());
 

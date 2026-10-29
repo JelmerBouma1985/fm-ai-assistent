@@ -502,4 +502,20 @@
     <include file="changes/011-player-duty-status.xml" relativeToChangelogFile="true"/>
     <include file="changes/012-player-duty-not-null.xml" relativeToChangelogFile="true"/>
     <include file="changes/013-managed-club-fixtures.xml" relativeToChangelogFile="true"/>
+    <include file="changes/014-player-contracts.xml" relativeToChangelogFile="true"/>
+    <include file="changes/015-contract-term-references.xml" relativeToChangelogFile="true"/>
+    <include file="changes/016-contract-team-owners.xml" relativeToChangelogFile="true"/>
+    <include file="changes/017-staff-contract-ownership.xml" relativeToChangelogFile="true"/>
+    <include file="changes/018-future-employment-contracts.xml" relativeToChangelogFile="true"/>
+    <include file="changes/019-native-club-identities.xml" relativeToChangelogFile="true"/>
+    <include file="changes/020-non-playing-profiles.xml" relativeToChangelogFile="true"/>
+    <include file="changes/021-club-uefa-coefficients.xml" relativeToChangelogFile="true"/>
+    <include file="changes/022-club-current-wages.xml" relativeToChangelogFile="true"/>
+    <include file="changes/023-club-financial-loans.xml" relativeToChangelogFile="true"/>
+    <include file="changes/024-club-financial-ledger.xml" relativeToChangelogFile="true"/>
+    <include file="changes/025-club-financial-competitions.xml" relativeToChangelogFile="true"/>
+    <include file="changes/026-financial-competition-names.xml" relativeToChangelogFile="true"/>
+    <include file="changes/027-club-financial-history.xml" relativeToChangelogFile="true"/>
+    <include file="changes/028-contract-award-names.xml" relativeToChangelogFile="true"/>
+    <include file="changes/029-contract-competition-references.xml" relativeToChangelogFile="true"/>
 </databaseChangeLog>

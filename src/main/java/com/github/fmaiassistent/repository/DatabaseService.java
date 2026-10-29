@@ -17,6 +17,9 @@ public class DatabaseService {
             "PLAYERS",
             "STAFF",
             "CLUBS",
+            "CLUB_RECORDS",
+            "COMPETITION_NAME_RECORDS",
+            "AWARD_NAME_RECORDS",
             "COMPETITIONS",
             "LOAD_METADATA"
     );

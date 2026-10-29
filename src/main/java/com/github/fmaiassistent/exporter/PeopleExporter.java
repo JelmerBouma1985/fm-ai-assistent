@@ -3,6 +3,7 @@ package com.github.fmaiassistent.exporter;
 import com.github.fmaiassistent.linux.FmOffsets;
 import com.github.fmaiassistent.linux.GameDateFinder;
 import com.github.fmaiassistent.memory.PlayerRecordLayout;
+import com.github.fmaiassistent.memory.PersonIdentityLayout;
 import com.github.fmaiassistent.memory.ProcessMemoryReader;
 import com.github.fmaiassistent.memory.ProcessReaders;
 import com.github.fmaiassistent.memory.StaffRecordLayout;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -46,6 +48,7 @@ public class PeopleExporter {
 
     private final ReaderFactory readers;
     private final IntSupplier availableProcessors;
+    private final PersonIdentityLayout identityLayout;
     private PlayerRecordLayout recordLayout = PlayerRecordLayout.current();
     private StaffRecordLayout staffRecordLayout = StaffRecordLayout.current();
 
@@ -54,8 +57,13 @@ public class PeopleExporter {
     }
 
     PeopleExporter(ReaderFactory readers, IntSupplier availableProcessors) {
+        this(readers, availableProcessors, PersonIdentityLayout.current());
+    }
+
+    PeopleExporter(ReaderFactory readers, IntSupplier availableProcessors, PersonIdentityLayout identityLayout) {
         this.readers = readers;
         this.availableProcessors = availableProcessors;
+        this.identityLayout = identityLayout;
     }
 
     /**
@@ -113,6 +121,13 @@ public class PeopleExporter {
                     .find(coordinator, 0, build, gamePluginBase)
                     .orElse(null);
             ScanResult scan = scanPointerTable(pid, pointerTable, mode, workers, gameDate);
+            List<Map<String, Object>> contractOwners = new ArrayList<>(scan.playerRows().size() + scan.staffRows().size());
+            contractOwners.addAll(scan.playerRows());
+            contractOwners.addAll(scan.staffRows());
+            ContractExporter.capture(coordinator, gamePluginBase, contractOwners);
+            AwardNameExporter.capture(coordinator, gamePluginBase, contractOwners);
+            ContractCompetitionNameExporter.capture(coordinator, gamePluginBase, contractOwners);
+            NonPlayingProfileExporter.capture(coordinator, gamePluginBase, contractOwners);
             List<Map<String, Object>> playerRows = finishPlayers(scan.playerRows(), gameDate);
             List<Map<String, Object>> staffRows = finishStaff(scan.staffRows(), gameDate);
             String gameDateValue = gameDate == null ? "" : gameDate.toString();
@@ -200,7 +215,9 @@ public class PeopleExporter {
         MutableDiagnostics diagnostics = new MutableDiagnostics();
         try (ProcessMemoryReader reader = readers.open(pid)) {
             PersonMemoryClassifier classifier = new PersonMemoryClassifier(reader);
-            StaffExporter staffDecoder = new StaffExporter(staffRecordLayout);
+            Long staffModuleBase = mode.includesStaff() && reader.platform() == ProcessMemoryReader.Platform.WINDOWS
+                    ? FmOffsets.findGamePluginBase(reader) : null;
+            StaffExporter staffDecoder = new StaffExporter(staffRecordLayout, staffModuleBase);
             PlayerExporter playerDecoder = new PlayerExporter(recordLayout);
             processChunks(pointerTable.length / Long.BYTES, nextIndex, index -> {
                 long person = pointerAt(pointerTable, index);
@@ -215,8 +232,10 @@ public class PeopleExporter {
                     PersonMemoryClassifier.Classification classification = classifier.classify(person);
                     diagnostics.classified(classification.type());
                     if (mode.includesPlayers() && classification.type().hasPlayerData()) {
+                        byte[] identity = readPersonIdentity(reader, classifier, classification, index, person);
                         var row = playerDecoder.decodeClassifiedRow(
                                 reader, index, person, classification.type(), gameDate);
+                        verifyPersonIdentity(reader, index, person, identity, row.orElse(null));
                         if (row.isPresent()) {
                             players.add(row.get());
                         } else {
@@ -224,20 +243,47 @@ public class PeopleExporter {
                         }
                     }
                     if (mode.includesStaff() && classification.type().hasStandaloneStaffData()) {
+                        byte[] identity = readPersonIdentity(reader, classifier, classification, index, person);
                         Map<String, Object> row = staffDecoder.decodeRow(
                                 reader, index, person, classification.dynamicOffset());
+                        verifyPersonIdentity(reader, index, person, identity, row);
                         if (validStaffRow(row)) {
                             staff.add(row);
                         } else {
                             diagnostics.invalidBlocks++;
                         }
                     }
+                } catch (PlayerSnapshotValidator.PersonIdentityChangedException changed) {
+                    throw changed;
                 } catch (IOException | RuntimeException ignored) {
                     diagnostics.unreadable++;
                 }
             });
         }
         return new WorkerResult(players, staff, diagnostics.freeze(), elapsedMillis(started));
+    }
+
+    private byte[] readPersonIdentity(
+            ProcessMemoryReader reader, PersonMemoryClassifier classifier,
+            PersonMemoryClassifier.Classification classification, int index, long person) throws IOException {
+        byte[] prefix = reader.readBytes(person, identityLayout.prefixBytes());
+        PlayerSnapshotValidator.validatePersonIdentity(index, prefix, identityLayout);
+        if (!classification.equals(classifier.classify(person))) {
+            throw new PlayerSnapshotValidator.PersonIdentityChangedException("PERSON identity type changed");
+        }
+        return prefix;
+    }
+
+    private void verifyPersonIdentity(
+            ProcessMemoryReader reader, int index, long person, byte[] before, Map<String, Object> row)
+            throws IOException {
+        long uid = PlayerSnapshotValidator.validatePersonIdentity(index, before, identityLayout);
+        byte[] after = reader.readBytes(person, identityLayout.prefixBytes());
+        PlayerSnapshotValidator.validatePersonIdentity(index, after, identityLayout);
+        if (!Arrays.equals(before, after)
+                || row != null && (!(row.get("unique_id") instanceof Number value) || value.longValue() != uid)) {
+            throw new PlayerSnapshotValidator.PersonIdentityChangedException("PERSON identity changed during decoding");
+        }
     }
 
     static void processChunks(int slotCount, AtomicInteger nextIndex, IndexProcessor processor) throws Exception {

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+ <changeSet id="029-contract-competition-references" author="codex">
+  <addColumn tableName="contract_terms">
+   <column name="subject_competition_uid" type="BIGINT"/>
+   <column name="condition_competition_uid" type="BIGINT"/>
+  </addColumn>
+  <sql>ALTER TABLE contract_terms ADD CONSTRAINT ck_contract_competition_refs CHECK
+   ((subject_competition_uid IS NULL OR (term_group='FULL_80' AND subject_competition_uid BETWEEN 1 AND 4294967295))
+    AND (condition_competition_uid IS NULL OR (term_group='FULL_80' AND condition_competition_uid BETWEEN 1 AND 4294967295)))</sql>
+  <rollback>
+   <sql>SELECT 1 / CASE WHEN (SELECT COUNT(*) FROM contract_terms WHERE subject_competition_uid IS NOT NULL OR condition_competition_uid IS NOT NULL)=0 THEN 1 ELSE 0 END</sql>
+   <sql>ALTER TABLE contract_terms DROP CONSTRAINT ck_contract_competition_refs</sql>
+   <dropColumn tableName="contract_terms" columnName="condition_competition_uid"/>
+   <dropColumn tableName="contract_terms" columnName="subject_competition_uid"/>
+  </rollback>
+ </changeSet>
+</databaseChangeLog>

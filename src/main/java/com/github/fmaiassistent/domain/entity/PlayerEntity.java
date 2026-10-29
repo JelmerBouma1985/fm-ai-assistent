@@ -31,6 +31,10 @@ public class PlayerEntity {
     private String recordAddress;
     @Column(name = "unique_id")
     private Long uniqueId;
+    @Column(name = "non_playing_profile_hex", length = 104)
+    private String nonPlayingProfileHex;
+    @Column(name = "non_playing_profile_sha256", length = 64)
+    private String nonPlayingProfileSha256;
     @Column(length = 1024)
     private String name;
     @Column(length = 1024)
@@ -333,6 +337,9 @@ public class PlayerEntity {
     public Long getUniqueId() {
         return uniqueId;
     }
+
+    public String getNonPlayingProfileHex() { return nonPlayingProfileHex; }
+    public String getNonPlayingProfileSha256() { return nonPlayingProfileSha256; }
 
     public String getGender() {
         return gender;

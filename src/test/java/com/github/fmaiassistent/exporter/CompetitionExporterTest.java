@@ -22,6 +22,29 @@ class CompetitionExporterTest {
     private static final long COMPETITION = 0x9000;
     private static final long NATION = 0x9100;
 
+    @Test void namedClubLookupNodesSurviveCatalogueFiltersWithoutInventingCountryOrReputation() {
+        var complete=Map.<String,Object>of("sourceAddress",0xA000L,"name","Complete league","nation","England","reputation",150);
+        var primary=new CompetitionExporter.ExportResult(List.of(complete));
+        var clubs=new ClubExporter.ExportResult(List.of(
+                Map.of("_competition_address",0xA000L,"competition","Different display name"),
+                Map.of("_competition_address",0xB000L,"competition","Lower Leagues","gender","male"),
+                Map.of("_competition_address",0xB000L,"competition","Lower Leagues","gender","male"),
+                Map.of("_competition_address",0xC000L,"competition","")));
+        var result=CompetitionExporter.withClubReferences(primary,clubs);
+        assertThat(primary.rows()).containsExactly(complete);assertThat(result.rows()).hasSize(2).contains(complete);
+        var reference=result.rows().stream().filter(r->Boolean.TRUE.equals(r.get("_reference_only"))).findFirst().orElseThrow();
+        assertThat(reference).containsEntry("sourceAddress",0xB000L).containsEntry("name","Lower Leagues").containsEntry("gender","male")
+                .doesNotContainKeys("nation","reputation");
+    }
+
+    @Test void referenceCompletionNeverMasksAnEmptyPrimaryCaptureOrChangesCompleteResults() {
+        var empty=new CompetitionExporter.ExportResult(List.of());
+        var clubs=new ClubExporter.ExportResult(List.of(Map.of("_competition_address",0xB000L,"competition","Lower Leagues")));
+        assertThat(CompetitionExporter.withClubReferences(empty,clubs)).isSameAs(empty);
+        var complete=new CompetitionExporter.ExportResult(List.of(Map.of("sourceAddress",0xB000L,"name","Complete")));
+        assertThat(CompetitionExporter.withClubReferences(complete,clubs)).isSameAs(complete);
+    }
+
     @Test
     void decodesCompetitionRow() throws Exception {
         FakeMemory memory = validCompetitionMemory();

@@ -18,6 +18,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HexFormat;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -30,6 +33,58 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PeopleExporterTest {
     private static final int SLOT_COUNT = PeopleExporter.CHUNK_SIZE * 2 + 16;
     private static final LocalDate GAME_DATE = LocalDate.of(2033, 6, 23);
+
+    @Test
+    void rejectsTheCapturedPersonAddressReuseInsteadOfAssigningAnOldPointerTableIndex() throws Exception {
+        var mapper = tools.jackson.databind.json.JsonMapper.builder().build();
+        Path evidence = Path.of("docs/reverse-engineering/fm26/evidence");
+        tools.jackson.databind.JsonNode before;
+        tools.jackson.databind.JsonNode after;
+        try (var input = Files.newInputStream(evidence.resolve("human_projection_membership_live_20261024.json"))) {
+            byte[] bytes = input.readNBytes(1_048_577);
+            if (bytes.length > 1_048_576) throw new IOException("Fixture too large");
+            before = mapper.readTree(bytes).get("returnValues").get(0);
+        }
+        try (var input = Files.newInputStream(evidence.resolve("two_human_identities_after_reload_1792826397.json"))) {
+            byte[] bytes = input.readNBytes(1_048_577);
+            if (bytes.length > 1_048_576) throw new IOException("Fixture too large");
+            after = mapper.readTree(bytes).get("returnValues").get(0);
+        }
+        MemoryImage image = new MemoryImage();
+        byte[] pointers = new byte[88_375 * Long.BYTES];
+        long moduleBase = Long.parseUnsignedLong(after.get("moduleBase").asString(), 16);
+        for (var old : before.get("rows")) {
+            long person = Long.parseUnsignedLong(old.get("person").asString(), 16);
+            putPointer(pointers, old.get("index").asInt(), person);
+            for (var current : after.get("rows")) {
+                if (!current.get("person").asString().equals(old.get("person").asString())) continue;
+                // Only identity/RTTI comes from RAM; unrelated staff fields below are synthetic controls.
+                putStaff(image, person, 0x450, current.get("uid").asLong(), "Replay control", 140, 160);
+                image.put(person, HexFormat.of().parseHex(current.get("personPrefix").asString()));
+                var type = current.get("type");
+                long vtable = moduleBase + Long.parseUnsignedLong(type.get("vtableRva").asString(), 16);
+                long col = moduleBase + Long.parseUnsignedLong(type.get("colRva").asString(), 16);
+                image.putLong(vtable - Long.BYTES, col);
+                image.put(col, HexFormat.of().parseHex(type.get("rawCol").asString()));
+            }
+        }
+        for (var current : after.get("rows")) {
+            long person = Long.parseUnsignedLong(current.get("person").asString(), 16);
+            image.putStringPointer(person + 0x40, 0x1_0000_0000L + current.get("index").asLong() * 0x1000,
+                    "Human " + current.get("uid").asLong());
+        }
+        PeopleExporter exporter = new PeopleExporter(pid -> image.reader(), () -> 1);
+        assertThatThrownBy(() -> {
+            var result = exporter.scanPointerTable(1, pointers, PeopleExporter.ExportMode.STAFF, 1);
+            assertThat(result.staffRows()).hasSize(2);
+            for (var row : result.staffRows()) {
+                long uid = ((Number) row.get("unique_id")).longValue();
+                int expectedNativeIndex = uid == 2002076189L ? 88373 : 88374;
+                assertThat(((Number) row.get("staff_index")).intValue()).isNotEqualTo(expectedNativeIndex);
+            }
+        })
+                .isInstanceOf(IOException.class).hasMessageContaining("PERSON identity");
+    }
 
     @ParameterizedTest
     @CsvSource({
@@ -106,6 +161,11 @@ class PeopleExporterTest {
         putPointer(pointers, PeopleExporter.CHUNK_SIZE * 2 + 1, unknown);
         putPointer(pointers, PeopleExporter.CHUNK_SIZE * 2 + 2, ProcessMemoryReader.MAX_USER_ADDRESS + 1);
         putPointer(pointers, PeopleExporter.CHUNK_SIZE * 2 + 3, 0x70_0000);
+        image.putI32(player + 8, 4);
+        image.putI32(hybrid + 8, PeopleExporter.CHUNK_SIZE - 1);
+        image.putI32(staff + 8, PeopleExporter.CHUNK_SIZE);
+        image.putI32(manager + 8, PeopleExporter.CHUNK_SIZE + 1);
+        image.putI32(duplicateStaff + 8, PeopleExporter.CHUNK_SIZE * 2);
 
         PeopleExporter exporter = new PeopleExporter(pid -> image.reader(), () -> 16);
         PeopleExporter.ScanResult single = exporter.scanPointerTable(
@@ -156,6 +216,31 @@ class PeopleExporterTest {
             assertThat(row).containsEntry("duty_start_date", "2033-06-16");
             assertThat(row).containsEntry("duty_end_date", "2033-07-14");
         });
+    }
+
+    @Test
+    void rejectsAnIdentityChangeInsideAnOtherwiseValidStaffDecode() throws Exception {
+        MemoryImage image = new MemoryImage();
+        long person = 0x40_0000;
+        putStaff(image, person, 0x450, 201, "Stable Control", 150, 160);
+        byte[] pointers = new byte[Long.BYTES];
+        putPointer(pointers, 0, person);
+        PeopleExporter exporter = new PeopleExporter(pid -> {
+            var memory = (FakeMemoryReader) image.reader();
+            return new ProcessMemoryReader() {
+                @Override public int pid() { return memory.pid(); }
+                @Override public List<MemoryRegion> maps() { return List.of(); }
+                @Override public void close() { }
+                @Override public byte[] readBytes(long address, int size) throws IOException {
+                    if (address == person - 0x450 + StaffAttributeDefinitions.ATTRIBUTES_REL) {
+                        memory.bytes().put(person + 0x0c, (byte) 202);
+                    }
+                    return memory.readBytes(address, size);
+                }
+            };
+        }, () -> 1);
+        assertThatThrownBy(() -> exporter.scanPointerTable(1, pointers, PeopleExporter.ExportMode.STAFF, 1))
+                .isInstanceOf(IOException.class).hasMessageContaining("PERSON identity");
     }
 
     @Test

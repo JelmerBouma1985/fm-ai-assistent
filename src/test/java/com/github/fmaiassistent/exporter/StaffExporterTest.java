@@ -26,6 +26,52 @@ class StaffExporterTest {
     private static final long COMPETITION = 0x6000;
     private static final long NATION = 0x7000;
 
+    @Test void capturedAdrianFitnessMustMatchTheIndependentlyReportedInGameOne()throws Exception {
+        byte[] captured;
+        try(var input=java.nio.file.Files.newInputStream(java.nio.file.Path.of(
+                "docs/reverse-engineering/fm26/evidence/staff_normalization_candidates_live_20261025.json"))) {
+            captured=input.readNBytes(131073);
+        }
+        assertThat(captured.length).isLessThanOrEqualTo(131072);
+        var root=tools.jackson.databind.json.JsonMapper.builder().build().readTree(captured);
+        tools.jackson.databind.JsonNode selected=null;
+        for(var sample:root.get("samples"))if(sample.get("uid").asLong()==2005797&&sample.get("javaLabel").asString().equals("fitness"))selected=sample;
+        assertThat(selected).isNotNull();assertThat(selected.get("raw").asInt()).isEqualTo(2);
+        byte[] member=java.util.HexFormat.of().parseHex(selected.get("member64Hex").asString());
+        assertThat(member).hasSize(64);assertThat(member[8+0x24]).isEqualTo((byte)2);
+        var memory=validStaffMemory(); // Unrelated names/contracts/dates remain synthetic scaffolding.
+        memory.put(BASE+0x10,java.util.Arrays.copyOfRange(member,8,60));
+        memory.putU32(PERSON+0x0C,2005797);
+        var row=new StaffExporter().decodeRow(memory,7,PERSON,0x100);
+        assertThat(row.get("fitness")).isEqualTo(1); // Operator independently reported Fitness1 in FM, raw/native path also yields1.
+    }
+
+    @Test void positiveScaledByteBoundariesUseNativeMinimumWithoutChangingDirectOrMissingValues()throws Exception {
+        for(int raw:new int[]{0,1,2,3,99,100}) {
+            var memory=validStaffMemory();
+            for(var attribute:com.github.fmaiassistent.staff.StaffAttributeDefinitions.ALL)memory.putU8(BASE+0x10+attribute.offset(),raw);
+            var row=new StaffExporter().decodeRow(memory,7,PERSON,0x100);
+            for(var attribute:com.github.fmaiassistent.staff.StaffAttributeDefinitions.ALL) {
+                int expected=attribute.storage()==com.github.fmaiassistent.staff.StaffAttributeDefinitions.Storage.DIRECT
+                        ? Math.min(20,raw) : raw==0?0:Math.max(1,Math.min(20,Math.floorDiv(raw+2,5)));
+                assertThat(row.get(attribute.key())).as(attribute.key()+" raw="+raw).isEqualTo(expected);
+            }
+        }
+    }
+
+    @Test
+    void actualBasicContractDoesNotReadAPlausibleDateFromAnotherAllocation() throws Exception {
+        var captured=ContractCaptureFixture.basicStaff(0);
+        var memory=validStaffMemory(); // Identity and attributes are unrelated synthetic controls.
+        memory.put(CONTRACT,captured.readBytes(ContractCaptureFixture.FULL,0x28));
+        memory.putLong(CONTRACT+0x10,TEAM);
+        // This valid-looking date is outside the native-proven BASIC allocation.
+        var row=new StaffExporter(StaffRecordLayout.current(),captured.base).decodeRow(memory,7,PERSON,0x100);
+        assertThat(row.get("contract_end_date")).isEqualTo("");
+        assertThat(memory.readAddresses).doesNotContain(CONTRACT+0x48);
+        assertThat(row.get("salary_weekly_raw")).isEqualTo(0L);
+    }
+
     @Test
     void decodesEnglishStaffFieldsAndFivePointAttributes() throws Exception {
         FakeMemory memory = validStaffMemory();
@@ -39,6 +85,7 @@ class StaffExporterTest {
                 .containsEntry("division", "Premier Division")
                 .containsEntry("job", "Coach")
                 .containsEntry("salary_weekly_raw", 12500L)
+                .containsEntry("contract_end_date", "2034-07-19")
                 .containsEntry("ca", 145)
                 .containsEntry("pa", 160)
                 .containsEntry("authority", 16)
@@ -121,6 +168,7 @@ class StaffExporterTest {
 
     private static final class FakeMemory implements ProcessMemoryReader {
         private final Map<Long, Byte> bytes = new HashMap<>();
+        private final java.util.List<Long> readAddresses=new java.util.ArrayList<>();
         void fill(long address, int length, int value) { for (int i = 0; i < length; i++) putU8(address + i, value); }
         void putLong(long address, long value) { put(address, ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(value).array()); }
         void putU32(long address, long value) { put(address, ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt((int) value).array()); }
@@ -136,6 +184,7 @@ class StaffExporterTest {
         private void put(long address, byte[] value) { for (int i = 0; i < value.length; i++) bytes.put(address + i, value[i]); }
         @Override public int pid() { return 1; }
         @Override public byte[] readBytes(long address, int size) throws IOException {
+            readAddresses.add(address);
             byte[] out = new byte[size];
             for (int i = 0; i < size; i++) {
                 Byte value = bytes.get(address + i);

@@ -58,7 +58,8 @@ class RefreshCoordinatorTest {
             assertThat(coordinator.refresh(null, 1530, null).get(5, TimeUnit.SECONDS)).isSameAs(expected);
             org.mockito.ArgumentCaptor<java.util.function.Consumer> captor =
                     org.mockito.ArgumentCaptor.forClass(java.util.function.Consumer.class);
-            verify(loader, times(2)).setPhaseListener(captor.capture());
+            // The result future is completed before execute() clears its listener in finally.
+            verify(loader, org.mockito.Mockito.timeout(2_000).times(2)).setPhaseListener(captor.capture());
             assertThat(captor.getAllValues().get(0)).isNotNull();
             assertThat(captor.getAllValues().get(1)).isNull();
             assertThat(coordinator.phase()).isEmpty();

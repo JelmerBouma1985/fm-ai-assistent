@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+ <changeSet id="028-contract-award-names" author="codex">
+  <createTable tableName="award_name_records">
+   <column name="unique_id" type="BIGINT"><constraints primaryKey="true" nullable="false"/></column>
+   <column name="record_index" type="INT"><constraints nullable="false" unique="true"/></column>
+   <column name="prefix_hex" type="VARCHAR(32)"><constraints nullable="false"/></column>
+   <column name="module_sha256" type="VARCHAR(64)"><constraints nullable="false"/></column>
+   <column name="name_hex" type="VARCHAR(2056)"/>
+   <column name="short_name_hex" type="VARCHAR(2056)"/>
+   <column name="name" type="VARCHAR(1024)"/>
+   <column name="short_name" type="VARCHAR(1024)"/>
+  </createTable>
+  <sql>ALTER TABLE award_name_records ADD CONSTRAINT ck_award_name_shape CHECK
+   (unique_id BETWEEN 1 AND 4294967295 AND record_index &gt;= 0 AND LENGTH(prefix_hex)=32 AND LENGTH(module_sha256)=64
+    AND (CASE WHEN name_hex IS NULL THEN name IS NULL ELSE name IS NOT NULL AND LENGTH(name_hex) BETWEEN 8 AND 2056 AND MOD(LENGTH(name_hex),2)=0 END)
+    AND (CASE WHEN short_name_hex IS NULL THEN short_name IS NULL ELSE short_name IS NOT NULL AND LENGTH(short_name_hex) BETWEEN 8 AND 2056 AND MOD(LENGTH(short_name_hex),2)=0 END))</sql>
+  <rollback>
+   <sql>SELECT 1 / CASE WHEN (SELECT COUNT(*) FROM award_name_records)=0 THEN 1 ELSE 0 END</sql>
+   <dropTable tableName="award_name_records"/>
+  </rollback>
+ </changeSet>
+</databaseChangeLog>

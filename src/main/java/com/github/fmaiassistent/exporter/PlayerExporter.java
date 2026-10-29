@@ -156,6 +156,10 @@ public class PlayerExporter {
         row.put("future_transfer_club", status.futureTransferClub());
         row.put("future_transfer_date", status.futureTransferDate());
         row.put("future_transfer_contract_end_date", status.futureTransferContractEndDate());
+        if(reader.platform()==ProcessMemoryReader.Platform.WINDOWS) {
+            row.put("transfer_agreed",null);
+            row.put("_future_transfer_profile","UNVERIFIED");
+        }
         row.put("injured", status.injured());
         row.put("injury", status.injury().description());
         row.put("injury_start_date", status.injury().startDate());
@@ -291,7 +295,8 @@ public class PlayerExporter {
                     }
                 })
                 .orElse(0);
-        FutureTransfer futureTransfer = registrationOpt
+        FutureTransfer futureTransfer = reader.platform()==ProcessMemoryReader.Platform.WINDOWS
+                ? new FutureTransfer(false,"","","") : registrationOpt
                 .map(registration -> futureTransfer(reader, registration, club, playingClub, gameDate))
                 .orElse(new FutureTransfer(false, "", "", ""));
         InjuryStatus injury = injuryStatus(reader, record);
@@ -502,7 +507,7 @@ public class PlayerExporter {
     }
 
     private static DatePair readDatePair(ProcessMemoryReader reader, long address) throws IOException {
-        int day = reader.readU16(address);
+        int day = reader.readU16(address) & DATE_DAY_MASK;
         int year = reader.readU16(address + 2);
         return new DatePair(day, year);
     }
@@ -531,25 +536,27 @@ public class PlayerExporter {
                     row.put("age_as_of", "");
                 }
             }
-            String futureTransferDate = String.valueOf(row.getOrDefault("future_transfer_date", ""));
-            if (gameDate == null || futureTransferDate.isBlank()) {
-                row.put("transfer_agreed", false);
-                row.put("future_transfer_club", "");
-                row.put("future_transfer_contract_end_date", "");
-            } else {
-                try {
-                    boolean active = LocalDate.parse(futureTransferDate).isAfter(gameDate);
-                    row.put("transfer_agreed", active);
-                    if (!active) {
+            if(!row.containsKey("_future_transfer_profile")) {
+                String futureTransferDate = String.valueOf(row.getOrDefault("future_transfer_date", ""));
+                if (gameDate == null || futureTransferDate.isBlank()) {
+                    row.put("transfer_agreed", false);
+                    row.put("future_transfer_club", "");
+                    row.put("future_transfer_contract_end_date", "");
+                } else {
+                    try {
+                        boolean active = LocalDate.parse(futureTransferDate).isAfter(gameDate);
+                        row.put("transfer_agreed", active);
+                        if (!active) {
+                            row.put("future_transfer_club", "");
+                            row.put("future_transfer_date", "");
+                            row.put("future_transfer_contract_end_date", "");
+                        }
+                    } catch (DateTimeException ex) {
+                        row.put("transfer_agreed", false);
                         row.put("future_transfer_club", "");
                         row.put("future_transfer_date", "");
                         row.put("future_transfer_contract_end_date", "");
                     }
-                } catch (DateTimeException ex) {
-                    row.put("transfer_agreed", false);
-                    row.put("future_transfer_club", "");
-                    row.put("future_transfer_date", "");
-                    row.put("future_transfer_contract_end_date", "");
                 }
             }
             applyInjuryRemaining(row, gameDate);
@@ -618,6 +625,7 @@ public class PlayerExporter {
         POSITION_FIELDS.stream().map(FieldDef::name).forEach(names::add);
         VISIBLE_FIELDS.stream().map(FieldDef::name).forEach(names::add);
         HIDDEN_DIRECT_FIELDS.stream().map(FieldDef::name).forEach(names::add);
+        names.addAll(List.of("non_playing_profile_hex", "non_playing_profile_sha256"));
         return List.copyOf(names);
     }
 

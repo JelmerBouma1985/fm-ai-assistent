@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    <changeSet id="014-player-contracts" author="codex">
+        <createTable tableName="player_contracts">
+            <column name="id" type="BIGINT"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="player_id" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="kind" type="VARCHAR(64)"><constraints nullable="false"/></column>
+            <column name="slot" type="INT"><constraints nullable="false"/></column>
+            <column name="owner_uid" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="team_uid" type="BIGINT"/>
+            <column name="agreed_code" type="INT"/>
+            <column name="base_fee" type="INT"/>
+            <column name="total_fee" type="BIGINT"/>
+            <column name="fee_kind" type="VARCHAR(64)"/>
+            <column name="match_threshold" type="INT"/>
+            <column name="matches_played" type="INT"/>
+            <column name="competition_index" type="INT"/>
+            <column name="competition_uid" type="BIGINT"/>
+            <column name="condition_kind" type="INT"/>
+            <column name="internal_competition" type="INT"/>
+            <column name="context_1" type="INT"/>
+            <column name="context_2" type="INT"/>
+            <column name="flags_a0" type="BIGINT"/>
+            <column name="flags_a8" type="BIGINT"/>
+            <column name="core_hex" type="VARCHAR(496)"/>
+            <column name="auxiliary_hex" type="VARCHAR(400)"/>
+            <column name="module_sha256" type="VARCHAR(64)"/>
+        </createTable>
+        <addForeignKeyConstraint baseTableName="player_contracts" baseColumnNames="player_id"
+                                 referencedTableName="players" referencedColumnNames="id"
+                                 constraintName="fk_contract_player" onDelete="CASCADE"/>
+        <addUniqueConstraint tableName="player_contracts" columnNames="player_id,slot" constraintName="uq_player_contract_slot"/>
+        <createTable tableName="contract_terms">
+            <column name="contract_id" type="BIGINT"><constraints nullable="false"/></column>
+            <column name="term_group" type="VARCHAR(32)"><constraints nullable="false"/></column>
+            <column name="ordinal" type="INT"><constraints nullable="false"/></column>
+            <column name="raw_hex" type="VARCHAR(64)"><constraints nullable="false"/></column>
+            <column name="value_raw" type="BIGINT"/>
+            <column name="condition_raw" type="INT"/>
+            <column name="code_raw" type="INT"/>
+        </createTable>
+        <addPrimaryKey tableName="contract_terms" columnNames="contract_id,term_group,ordinal" constraintName="pk_contract_term"/>
+        <addForeignKeyConstraint baseTableName="contract_terms" baseColumnNames="contract_id"
+                                 referencedTableName="player_contracts" referencedColumnNames="id"
+                                 constraintName="fk_term_contract" onDelete="CASCADE"/>
+        <rollback><dropTable tableName="contract_terms"/><dropTable tableName="player_contracts"/></rollback>
+    </changeSet>
+</databaseChangeLog>

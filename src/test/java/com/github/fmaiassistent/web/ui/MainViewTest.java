@@ -33,6 +33,90 @@ import static org.mockito.Mockito.when;
 
 class MainViewTest {
 
+    @Test void competitionIncomeIsShownWithoutCoefficientsLoansOrLedgerPanel()throws Exception {
+        MainView view=view();ClubDatabaseService service=field(view,"clubs");
+        var profile=com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.values(
+                com.github.fmaiassistent.exporter.ClubFinancialCompetitionCaptureTest.expectedPayloads().get(1036L),0x07F41A8D,
+                com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.MODULE_SHA256).orElseThrow();
+        when(service.findClubCompetitionIncome(1036L)).thenReturn(java.util.Optional.of(new ClubDatabaseService.CompetitionIncome(profile,java.util.Map.of(1301394L,"UEFA Champions League"))));
+        var club=com.github.fmaiassistent.domain.entity.ClubEntity.fromExportRow(java.util.Map.of("uniqueId",1036L,"name","sc Heerenveen"));
+        var method=MainView.class.getDeclaredMethod("opponentClubView",com.github.fmaiassistent.domain.entity.ClubEntity.class,String.class);method.setAccessible(true);
+        var result=(com.vaadin.flow.component.Component)method.invoke(view,club,"sc Heerenveen");
+        assertTrue(descendants(result).anyMatch(c->c instanceof ClubFinancialCompetitionsPanel));
+    }
+
+    @Test void clubLedgerRemainsVisibleWithoutCoefficientsOrLoans()throws Exception {
+        MainView view=view();ClubDatabaseService service=field(view,"clubs");
+        var rows=com.github.fmaiassistent.exporter.ClubFinancialLedgerCaptureTest.financeRows();
+        var profile=com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.values(
+                com.github.fmaiassistent.exporter.ClubFinancialLedgerCaptureTest.payload(rows.get(1036L)),
+                com.github.fmaiassistent.exporter.ClubFinancialLedgerCaptureTest.CLOCK,
+                com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.MODULE_SHA256).orElseThrow();
+        when(service.findClubFinancialLedger(1036L)).thenReturn(java.util.Optional.of(profile));
+        var club=com.github.fmaiassistent.domain.entity.ClubEntity.fromExportRow(java.util.Map.of("uniqueId",1036L,"name","sc Heerenveen"));
+        var method=MainView.class.getDeclaredMethod("opponentClubView",com.github.fmaiassistent.domain.entity.ClubEntity.class,String.class);method.setAccessible(true);
+        var result=(com.vaadin.flow.component.Component)method.invoke(view,club,"sc Heerenveen");
+        assertTrue(descendants(result).anyMatch(c->c instanceof ClubFinancialLedgerPanel));
+    }
+
+    @Test
+    void clubLoanDetailsRemainVisibleForAClubWithoutCoefficients()throws Exception {
+        MainView view=view();ClubDatabaseService service=field(view,"clubs");
+        var profile=com.github.fmaiassistent.memory.ClubFinancialLoanLayout.values(
+                "a6cfa205d6b80500a4e90000000000008a3207089032ee0701000000",0x07F41A8D,
+                com.github.fmaiassistent.memory.ClubFinancialLoanLayout.MODULE_SHA256).orElseThrow();
+        when(service.findClubCoefficients(1036L)).thenReturn(java.util.Optional.empty());
+        when(service.findClubFinancialLoans(1036L)).thenReturn(java.util.Optional.of(profile));
+        var club=com.github.fmaiassistent.domain.entity.ClubEntity.fromExportRow(java.util.Map.of("uniqueId",1036L,"name","sc Heerenveen"));
+        var method=MainView.class.getDeclaredMethod("opponentClubView",com.github.fmaiassistent.domain.entity.ClubEntity.class,String.class);method.setAccessible(true);
+        var result=(com.vaadin.flow.component.Component)method.invoke(view,club,"sc Heerenveen");
+        assertTrue(descendants(result).anyMatch(c->c instanceof ClubFinancialLoansPanel));
+    }
+
+    @Test
+    void clubGridUsesNativeIdentityAndExactCurrentWagesRatherThanBlankCells() throws Exception {
+        var club=com.github.fmaiassistent.domain.entity.ClubEntity.fromExportRow(java.util.Map.of(
+                "uniqueId",1036L,"name","sc Heerenveen","currentWagesIncludingBonuses",1763603L));
+        var column=MainView.class.getDeclaredMethod("clubColumnValue",com.github.fmaiassistent.domain.entity.ClubEntity.class,String.class);
+        column.setAccessible(true);
+        assertEquals(1036L,column.invoke(null,club,"UNIQUE_ID"));
+        assertEquals(1763603L,column.invoke(null,club,"CURRENT_WAGES_INCLUDING_BONUSES"));
+    }
+
+    @Test
+    void contractTabsQueryTheSelectedNativeOwnerInBothDialogs() throws Exception {
+        var ui=new com.vaadin.flow.component.UI();
+        ui.getInternals().setSession(mock(com.vaadin.flow.server.VaadinSession.class));
+        com.vaadin.flow.component.UI.setCurrent(ui);
+        try {
+            MainView view=view();
+            com.github.fmaiassistent.repository.ContractRepository repository=field(view,"contracts");
+            var player=playerRow(java.util.Map.of("unique_id",43390774L));
+            var staff=com.github.fmaiassistent.domain.entity.StaffEntity.fromExportRow(java.util.Map.of("unique_id",156L));
+            for(var entity:List.of(player,staff)) {
+                var id=entity.getClass().getDeclaredField("id");id.setAccessible(true);id.set(entity,7L);
+            }
+            for(var entity:List.of(player,staff)) {
+                String method=entity==player?"openPlayerDetailsDialog":"openStaffDetailsDialog";
+                var open=MainView.class.getDeclaredMethod(method,entity.getClass());open.setAccessible(true);open.invoke(view,entity);
+                ui.getInternals().getStateTree().runExecutionsBeforeClientResponse();
+                var dialog=ui.getChildren().filter(c->c instanceof com.vaadin.flow.component.dialog.Dialog)
+                        .map(c->(com.vaadin.flow.component.dialog.Dialog)c).filter(com.vaadin.flow.component.dialog.Dialog::isOpened).findFirst().orElseThrow();
+                var tabs=descendants(dialog).filter(c->c instanceof Tabs).map(c->(Tabs)c).findFirst().orElseThrow();
+                var contractsTab=tabs.getChildren().filter(c->c instanceof Tab&&"Contracts".equals(((Tab)c).getLabel())).map(c->(Tab)c).findFirst().orElseThrow();
+                tabs.setSelectedTab(contractsTab);
+                assertTrue(descendants(dialog).anyMatch(c->c instanceof ContractDetailsPanel));
+                dialog.close();
+            }
+            org.mockito.Mockito.verify(repository).findPlayerContracts(7L,43390774L);
+            org.mockito.Mockito.verify(repository).findStaffContracts(7L,156L);
+        } finally { com.vaadin.flow.component.UI.setCurrent(null); }
+    }
+
+    private static java.util.stream.Stream<com.vaadin.flow.component.Component> descendants(com.vaadin.flow.component.Component root) {
+        return root.getChildren().flatMap(c->java.util.stream.Stream.concat(java.util.stream.Stream.of(c),descendants(c)));
+    }
+
     @Test
     void sortingSurvivesSwitchingBetweenDataTabs() throws Exception {
         MainView view = view();
@@ -44,6 +128,8 @@ class MainViewTest {
 
         assertSortSurvivesTabSwitch(tabs, playersTab, staffTab, field(view, "playersGrid"), "AGE");
         assertSortSurvivesTabSwitch(tabs, staffTab, clubsTab, field(view, "staffGrid"), "AGE");
+        com.vaadin.flow.component.grid.Grid<?> clubGrid=field(view,"clubsGrid");
+        assertTrue(clubGrid.getColumns().stream().anyMatch(c->"UNIQUE_ID".equals(c.getKey())));
         assertSortSurvivesTabSwitch(tabs, clubsTab, competitionsTab, field(view, "clubsGrid"), "REPUTATION");
         assertSortSurvivesTabSwitch(tabs, competitionsTab, playersTab,
                 field(view, "competitionsGrid"), "REPUTATION");
@@ -174,6 +260,10 @@ class MainViewTest {
     }
 
     private static MainView view() {
+        return view(mock(com.github.fmaiassistent.repository.ContractRepository.class));
+    }
+
+    static MainView view(com.github.fmaiassistent.repository.ContractRepository contracts) {
         CodexConversationService codex = mock(CodexConversationService.class);
         when(codex.availability()).thenReturn(new CodexAvailability(
                 CodexAvailability.State.UNAVAILABLE, "not found"));
@@ -199,7 +289,8 @@ class MainViewTest {
                 mock(AppSettingsService.class), mock(SnapshotStatusService.class),
                 codex, antigravity, copilot, openRouter, tactics, managedClub,
                 mock(com.github.fmaiassistent.shortlist.ShortlistFileService.class),
-                mock(com.github.fmaiassistent.recruitment.RecruitmentCaseService.class));
+                mock(com.github.fmaiassistent.recruitment.RecruitmentCaseService.class),
+                contracts);
     }
 
     @SuppressWarnings("unchecked")

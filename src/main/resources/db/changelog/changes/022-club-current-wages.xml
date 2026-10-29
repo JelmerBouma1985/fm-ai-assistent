@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+ <changeSet id="022-club-current-wages" author="codex">
+  <addColumn tableName="clubs"><column name="current_wages_including_bonuses" type="BIGINT"/></addColumn>
+  <rollback>
+   <sql>SELECT 1 / CASE WHEN (SELECT COUNT(*) FROM clubs WHERE current_wages_including_bonuses IS NOT NULL)=0 THEN 1 ELSE 0 END</sql>
+   <dropColumn tableName="clubs" columnName="current_wages_including_bonuses"/>
+  </rollback>
+ </changeSet>
+</databaseChangeLog>
