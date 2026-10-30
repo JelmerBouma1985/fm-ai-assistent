@@ -78,7 +78,7 @@ public class FmAiAssistentTools {
         this.snapshots = snapshots;
     }
 
-    @Tool(name = "fm26_find_clubs", description = "Find FM26 clubs by name, nation, competition, reputation, facilities and finances. Facility ratings use FM's 0-20 scale. Money values are raw pounds.")
+    @Tool(name = "fm27_find_clubs", description = "Find FM27 clubs by name, nation, competition, reputation, facilities and finances. Facility ratings use FM's 0-20 scale. Money values are raw pounds.")
     @Transactional(readOnly = true)
     public Map<String, Object> findClubs(
             @ToolParam(required = false, description = "Club name contains filter, for example Feyenoord") String name,
@@ -117,7 +117,7 @@ public class FmAiAssistentTools {
         return withSnapshot(out);
     }
 
-    @Tool(name = "fm26_get_club_context", description = "Get a club profile, facility ratings, finances and squad snapshot for transfer advice. Facility ratings use FM's 0-20 scale. Money values are raw pounds.")
+    @Tool(name = "fm27_get_club_context", description = "Get a club profile, facility ratings, finances and squad snapshot for transfer advice. Facility ratings use FM's 0-20 scale. Money values are raw pounds.")
     @Transactional(readOnly = true)
     public Map<String, Object> getClubContext(
             @ToolParam(description = "Club name, for example Feyenoord") String clubName,
@@ -139,7 +139,7 @@ public class FmAiAssistentTools {
         return withSnapshot(out);
     }
 
-    @Tool(name = "fm26_find_players", description = "Search FM26 players using the same data available in the UI. Money values are raw pounds.")
+    @Tool(name = "fm27_find_players", description = "Search FM27 players using the same data available in the UI. Money values are raw pounds.")
     @Transactional(readOnly = true)
     public Map<String, Object> findPlayers(
             @ToolParam(required = false, description = "Player name contains filter") String name,
@@ -216,11 +216,11 @@ public class FmAiAssistentTools {
         return withSnapshot(out);
     }
 
-    @Tool(name = "fm26_get_player_details", description = "Get full player details including attributes, positions, CA/PA, reputation, contract and club data.")
+    @Tool(name = "fm27_get_player_details", description = "Get full player details including attributes, positions, CA/PA, reputation, contract and club data.")
     @Transactional(readOnly = true)
     public Map<String, Object> getPlayerDetails(
             @ToolParam(required = false, description = "Player name. Exact match is preferred; contains match is used as fallback.") String name,
-            @ToolParam(required = false, description = "Preferred authoritative FM26 UNIQUE_ID/player_unique_id.") Long playerUniqueId,
+            @ToolParam(required = false, description = "Preferred authoritative FM27 UNIQUE_ID/player_unique_id.") Long playerUniqueId,
             @ToolParam(required = false, description = "Maximum matching players to return") Integer limit) {
         int safeLimit = safeLimit(limit);
         if (playerUniqueId != null) {
@@ -252,7 +252,7 @@ public class FmAiAssistentTools {
         return withSnapshot(result("players", rows, safeLimit));
     }
 
-    @Tool(name = "fm26_find_staff", description = "Search FM26 staff by identity, job, club, ability, reputation, contract, salary, attributes and calculated coaching-role stars. Staff attributes use FM's 0-20 scale; money values are raw pounds.")
+    @Tool(name = "fm27_find_staff", description = "Search FM27 staff by identity, job, club, ability, reputation, contract, salary, attributes and calculated coaching-role stars. Staff attributes use FM's 0-20 scale; money values are raw pounds.")
     @Transactional(readOnly = true)
     public Map<String, Object> findStaff(
             @ToolParam(required = false, description = "Staff name contains filter") String name,
@@ -273,7 +273,7 @@ public class FmAiAssistentTools {
             @ToolParam(required = false, description = "Earliest contract end date, ISO-8601 yyyy-MM-dd") String contractEndFrom,
             @ToolParam(required = false, description = "Latest contract end date, ISO-8601 yyyy-MM-dd") String contractEndTo,
             @ToolParam(required = false, description = "Minimum staff attributes keyed by English snake_case name, for example {judging_player_ability:16, judging_player_potential:17}") Map<String, Integer> minimumAttributes,
-            @ToolParam(required = false, description = "FM26 coaching assignment key, for example attacking_technical, defending_tactical, possession_technical, goalkeeping, fitness or set_pieces") String coachingRole,
+            @ToolParam(required = false, description = "FM27 coaching assignment key, for example attacking_technical, defending_tactical, possession_technical, goalkeeping, fitness or set_pieces") String coachingRole,
             @ToolParam(required = false, description = "Minimum calculated coaching rating from 0.5 to 5 stars. Uses the selected coachingRole, or the staff member's best role when coachingRole is omitted") Double minimumCoachingStars,
             @ToolParam(required = false, description = "Sort by ca, pa, age, salary, world_reputation, name, an English staff attribute or a coaching assignment key. Defaults to ca") String sortBy,
             @ToolParam(required = false, description = "Sort direction: asc or desc. Defaults to desc") String sortDirection,
@@ -312,11 +312,11 @@ public class FmAiAssistentTools {
         return withSnapshot(out);
     }
 
-    @Tool(name = "fm26_get_staff_details", description = "Get a full FM26 staff profile including authoritative Unique ID, job, CA/PA, reputation, contract, English attributes and all nine calculated coaching-role ratings with their weighted attributes.")
+    @Tool(name = "fm27_get_staff_details", description = "Get a full FM27 staff profile including authoritative Unique ID, job, CA/PA, reputation, contract, English attributes and all nine calculated coaching-role ratings with their weighted attributes.")
     @Transactional(readOnly = true)
     public Map<String, Object> getStaffDetails(
             @ToolParam(required = false, description = "Staff name. Exact match is preferred; contains match is used as fallback") String name,
-            @ToolParam(required = false, description = "Preferred authoritative FM26 staff_unique_id") Long staffUniqueId,
+            @ToolParam(required = false, description = "Preferred authoritative FM27 staff_unique_id") Long staffUniqueId,
             @ToolParam(required = false, description = "Maximum matching staff members to return") Integer limit) {
         int safeLimit = safeLimit(limit);
         if (staffUniqueId != null) {
@@ -337,7 +337,7 @@ public class FmAiAssistentTools {
         return withSnapshot(result("staff", rows, safeLimit));
     }
 
-    @Tool(name = "fm26_get_staff_coaching_roles", description = "List the nine FM26 training assignments, their role-specific attribute weights, common mental attributes and the 0-20 quality scale used by staff search results.")
+    @Tool(name = "fm27_get_staff_coaching_roles", description = "List the nine FM27 training assignments, their role-specific attribute weights, common mental attributes and the 0-20 quality scale used by staff search results.")
     public Map<String, Object> getStaffCoachingRoles() {
         List<Map<String, Object>> roles = StaffRoleRatingCalculator.ROLES.stream().map(role -> {
             Map<String, Object> out = new LinkedHashMap<>();
@@ -356,7 +356,7 @@ public class FmAiAssistentTools {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("roles", roles);
         out.put("score_formula", "sum(attribute * weight) / 15");
-        out.put("star_formula", "FM26 weighted score rounded to the nearest half star, 0.5 to 5.0");
+        out.put("star_formula", "FM27 weighted score rounded to the nearest half star, 0.5 to 5.0");
         out.put("quality_scale", List.of(
                 Map.of("quality", "Elite", "minimum", 20, "maximum", 20),
                 Map.of("quality", "Outstanding", "minimum", 18, "maximum", 19),
@@ -370,15 +370,15 @@ public class FmAiAssistentTools {
     }
 
     @Tool(
-            name = "fm26_create_shortlist_file",
-            description = "Create an importable FM26 player-shortlist .fmf file after recruitment candidates have been selected. Pass the UNIQUE_ID/player_unique_id values returned by the player and recruitment tools. This creates a shortlist, not a tactic.")
+            name = "fm27_create_shortlist_file",
+            description = "Create an importable FM27 player-shortlist .fmf file after recruitment candidates have been selected. Pass the UNIQUE_ID/player_unique_id values returned by the player and recruitment tools. This creates a shortlist, not a tactic.")
     public Map<String, Object> createShortlistFile(
-            @ToolParam(description = "Name shown for the shortlist in FM26 and used for the output filename") String shortlistName,
-            @ToolParam(description = "FM26 player UNIQUE_ID values in the desired shortlist order") List<Long> playerUniqueIds) {
+            @ToolParam(description = "Name shown for the shortlist in FM27 and used for the output filename") String shortlistName,
+            @ToolParam(description = "FM27 player UNIQUE_ID values in the desired shortlist order") List<Long> playerUniqueIds) {
         return withSnapshot(new LinkedHashMap<>(shortlistFiles.create(shortlistName, playerUniqueIds).toMap()));
     }
 
-    @Tool(name = "fm26_get_role_attributes", description = "Get FM26 positional roles and the primary/secondary attributes that matter for each role. Use this for tactical fit and transfer advice.")
+    @Tool(name = "fm27_get_role_attributes", description = "Get FM27 positional roles and the primary/secondary attributes that matter for each role. Use this for tactical fit and transfer advice.")
     @Transactional(readOnly = true)
     public Map<String, Object> getRoleAttributes(
             @ToolParam(required = false, description = "Phase exact filter: In Possession or Out of Possession") String phase,
@@ -411,17 +411,17 @@ public class FmAiAssistentTools {
         out.put("count", roles.size());
         out.put("limit", safeLimit);
         out.put("filters", filters);
-        out.put("usage", "Compare a player's ATTRIBUTES from fm26_get_player_details with primary_attributes and secondary_attributes. Primary attributes matter most for the role.");
+        out.put("usage", "Compare a player's ATTRIBUTES from fm27_get_player_details with primary_attributes and secondary_attributes. Primary attributes matter most for the role.");
         out.put("roles", roles);
         return withSnapshot(out);
     }
 
-    @Tool(name = "fm26_transfer_shortlist", description = "Primary recruitment tool. Returns a compact ranked shortlist using squad strength, position and role fit, CA/PA, price, wage, reputation, source club, availability and time at club. Call this before broad player searches or player details.")
+    @Tool(name = "fm27_transfer_shortlist", description = "Primary recruitment tool. Returns a compact ranked shortlist using squad strength, position and role fit, CA/PA, price, wage, reputation, source club, availability and time at club. Call this before broad player searches or player details.")
     @Transactional(readOnly = true)
     public Map<String, Object> transferShortlist(
             @ToolParam(description = "Managing club name, for example Feyenoord") String managingClub,
             @ToolParam(required = false, description = "Position: GK, DL, DC, DR, WBL, DMC, WBR, ML, MC, MR, AML, AMC, AMR or ST. Full names also work.") String position,
-            @ToolParam(required = false, description = "Optional FM26 role name for attribute fit, for example Ball-Playing Centre-Back.") String roleName,
+            @ToolParam(required = false, description = "Optional FM27 role name for attribute fit, for example Ball-Playing Centre-Back.") String roleName,
             @ToolParam(required = false, description = "Role phase: In Possession or Out of Possession. Omit to combine matching phases.") String phase,
             @ToolParam(required = false, description = "Minimum position ability 1-20. Defaults to 15 when position is supplied.") Integer minimumPositionScore,
             @ToolParam(required = false, description = "Maximum player age. No limit when omitted.") Integer maxAge,

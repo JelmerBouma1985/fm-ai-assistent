@@ -18,7 +18,7 @@ class FmfTacticParser {
     private static final int ARCHIVE_DATA_OFFSET = 26;
     private static final int MAX_RESOURCE_SIZE = 32 * 1024 * 1024;
 
-    private final Fm26TacticDecoder tacticDecoder = new Fm26TacticDecoder();
+    private final FmTacticDecoder tacticDecoder = new FmTacticDecoder();
 
     FmfMetadata parse(byte[] archive) {
         if (archive.length < ARCHIVE_DATA_OFFSET || !startsWith(archive, AFE_MAGIC)) {
@@ -38,7 +38,7 @@ class FmfTacticParser {
                 .orElseThrow(() -> new IllegalArgumentException("The FMF archive contains no tactic resource"));
 
         byte[] tacticBytes = extractResource(archive, tacticResource);
-        Fm26TacticDecoder.DecodedTactic tactic = tacticDecoder.decode(tacticBytes);
+        FmTacticDecoder.DecodedTactic tactic = tacticDecoder.decode(tacticBytes);
         List<String> names = resources.stream().map(CatalogFile::fileName).toList();
         return new FmfMetadata(root.name(), names, tactic);
     }
@@ -143,7 +143,7 @@ class FmfTacticParser {
     record FmfMetadata(
             String internalName,
             List<String> resources,
-            Fm26TacticDecoder.DecodedTactic tactic) {
+            FmTacticDecoder.DecodedTactic tactic) {
     }
 
     private record CatalogFile(

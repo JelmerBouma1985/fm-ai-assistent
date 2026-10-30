@@ -18,19 +18,19 @@ final class ChatCommands {
 
     static final List<Command> ALL = List.of(
             new Command("/squad", "Review squad depth, weak positions and contract risks",
-                    "Use the fm26_analyze_squad tool now for my detected managed club and loaded FM26 data. Then analyze squad depth, weak positions, injuries and contract risks. Only if that tool reports that FM26 data is unavailable, tell me what to load.", "Focus on"),
+                    "Use the fm27_analyze_squad tool now for my detected managed club and loaded FM27 data. Then analyze squad depth, weak positions, injuries and contract risks. Only if that tool reports that FM27 data is unavailable, tell me what to load.", "Focus on"),
             new Command("/lineup", "Best XI for your uploaded tactic · tactic required",
-                    "Use the fm26_optimize_lineup tool now for my detected managed club and loaded FM26 tactic. Then build the best starting XI, explain the key choices and alternatives. Only if that tool reports that the tactic or FM26 data is unavailable, tell me what to load.", "Requirements"),
+                    "Use the fm27_optimize_lineup tool now for my detected managed club and loaded FM27 tactic. Then build the best starting XI, explain the key choices and alternatives. Only if that tool reports that the tactic or FM27 data is unavailable, tell me what to load.", "Requirements"),
             new Command("/opposition", "Analyze your next opponent's strengths and weaknesses",
-                    "Use the fm26_analyze_next_opposition tool now for my next loaded fixture. Then summarize the opponent's strengths, weaknesses, key players and unavailable players, and recommend a practical match approach. Only if that tool reports that fixture or FM26 data is unavailable, tell me what to load.", "Focus on", true),
+                    "Use the fm27_analyze_next_opposition tool now for my next loaded fixture. Then summarize the opponent's strengths, weaknesses, key players and unavailable players, and recommend a practical match approach. Only if that tool reports that fixture or FM27 data is unavailable, tell me what to load.", "Focus on", true),
             new Command("/recruit", "Find transfer targets for a position or role",
-                    "Use the fm26_transfer_shortlist tool now for my detected managed club and loaded FM26 data. That tool must load the current squad and player market data, then return realistic targets using squad needs, position fit and affordability. Only if that tool reports that club or FM26 data is unavailable, tell me what to load.", "Requirements"),
+                    "Use the fm27_transfer_shortlist tool now for my detected managed club and loaded FM27 data. That tool must load the current squad and player market data, then return realistic targets using squad needs, position fit and affordability. Only if that tool reports that club or FM27 data is unavailable, tell me what to load.", "Requirements"),
             new Command("/compare", "Compare players and their fit for my club",
                     "Compare the players I name, including their fit, cost and risks. If you cannot identify them or the relevant data is missing, tell me what details to provide or load.", "Players and requirements"),
             new Command("/staff", "Find or assess staff and coaching roles",
                     "Help me find or assess staff for my club, including coaching role strengths where relevant. If staff data is missing, tell me what to load.", "Requirements"),
             new Command("/club", "Inspect a club, budget and squad context",
-                    "Use the fm26_get_club_context tool now for the named club, or my detected managed club if I name none. Then summarize its profile, finances and returned squad context. Only if that tool reports that club or FM26 data is unavailable, tell me what to load.", "Club and requirements")
+                    "Use the fm27_get_club_context tool now for the named club, or my detected managed club if I name none. Then summarize its profile, finances and returned squad context. Only if that tool reports that club or FM27 data is unavailable, tell me what to load.", "Club and requirements")
     );
 
     private ChatCommands() { }

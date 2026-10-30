@@ -68,7 +68,7 @@ class OpenRouterConversationServiceTest {
         service.connect("test-secret-key");
     }
     private OpenRouterConversationService session() {
-        return session("fm26_update_recruitment");
+        return session("fm27_update_recruitment");
     }
     private OpenRouterConversationService session(String toolName) {
         ToolCallback tool = new ToolCallback() {
@@ -93,7 +93,7 @@ class OpenRouterConversationServiceTest {
     @AfterEach void tearDown() { streamRelease.countDown(); service.close(); server.stop(0); }
 
     @Test void streamsExecutesWritesAndRetainsFollowUpContextInFree() throws Exception {
-        replies.add(new Reply(200, tool("fm26_update_recruitment", "{\"id\":7}")));
+        replies.add(new Reply(200, tool("fm27_update_recruitment", "{\"id\":7}")));
         replies.add(new Reply(200, answer("Updated")));
         String id = service.newConversation();
         service.send(id, "Update recruitment");
@@ -110,7 +110,7 @@ class OpenRouterConversationServiceTest {
             assertFalse(request.has("models"));
             assertFalse(request.has("plugins"));
             assertFalse(request.has("provider"));
-            assertEquals("fm26_update_recruitment", request.path("tools").get(0).path("function").path("name").asString());
+            assertEquals("fm27_update_recruitment", request.path("tools").get(0).path("function").path("name").asString());
         }
         String history = requests.getLast().path("messages").toString();
         assertTrue(history.contains("Enabled club context"));
@@ -148,7 +148,7 @@ class OpenRouterConversationServiceTest {
         assertThrows(IllegalArgumentException.class, () -> service.selectModel(id, "example/strong", false));
         assertEquals(OpenRouterConversationService.Mode.FREE, service.get(id).mode());
         service.selectModel(id, "example/fast:free", false);
-        replies.add(new Reply(200, tool("fm26_update_recruitment", "{\"id\":7}")));
+        replies.add(new Reply(200, tool("fm27_update_recruitment", "{\"id\":7}")));
         replies.add(new Reply(200, answer("Done")));
         service.send(id, "Update");
         awaitDone(id);
@@ -169,10 +169,10 @@ class OpenRouterConversationServiceTest {
     }
     @Test void rejectsUnknownAndMalformedToolsBeforeWrites() throws Exception {
         for (String response : List.of(tool("shell", "{\"id\":7}"),
-                tool("fm26_update_recruitment", "{\"id\":\"wrong\"}"),
-                tool("fm26_update_recruitment", "{broken"),
-                tool("fm26_update_recruitment", "{}"),
-                tool("fm26_update_recruitment", "{\"id\":7,\"extra\":true}"))) {
+                tool("fm27_update_recruitment", "{\"id\":\"wrong\"}"),
+                tool("fm27_update_recruitment", "{broken"),
+                tool("fm27_update_recruitment", "{}"),
+                tool("fm27_update_recruitment", "{\"id\":7,\"extra\":true}"))) {
             replies.add(new Reply(200, response));
             String id = service.newConversation();
             service.send(id, "test");
@@ -210,7 +210,7 @@ class OpenRouterConversationServiceTest {
     @Test void stopDuringLocalWritePreventsFurtherRequestsAndModeChangesWhileRunning() throws Exception {
         toolEntered = new CountDownLatch(1);
         toolRelease = new CountDownLatch(1);
-        replies.add(new Reply(200, tool("fm26_update_recruitment", "{\"id\":7}")));
+        replies.add(new Reply(200, tool("fm27_update_recruitment", "{\"id\":7}")));
         String id = service.newConversation();
         service.send(id, "write");
         assertTrue(toolEntered.await(5, TimeUnit.SECONDS));
@@ -271,7 +271,7 @@ class OpenRouterConversationServiceTest {
         assertThrows(RuntimeException.class, () -> service.send(id, "x".repeat(512 * 1024)));
         assertTrue(requests.isEmpty());
         result = "x".repeat(64 * 1024 + 1);
-        replies.add(new Reply(200, tool("fm26_update_recruitment", "{\"id\":7}")));
+        replies.add(new Reply(200, tool("fm27_update_recruitment", "{\"id\":7}")));
         replies.add(new Reply(200, answer("Please narrow your question.")));
         service.send(id, "test");
         awaitDone(id);
@@ -292,7 +292,7 @@ class OpenRouterConversationServiceTest {
     }
     @Test void oversizedFormattedJsonIsCompactedWithoutDroppingData() throws Exception {
         result = "{\n" + " ".repeat(64 * 1024) + "\"updated\":true,\"name\":\"José\"\n}";
-        replies.add(new Reply(200, tool("fm26_update_recruitment", "{\"id\":7}")));
+        replies.add(new Reply(200, tool("fm27_update_recruitment", "{\"id\":7}")));
         replies.add(new Reply(200, answer("Updated")));
         String id = service.newConversation();
         service.send(id, "test");
@@ -339,9 +339,9 @@ class OpenRouterConversationServiceTest {
         assertTrue(result.getBytes(StandardCharsets.UTF_8).length > 64 * 1024);
 
         service.close();
-        service = session("fm26_analyze_squad");
+        service = session("fm27_analyze_squad");
         service.connect("test-secret-key");
-        replies.add(new Reply(200, tool("fm26_analyze_squad", "{\"id\":7}")));
+        replies.add(new Reply(200, tool("fm27_analyze_squad", "{\"id\":7}")));
         replies.add(new Reply(200, answer("Here is your squad analysis.")));
         String id = service.newConversation();
         service.send(id, "Analyze my squad");
@@ -380,7 +380,7 @@ class OpenRouterConversationServiceTest {
         return fit;
     }
     @Test void modelRequestBudgetStopsToolLoop() throws Exception {
-        for (int i = 0; i < 20; i++) replies.add(new Reply(200, tool("fm26_update_recruitment", "{\"id\":7}")));
+        for (int i = 0; i < 20; i++) replies.add(new Reply(200, tool("fm27_update_recruitment", "{\"id\":7}")));
         String id = service.newConversation();
         service.send(id, "test");
         awaitDone(id);
@@ -397,9 +397,9 @@ class OpenRouterConversationServiceTest {
                 URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/chat")),
                 provider, AiPromptContext.none(), "instructions");
         service.connect("test-key");
-        replies.add(new Reply(200, tool("fm26_refresh_data", "{\"force\":true}")));
-        replies.add(new Reply(200, tool("fm26_update_recruitment_case", "{\"playerUniqueId\":7,\"interestStatus\":\"interested\"}")));
-        replies.add(new Reply(200, tool("fm26_create_shortlist_file", "{\"shortlistName\":\"Targets\",\"playerUniqueIds\":[7]}")));
+        replies.add(new Reply(200, tool("fm27_refresh_data", "{\"force\":true}")));
+        replies.add(new Reply(200, tool("fm27_update_recruitment_case", "{\"playerUniqueId\":7,\"interestStatus\":\"interested\"}")));
+        replies.add(new Reply(200, tool("fm27_create_shortlist_file", "{\"shortlistName\":\"Targets\",\"playerUniqueIds\":[7]}")));
         replies.add(new Reply(200, answer("Done")));
         String id = service.newConversation();
         service.send(id, "Update and export");
@@ -425,7 +425,7 @@ class OpenRouterConversationServiceTest {
         var calls = choice.putObject("delta").putArray("tool_calls");
         for (int i = 0; i < 3; i++) {
             calls.addObject().put("index", i).put("id", "call-" + i).put("type", "function")
-                    .putObject("function").put("name", "fm26_update_recruitment").put("arguments", "{\"id\":7}");
+                    .putObject("function").put("name", "fm27_update_recruitment").put("arguments", "{\"id\":7}");
         }
         for (int i = 0; i < 14; i++) replies.add(new Reply(200, frame(chunk.toString()) + "data: [DONE]\n\n"));
         String id = service.newConversation();
@@ -452,21 +452,21 @@ class OpenRouterConversationServiceTest {
                 mock(com.github.fmaiassistent.decision.LineupOptimizerService.class),
                 mock(com.github.fmaiassistent.recruitment.RecruitmentCaseService.class), snapshots);
         useTools(decisions);
-        replies.add(new Reply(200, tool("fm26_analyze_squad", "{}")));
-        replies.add(new Reply(200, answer("Please open your FM26 save and select Load data.")));
+        replies.add(new Reply(200, tool("fm27_analyze_squad", "{}")));
+        replies.add(new Reply(200, answer("Please open your FM27 save and select Load data.")));
         String id = service.newConversation();
         service.send(id, "Analyze my squad");
         awaitDone(id);
         assertFalse(service.get(id).items().stream().anyMatch(i -> i.role().equals("Error")));
         assertTrue(service.get(id).items().stream().anyMatch(i -> i.text().contains(
-                "fm26_analyze_squad · Needs attention: managingClub is required")));
+                "fm27_analyze_squad · Needs attention: managingClub is required")));
         JsonNode messages = requests.getLast().path("messages");
         JsonNode error = json.readTree(messages.get(messages.size() - 1).path("content").asString());
         assertEquals("validation_error", error.path("status").asString());
         assertEquals("managingClub is required because the current managed club is unavailable", error.path("message").asString());
         assertTrue(error.path("guidance").asString().contains("Load data"));
         assertEquals(2, requests.size());
-        replies.add(new Reply(200, tool("fm26_analyze_squad", "{\"managingClub\":\"Test FC\"}")));
+        replies.add(new Reply(200, tool("fm27_analyze_squad", "{\"managingClub\":\"Test FC\"}")));
         replies.add(new Reply(200, answer("Analysis completed")));
         service.send(id, "I loaded data. My club is Test FC.");
         awaitDone(id);
@@ -483,11 +483,11 @@ class OpenRouterConversationServiceTest {
         when(fm.createShortlistFile(anyString(), anyList()))
                 .thenThrow(new IllegalArgumentException("Unknown player: test-secret-key"));
         useTools(fm);
-        replies.add(new Reply(200, tool("fm26_create_shortlist_file", "{\"shortlistName\":\"Targets\",\"playerUniqueIds\":[7]}")));
+        replies.add(new Reply(200, tool("fm27_create_shortlist_file", "{\"shortlistName\":\"Targets\",\"playerUniqueIds\":[7]}")));
         String id = service.newConversation();
         service.send(id, "Create shortlist");
         awaitDone(id);
-        assertTrue(service.get(id).items().getLast().text().contains("fm26_create_shortlist_file failed: Unknown player: [redacted]"));
+        assertTrue(service.get(id).items().getLast().text().contains("fm27_create_shortlist_file failed: Unknown player: [redacted]"));
         assertFalse(service.get(id).items().getLast().text().contains("test-secret-key"));
         assertThrows(IllegalStateException.class, () -> service.send(id, "retry"));
         verify(fm, times(1)).createShortlistFile("Targets", List.of(7L));
@@ -499,12 +499,12 @@ class OpenRouterConversationServiceTest {
         when(decisions.analyzeSquad(null, null, null))
                 .thenThrow(new IllegalStateException("private SQL and test-secret-key"));
         useTools(decisions);
-        replies.add(new Reply(200, tool("fm26_analyze_squad", "{}")));
+        replies.add(new Reply(200, tool("fm27_analyze_squad", "{}")));
         String id = service.newConversation();
         service.send(id, "Analyze my squad");
         awaitDone(id);
         String error = service.get(id).items().getLast().text();
-        assertTrue(error.contains("fm26_analyze_squad failed"));
+        assertTrue(error.contains("fm27_analyze_squad failed"));
         assertFalse(error.contains("private SQL"));
         assertFalse(error.contains("test-secret-key"));
         assertEquals(1, requests.size());

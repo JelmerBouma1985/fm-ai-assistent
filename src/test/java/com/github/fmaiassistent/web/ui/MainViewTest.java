@@ -35,9 +35,9 @@ class MainViewTest {
 
     @Test void competitionIncomeIsShownWithoutCoefficientsLoansOrLedgerPanel()throws Exception {
         MainView view=view();ClubDatabaseService service=field(view,"clubs");
-        var profile=com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.values(
-                com.github.fmaiassistent.exporter.ClubFinancialCompetitionCaptureTest.expectedPayloads().get(1036L),0x07F41A8D,
-                com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.MODULE_SHA256).orElseThrow();
+        var profile=new com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.Profile(
+                java.time.LocalDate.of(2026,8,3),java.util.stream.IntStream.range(0,4)
+                .mapToObj(i->new com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.Period(i,List.of(),List.of())).toList(),"");
         when(service.findClubCompetitionIncome(1036L)).thenReturn(java.util.Optional.of(new ClubDatabaseService.CompetitionIncome(profile,java.util.Map.of(1301394L,"UEFA Champions League"))));
         var club=com.github.fmaiassistent.domain.entity.ClubEntity.fromExportRow(java.util.Map.of("uniqueId",1036L,"name","sc Heerenveen"));
         var method=MainView.class.getDeclaredMethod("opponentClubView",com.github.fmaiassistent.domain.entity.ClubEntity.class,String.class);method.setAccessible(true);
@@ -47,11 +47,9 @@ class MainViewTest {
 
     @Test void clubLedgerRemainsVisibleWithoutCoefficientsOrLoans()throws Exception {
         MainView view=view();ClubDatabaseService service=field(view,"clubs");
-        var rows=com.github.fmaiassistent.exporter.ClubFinancialLedgerCaptureTest.financeRows();
-        var profile=com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.values(
-                com.github.fmaiassistent.exporter.ClubFinancialLedgerCaptureTest.payload(rows.get(1036L)),
-                com.github.fmaiassistent.exporter.ClubFinancialLedgerCaptureTest.CLOCK,
-                com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.MODULE_SHA256).orElseThrow();
+        var profile=new com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.Profile(
+                java.time.LocalDate.of(2026,8,3),java.util.Arrays.stream(com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.PeriodName.values())
+                .map(p->new com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.Period(p,java.util.Collections.nCopies(57,0))).toList(),"");
         when(service.findClubFinancialLedger(1036L)).thenReturn(java.util.Optional.of(profile));
         var club=com.github.fmaiassistent.domain.entity.ClubEntity.fromExportRow(java.util.Map.of("uniqueId",1036L,"name","sc Heerenveen"));
         var method=MainView.class.getDeclaredMethod("opponentClubView",com.github.fmaiassistent.domain.entity.ClubEntity.class,String.class);method.setAccessible(true);

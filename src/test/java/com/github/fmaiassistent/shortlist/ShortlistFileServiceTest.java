@@ -84,10 +84,19 @@ class ShortlistFileServiceTest {
 
     @Test
     void prefersExistingShortlistsFolder(@TempDir Path home) throws Exception {
-        Path existing = home.resolve("Documents/Sports Interactive/Football Manager 26/shortlists");
+        Path existing = home.resolve("Documents/Sports Interactive/Football Manager 27/shortlists");
         Files.createDirectories(existing);
 
         assertThat(ShortlistFileService.resolveOutputDirectory(home)).isEqualTo(existing.toAbsolutePath().normalize());
+    }
+
+    @Test
+    void doesNotWriteIntoThePreviousGameShortlistFolder(@TempDir Path home) throws Exception {
+        Path oldFolder = home.resolve("Documents/Sports Interactive/Football Manager 26/shortlists");
+        Files.createDirectories(oldFolder);
+
+        assertThat(ShortlistFileService.resolveOutputDirectory(home)).isEqualTo(home.resolve(
+                "Documents/Sports Interactive/Football Manager 27/shortlists").toAbsolutePath().normalize());
     }
 
     @Test
@@ -98,7 +107,7 @@ class ShortlistFileServiceTest {
         Files.createDirectories(customLib.resolve("steamapps"));
         Files.writeString(steamApps.resolve("libraryfolders.vdf"),
                 "\"libraryfolders\"\n{\n\t\"1\"\n\t{\n\t\t\"path\"\t\t\"" + customLib + "\"\n\t}\n}");
-        Files.writeString(customLib.resolve("steamapps/appmanifest_3551340.acf"), "\"AppState\"{}");
+        Files.writeString(customLib.resolve("steamapps/appmanifest_4530370.acf"), "\"AppState\"{}");
 
         Path resolved = ShortlistFileService.resolveOutputDirectory(home);
 
@@ -110,13 +119,13 @@ class ShortlistFileServiceTest {
     void prefersManifestLibraryOverStaleExistingFolder(@TempDir Path home) throws Exception {
         Path staleLib = home.resolve(".local/share/Steam");
         Files.createDirectories(staleLib.resolve(
-                "steamapps/compatdata/3551340/pfx/drive_c/users/steamuser/Documents/Sports Interactive/Football Manager 26/shortlists"));
+                "steamapps/compatdata/4530370/pfx/drive_c/users/steamuser/Documents/Sports Interactive/Football Manager 27/shortlists"));
         Path customLib = home.resolve("mnt/bcache/Steam");
         Files.createDirectories(customLib.resolve("steamapps"));
         Files.writeString(staleLib.resolve("steamapps/libraryfolders.vdf"),
                 "\"libraryfolders\"\n{\n\t\"0\"\n\t{\n\t\t\"path\"\t\t\"" + staleLib + "\"\n\t}\n"
                         + "\t\"1\"\n\t{\n\t\t\"path\"\t\t\"" + customLib + "\"\n\t}\n}");
-        Files.writeString(customLib.resolve("steamapps/appmanifest_3551340.acf"), "\"AppState\"{}");
+        Files.writeString(customLib.resolve("steamapps/appmanifest_4530370.acf"), "\"AppState\"{}");
 
         Path resolved = ShortlistFileService.resolveOutputDirectory(home);
 

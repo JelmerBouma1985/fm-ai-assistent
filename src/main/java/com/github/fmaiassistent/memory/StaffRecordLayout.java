@@ -1,7 +1,7 @@
 package com.github.fmaiassistent.memory;
 
 /**
- * All byte offsets of the FM26 staff record and its linked structures.
+ * All byte offsets of the FM27 staff record and its linked structures.
  *
  * <p>Canonical home for the {@code *_REL} values previously scattered as
  * constants across the staff exporter. {@link #current()} holds the offsets
@@ -30,7 +30,7 @@ public record StaffRecordLayout(
         int divisionScanRelA,
         int divisionScanRelB) {
 
-    /** The offsets of the currently supported FM26 build. */
+    /** Shared scalar structure retained by FM27 27.0.0+2486695; live physical ranges rechecked. */
     public static StaffRecordLayout current() {
         return new StaffRecordLayout(
                 0x0C,

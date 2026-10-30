@@ -22,6 +22,49 @@ class FmfTacticParserTest {
     private final FmfTacticParser parser = new FmfTacticParser();
 
     @Test
+    void decodesFreshFm27ExportWithBothRolePhases() throws IOException {
+        byte[] bytes;
+        try (var stream = getClass().getResourceAsStream("/fm27/tactic-export.fmf")) {
+            assertThat(stream).isNotNull();
+            bytes = stream.readNBytes(1025);
+        }
+        assertThat(bytes).hasSize(909);
+        var metadata = parser.parse(bytes);
+        assertThat(metadata.internalName()).isEqualTo("test");
+        assertThat(metadata.resources()).containsExactly("image.img", "test.tac", "_data/details.aom");
+        var tactic = metadata.tactic();
+        assertThat(tactic.name()).isEqualTo("test");
+        assertThat(tactic.tacticalStyle()).isEqualTo("Wing Play");
+        assertThat(tactic.mentality()).isEqualTo("Balanced");
+        assertThat(tactic.inPossession()).extracting(role -> role.position() + ": " + role.description())
+                .containsExactly("GK: Goalkeeper (Defend)", "DR: Wing-Back (Support)",
+                        "DCR: Central Defender (Defend)", "DCL: Central Defender (Defend)",
+                        "DL: Full-Back (Support)", "AMR: Winger (Support)",
+                        "DMR: Defensive Midfielder (Defend)", "DML: Box-to-Box Midfielder (Support)",
+                        "AML: Winger (Support)", "STR: Deep-Lying Forward (Attack)",
+                        "STL: Centre Forward (Attack)");
+        assertThat(tactic.outOfPossession()).extracting(role -> role.position() + ": " + role.description())
+                .containsExactly("GK: Goalkeeper (Support)", "DR: Full-Back (Defend)",
+                        "DCR: Centre-Back (Defend)", "DCL: Centre-Back (Defend)",
+                        "DL: Full-Back (Defend)", "MR: Wide Midfielder (Support)",
+                        "DMR: Defensive Midfielder (Defend)", "DML: Defensive Midfielder (Defend)",
+                        "ML: Wide Midfielder (Support)", "STR: Centre Forward (Support)",
+                        "STL: Tracking Centre Forward (Defend)");
+        assertThat(tactic.markdown()).doesNotContain("Unknown")
+                .contains("Passing directness: More Direct", "Tempo: Higher", "Attacking width: Much Wider",
+                        "Creative freedom: More Expressive", "Progress through: Both Flanks",
+                        "GK distribution: Full Backs", "Line of engagement: Mid Block",
+                        "Trigger press: More Often", "Pressing trap: Trap Outside",
+                        "Attacking transition: Standard", "Time wasting: Standard",
+                        "Set-piece approach: Keep Ball in Play", "Dribbling: Balanced", "Patience: Standard",
+                        "Shots from distance: Balanced", "Crossing style: Balanced", "Supporting runs: Balanced",
+                        "Pass reception: Balanced", "Build-up strategy: Balanced", "Goal kicks: Mixed",
+                        "GK distribution speed: Balanced", "Defensive line: Standard",
+                        "Defensive line behaviour: Balanced", "Defensive transition: Standard",
+                        "Tackling: Standard", "Cross engagement: Balanced", "Short goalkeeping distribution: No");
+    }
+
+    @Test
     void decryptsAndDecodesTacticResourceFromFmfArchive() {
         var metadata = parser.parse(fmf("4-2-4-press"));
 
@@ -107,50 +150,50 @@ class FmfTacticParserTest {
                 "high-press", "High Press",
                 "mid-block", "Mid Block",
                 "low", "Low Block"),
-                Fm26TacticDecoder.DecodedTactic::lineOfEngagement, "Line of engagement");
+                FmTacticDecoder.DecodedTactic::lineOfEngagement, "Line of engagement");
         assertInstruction("dl", Map.of(
                 "much-higher", "Much Higher",
                 "higher", "Higher",
                 "standard", "Standard",
                 "lower", "Lower",
                 "much-lower", "Much Lower"),
-                Fm26TacticDecoder.DecodedTactic::defensiveLine, "Defensive line");
+                FmTacticDecoder.DecodedTactic::defensiveLine, "Defensive line");
         assertInstruction("dlb", Map.of(
                 "balanced", "Balanced",
                 "drop-off-more", "Drop Off More",
                 "step-up-more", "Step Up More"),
-                Fm26TacticDecoder.DecodedTactic::defensiveLineBehaviour, "Defensive line behaviour");
+                FmTacticDecoder.DecodedTactic::defensiveLineBehaviour, "Defensive line behaviour");
         assertInstruction("tp", Map.of(
                 "much-less-often", "Much Less Often",
                 "less-often", "Less Often",
                 "standard", "Standard",
                 "more-often", "More Often",
                 "much-more-often", "Much More Often"),
-                Fm26TacticDecoder.DecodedTactic::triggerPress, "Trigger press");
+                FmTacticDecoder.DecodedTactic::triggerPress, "Trigger press");
         assertInstruction("dt", Map.of(
                 "counter-press", "Counter-Press",
                 "standard", "Standard",
                 "regroup", "Regroup"),
-                Fm26TacticDecoder.DecodedTactic::defensiveTransition, "Defensive transition");
+                FmTacticDecoder.DecodedTactic::defensiveTransition, "Defensive transition");
         assertInstruction("t", Map.of(
                 "get-stuck-in", "Get Stuck In",
                 "standard", "Standard",
                 "stay-on-feet", "Stay On Feet"),
-                Fm26TacticDecoder.DecodedTactic::tackling, "Tackling");
+                FmTacticDecoder.DecodedTactic::tackling, "Tackling");
         assertInstruction("ce", Map.of(
                 "balanced", "Balanced",
                 "invite-crosses", "Invite Crosses",
                 "stop-crosses", "Stop Crosses"),
-                Fm26TacticDecoder.DecodedTactic::crossEngagement, "Cross engagement");
+                FmTacticDecoder.DecodedTactic::crossEngagement, "Cross engagement");
         assertInstruction("pt", Map.of(
                 "balanced", "Balanced",
                 "trap-inside", "Trap Inside",
                 "trap-outside", "Trap Outside"),
-                Fm26TacticDecoder.DecodedTactic::pressingTrap, "Pressing trap");
+                FmTacticDecoder.DecodedTactic::pressingTrap, "Pressing trap");
         assertInstruction("sgk", Map.of(
                 "no", "No",
                 "yes", "Yes"),
-                Fm26TacticDecoder.DecodedTactic::shortGoalkeepingDistribution,
+                FmTacticDecoder.DecodedTactic::shortGoalkeepingDistribution,
                 "Short goalkeeping distribution");
     }
 
@@ -160,56 +203,56 @@ class FmfTacticParserTest {
                 "balanced", "Balanced",
                 "discourage", "Discourage",
                 "encourage", "Encourage"),
-                Fm26TacticDecoder.DecodedTactic::dribbling, "Dribbling");
+                FmTacticDecoder.DecodedTactic::dribbling, "Dribbling");
         assertInstruction("p", Map.of(
                 "standard", "Standard",
                 "hit-early-crosses", "Hit Early Crosses",
                 "work=ball-into-box", "Work Ball Into Box"),
-                Fm26TacticDecoder.DecodedTactic::patience, "Patience");
+                FmTacticDecoder.DecodedTactic::patience, "Patience");
         assertInstruction("sfd", Map.of(
                 "balanced", "Balanced",
                 "discourage", "Discourage",
                 "encourage", "Encourage"),
-                Fm26TacticDecoder.DecodedTactic::shotsFromDistance, "Shots from distance");
+                FmTacticDecoder.DecodedTactic::shotsFromDistance, "Shots from distance");
         assertInstruction("cs", Map.of(
                 "balanced", "Balanced",
                 "floated-crosses", "Floated Crosses",
                 "low-crosses", "Low Crosses",
                 "whipped-crosses", "Whipped Crosses"),
-                Fm26TacticDecoder.DecodedTactic::crossingStyle, "Crossing style");
+                FmTacticDecoder.DecodedTactic::crossingStyle, "Crossing style");
         assertInstruction("sr", Map.of(
                 "balanced", "Balanced",
                 "both-flanks", "Both Flanks",
                 "left", "Left",
                 "right", "Right"),
-                Fm26TacticDecoder.DecodedTactic::supportingRuns, "Supporting runs");
+                FmTacticDecoder.DecodedTactic::supportingRuns, "Supporting runs");
         assertInstruction("prt", Map.of(
                 "balanced", "Balanced",
                 "both-flanks", "Both Flanks",
                 "left", "Left",
                 "middle", "Middle",
                 "right", "Right"),
-                Fm26TacticDecoder.DecodedTactic::progressThrough, "Progress through");
+                FmTacticDecoder.DecodedTactic::progressThrough, "Progress through");
         assertInstruction("pr", Map.of(
                 "balanced", "Balanced",
                 "pass-into-space", "Pass Into Space",
                 "pass-to-feet", "Pass To Feet"),
-                Fm26TacticDecoder.DecodedTactic::passReception, "Pass reception");
+                FmTacticDecoder.DecodedTactic::passReception, "Pass reception");
         assertInstruction("bus", Map.of(
                 "balanced", "Balanced",
                 "bypass-press", "Bypass Press",
                 "play-through-press", "Play Through Press"),
-                Fm26TacticDecoder.DecodedTactic::buildUpStrategy, "Build-up strategy");
+                FmTacticDecoder.DecodedTactic::buildUpStrategy, "Build-up strategy");
         assertInstruction("gk", Map.of(
                 "mixed", "Mixed",
                 "short", "Short",
                 "long", "Long"),
-                Fm26TacticDecoder.DecodedTactic::goalKicks, "Goal kicks");
+                FmTacticDecoder.DecodedTactic::goalKicks, "Goal kicks");
         assertInstruction("gds", Map.of(
                 "balanced", "Balanced",
                 "distribute-quickly", "Distribute Quickly",
                 "slow-pace-down", "Slow Pace Down"),
-                Fm26TacticDecoder.DecodedTactic::gkDistributionSpeed, "GK distribution speed");
+                FmTacticDecoder.DecodedTactic::gkDistributionSpeed, "GK distribution speed");
         assertInstruction("gkd", Map.of(
                 "balanced", "Balanced",
                 "center-backs", "Center Backs",
@@ -217,18 +260,18 @@ class FmfTacticParserTest {
                 "full-backs", "Full Backs",
                 "playmaker", "Playmaker",
                 "target-forward", "Target Forward"),
-                Fm26TacticDecoder.DecodedTactic::gkDistribution, "GK distribution");
+                FmTacticDecoder.DecodedTactic::gkDistribution, "GK distribution");
         assertInstruction("bus", Map.of(
                 "balanced", "More Direct",
                 "play-through-press", "More Direct"),
-                Fm26TacticDecoder.DecodedTactic::passingDirectness, "Passing directness");
+                FmTacticDecoder.DecodedTactic::passingDirectness, "Passing directness");
         assertInstruction("gkd", Map.of("target-forward", "Long"),
-                Fm26TacticDecoder.DecodedTactic::goalKicks, "Goal kicks");
+                FmTacticDecoder.DecodedTactic::goalKicks, "Goal kicks");
     }
 
     private void assertInstruction(
             String family, Map<String, String> examples,
-            Function<Fm26TacticDecoder.DecodedTactic, String> value, String label) throws IOException {
+            Function<FmTacticDecoder.DecodedTactic, String> value, String label) throws IOException {
         for (Map.Entry<String, String> example : examples.entrySet()) {
             String fileName = "4-2-4-" + family + "-" + example.getKey() + ".fmf";
             try (var stream = getClass().getResourceAsStream("/tactics/" + fileName)) {

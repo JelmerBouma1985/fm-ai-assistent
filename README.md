@@ -1,10 +1,10 @@
 # FM AI Assistent
 
-FM AI Assistent is a local companion app for **Football Manager 2026** on Windows 11 and Linux.
+FM AI Assistent is a local companion app for **Football Manager 2027** on Windows 11 and Linux.
 
 Visit [fmaiassistant.com](https://fmaiassistant.com/) for the product overview, feature guides and installation walkthrough.
 
-It reads your loaded FM26 save directly from memory so you can:
+It reads your loaded FM27 save directly from memory so you can:
 
 - search and compare players, staff, clubs and competitions;
 - inspect attributes, positions, contracts, wages and budgets;
@@ -59,26 +59,26 @@ The application is available at [http://127.0.0.1:8080](http://127.0.0.1:8080). 
 
 ## Use the app
 
-1. Start Football Manager 2026 and load your save.
-2. Start FM AI Assistent as the same computer user as FM26.
+1. Start Football Manager 2027 and load your save.
+2. Start FM AI Assistent as the same computer user as FM27.
 3. Open [http://127.0.0.1:8080](http://127.0.0.1:8080) if it did not open automatically.
 4. Select **Load data**.
 5. Browse the **Players**, **Staff**, **Clubs** and **Competitions** tabs, or open **AI assistent**.
 
-The **Staff** tab includes job, club, division, ability, reputation, salary, contract and English attribute filters. Its dedicated **Coaching roles** filter tab lists all nine assignments and lets you set an independent minimum star rating for each one; a staff member must satisfy every selected role threshold. The table shows every staff member's best training assignment. Select a staff member to inspect all nine FM26 coaching ratings, their role-specific weighted attributes, the calculated 0-20 score and its English quality tier.
+The **Staff** tab includes job, club, division, ability, reputation, salary, contract and English attribute filters. Its dedicated **Coaching roles** filter tab lists all nine assignments and lets you set an independent minimum star rating for each one; a staff member must satisfy every selected role threshold. The table shows every staff member's best training assignment. Select a staff member to inspect all nine FM27 coaching ratings, their role-specific weighted attributes, the calculated 0-20 score and its English quality tier.
 
-For agent-driven staff recruitment, call `fm26_get_staff_coaching_roles` to discover the supported assignment keys and formula, then pass `coachingRole` and `minimumCoachingStars` to `fm26_find_staff`. Use `fm26_get_staff_details` with the returned FM Unique ID to compare the complete attribute and role-rating breakdown.
+For agent-driven staff recruitment, call `fm27_get_staff_coaching_roles` to discover the supported assignment keys and formula, then pass `coachingRole` and `minimumCoachingStars` to `fm27_find_staff`. Use `fm27_get_staff_details` with the returned FM Unique ID to compare the complete attribute and role-rating breakdown.
 
 Select **Load data** again after opening another save, changing clubs or advancing to data you want the app to refresh. Player, staff, club and competition data is extracted from RAM concurrently and written with bounded database batches; the completed results are committed as one atomic local snapshot, so a failed reader or database write leaves the previous snapshot available.
 
-![Player database after loading Football Manager 2026 data](screenshots/players_tab.png)
+![Player database after loading Football Manager 2027 data](screenshots/players_tab.png)
 
 ## Use the AI assistant
 
 The embedded chat supports locally installed **Codex**, **Antigravity** and **GitHub Copilot**, plus **OpenRouter** with an API key and no CLI installation.
 
 1. Complete the one-time setup for your chosen agent below.
-2. Start FM26, load your save and select **Load data**.
+2. Start FM27, load your save and select **Load data**.
 3. Open **AI assistent**.
 4. Choose the agent from the **Agent** list.
 5. Select **Context** to control what is included with your messages.
@@ -95,7 +95,7 @@ Select **Commands** beside the chat input, or type `/`, to see question starters
 | `/staff` | Find or assess staff and coaching roles. |
 | `/club` | Review a club's finances and squad context. |
 
-Load FM26 data before using these questions. If a needed snapshot or tactic is unavailable, the agent will explain what to load.
+Load FM27 data before using these questions. If a needed snapshot or tactic is unavailable, the agent will explain what to load.
 
 ![AI assistant with agent selection, conversations and chat input](screenshots/ai-assistent-tab.png)
 
@@ -113,28 +113,28 @@ Messages, enabled managed-club/tactic/snapshot context, and FM tool results reac
 
 The managed club is detected automatically when you select **Load data**.
 
-To add your tactic, select **Context** in the AI assistant and either pick one of the `.fmf` tactic files found in your FM26 `tactics` folder or upload the `.fmf` tactic file exported by FM26, then close the context window. The app converts the tactic into information the AI can understand. A tactic loaded from disk is remembered between restarts and silently reloaded when the file changes on disk.
+To add your tactic, select **Context** in the AI assistant and either pick one of the `.fmf` tactic files found in your FM27 `tactics` folder or upload the `.fmf` tactic file exported by FM27, then close the context window. The app converts the tactic into information the AI can understand. A tactic loaded from disk is remembered between restarts and silently reloaded when the file changes on disk.
 
 Use the **Include in AI chats** checkboxes to enable or disable the managed-club and tactic context without removing them from the app.
 
 ![AI context settings for the managed club and uploaded tactic](screenshots/ai-context.png)
 
-### Create an FM26 player shortlist
+### Create an FM27 player shortlist
 
-After the agent has found and discussed transfer targets, ask it to create an importable shortlist, for example: `Create an FM26 shortlist called Young centre-backs with these players.` The agent uses each player's FM Unique ID and writes a player-shortlist `.fmf` file directly to the detected FM26 `shortlists` folder.
+After the agent has found and discussed transfer targets, ask it to create an importable shortlist, for example: `Create an FM27 shortlist called Young centre-backs with these players.` The agent uses each player's FM Unique ID and writes a player-shortlist `.fmf` file directly to the detected FM27 `shortlists` folder.
 
 ### Decision workflow
 
 For faster and more reproducible answers, the agent can now use task-level tools instead of assembling every conclusion from raw player rows:
 
-1. Check `fm26_get_data_status` and reuse the loaded snapshot unless it is missing or stale. `fm26_refresh_data` skips a redundant reload by default; unverified freshness alone does not trigger a reload. Use `force: true` for an explicit reload or known game changes since loading (including same-day changes or switching saves). If you already clicked **Load data**, agents should use that snapshot. The live probe checks date/process, not every player or transfer change.
-2. Diagnose depth and the two phases of the loaded tactic with `fm26_analyze_squad`.
-3. Build a globally optimized unique XI with `fm26_optimize_lineup`; one player is never assigned to two slots.
-4. Recruit against both roles of a weak slot with `fm26_recruit_for_tactic_slot`, or use `fm26_transfer_shortlist` for a literal single position/role.
-5. Match a known incumbent with `fm26_find_replacements`, supplying the actual deployed position or tactic slot explicitly.
-6. Compare finalists by FM Unique ID with `fm26_compare_players`.
-7. Record agent-enquiry or in-game evidence with `fm26_update_recruitment_case`.
-8. Test the optimized-XI, depth and financial effect of moves with `fm26_plan_squad_moves` before acting in FM26.
+1. Check `fm27_get_data_status` and reuse the loaded snapshot unless it is missing or stale. `fm27_refresh_data` skips a redundant reload by default; unverified freshness alone does not trigger a reload. Use `force: true` for an explicit reload or known game changes since loading (including same-day changes or switching saves). If you already clicked **Load data**, agents should use that snapshot. The live probe checks date/process, not every player or transfer change.
+2. Diagnose depth and the two phases of the loaded tactic with `fm27_analyze_squad`.
+3. Build a globally optimized unique XI with `fm27_optimize_lineup`; one player is never assigned to two slots.
+4. Recruit against both roles of a weak slot with `fm27_recruit_for_tactic_slot`, or use `fm27_transfer_shortlist` for a literal single position/role.
+5. Match a known incumbent with `fm27_find_replacements`, supplying the actual deployed position or tactic slot explicitly.
+6. Compare finalists by FM Unique ID with `fm27_compare_players`.
+7. Record agent-enquiry or in-game evidence with `fm27_update_recruitment_case`.
+8. Test the optimized-XI, depth and financial effect of moves with `fm27_plan_squad_moves` before acting in FM27.
 
 Decision responses include the snapshot identity and loaded-tactic fingerprint. Unknown asking prices, wage demands and sale proceeds remain explicit rather than being treated as zero. The tactic and recruitment board are stored in the local application database. Recruitment evidence is isolated by FM career and authoritative for 30 in-game days by default; expired, other-career and legacy evidence remains visible but cannot override current decisions.
 
@@ -146,7 +146,7 @@ FM AI Assistent uses the agent's normal local login. It does not ask for a Codex
 
 1. Install the [Codex CLI](https://developers.openai.com/codex/cli/).
 2. Open **AI assistent**, choose **Codex**, and use **Sign in with ChatGPT** when shown.
-3. If Codex cannot see the FM26 tools, run this once in a terminal while FM AI Assistent is running:
+3. If Codex cannot see the FM27 tools, run this once in a terminal while FM AI Assistent is running:
 
 ```bash
 codex mcp add fm-ai-assistent --url http://127.0.0.1:8080/mcp
@@ -170,38 +170,38 @@ Use the **Model** dropdown in the Codex chat header to choose from the models re
 }
 ```
 
-Antigravity cannot show an approval popup during a headless chat. Add the following FM26 tool permissions to the existing `permissions.allow` list in `~/.gemini/antigravity-cli/settings.json`:
+Antigravity cannot show an approval popup during a headless chat. Add the following FM27 tool permissions to the existing `permissions.allow` list in `~/.gemini/antigravity-cli/settings.json`:
 
 ```json
 {
   "permissions": {
     "allow": [
-      "mcp(fm-ai-assistent/fm26_find_clubs)",
-      "mcp(fm-ai-assistent/fm26_find_players)",
-      "mcp(fm-ai-assistent/fm26_get_club_context)",
-      "mcp(fm-ai-assistent/fm26_get_player_details)",
-      "mcp(fm-ai-assistent/fm26_find_staff)",
-      "mcp(fm-ai-assistent/fm26_get_staff_details)",
-      "mcp(fm-ai-assistent/fm26_get_staff_coaching_roles)",
-      "mcp(fm-ai-assistent/fm26_get_role_attributes)",
-      "mcp(fm-ai-assistent/fm26_transfer_shortlist)",
-      "mcp(fm-ai-assistent/fm26_get_data_status)",
-      "mcp(fm-ai-assistent/fm26_analyze_squad)",
-      "mcp(fm-ai-assistent/fm26_optimize_lineup)",
-      "mcp(fm-ai-assistent/fm26_recruit_for_tactic_slot)",
-      "mcp(fm-ai-assistent/fm26_compare_players)",
-      "mcp(fm-ai-assistent/fm26_find_replacements)",
-      "mcp(fm-ai-assistent/fm26_plan_squad_moves)",
-      "mcp(fm-ai-assistent/fm26_get_recruitment_board)",
-      "mcp(fm-ai-assistent/fm26_update_recruitment_case)",
-      "mcp(fm-ai-assistent/fm26_refresh_data)",
-      "mcp(fm-ai-assistent/fm26_create_shortlist_file)"
+      "mcp(fm-ai-assistent/fm27_find_clubs)",
+      "mcp(fm-ai-assistent/fm27_find_players)",
+      "mcp(fm-ai-assistent/fm27_get_club_context)",
+      "mcp(fm-ai-assistent/fm27_get_player_details)",
+      "mcp(fm-ai-assistent/fm27_find_staff)",
+      "mcp(fm-ai-assistent/fm27_get_staff_details)",
+      "mcp(fm-ai-assistent/fm27_get_staff_coaching_roles)",
+      "mcp(fm-ai-assistent/fm27_get_role_attributes)",
+      "mcp(fm-ai-assistent/fm27_transfer_shortlist)",
+      "mcp(fm-ai-assistent/fm27_get_data_status)",
+      "mcp(fm-ai-assistent/fm27_analyze_squad)",
+      "mcp(fm-ai-assistent/fm27_optimize_lineup)",
+      "mcp(fm-ai-assistent/fm27_recruit_for_tactic_slot)",
+      "mcp(fm-ai-assistent/fm27_compare_players)",
+      "mcp(fm-ai-assistent/fm27_find_replacements)",
+      "mcp(fm-ai-assistent/fm27_plan_squad_moves)",
+      "mcp(fm-ai-assistent/fm27_get_recruitment_board)",
+      "mcp(fm-ai-assistent/fm27_update_recruitment_case)",
+      "mcp(fm-ai-assistent/fm27_refresh_data)",
+      "mcp(fm-ai-assistent/fm27_create_shortlist_file)"
     ]
   }
 }
 ```
 
-If the file already contains settings or permissions, merge these entries into it instead of replacing the complete file. `fm26_create_shortlist_file` writes one new `.fmf` file, `fm26_update_recruitment_case` writes local decision evidence, and `fm26_refresh_data` replaces the app's local data snapshot. None of these tools writes to the FM26 process; the other listed tools are read-only.
+If the file already contains settings or permissions, merge these entries into it instead of replacing the complete file. `fm27_create_shortlist_file` writes one new `.fmf` file, `fm27_update_recruitment_case` writes local decision evidence, and `fm27_refresh_data` replaces the app's local data snapshot. None of these tools writes to the FM27 process; the other listed tools are read-only.
 
 ### GitHub Copilot
 
@@ -213,14 +213,14 @@ If the file already contains settings or permissions, merge these entries into i
 copilot mcp add --transport http fm-ai-assistent http://127.0.0.1:8080/mcp
 ```
 
-Do not add it again if `copilot mcp list` already shows `fm-ai-assistent`. The sign-in button runs the CLI's browser flow, so no separate terminal is needed for login. Use the **Model** dropdown to choose an available model for the conversation. Model changes are disabled while a response is active. Copilot permission prompts appear inside the app. For the app's read-only FM26 tools, you can choose **Always allow this MCP tool**.
+Do not add it again if `copilot mcp list` already shows `fm-ai-assistent`. The sign-in button runs the CLI's browser flow, so no separate terminal is needed for login. Use the **Model** dropdown to choose an available model for the conversation. Model changes are disabled while a response is active. Copilot permission prompts appear inside the app. For the app's read-only FM27 tools, you can choose **Always allow this MCP tool**.
 
 ## Troubleshooting
 
-### No FM26 data is found
+### No FM27 data is found
 
-- Make sure FM26 is running and a save is fully loaded.
-- Run FM26 and FM AI Assistent as the same computer user.
+- Make sure FM27 is running and a save is fully loaded.
+- Run FM27 and FM AI Assistent as the same computer user.
 - On Windows, use the same administrator level for both applications.
 - Select **Load data** again.
 
@@ -228,7 +228,7 @@ Do not add it again if `copilot mcp list` already shows `fm-ai-assistent`. The s
 
 Install the selected CLI, complete its normal login, and restart FM AI Assistent so it can find the new command.
 
-### The AI cannot use FM26 tools
+### The AI cannot use FM27 tools
 
 - Keep FM AI Assistent running while using the chat.
 - Check that the agent's MCP server address is `http://127.0.0.1:8080/mcp`.
@@ -246,7 +246,7 @@ Desktop application logs are stored in:
 
 ## Privacy and safety
 
-FM AI Assistent listens only on your own computer by default. Keep it local: enabled AI agents may access FM26 data, local files and tools after receiving the required permission.
+FM AI Assistent listens only on your own computer by default. Keep it local: enabled AI agents may access FM27 data, local files and tools after receiving the required permission.
 
 ## Development
 

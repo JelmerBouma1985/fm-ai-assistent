@@ -16,11 +16,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
- * Resolves Football Manager 26 tactics folders on disk and lists {@code .fmf} files.
+ * Resolves Football Manager 27 tactics folders on disk and lists {@code .fmf} files.
  * Besides the native documents folder, every Steam library listed in
- * {@code libraryfolders.vdf} is probed for the FM26 (appid 3551340) Proton prefix,
+ * {@code libraryfolders.vdf} is probed for the FM27 (appid 4530370) Proton prefix,
  * so custom library locations such as {@code /mnt/.../Steam} are found automatically.
- * Read-only: never writes to the FM26 folders.
+ * Read-only: never writes to the FM27 folders.
  */
 @Component
 public final class TacticDirectoryResolver {
@@ -31,7 +31,14 @@ public final class TacticDirectoryResolver {
 
     @Autowired
     public TacticDirectoryResolver() {
-        this(directoriesForHome(Path.of(System.getProperty("user.home"))));
+        this(configuredDirectories());
+    }
+
+    private static List<Path> configuredDirectories() {
+        String configured = System.getProperty(DIRECTORY_PROPERTY);
+        return configured != null && !configured.isBlank()
+                ? List.of(Path.of(configured))
+                : directoriesForHome(Path.of(System.getProperty("user.home")));
     }
 
     public TacticDirectoryResolver(Path directory) {
@@ -50,7 +57,7 @@ public final class TacticDirectoryResolver {
         return directories.stream().filter(Files::isDirectory).findFirst()
                 .orElseGet(() -> directories.isEmpty()
                         ? Path.of(System.getProperty("user.home"),
-                                "Documents/Sports Interactive/Football Manager 26/tactics")
+                                "Documents/Sports Interactive/Football Manager 27/tactics")
                                 .toAbsolutePath().normalize()
                         : directories.getFirst());
     }
@@ -124,7 +131,7 @@ public final class TacticDirectoryResolver {
     }
 
     private static List<Path> directoriesForHome(Path home) {
-        String suffix = "Sports Interactive/Football Manager 26/tactics";
+        String suffix = "Sports Interactive/Football Manager 27/tactics";
         List<Path> candidates = new ArrayList<>();
         candidates.add(home.resolve("Documents/" + suffix));
         for (Path userDir : SteamLibraries.fmProtonUserDirectories(home)) {

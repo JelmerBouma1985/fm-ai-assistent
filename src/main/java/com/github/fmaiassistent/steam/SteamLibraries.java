@@ -16,12 +16,12 @@ import java.util.regex.Pattern;
 
 /**
  * Locates Steam libraries on disk by reading {@code libraryfolders.vdf}.
- * FM26 (Steam appid 3551340) runs under Proton, so per-game user files live below
- * {@code steamapps/compatdata/3551340/pfx/...} inside whichever library holds the game.
+ * FM27 (Steam appid 4530370) runs under Proton, so per-game user files live below
+ * {@code steamapps/compatdata/4530370/pfx/...} inside whichever library holds the game.
  * Read-only: never writes to the Steam folders.
  */
 public final class SteamLibraries {
-    public static final int FM26_APP_ID = 3551340;
+    public static final int FM27_APP_ID = 4530370;
     public static final String DIRECTORY_PROPERTY = "fmaiassistent.steam.directory";
     static final Pattern VDF_PATH = Pattern.compile("\"path\"\\s+\"([^\"]+)\"");
     static final Pattern MANIFEST_BUILD_ID = Pattern.compile("\"buildid\"\\s+\"(\\d+)\"");
@@ -78,10 +78,10 @@ public final class SteamLibraries {
 
     /**
      * The Proton user directories ({@code .../pfx/drive_c/users/steamuser}) holding
-     * FM26 per library, in library order.
+     * FM27 per library, in library order.
      */
     public static List<Path> fmProtonUserDirectories(Path home) {
-        String prefix = "steamapps/compatdata/" + FM26_APP_ID + "/pfx/drive_c/users/steamuser";
+        String prefix = "steamapps/compatdata/" + FM27_APP_ID + "/pfx/drive_c/users/steamuser";
         return libraries(home).stream()
                 .map(library -> library.resolve(prefix).toAbsolutePath().normalize())
                 .distinct()

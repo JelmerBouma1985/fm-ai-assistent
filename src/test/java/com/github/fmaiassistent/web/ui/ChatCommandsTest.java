@@ -31,20 +31,20 @@ class ChatCommandsTest {
         assertTrue(ChatCommands.expandKnown("/recruit left back under 25").orElseThrow()
                 .endsWith("Requirements: left back under 25"));
         String recruit = ChatCommands.expandKnown("/recruit").orElseThrow();
-        assertTrue(recruit.contains("fm26_transfer_shortlist"));
+        assertTrue(recruit.contains("fm27_transfer_shortlist"));
         assertTrue(recruit.contains("current squad and player market data"));
         assertTrue(recruit.contains("Only if that tool reports"));
         String squad = ChatCommands.expandKnown("/squad").orElseThrow();
-        assertTrue(squad.contains("fm26_analyze_squad"));
+        assertTrue(squad.contains("fm27_analyze_squad"));
         assertTrue(squad.contains("Only if that tool reports"));
         String club = ChatCommands.expandKnown("/club").orElseThrow();
-        assertTrue(club.contains("fm26_get_club_context"));
+        assertTrue(club.contains("fm27_get_club_context"));
         assertTrue(club.contains("Only if that tool reports"));
         String lineup = ChatCommands.expandKnown("/lineup").orElseThrow();
-        assertTrue(lineup.contains("fm26_optimize_lineup"));
+        assertTrue(lineup.contains("fm27_optimize_lineup"));
         assertTrue(lineup.contains("Only if that tool reports"));
         String opposition = ChatCommands.expandKnown("/opposition").orElseThrow();
-        assertTrue(opposition.contains("fm26_analyze_next_opposition"));
+        assertTrue(opposition.contains("fm27_analyze_next_opposition"));
         assertTrue(opposition.contains("strengths, weaknesses, key players and unavailable players"));
         assertTrue(opposition.contains("Only if that tool reports"));
         assertTrue(ChatCommands.expandKnown("/unknown").isEmpty());
@@ -62,7 +62,7 @@ class ChatCommandsTest {
         assertTrue(suggestions.isVisible());
         assertEquals(7, suggestions.getChildren().count());
         ((Button) suggestions.getChildren().findFirst().orElseThrow()).click();
-        assertTrue(input.getValue().startsWith("Use the fm26_analyze_squad tool"));
+        assertTrue(input.getValue().startsWith("Use the fm27_analyze_squad tool"));
         assertEquals(0, sends.get());
         assertFalse(suggestions.isVisible());
 
@@ -88,7 +88,7 @@ class ChatCommandsTest {
         Div suggestions = (Div) picker.inputGroup().getChildren().findFirst().orElseThrow();
         ((Button) suggestions.getChildren().skip(2).findFirst().orElseThrow()).click();
 
-        assertTrue(input.getValue().contains("fm26_analyze_next_opposition"));
+        assertTrue(input.getValue().contains("fm27_analyze_next_opposition"));
         assertEquals(1, sends.get());
         assertFalse(suggestions.isVisible());
     }
@@ -100,7 +100,7 @@ class ChatCommandsTest {
         picker.menuButton().click();
         picker.move(1);
         picker.onEnter(() -> { });
-        assertTrue(input.getValue().startsWith("Use the fm26_optimize_lineup tool"));
+        assertTrue(input.getValue().startsWith("Use the fm27_optimize_lineup tool"));
     }
 
     @Test

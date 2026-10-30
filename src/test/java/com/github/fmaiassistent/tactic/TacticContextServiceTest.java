@@ -37,12 +37,12 @@ class TacticContextServiceTest {
                 .contains("Ball-Playing Goalkeeper (Support)")
                 .contains("Sweeper Keeper (Attack)");
         assertThat(service.enrich("codex:thread-1", "How can I improve it?"))
-                .contains("<fm26_tactic_context>")
+                .contains("<fm27_tactic_context>")
                 .contains("How can I improve it?");
         assertThat(service.enrich("codex:thread-1", "And defensively?"))
                 .isEqualTo("And defensively?");
         assertThat(service.enrich("antigravity:conversation-1", "Review this"))
-                .contains("<fm26_tactic_context>");
+                .contains("<fm27_tactic_context>");
     }
 
     @Test
@@ -72,7 +72,7 @@ class TacticContextServiceTest {
     void contextCanBeDisabledAndReenabledWithoutClearingTheTactic() {
         TacticContextService service = service();
         service.loadUploads(Map.of("tactic.fmf", FmfTacticParserTest.fmf("press")));
-        assertThat(service.enrich("codex:thread", "first")).contains("<fm26_tactic_context>");
+        assertThat(service.enrich("codex:thread", "first")).contains("<fm27_tactic_context>");
 
         service.setAiContextEnabled(false);
         assertThat(service.current().active()).isTrue();
@@ -80,7 +80,7 @@ class TacticContextServiceTest {
 
         service.setAiContextEnabled(true);
         assertThat(service.enrich("codex:thread", "enabled again"))
-                .contains("<fm26_tactic_context>")
+                .contains("<fm27_tactic_context>")
                 .contains("enabled again");
     }
 
@@ -167,7 +167,7 @@ class TacticContextServiceTest {
         TacticContextService service = service(repository, dir);
         TacticContext loaded = service.loadFromDisk(dir.resolve("press.fmf"));
 
-        // FM26 save overwrites the file with a new tactic.
+        // FM27 save overwrites the file with a new tactic.
         java.nio.file.Files.write(dir.resolve("press.fmf"), FmfTacticParserTest.fmf("press-v2"));
         var captor = org.mockito.ArgumentCaptor.forClass(TacticContextEntity.class);
         verify(repository).save(captor.capture());
@@ -209,7 +209,7 @@ class TacticContextServiceTest {
 
         assertThatThrownBy(() -> service.loadFromDisk(outside))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("outside the FM26 tactics folder");
+                .hasMessageContaining("outside the FM27 tactics folder");
     }
 
     @Test

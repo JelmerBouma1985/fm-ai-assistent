@@ -11,4 +11,9 @@ public record FutureEmploymentLayout(int personRecords, int recordSize, int reco
         return new FutureEmploymentLayout(0xA0, 0x48, 0x10, 0x28, 0x3E,
                 0x20, 0x2B, 8, 0x48, 0x4DF3C18, 0x4E495E0);
     }
+
+    public static FutureEmploymentLayout fm27() {
+        return new FutureEmploymentLayout(0xA0, 0x48, 0x10, 0x28, 0x3E,
+                0x20, 0x2B, 8, 0x48, 0x56AD378, 0x5703738);
+    }
 }

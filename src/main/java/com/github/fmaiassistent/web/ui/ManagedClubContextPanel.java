@@ -48,12 +48,12 @@ final class ManagedClubContextPanel extends Div {
             addIfPresent(values, context.competition());
             addIfPresent(values, context.nation());
             details.setText(String.join(" · ", values));
-            setTitle("Detected from FM26 RAM at the most recent data load");
+            setTitle("Detected from FM27 RAM at the most recent data load");
             return;
         }
         addClassName("is-unavailable");
         if (context.state() == ManagedClubContext.State.NOT_LOADED) {
-            heading.setText("Managed club · waiting for FM26 data");
+            heading.setText("Managed club · waiting for FM27 data");
         } else {
             heading.setText("Managed club · unavailable");
         }

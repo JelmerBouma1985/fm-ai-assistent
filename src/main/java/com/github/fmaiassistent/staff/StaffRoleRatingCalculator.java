@@ -11,7 +11,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
-/** FM26 single-assignment coaching ratings, derived from the live 1-20 staff attributes. */
+/** FM27 single-assignment coaching ratings, derived from the live 1-20 staff attributes. */
 public final class StaffRoleRatingCalculator {
     private static final Map<String, Integer> COMMON = weights(
             "authority", 2, "determination", 2, "motivating", 2);

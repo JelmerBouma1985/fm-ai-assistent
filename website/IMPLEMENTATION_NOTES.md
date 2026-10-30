@@ -5,9 +5,9 @@ Prepared from the repository state on 10 October 2026.
 ## Verified application features
 
 - Windows 11 and Linux are the documented platforms.
-- The user starts FM26, loads a save and selects **Load data**; the result is an atomic local snapshot, not continuous synchronization.
+- The user starts FM27, loads a save and selects **Load data**; the result is an atomic local snapshot, not continuous synchronization.
 - The UI browses and filters players, staff, clubs and competitions, including player football/contract/financial data and staff coaching-role ratings.
-- Exported FM26 `.fmf` tactics can be decoded locally and enabled as assistant context.
+- Exported FM27 `.fmf` tactics can be decoded locally and enabled as assistant context.
 - Documented decision workflows include squad-depth analysis, unique-lineup optimization, role recruitment, replacements, player comparison, move planning, recruitment evidence and shortlist-file creation.
 - Embedded AI options are Codex, Antigravity, GitHub Copilot and OpenRouter. External provider privacy, accounts, limits and potential costs apply.
 - Packaged desktop, native and Java JAR distributions are documented. The JAR requires Java 25 or newer.

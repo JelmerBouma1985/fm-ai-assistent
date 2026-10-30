@@ -34,7 +34,7 @@ class ManagedClubContextServiceTest {
         assertThat(detected.careerKey()).isEqualTo("4242:jelmer-bouma");
         assertThat(detected.clubName()).isEqualTo("sc Heerenveen");
         assertThat(service.enrich("codex:one", "Assess my squad"))
-                .contains("<fm26_managed_club_context>")
+                .contains("<fm27_managed_club_context>")
                 .contains("Human manager: Jelmer Bouma")
                 .contains("Managed club: sc Heerenveen")
                 .contains("Competition: Eredivisie")

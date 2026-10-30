@@ -43,10 +43,10 @@ class CopilotSdkEventMapperTest {
         ToolExecutionStartEvent started = new ToolExecutionStartEvent();
         started.setData(new ToolExecutionStartEvent.ToolExecutionStartEventData(
                 "call-1", "mcp", Map.of("clubId", 123), null, null, false,
-                "fm-ai-assistent", "fm26_get_club_context", "turn-1", false, null, null));
+                "fm-ai-assistent", "fm27_get_club_context", "turn-1", false, null, null));
 
         assertThat(mapper.map(started, toolNames)).contains(new CopilotSdkEventMapper.ToolStarted(
-                "call-1", "MCP: fm-ai-assistent/fm26_get_club_context", "{clubId=123}", true));
+                "call-1", "MCP: fm-ai-assistent/fm27_get_club_context", "{clubId=123}", true));
 
         ToolExecutionCompleteEvent completed = new ToolExecutionCompleteEvent();
         completed.setData(new ToolExecutionCompleteEvent.ToolExecutionCompleteEventData(
@@ -54,7 +54,7 @@ class CopilotSdkEventMapperTest {
                 false, false, null, null, Map.of(), "turn-1", null, false, null));
 
         assertThat(mapper.map(completed, toolNames)).contains(new CopilotSdkEventMapper.ToolCompleted(
-                "call-1", "MCP: fm-ai-assistent/fm26_get_club_context", "completed", "null", true));
+                "call-1", "MCP: fm-ai-assistent/fm27_get_club_context", "completed", "null", true));
     }
 
     @Test

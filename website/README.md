@@ -73,6 +73,6 @@ The project uses the Pages settings for the custom domain; it does not commit a 
 - [ ] Inspect the homepage and key feature URLs after launch; submission does not guarantee indexing or rankings.
 - [ ] Monitor indexed pages, crawl errors, impressions, clicks, CTR and landing pages in Search Console; monitor crawl/index errors and inbound links in Bing.
 - [ ] If download conversion measurement becomes necessary, choose a privacy-respecting approach explicitly. Until then, use GitHub release metrics cautiously.
-- [ ] Periodically run dated, reproducible FM26-related queries in AI search products and record whether the live site is cited. Results vary and no crawler setting guarantees citation.
+- [ ] Periodically run dated, reproducible FM27-related queries in AI search products and record whether the live site is cited. Results vary and no crawler setting guarantees citation.
 
 Training-crawler policy is intentionally not specialized. If the owner later wants to disallow model-training crawlers, review current official bot identifiers and change them separately without blocking search bots such as `OAI-SearchBot` or `Claude-SearchBot`.

@@ -172,7 +172,7 @@ final class CodexChatView extends Div {
     }
 
     private void configureInput() {
-        input.setPlaceholder("Ask Codex about the FM26 data or application…");
+        input.setPlaceholder("Ask Codex about the FM27 data or application…");
         input.setMinRows(2);
         input.setMaxRows(9);
         input.setWidthFull();

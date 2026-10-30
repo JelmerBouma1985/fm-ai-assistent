@@ -38,4 +38,19 @@ public record ContractRecordLayout(Links links, Full full, Loan loan, List<Vecto
                 new Award(0x4E49578, 0, 0x44D82B8),
                 new TeamOwner(0x2F, 0x30, 0x4E49588, 0x4E495D8, 0x44BA518, 0x44CDD68));
     }
+
+    /** FM27 27.0.0+2486695; typed live census in fm27/contracts_inventory.json. */
+    public static ContractRecordLayout fm27() {
+        var legacy = current();
+        return new ContractRecordLayout(
+                new Links(0xA8, 0xB0, 8, 12, 8, 0x10, 0x54, 0x80,
+                        0x5703768, 0x57036E8, 8, 16, 4),
+                new Full(0xC8, 0x4B00AE8, 0x68, 0x80, 0x98, 8, 32, 16),
+                new Loan(0xF8, 0x4DC91F8, 0x68, 0xA0, 0xA8, 0xB0, 0xB4,
+                        0xEF, 0xF0, 0x90, 0x94, 0x98, 0x9C, 200, 0x70, 0x88, 32, 16),
+                legacy.sharedVectors(), legacy.fullTerm(), legacy.sharedTerm(),
+                new Plain(0x68, 0x4F53F28, "B_CLUB"), new Plain(0x28, 0x4B01058, "BASIC"),
+                new Award(0x57036D0, 0, 0x4CF6078),
+                new TeamOwner(0x2F, 0x30, 0x57036E0, 0x5703730, 0x4CDA1F8, 0x4CEC0B8));
+    }
 }

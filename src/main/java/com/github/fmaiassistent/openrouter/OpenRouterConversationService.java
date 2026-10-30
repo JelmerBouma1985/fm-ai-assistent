@@ -36,7 +36,7 @@ public final class OpenRouterConversationService implements AutoCloseable {
     public record Snapshot(String id, Mode mode, String requestedModel, String model, boolean running, List<Item> items) { }
     private static final int HISTORY_LIMIT = 512 * 1024;
     private static final Set<String> WRITE_TOOLS = Set.of(
-            "fm26_refresh_data", "fm26_update_recruitment_case", "fm26_create_shortlist_file");
+            "fm27_refresh_data", "fm27_update_recruitment_case", "fm27_create_shortlist_file");
     private final ObjectMapper json;
     private final OpenRouterClient client;
     private final AiPromptContext context;
@@ -292,7 +292,7 @@ public final class OpenRouterConversationService implements AutoCloseable {
                             JsonNode options = json.readTree(call.arguments.toString());
                             boolean full = "full".equals(options.path("responseDetail").asString())
                                     || !options.has("responseDetail")
-                                    && "fm26_find_players".equals(call.name.toString())
+                                    && "fm27_find_players".equals(call.name.toString())
                                     && "full".equalsIgnoreCase(options.path("detailLevel").asString());
                             if (!full) result = FmToolResultFormatter.compact(json, call.name.toString(), result);
                             result = OpenRouterToolResultFormatter.limit(json, result);

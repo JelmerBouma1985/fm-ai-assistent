@@ -11,6 +11,7 @@ import com.github.fmaiassistent.exporter.FixtureExporter;
 import com.github.fmaiassistent.exporter.PlayerExporter;
 import com.github.fmaiassistent.exporter.StaffExporter;
 import com.github.fmaiassistent.player.PlayerColumnNames;
+import com.github.fmaiassistent.memory.NativeModuleProfile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -78,7 +79,7 @@ public class SnapshotDatabaseWriter {
         var nativeRecords=result.nativeRecords();var byAddress=new HashMap<Long,Long>();var ids=new java.util.HashSet<Long>();
         var indices=new java.util.HashSet<Integer>();var values=new ArrayList<Object[]>();
         var requiredCompetitionUids=new java.util.HashSet<Long>();
-        if(!nativeRecords.isEmpty()&&!com.github.fmaiassistent.exporter.ContractExporter.MODULE_SHA256.equals(result.identityProfile()))
+        if(!nativeRecords.isEmpty()&&!NativeModuleProfile.supported(result.identityProfile()))
             throw new IllegalArgumentException("Unsupported native CLUB profile");
         for(var record:nativeRecords) {
             if(record.uniqueId()<=0||record.uniqueId()>0xFFFFFFFFL||record.recordIndex()<0||record.prefixHex().length()!=32
@@ -89,7 +90,8 @@ public class SnapshotDatabaseWriter {
                     ||byAddress.put(record.sourceAddress(),record.uniqueId())!=null)
                 throw new IllegalArgumentException("Invalid native CLUB identity");
             var raw=java.nio.ByteBuffer.wrap(java.util.HexFormat.of().parseHex(record.prefixHex())).order(java.nio.ByteOrder.LITTLE_ENDIAN);
-            var layout=com.github.fmaiassistent.memory.ClubIdentityLayout.current();
+            var layout=NativeModuleProfile.fm27(result.identityProfile())
+                    ?com.github.fmaiassistent.memory.ClubIdentityLayout.fm27():com.github.fmaiassistent.memory.ClubIdentityLayout.current();
             if(raw.getInt(layout.index())!=record.recordIndex()||Integer.toUnsignedLong(raw.getInt(layout.uniqueId()))!=record.uniqueId())
                 throw new IllegalArgumentException("Native CLUB prefix/identity mismatch");
             if(record.uefaCoefficientHex()!=null||record.uefaRuleVersion()!=null) {
@@ -147,9 +149,11 @@ public class SnapshotDatabaseWriter {
     private List<Object[]> competitionNameValues(List<com.github.fmaiassistent.domain.NativeCompetitionNameSnapshot> captured,
             String profile,java.util.Set<Long> required) {
         var values=new ArrayList<Object[]>();if(captured==null)return values;
-        if(!com.github.fmaiassistent.exporter.ContractExporter.MODULE_SHA256.equals(profile))
+        if(!NativeModuleProfile.supported(profile))
             throw new IllegalArgumentException("Unsupported native COMP names profile");
-        var layout=com.github.fmaiassistent.memory.CompetitionNameLayout.current();var identity=com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.current();
+        var layout=com.github.fmaiassistent.memory.CompetitionNameLayout.current();
+        var identity=NativeModuleProfile.fm27(profile)?com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.fm27()
+                :com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.current();
         var ids=new java.util.HashSet<Long>();var indices=new java.util.HashSet<Integer>();var addresses=new java.util.HashSet<Long>();
         for(var record:captured) {
             if(record.uniqueId()<=0||record.uniqueId()>0xFFFFFFFFL||record.recordIndex()<0||record.prefixHex()==null||record.prefixHex().length()!=identity.competitionPrefixBytes()*2
@@ -179,7 +183,7 @@ public class SnapshotDatabaseWriter {
         Long contractId = null;
         List<Object[]> contracts = new ArrayList<>();
         List<Object[]> terms = new ArrayList<>();
-        var awardNames=new LinkedHashMap<Long,com.github.fmaiassistent.domain.NativeAwardNameSnapshot>();
+        var awardNames=new LinkedHashMap<Long,Object[]>();
         var competitionNames=new LinkedHashMap<Long,Object[]>();
         for (var person : owners) {
             var entries=new ArrayList<ContractEntry>();
@@ -196,6 +200,9 @@ public class SnapshotDatabaseWriter {
                     throw new IllegalArgumentException("Invalid typed future contract snapshot");
                 entries.add(new ContractEntry(future.employment().contract(),future));
             }
+            String contractProfile=person.values().get("_contract_profile") instanceof String hash?hash:null;
+            if(!entries.isEmpty()&&!NativeModuleProfile.supported(contractProfile))
+                throw new IllegalArgumentException("Unsupported contract source profile");
             for(var entry:entries) {
                 var c=entry.contract();var future=entry.future();var employment=future==null?null:future.employment();
                 if(employment!=null) {
@@ -211,7 +218,7 @@ public class SnapshotDatabaseWriter {
                         c.agreedCode(), c.baseFee(), c.totalFee(), c.feeKind(), c.threshold(), c.played(),
                         c.competitionIndex(), c.competitionUid(), c.conditionKind(), c.internalCompetition(),
                         c.context1(), c.context2(), c.flagsA0(), c.flagsA8(), c.coreHex(), c.auxiliaryHex(),
-                        com.github.fmaiassistent.exporter.ContractExporter.MODULE_SHA256, c.teamOwnerKind(), c.teamOwnerUid(),
+                        contractProfile, c.teamOwnerKind(), c.teamOwnerUid(),
                         future==null?"PERSON_LINK":"FUTURE_EMPLOYMENT",employment==null?null:employment.offerIndex(),
                         future==null?null:future.transferDate(),employment==null?null:employment.endDate(),
                         employment==null?null:employment.wageRaw(),employment==null?null:employment.recordHex(),
@@ -227,7 +234,7 @@ public class SnapshotDatabaseWriter {
             }
             Object namesRaw=person.values().get("_award_names");
             if(namesRaw!=null){
-                if(!(namesRaw instanceof List<?> captured)||!com.github.fmaiassistent.exporter.ContractExporter.MODULE_SHA256.equals(person.values().get("_contract_profile")))
+                if(!(namesRaw instanceof List<?> captured)||!NativeModuleProfile.supported(contractProfile))
                     throw new IllegalArgumentException("Unsupported AWARD name source");
                 var required=new java.util.HashSet<Long>();for(var e:entries)for(var t:e.contract().terms())
                     if("AWARD".equals(t.referenceKind())&&t.referenceUid()!=null)required.add(t.referenceUid());
@@ -238,7 +245,8 @@ public class SnapshotDatabaseWriter {
                     if(!com.github.fmaiassistent.memory.AwardNameLayout.current().identityMatches(n.uniqueId(),n.recordIndex(),n.prefixHex()))throw new IllegalArgumentException("AWARD prefix identity mismatch");
                     var decoded=com.github.fmaiassistent.memory.AwardNameLayout.current().decode(n.nameHex(),n.shortNameHex());
                     if(!java.util.Objects.equals(decoded.name(),n.name())||!java.util.Objects.equals(decoded.shortName(),n.shortName()))throw new IllegalArgumentException("AWARD raw name mismatch");
-                    var previous=awardNames.putIfAbsent(n.uniqueId(),n);if(previous!=null&&!previous.equals(n))throw new IllegalArgumentException("Conflicting AWARD name snapshots");
+                    Object[] value={n.uniqueId(),n.recordIndex(),n.prefixHex(),contractProfile,n.nameHex(),n.shortNameHex(),n.name(),n.shortName()};
+                    var previous=awardNames.putIfAbsent(n.uniqueId(),value);if(previous!=null&&!java.util.Arrays.deepEquals(previous,value))throw new IllegalArgumentException("Conflicting AWARD name snapshots");
                 }
                 if(!found.equals(required))throw new IllegalArgumentException("Incomplete or unrelated AWARD name references");
             }
@@ -255,7 +263,7 @@ public class SnapshotDatabaseWriter {
                     var refs=t.competitionReferences();if(refs.subjectUid()!=null)required.add(refs.subjectUid());
                     if(refs.conditionUid()!=null)required.add(refs.conditionUid());
                 }
-                for(var name:competitionNameValues(typed,String.valueOf(person.values().get("_contract_profile")),required)) {
+                for(var name:competitionNameValues(typed,contractProfile,required)) {
                     var old=competitionNames.putIfAbsent((Long)name[0],name);
                     if(old!=null&&!java.util.Arrays.deepEquals(old,name))throw new IllegalArgumentException("Conflicting contract COMP names");
                 }
@@ -266,9 +274,14 @@ public class SnapshotDatabaseWriter {
                     (r,n)->new Object[]{r.getLong(1),r.getInt(2),r.getLong(3),r.getString(4),r.getString(5),r.getString(6),r.getString(7),r.getString(8),r.getString(9)},name[0]);
             if(!existing.isEmpty()&&!java.util.Arrays.deepEquals(existing.getFirst(),name))throw new IllegalArgumentException("Contract/financial COMP name conflict");
         }
+        for(var name:awardNames.values()) {
+            var existing=jdbc.query("SELECT unique_id,record_index,prefix_hex,module_sha256,name_hex,short_name_hex,name,short_name FROM award_name_records WHERE unique_id=?",
+                    (r,n)->new Object[]{r.getLong(1),r.getInt(2),r.getString(3),r.getString(4),r.getString(5),r.getString(6),r.getString(7),r.getString(8)},name[0]);
+            if(!existing.isEmpty()&&!java.util.Arrays.deepEquals(existing.getFirst(),name))throw new IllegalArgumentException("Conflicting AWARD name source profile or payload");
+        }
         if(!competitionNames.isEmpty())contractBatch("MERGE INTO competition_name_records (unique_id,record_index,source_address,prefix_hex,module_sha256,name_hex,short_name_hex,name,short_name) KEY(unique_id) VALUES (?,?,?,?,?,?,?,?,?)",new ArrayList<>(competitionNames.values()));
         if(!awardNames.isEmpty())contractBatch("MERGE INTO award_name_records (unique_id,record_index,prefix_hex,module_sha256,name_hex,short_name_hex,name,short_name) KEY(unique_id) VALUES (?,?,?,?,?,?,?,?)",
-                awardNames.values().stream().map(n->new Object[]{n.uniqueId(),n.recordIndex(),n.prefixHex(),com.github.fmaiassistent.exporter.ContractExporter.MODULE_SHA256,n.nameHex(),n.shortNameHex(),n.name(),n.shortName()}).toList());
+                new ArrayList<>(awardNames.values()));
         if (!contracts.isEmpty()) contractBatch("INSERT INTO player_contracts "
                 + "(id,player_id,staff_id,kind,slot,owner_uid,team_uid,agreed_code,base_fee,total_fee,fee_kind,match_threshold,matches_played,"
                 + "competition_index,competition_uid,condition_kind,internal_competition,context_1,context_2,flags_a0,flags_a8,core_hex,auxiliary_hex,module_sha256,team_owner_kind,team_owner_uid,"

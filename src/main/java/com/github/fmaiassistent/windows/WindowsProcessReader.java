@@ -42,7 +42,7 @@ public final class WindowsProcessReader implements ProcessMemoryReader {
 
     public WindowsProcessReader(int pid) throws IOException {
         if (Native.POINTER_SIZE != Long.BYTES) {
-            throw new IOException("A 64-bit Java runtime is required to read the 64-bit FM26 process");
+            throw new IOException("A 64-bit Java runtime is required to read the 64-bit FM27 process");
         }
         this.pid = pid;
         this.process = Kernel32.INSTANCE.OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid);

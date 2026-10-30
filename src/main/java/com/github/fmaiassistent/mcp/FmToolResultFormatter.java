@@ -11,9 +11,9 @@ import java.util.Set;
 /** Shared compact views of read-only FM results. Never removes list rows. */
 public final class FmToolResultFormatter {
     private static final Set<String> PROJECTED_TOOLS = Set.of(
-            "fm26_analyze_squad", "fm26_optimize_lineup", "fm26_plan_squad_moves",
-            "fm26_get_role_attributes", "fm26_find_players", "fm26_find_staff",
-            "fm26_get_club_context");
+            "fm27_analyze_squad", "fm27_optimize_lineup", "fm27_plan_squad_moves",
+            "fm27_get_role_attributes", "fm27_find_players", "fm27_find_staff",
+            "fm27_get_club_context");
     private static final Set<String> PLAYER_SUMMARY = Set.of(
             "player_unique_id", "name", "age", "position_text", "ca", "pa", "injured", "contract_end");
     private static final Set<String> SEARCH_PLAYER_SUMMARY = Set.of(
@@ -36,15 +36,15 @@ public final class FmToolResultFormatter {
         if (!(parsed instanceof ObjectNode root)) return result;
 
         String detail = switch (toolName) {
-            case "fm26_analyze_squad" -> compactSquad(root);
-            case "fm26_optimize_lineup" -> compactLineup(root)
+            case "fm27_analyze_squad" -> compactSquad(root);
+            case "fm27_optimize_lineup" -> compactLineup(root)
                     ? "Repeated player fields and detailed fit subfields were removed. Lineup choices, scores and warnings remain."
                     : null;
-            case "fm26_plan_squad_moves" -> compactPlan(root);
-            case "fm26_get_role_attributes" -> compactRoleAttributes(json, root);
-            case "fm26_find_players" -> compactPlayerSearch(root);
-            case "fm26_find_staff" -> compactStaffSearch(root);
-            case "fm26_get_club_context" -> compactClubContext(root);
+            case "fm27_plan_squad_moves" -> compactPlan(root);
+            case "fm27_get_role_attributes" -> compactRoleAttributes(json, root);
+            case "fm27_find_players" -> compactPlayerSearch(root);
+            case "fm27_find_staff" -> compactStaffSearch(root);
+            case "fm27_get_club_context" -> compactClubContext(root);
             default -> null;
         };
         if (detail == null) return result;
@@ -60,7 +60,7 @@ public final class FmToolResultFormatter {
         compactLineup(squad.path("optimized_lineup"));
         return "Repeated candidate player fields and detailed fit subfields were removed. "
                 + "Coverage, scores, player IDs, named risk lists and other top-level sections remain. "
-                + "Use fm26_get_player_details for a player's full profile.";
+                + "Use fm27_get_player_details for a player's full profile.";
     }
 
     private static String compactPlan(ObjectNode plan) {
@@ -98,20 +98,20 @@ public final class FmToolResultFormatter {
         if (!root.path("players").isArray()) return null;
         for (JsonNode player : root.path("players")) retain(player, SEARCH_PLAYER_SUMMARY);
         return "Search rows contain player identity, club, position, ability, price, wage and availability. "
-                + "Use fm26_get_player_details with unique_id for the omitted fields.";
+                + "Use fm27_get_player_details with unique_id for the omitted fields.";
     }
 
     private static String compactStaffSearch(ObjectNode root) {
         if (!root.path("staff").isArray()) return null;
         for (JsonNode staff : root.path("staff")) retain(staff.path("best_coaching_role"), COACHING_SUMMARY);
         return "Detailed coaching attribute breakdowns were removed from search rows. "
-                + "Role, score and stars remain; use fm26_get_staff_details for full attributes.";
+                + "Role, score and stars remain; use fm27_get_staff_details for full attributes.";
     }
 
     private static String compactClubContext(ObjectNode root) {
         if (!root.path("squad").isArray()) return null;
         for (JsonNode player : root.path("squad")) retain(player, SEARCH_PLAYER_SUMMARY);
-        return "Squad rows contain the main player fields. Use fm26_get_player_details for full profiles.";
+        return "Squad rows contain the main player fields. Use fm27_get_player_details for full profiles.";
     }
 
     private static void compactPositionDepth(JsonNode positions) {

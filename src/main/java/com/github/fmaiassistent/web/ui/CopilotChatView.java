@@ -169,7 +169,7 @@ final class CopilotChatView extends Div {
     }
 
     private void configureInput() {
-        input.setPlaceholder("Ask GitHub Copilot about FM26 data or application…");
+        input.setPlaceholder("Ask GitHub Copilot about FM27 data or application…");
         input.setMinRows(2);
         input.setMaxRows(9);
         input.setWidthFull();

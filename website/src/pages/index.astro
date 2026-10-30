@@ -5,8 +5,8 @@ import CallToAction from '../components/CallToAction.astro';
 import { faqs } from '../content/faqs';
 import { site, toAbsoluteUrl } from '../config/site';
 
-const title = 'FM AI Assistent | Football Manager 2026 AI Companion';
-const description = 'Explore real FM26 save data for scouting, recruitment and squad analysis, then ask an AI assistant with useful in-game context.';
+const title = 'FM AI Assistent | Football Manager 2027 AI Companion';
+const description = 'Explore real FM27 save data for scouting, recruitment and squad analysis, then ask an AI assistant with useful in-game context.';
 const structuredData = [
   {
     '@context': 'https://schema.org', '@type': 'WebSite', '@id': `${site.origin}/#website`,
@@ -23,9 +23,9 @@ const structuredData = [
 <BaseLayout title={title} description={description} path="/" structuredData={structuredData}>
   <section class="hero">
     <div class="hero-copy">
-      <div class="hero-kicker"><span class="live-dot"></span> Built around your loaded FM26 save</div>
+      <div class="hero-kicker"><span class="live-dot"></span> Built around your loaded FM27 save</div>
       <p class="eyebrow">Scout smarter. Decide with context.</p>
-      <h1>An AI companion for your Football Manager 2026 save.</h1>
+      <h1>An AI companion for your Football Manager 2027 save.</h1>
       <p class="lead">Explore real player and staff data from your loaded save, compare recruitment options, analyze squad needs and ask an AI assistant questions with relevant in-game context.</p>
       <div class="button-row">
         <a class="button" href={site.latestRelease} rel="noopener noreferrer">Download latest release</a>
@@ -33,8 +33,8 @@ const structuredData = [
       </div>
     </div>
     <figure class="hero-visual">
-      <img src="/images/players.png" width="1600" height="900" alt="FM AI Assistent player database showing sortable FM26 player attributes and financial data" fetchpriority="high" />
-      <figcaption class="sr-only">The genuine player database interface after loading a Football Manager 2026 save.</figcaption>
+      <img src="/images/players.png" width="1600" height="900" alt="FM AI Assistent player database showing sortable FM27 player attributes and financial data" fetchpriority="high" />
+      <figcaption class="sr-only">The genuine player database interface after loading a Football Manager 2027 save.</figcaption>
     </figure>
     <div class="stat-strip" aria-label="Product compatibility">
       <div><strong>Windows 11 + Linux</strong><span>Documented desktop support</span></div>
@@ -46,7 +46,7 @@ const structuredData = [
   <section class="section">
     <div class="section-heading">
       <div><p class="eyebrow">Not a generic chatbot</p><h2>Your save is the starting point.</h2></div>
-      <p>FM AI Assistent reads a snapshot from your running FM26 game when you choose <strong>Load data</strong>. Search it directly, or let an enabled assistant use focused tools to reason about the same squad and market.</p>
+      <p>FM AI Assistent reads a snapshot from your running FM27 game when you choose <strong>Load data</strong>. Search it directly, or let an enabled assistant use focused tools to reason about the same squad and market.</p>
     </div>
     <div class="feature-grid">
       <FeatureCard number="01" title="Player scouting" description="Filter the loaded database by position, attributes, age, ability, contracts, wages and asking price; inspect and compare the candidates that matter." href="/features/scouting/" />
@@ -64,8 +64,8 @@ const structuredData = [
       <p>The app does not silently control the game. You choose when to load a snapshot and what context an AI conversation receives.</p>
     </div>
     <div class="steps">
-      <article class="step"><h3>Load your save</h3><p>Start Football Manager 2026 and open the career you want to analyze.</p></article>
-      <article class="step"><h3>Launch the app</h3><p>Run FM AI Assistent as the same computer user as FM26.</p></article>
+      <article class="step"><h3>Load your save</h3><p>Start Football Manager 2027 and open the career you want to analyze.</p></article>
+      <article class="step"><h3>Launch the app</h3><p>Run FM AI Assistent as the same computer user as FM27.</p></article>
       <article class="step"><h3>Select Load data</h3><p>The app extracts the available data and commits one local snapshot.</p></article>
       <article class="step"><h3>Explore or ask</h3><p>Browse directly, add optional context and question your selected AI assistant.</p></article>
     </div>
@@ -79,7 +79,7 @@ const structuredData = [
       <ul class="check-list">
         <li>Keep player IDs and decision values attached to evidence</li>
         <li>Make unknown asking prices, wages and proceeds explicit</li>
-        <li>Create an FM26-importable shortlist from selected player IDs</li>
+        <li>Create an FM27-importable shortlist from selected player IDs</li>
         <li>Refresh only when you choose or when an agent is permitted to</li>
       </ul>
       <a class="text-link" href="/features/ai-assistant/">Understand the AI workflow →</a>

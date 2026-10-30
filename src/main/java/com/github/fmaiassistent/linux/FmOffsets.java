@@ -18,10 +18,11 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class FmOffsets {
     private static final Logger log = LoggerFactory.getLogger(FmOffsets.class);
-    public static final int DEFAULT_BUILD = 0x238bdd;
+    public static final int DEFAULT_BUILD = 0x25f1a7;
     public static final String PEOPLE_SLOT = "PeopleOffset";
     private static final long MAX_SCAN_REGION_SIZE = 80_000_000L;
-    private static final long GAME_PLUGIN_SCAN_RANGE = 0x0520_0000L;
+    // FM27 moved the data registries beyond the old 0x05200000 scan window.
+    private static final long GAME_PLUGIN_SCAN_RANGE = 0x0600_0000L;
     private static final int MIN_VALID_TABLE_SCORE = 35;
 
     private static final Map<Integer, Long> BUILD_TO_TABLE_RVA = Map.ofEntries(
@@ -48,18 +49,21 @@ public final class FmOffsets {
             Map.entry(0x22e3ef, 0x4df9ca0L), Map.entry(0x22e5fd, 0x4d19a10L),
             Map.entry(0x235144, 0x4e47490L), Map.entry(0x235145, 0x4d80320L),
             Map.entry(0x235d1d, 0x4d67200L), Map.entry(0x238bdd, 0x4e49490L),
-            Map.entry(0x238bde, 0x4d81320L), Map.entry(0x238cf5, 0x4d69200L)
+            Map.entry(0x238bde, 0x4d81320L), Map.entry(0x238cf5, 0x4d69200L),
+            Map.entry(0x25f1a7, 0x57035e8L)
     );
 
     // FM's native game_plugin.dll layout is the same on Windows and under Proton.
     private static final Map<Integer, Long> BUILD_TO_CURRENT_DATE_RVA = Map.of(
-            0x238bdd, 0x4df3c18L
+            0x238bdd, 0x4df3c18L,
+            0x25f1a7, 0x56ad378L
     );
 
     // Points at the current human manager person record. Keep this build-gated:
     // accepting a stale pointer here could silently attach the wrong club context.
     private static final Map<Integer, Long> BUILD_TO_CURRENT_HUMAN_MANAGER_RVA = Map.of(
-            0x238bdd, 0x4e37ca8L
+            0x238bdd, 0x4e37ca8L,
+            0x25f1a7, 0x56f32c8L
     );
 
     private static final Map<String, Long> SLOTS = new LinkedHashMap<>();
@@ -273,7 +277,7 @@ public final class FmOffsets {
     public static FmBuildProfile requireProfile(int build) {
         Long tableRva = BUILD_TO_TABLE_RVA.get(build);
         if (tableRva == null) {
-            throw new IllegalArgumentException("Unsupported FM26 build 0x" + Integer.toHexString(build));
+            throw new IllegalArgumentException("Unsupported FM build 0x" + Integer.toHexString(build));
         }
         Long dateRva = BUILD_TO_CURRENT_DATE_RVA.get(build);
         return new FmBuildProfile(build, tableRva,

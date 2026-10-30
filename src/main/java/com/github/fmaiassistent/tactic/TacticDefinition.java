@@ -16,7 +16,7 @@ public record TacticDefinition(
         slots = slots == null ? List.of() : List.copyOf(slots);
     }
 
-    static TacticDefinition from(Fm26TacticDecoder.DecodedTactic tactic) {
+    static TacticDefinition from(FmTacticDecoder.DecodedTactic tactic) {
         int size = Math.max(tactic.inPossession().size(), tactic.outOfPossession().size());
         List<TacticSlot> slots = new ArrayList<>(size);
         for (int index = 0; index < size; index++) {
@@ -28,11 +28,11 @@ public record TacticDefinition(
         return new TacticDefinition(tactic.name(), tactic.tacticalStyle(), tactic.mentality(), slots);
     }
 
-    private static PhaseRole phaseRole(List<Fm26TacticDecoder.RoleSelection> roles, int index) {
+    private static PhaseRole phaseRole(List<FmTacticDecoder.RoleSelection> roles, int index) {
         if (index >= roles.size()) {
             return null;
         }
-        Fm26TacticDecoder.RoleSelection role = roles.get(index);
+        FmTacticDecoder.RoleSelection role = roles.get(index);
         return new PhaseRole(role.position(), role.role(), role.duty());
     }
 

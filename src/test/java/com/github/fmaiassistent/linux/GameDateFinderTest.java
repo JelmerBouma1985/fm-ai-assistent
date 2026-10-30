@@ -19,6 +19,18 @@ class GameDateFinderTest {
     private static final long BUILD_238BDD_CURRENT_DATE_RVA = 0x4df3c18L;
 
     @Test
+    void readsCapturedFm27ClockAndIgnoresOldBuildAddress() {
+        FakeReader reader = new FakeReader(ProcessMemoryReader.Platform.WINDOWS);
+        // FULL_CONTRACT vE8 in 27.0.0+2486695 independently references this packed clock.
+        reader.putU16(GAME_PLUGIN_BASE + 0x56ad378L, 0x1ad7);
+        reader.putU16(GAME_PLUGIN_BASE + 0x56ad37aL, 2026);
+        putCurrentDate(reader, 8, 2028);
+        assertEquals(LocalDate.of(2026, 8, 3), new GameDateFinder()
+                .find(reader, 0, FmOffsets.DEFAULT_BUILD, GAME_PLUGIN_BASE).orElseThrow());
+        assertTrue(new GameDateFinder().find(reader, 0, FmOffsets.DEFAULT_BUILD + 1, GAME_PLUGIN_BASE).isEmpty());
+    }
+
+    @Test
     void readsCurrentDateFromLinuxProtonLayout() {
         FakeReader reader = new FakeReader(ProcessMemoryReader.Platform.LINUX);
         putCurrentDate(reader, 0x7E00 | 8, 2028);

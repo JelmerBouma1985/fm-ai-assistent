@@ -43,7 +43,7 @@ final class PlayerRoleAttributeCatalog {
     }
 
     private static List<RoleDefinition> loadRoles() {
-        try (InputStream input = PlayerRoleAttributeCatalog.class.getResourceAsStream("/db/data/fm26_positional_roles_attributes_flat.csv")) {
+        try (InputStream input = PlayerRoleAttributeCatalog.class.getResourceAsStream("/db/data/fm27_positional_roles_attributes_flat.csv")) {
             if (input == null) {
                 return List.of();
             }

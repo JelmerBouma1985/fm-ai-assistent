@@ -3,6 +3,7 @@ package com.github.fmaiassistent.exporter;
 import com.github.fmaiassistent.memory.NonPlayingProfileLayout;
 import com.github.fmaiassistent.memory.PersonIdentityLayout;
 import com.github.fmaiassistent.memory.ProcessMemoryReader;
+import com.github.fmaiassistent.memory.NativeModuleProfile;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -19,9 +20,13 @@ public final class NonPlayingProfileExporter {
     /** The preceding contract capture verifies the binary once for these exact snapshot rows. */
     static void capture(ProcessMemoryReader reader,Long suppliedBase,List<Map<String,Object>> rows)throws IOException {
         if(reader.platform()!=ProcessMemoryReader.Platform.WINDOWS
-                ||rows.stream().noneMatch(r->NonPlayingProfileLayout.MODULE_SHA256.equals(r.get("_contract_profile"))))return;
+                ||rows.stream().noneMatch(r->NativeModuleProfile.supported(String.valueOf(r.get("_contract_profile")))))return;
         long base=suppliedBase==null?com.github.fmaiassistent.linux.FmOffsets.findGamePluginBase(reader):suppliedBase;
-        captureVerifiedRows(reader,base,rows,NonPlayingProfileLayout.current());
+        for (String profile : rows.stream().map(r->String.valueOf(r.get("_contract_profile"))).distinct()
+                .filter(NativeModuleProfile::supported).toList()) {
+            captureVerifiedRows(reader,base,rows.stream().filter(r->profile.equals(r.get("_contract_profile"))).toList(),
+                    NativeModuleProfile.fm27(profile)?NonPlayingProfileLayout.fm27():NonPlayingProfileLayout.current());
+        }
     }
 
     static void captureVerifiedRows(ProcessMemoryReader reader,long base,List<Map<String,Object>> rows,
@@ -30,7 +35,10 @@ public final class NonPlayingProfileExporter {
         var pending=new ArrayList<Pending>();
         for(var row:rows) {
             if(Thread.currentThread().isInterrupted())throw new IOException("Management profile capture interrupted");
-            if(!NonPlayingProfileLayout.MODULE_SHA256.equals(row.get("_contract_profile")))continue;
+            String profile=String.valueOf(row.get("_contract_profile"));
+            if(!NativeModuleProfile.supported(profile))continue;
+            if(!layout.equals(NativeModuleProfile.fm27(profile)?NonPlayingProfileLayout.fm27():NonPlayingProfileLayout.current()))
+                throw new IOException("Management profile layout does not match its source binary");
             Object address=row.containsKey("record")?row.get("record"):row.get("record_address");
             final long person;
             try { person=address instanceof Number n?n.longValue():Long.decode(String.valueOf(address)); }
@@ -44,7 +52,7 @@ public final class NonPlayingProfileExporter {
             long vtable=ByteBuffer.wrap(prefix).order(ByteOrder.LITTLE_ENDIAN).getLong();
             boolean human=vtable==base+layout.humanPersonVtableRva();
             if(!human&&vtable!=base+layout.standalonePersonVtableRva()&&vtable!=base+layout.combinedPersonVtableRva())continue;
-            // Human constructorD517B0 embeds the same member atC+8, with PERSON atC+450hex.
+            // Both typed constructors embed the same member at owner+8; PERSON displacement is build-specific.
             if(reader.readU32(person+layout.constructionRel())!=0)throw new IOException("Management profile construction view changed");
             long member=person+(human?layout.humanPersonToMemberRel():layout.personToMemberRel());
             if(member<0x10000||member>ProcessMemoryReader.MAX_USER_ADDRESS-layout.memberBytes())
@@ -63,7 +71,7 @@ public final class NonPlayingProfileExporter {
         for(var p:pending) {
             p.row().put("non_playing_profile_hex",HexFormat.of().formatHex(
                     p.raw(),layout.profileOffset(),layout.profileOffset()+layout.profileBytes()));
-            p.row().put("non_playing_profile_sha256",NonPlayingProfileLayout.MODULE_SHA256);
+            p.row().put("non_playing_profile_sha256",p.row().get("_contract_profile"));
         }
     }
     private record Pending(Map<String,Object> row,long person,long member,byte[] prefix,byte[] raw) { }

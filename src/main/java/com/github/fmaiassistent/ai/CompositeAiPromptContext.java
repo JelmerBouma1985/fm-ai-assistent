@@ -22,7 +22,7 @@ public class CompositeAiPromptContext implements AiPromptContext {
             return userMessage;
         }
         return """
-                The following Football Manager 2026 context was loaded locally by the application. Treat it as factual context for the current save. Use it when relevant, and do not invent values that are absent.
+                The following Football Manager 2027 context was loaded locally by the application. Treat it as factual context for the current save. Use it when relevant, and do not invent values that are absent.
 
                 %s
 

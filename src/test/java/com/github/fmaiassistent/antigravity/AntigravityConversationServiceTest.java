@@ -70,7 +70,7 @@ class AntigravityConversationServiceTest {
                 JsonMapper.builder().build().createObjectNode()
                         .put("name", "call_mcp_tool")
                         .set("parameters", JsonMapper.builder().build().createObjectNode()
-                                .put("tool_name", "fm26_find_players"))));
+                                .put("tool_name", "fm27_find_players"))));
         first.accept(new AntigravityStreamEvent.Result(
                 "agy-A", "SUCCESS", "Hello world", null, 1.2, 100));
         completions.getFirst().complete(new AntigravityProcessResult(0, "", false, false, true));

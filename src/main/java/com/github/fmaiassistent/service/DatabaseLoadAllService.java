@@ -98,14 +98,14 @@ public class DatabaseLoadAllService {
                 String installed = layoutMatch.installedBuildId() < 0
                         ? "unknown"
                         : String.valueOf(layoutMatch.installedBuildId());
-                log.warn("FM26 Steam build {} is not in the known memory-layout registry; "
+                log.warn("FM27 Steam build {} is not in the known memory-layout registry; "
                         + "continuing with the last known record layouts", installed);
-                warningPrefix.set("Unknown FM26 build " + installed + " - using last known memory layout");
+                warningPrefix.set("Unknown FM27 build " + installed + " - using last known memory layout");
             }
-            reportPhase("Reading FM26 memory");
+            reportPhase("Reading FM27 memory");
             RamSnapshot ram = readRamInParallel(resolvedPid, build, gamePluginBase);
             if (ram.peopleSlots() <= 0) {
-                throw new IOException("FM26 people registry is empty; wait until the save has finished loading");
+                throw new IOException("FM27 people registry is empty; wait until the save has finished loading");
             }
             reportPhase("Validating player data");
             PlayerSnapshotValidator.validate(ram.players().rows(), ram.peopleSlots(), ram.players().gameDate());
@@ -121,27 +121,27 @@ public class DatabaseLoadAllService {
             long stepStarted = System.nanoTime();
             reportPhase("Clearing local database");
             databaseService.clearAllTables();
-            log.info("FM26 database clear completed in {} ms", elapsedMillis(stepStarted));
+            log.info("FM27 database clear completed in {} ms", elapsedMillis(stepStarted));
             stepStarted = System.nanoTime();
             reportPhase("Saving competitions");
             Map<Long, Long> competitionIds = snapshotWriter.saveCompetitions(ram.competitions());
-            log.info("FM26 competition persistence completed in {} ms", elapsedMillis(stepStarted));
+            log.info("FM27 competition persistence completed in {} ms", elapsedMillis(stepStarted));
             stepStarted = System.nanoTime();
             reportPhase("Saving clubs");
             Map<Long, Long> clubIds = snapshotWriter.saveClubs(ram.clubs(), competitionIds);
-            log.info("FM26 club persistence completed in {} ms", elapsedMillis(stepStarted));
+            log.info("FM27 club persistence completed in {} ms", elapsedMillis(stepStarted));
             stepStarted = System.nanoTime();
             reportPhase("Saving fixtures");
             snapshotWriter.saveFixtures(ram.fixtures(), clubIds);
-            log.info("FM26 fixture persistence completed in {} ms", elapsedMillis(stepStarted));
+            log.info("FM27 fixture persistence completed in {} ms", elapsedMillis(stepStarted));
             stepStarted = System.nanoTime();
             reportPhase("Saving players");
             snapshotWriter.savePlayers(ram.players(), clubIds);
-            log.info("FM26 player persistence completed in {} ms", elapsedMillis(stepStarted));
+            log.info("FM27 player persistence completed in {} ms", elapsedMillis(stepStarted));
             stepStarted = System.nanoTime();
             reportPhase("Saving staff");
             snapshotWriter.saveStaff(ram.staff(), clubIds);
-            log.info("FM26 staff persistence completed in {} ms", elapsedMillis(stepStarted));
+            log.info("FM27 staff persistence completed in {} ms", elapsedMillis(stepStarted));
             stepStarted = System.nanoTime();
             reportPhase("Detecting managed club");
             ManagedClubContext detectedManagedClub;
@@ -149,13 +149,13 @@ public class DatabaseLoadAllService {
                 detectedManagedClub = managedClubContexts.detect(resolvedPid, build, gamePluginBase);
             } catch (IOException | RuntimeException exception) {
                 String message = exception.getMessage() == null || exception.getMessage().isBlank()
-                        ? "The managed club could not be detected from FM26 RAM"
+                        ? "The managed club could not be detected from FM27 RAM"
                         : exception.getMessage();
                 detectedManagedClub = managedClubContexts.unavailable(message);
-                log.warn("FM26 data loaded, but the current managed club could not be detected: {}", message);
+                log.warn("FM27 data loaded, but the current managed club could not be detected: {}", message);
             }
             publishManagedClubAfterCommit(detectedManagedClub);
-            log.info("FM26 managed-club finalization completed in {} ms", elapsedMillis(stepStarted));
+            log.info("FM27 managed-club finalization completed in {} ms", elapsedMillis(stepStarted));
             stepStarted = System.nanoTime();
             reportPhase("Saving snapshot");
             String snapshotId = UUID.randomUUID().toString();
@@ -227,8 +227,8 @@ public class DatabaseLoadAllService {
                 snapshotMetadata.add(new LoadMetadataEntity("career_key", detectedManagedClub.careerKey()));
             }
             metadata.saveAll(snapshotMetadata);
-            log.info("FM26 snapshot metadata persistence completed in {} ms", elapsedMillis(stepStarted));
-            log.info("FM26 database replacement and finalization prepared for commit in {} ms",
+            log.info("FM27 snapshot metadata persistence completed in {} ms", elapsedMillis(stepStarted));
+            log.info("FM27 database replacement and finalization prepared for commit in {} ms",
                     elapsedMillis(persistenceStarted));
             return new LoadAllResult(
                     resolvedPid,
@@ -313,7 +313,7 @@ public class DatabaseLoadAllService {
                     people.staff().gameDate(),
                     fixtures.gameDate(),
                     liveGameDate(pid, build, gamePluginBase));
-            log.info("Parallel FM26 RAM extraction completed in {} ms", elapsedMillis(started));
+            log.info("Parallel FM27 RAM extraction completed in {} ms", elapsedMillis(started));
             return snapshot;
         } catch (IOException | RuntimeException exception) {
             futures.forEach(future -> future.cancel(true));
@@ -322,7 +322,7 @@ public class DatabaseLoadAllService {
             executor.shutdownNow();
             try {
                 if (!executor.awaitTermination(EXECUTOR_SHUTDOWN_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
-                    log.warn("FM26 RAM extraction workers did not terminate within {} ms",
+                    log.warn("FM27 RAM extraction workers did not terminate within {} ms",
                             EXECUTOR_SHUTDOWN_TIMEOUT.toMillis());
                 }
             } catch (InterruptedException exception) {
@@ -335,10 +335,10 @@ public class DatabaseLoadAllService {
         long started = System.nanoTime();
         try {
             T result = reader.get();
-            log.info("FM26 {} RAM extraction completed in {} ms", dataType, elapsedMillis(started));
+            log.info("FM27 {} RAM extraction completed in {} ms", dataType, elapsedMillis(started));
             return result;
         } catch (IOException | RuntimeException exception) {
-            log.warn("FM26 {} RAM extraction failed after {} ms: {}",
+            log.warn("FM27 {} RAM extraction failed after {} ms: {}",
                     dataType, elapsedMillis(started), exception.getMessage());
             throw exception;
         }
@@ -353,7 +353,7 @@ public class DatabaseLoadAllService {
             return future.get(remaining, TimeUnit.NANOSECONDS);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new IOException("Interrupted while reading FM26 " + dataType + " data", exception);
+            throw new IOException("Interrupted while reading FM27 " + dataType + " data", exception);
         } catch (ExecutionException exception) {
             Throwable cause = exception.getCause();
             if (cause instanceof IOException ioException) {
@@ -362,10 +362,10 @@ public class DatabaseLoadAllService {
             if (cause instanceof RuntimeException runtimeException) {
                 throw runtimeException;
             }
-            throw new IOException("Could not read FM26 " + dataType + " data", cause);
+            throw new IOException("Could not read FM27 " + dataType + " data", cause);
         } catch (TimeoutException exception) {
             future.cancel(true);
-            throw new IOException("Timed out while reading FM26 " + dataType + " data after "
+            throw new IOException("Timed out while reading FM27 " + dataType + " data after "
                     + RAM_READ_TIMEOUT.toSeconds() + " seconds", exception);
         }
     }
@@ -377,7 +377,7 @@ public class DatabaseLoadAllService {
                     .map(java.time.LocalDate::toString)
                     .orElse(null);
         } catch (IOException | RuntimeException exception) {
-            log.debug("Could not probe FM26 game date for snapshot coherence: {}", exception.getMessage());
+            log.debug("Could not probe FM27 game date for snapshot coherence: {}", exception.getMessage());
             return null;
         }
     }
@@ -388,7 +388,7 @@ public class DatabaseLoadAllService {
                 .distinct()
                 .toList();
         if (observed.size() > 1) {
-            throw new IOException("FM26 game date changed during RAM extraction: " + observed);
+            throw new IOException("FM27 game date changed during RAM extraction: " + observed);
         }
     }
 
@@ -407,7 +407,7 @@ public class DatabaseLoadAllService {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                log.info("FM26 database replacement and finalization committed in {} ms", elapsedMillis(started));
+                log.info("FM27 database replacement and finalization committed in {} ms", elapsedMillis(started));
             }
         });
     }

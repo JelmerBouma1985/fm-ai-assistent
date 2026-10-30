@@ -15,15 +15,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PlayerRecordLayoutsTest {
     @Test
     void resolvesKnownBuild(@TempDir Path home) throws Exception {
-        writeManifest(home, "\"AppState\"\n{\n\t\"buildid\"\t\t\"23583635\"\n}");
+        writeManifest(home, "\"AppState\"\n{\n\t\"buildid\"\t\t\"26227640\"\n}");
 
         PlayerRecordLayouts.LayoutMatch match = PlayerRecordLayouts.resolve(home);
 
         assertThat(match.knownBuild()).isTrue();
-        assertThat(match.installedBuildId()).isEqualTo(23583635L);
+        assertThat(match.installedBuildId()).isEqualTo(26227640L);
         assertThat(match.layouts().players()).isEqualTo(PlayerRecordLayout.current());
         assertThat(match.layouts().staff()).isEqualTo(StaffRecordLayout.current());
-        assertThat(match.layouts().clubs()).isEqualTo(ClubRecordLayout.current());
+        assertThat(match.layouts().clubs()).isEqualTo(ClubRecordLayout.fm27());
         assertThat(match.layouts().competitions()).isEqualTo(CompetitionRecordLayout.current());
     }
 
@@ -37,7 +37,7 @@ class PlayerRecordLayoutsTest {
         assertThat(match.installedBuildId()).isEqualTo(99999999L);
         assertThat(match.layouts().players()).isEqualTo(PlayerRecordLayout.current());
         assertThat(match.layouts().staff()).isEqualTo(StaffRecordLayout.current());
-        assertThat(match.layouts().clubs()).isEqualTo(ClubRecordLayout.current());
+        assertThat(match.layouts().clubs()).isEqualTo(ClubRecordLayout.fm27());
         assertThat(match.layouts().competitions()).isEqualTo(CompetitionRecordLayout.current());
     }
 
@@ -56,6 +56,6 @@ class PlayerRecordLayoutsTest {
         Files.createDirectories(customLib.resolve("steamapps"));
         Files.writeString(steamApps.resolve("libraryfolders.vdf"),
                 "\"libraryfolders\"\n{\n\t\"1\"\n\t{\n\t\t\"path\"\t\t\"" + customLib + "\"\n\t}\n}");
-        Files.writeString(customLib.resolve("steamapps/appmanifest_3551340.acf"), manifest);
+        Files.writeString(customLib.resolve("steamapps/appmanifest_4530370.acf"), manifest);
     }
 }

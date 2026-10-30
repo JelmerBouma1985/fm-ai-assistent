@@ -46,21 +46,24 @@ public class ClubExporter {
     public ExportResult exportAllClubs(int pid, int build, Long gamePluginBase) throws IOException {
         try (ProcessMemoryReader reader = ProcessReaders.open(pid)) {
             ClubIdentitySnapshot identities=null;
+            String identityProfile=null;
             if(reader.platform()==ProcessMemoryReader.Platform.WINDOWS) {
                 long base=gamePluginBase==null?FmOffsets.findGamePluginBase(reader):gamePluginBase;
                 String override=System.getProperty(ContractExporter.MODULE_PROPERTY);
                 Path module=override==null||override.isBlank()?reader.maps().stream()
                         .filter(r->r.contains(base,1)&&!r.path().isBlank()).map(r->Path.of(r.path())).findFirst().orElse(null):Path.of(override);
-                if(module!=null&&ContractExporter.supportedModule(module))identities=new ClubIdentitySnapshot(reader,base,ClubIdentityLayout.current(),
-                        ContractExporter.MODULE_SHA256.equals(com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.MODULE_SHA256)
-                                ?com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.current():null,
-                        ContractExporter.MODULE_SHA256.equals(com.github.fmaiassistent.memory.ClubFinancialLoanLayout.MODULE_SHA256)
-                                ?com.github.fmaiassistent.memory.ClubFinancialLoanLayout.current():null,
-                        ContractExporter.MODULE_SHA256.equals(com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.MODULE_SHA256)
-                                ?com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.current():null,
-                        com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.current(),
-                        com.github.fmaiassistent.memory.CompetitionNameLayout.current(),
-                        com.github.fmaiassistent.memory.ClubFinancialHistoryLayout.current());
+                identityProfile=module==null?null:com.github.fmaiassistent.memory.NativeModuleProfile.identify(module).orElse(null);
+                if(identityProfile!=null) {
+                    boolean fm27=com.github.fmaiassistent.memory.NativeModuleProfile.fm27(identityProfile);
+                    recordLayout=fm27?ClubRecordLayout.fm27():ClubRecordLayout.current();
+                    identities=new ClubIdentitySnapshot(reader,base,fm27?ClubIdentityLayout.fm27():ClubIdentityLayout.current(),
+                            fm27?com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.fm27():com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.current(),
+                            fm27?com.github.fmaiassistent.memory.ClubFinancialLoanLayout.fm27():com.github.fmaiassistent.memory.ClubFinancialLoanLayout.current(),
+                            fm27?com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.fm27():com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.current(),
+                            fm27?com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.fm27():com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.current(),
+                            com.github.fmaiassistent.memory.CompetitionNameLayout.current(),
+                            fm27?com.github.fmaiassistent.memory.ClubFinancialHistoryLayout.fm27():com.github.fmaiassistent.memory.ClubFinancialHistoryLayout.current());
+                }
             }
             FmOffsets.Bounds bounds = FmOffsets.tableBounds(reader, build, gamePluginBase, "TeamOffset");
             if(bounds.count()>1_000_000)throw new IOException("TEAM table exceeds bounded club capture limit");
@@ -96,7 +99,7 @@ public class ClubExporter {
                         ||teams.bytes().length>0&&!Arrays.equals(teams.bytes(),reader.readBytes(bounds.start(),teams.bytes().length)))
                     throw new PlayerSnapshotValidator.ClubIdentityChangedException("TEAM registry changed during club capture");
             }
-            return new ExportResult(rows,identities==null?List.of():identities.records(),identities==null?null:ContractExporter.MODULE_SHA256,
+            return new ExportResult(rows,identities==null?List.of():identities.records(),identities==null?null:identityProfile,
                     identities==null?null:identities.competitionNames());
         }
     }
@@ -169,7 +172,7 @@ public class ClubExporter {
         row.put("transferBudget", finance.transferBudget());
         row.put("payrollBudget", finance.payrollBudget());
         row.put("currentWagesIncludingBonuses",finance.currentWagesIncludingBonuses());
-        Facilities facilities = readFacilities(reader, club);
+        Facilities facilities = verifiedModuleBase==null?readFacilities(reader, club):readFacilities(reader, club,verifiedModuleBase);
         row.put("trainingFacilities", facilities.training());
         row.put("youthFacilities", facilities.youth());
         row.put("youthCoaching", facilities.coaching());
@@ -187,7 +190,8 @@ public class ClubExporter {
     }
 
     Finance readFinance(ProcessMemoryReader reader, long club, long verifiedModuleBase) throws IOException {
-        return readFinance(reader, club, verifiedModuleBase, com.github.fmaiassistent.memory.ClubFinanceLayout.current());
+        return readFinance(reader, club, verifiedModuleBase, recordLayout.equals(ClubRecordLayout.fm27())
+                ?com.github.fmaiassistent.memory.ClubFinanceLayout.fm27():com.github.fmaiassistent.memory.ClubFinanceLayout.current());
     }
 
     Finance readFinance(ProcessMemoryReader reader, long club, long verifiedModuleBase,
@@ -198,11 +202,11 @@ public class ClubExporter {
         if (verifiedModuleBase < 0x10000 || child < 0x10000
                 || child > ProcessMemoryReader.MAX_USER_ADDRESS - layout.fullBytes())
             throw new PlayerSnapshotValidator.ClubIdentityChangedException("CLUB_FINANCE pointer/range anchor failed");
-        byte[] prefix = reader.readBytes(child, layout.ownerRel() + Long.BYTES);
+        byte[] prefix = reader.readBytes(child, Math.max(Long.BYTES,layout.ownerRel() + Long.BYTES));
         long vtable = buffer(prefix).getLong();
         boolean full = vtable == verifiedModuleBase + layout.fullVtableRva();
         if ((!full && vtable != verifiedModuleBase + layout.baseVtableRva())
-                || buffer(prefix).getLong(layout.ownerRel()) != club)
+                || layout.ownerRel()>=0&&buffer(prefix).getLong(layout.ownerRel()) != club)
             throw new PlayerSnapshotValidator.ClubIdentityChangedException("CLUB_FINANCE native type/owner anchor failed");
         int size = full ? layout.fullBytes() : layout.baseBytes();
         byte[] raw = reader.readBytes(child, size);
@@ -212,7 +216,7 @@ public class ClubExporter {
         Long transfer = full ? (long) buffer(raw).getInt(Math.toIntExact(recordLayout.clubTransferBudgetRel())) : null;
         Long payroll = full ? (long) buffer(raw).getInt(Math.toIntExact(recordLayout.clubPayrollBudgetRel())) : null;
         Long currentWages = null;
-        if (full && ContractExporter.MODULE_SHA256.equals(com.github.fmaiassistent.memory.ClubFinanceLayout.MODULE_SHA256)) {
+        if (full) {
             int cached = buffer(raw).getInt(layout.currentWagesRel());
             // 163CF90 would recompute <=-1001 through game-thread logic. Read-only exports leave it unavailable.
             if (cached > layout.firstUncachedWage()) currentWages = (long) cached;
@@ -221,6 +225,27 @@ public class ClubExporter {
                 || !Arrays.equals(raw, reader.readBytes(child, size)))
             throw new PlayerSnapshotValidator.ClubIdentityChangedException("CLUB_FINANCE changed during capture");
         return new Finance(balance, transfer, payroll, currentWages);
+    }
+
+    private Facilities readFacilities(ProcessMemoryReader reader,long club,long base)throws IOException {
+        var finance=recordLayout.equals(ClubRecordLayout.fm27())
+                ?com.github.fmaiassistent.memory.ClubFinanceLayout.fm27():com.github.fmaiassistent.memory.ClubFinanceLayout.current();
+        PlayerSnapshotValidator.validateClubFinanceLayout(recordLayout,finance);
+        long data=reader.readU64(club+recordLayout.clubFacilitiesBlockRel());
+        int training=0,youth=0,coaching=0,recruitment=0,corporate=0;
+        if(data!=0) {
+            training=facilityRating(reader,data+recordLayout.clubTrainingFacilitiesRel());
+            youth=facilityRating(reader,data+recordLayout.clubYouthFacilitiesRel());
+            coaching=facilityRating(reader,data+recordLayout.clubYouthCoachingRel());
+            recruitment=facilityRating(reader,data+recordLayout.clubYouthRecruitmentRel());
+        }
+        long child=reader.readU64(club+recordLayout.clubFinanceBlockRel());
+        if(child!=0&&reader.readU64(child)==base+finance.fullVtableRva())
+            corporate=facilityRating(reader,child+recordLayout.clubCorporateFacilitiesRel());
+        if(reader.readU64(club+recordLayout.clubFacilitiesBlockRel())!=data
+                ||reader.readU64(club+recordLayout.clubFinanceBlockRel())!=child)
+            throw new PlayerSnapshotValidator.ClubIdentityChangedException("CLUB facilities relationship changed during capture");
+        return new Facilities(training,youth,coaching,recruitment,corporate);
     }
 
     Finance readFinance(ProcessMemoryReader reader, long club) throws IOException {

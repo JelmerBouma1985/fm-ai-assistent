@@ -223,7 +223,7 @@ public class MainView extends VerticalLayout {
         loadButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         loadButton.addClassName("load-button");
         freshnessBadge.addClassName("freshness-badge");
-        freshnessBadge.getElement().setAttribute("title", "Check whether the loaded FM26 data is current");
+        freshnessBadge.getElement().setAttribute("title", "Check whether the loaded FM27 data is current");
         freshnessBadge.getElement().setAttribute("aria-label", "Check data freshness");
         setBadge(FreshnessBadge.UNKNOWN);
         filterButton.addClassName("filter-button");
@@ -321,7 +321,7 @@ public class MainView extends VerticalLayout {
         loadButton.setText("Loading...");
         loadButton.setIcon(VaadinIcon.REFRESH.create());
         loadButton.addClassName("is-loading");
-        loadingPhase.setText("Starting FM26 memory read...");
+        loadingPhase.setText("Starting FM27 memory read...");
         loadingDialog.open();
         ui.setPollInterval(LOADING_POLL_INTERVAL_MS);
 
@@ -395,22 +395,22 @@ public class MainView extends VerticalLayout {
             if (Boolean.TRUE.equals(stale)) {
                 status.setText("Data stale | Loaded " + loadedDate + " | FM " + liveDate);
                 Notification.show(
-                        "FM26 has changed since the last load. Select Load data before asking for decisions.",
+                        "FM27 has changed since the last load. Select Load data before asking for decisions.",
                         7000,
                         Notification.Position.TOP_CENTER);
             } else if (Boolean.FALSE.equals(stale)) {
                 status.setText("Data current | Game date " + loadedDate);
-                Notification.show("Loaded FM26 snapshot is current", 2500, Notification.Position.TOP_CENTER);
+                Notification.show("Loaded FM27 snapshot is current", 2500, Notification.Position.TOP_CENTER);
             } else {
                 status.setText("Data freshness unverified | Loaded " + loadedDate);
                 Notification.show(
-                        "Could not verify the live FM26 game date. The loaded snapshot was left unchanged.",
+                        "Could not verify the live FM27 game date. The loaded snapshot was left unchanged.",
                         5000,
                         Notification.Position.TOP_CENTER);
             }
         } else if (Boolean.TRUE.equals(stale) && !Boolean.TRUE.equals(lastStale)) {
             Notification.show(
-                    "FM26 has changed since the last load. Select Load data before asking for decisions.",
+                    "FM27 has changed since the last load. Select Load data before asking for decisions.",
                     7000,
                     Notification.Position.TOP_CENTER);
         }

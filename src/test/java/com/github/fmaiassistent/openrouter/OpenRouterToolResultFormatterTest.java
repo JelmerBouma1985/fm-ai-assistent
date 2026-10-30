@@ -27,7 +27,7 @@ class OpenRouterToolResultFormatterTest {
         }
         String original = json.writeValueAsString(catalog);
         assertTrue(bytes(original) > 64 * 1024);
-        JsonNode compact = json.readTree(compact(json, "fm26_get_role_attributes", original));
+        JsonNode compact = json.readTree(compact(json, "fm27_get_role_attributes", original));
         assertEquals(50, compact.path("roles").size());
         assertEquals("ATTRIBUTE_0", compact.path("roles").get(0).path("primary_attributes").get(0).asString());
         assertEquals("ATTRIBUTE_5", compact.path("roles").get(49).path("secondary_attributes").get(5).asString());
@@ -50,8 +50,8 @@ class OpenRouterToolResultFormatterTest {
                     .putObject("best_coaching_role").put("role", "defending")
                     .put("stars", 4).put("attributes", "x".repeat(1600));
         }
-        for (var entry : new Object[][] {{"fm26_find_players", players, "players"},
-                {"fm26_find_staff", staff, "staff"}}) {
+        for (var entry : new Object[][] {{"fm27_find_players", players, "players"},
+                {"fm27_find_staff", staff, "staff"}}) {
             String original = json.writeValueAsString(entry[1]);
             assertTrue(bytes(original) > 64 * 1024);
             String result = compact(json, (String) entry[0], original);
@@ -94,7 +94,7 @@ class OpenRouterToolResultFormatterTest {
         }
         String original = json.writeValueAsString(plan);
         assertTrue(bytes(original) > 64 * 1024);
-        String result = compact(json, "fm26_plan_squad_moves", original);
+        String result = compact(json, "fm27_plan_squad_moves", original);
         JsonNode summary = json.readTree(result);
         assertTrue(bytes(result) <= 64 * 1024);
         assertEquals(1000000, summary.path("finances").path("known_remaining_budget").asInt());
@@ -113,7 +113,7 @@ class OpenRouterToolResultFormatterTest {
         assignment.set("fit", fit());
         assignment.putArray("alternatives").add(detailedPlayer(8).set("fit", fit()));
         JsonNode compactLineup = json.readTree(compact(json,
-                "fm26_optimize_lineup", json.writeValueAsString(lineup)));
+                "fm27_optimize_lineup", json.writeValueAsString(lineup)));
         assertEquals(820, compactLineup.path("team_score_total").asInt());
         assertEquals(8, compactLineup.path("lineup").get(0).path("player").path("player_unique_id").asInt());
         assertTrue(compactLineup.path("lineup").get(0).path("fit").has("overall"));
@@ -125,7 +125,7 @@ class OpenRouterToolResultFormatterTest {
         context.putArray("squad").addObject().put("unique_id", 7).put("name", "Player 7")
                 .put("ca", 150).put("injury", "minor");
         JsonNode compactContext = json.readTree(compact(json,
-                "fm26_get_club_context", json.writeValueAsString(context)));
+                "fm27_get_club_context", json.writeValueAsString(context)));
         assertEquals(1000000, compactContext.path("club").path("transfer_budget").asInt());
         assertEquals(7, compactContext.path("squad").get(0).path("unique_id").asInt());
         assertEquals(150, compactContext.path("squad").get(0).path("ca").asInt());
@@ -139,7 +139,7 @@ class OpenRouterToolResultFormatterTest {
                 .put("note", "x".repeat(1000));
         String original = json.writeValueAsString(board);
         assertTrue(bytes(original) > 64 * 1024);
-        String result = compact(json, "fm26_get_recruitment_board", original);
+        String result = compact(json, "fm27_get_recruitment_board", original);
         JsonNode summary = json.readTree(result);
         assertTrue(bytes(result) <= 64 * 1024);
         assertEquals(100, summary.path("count").asInt());

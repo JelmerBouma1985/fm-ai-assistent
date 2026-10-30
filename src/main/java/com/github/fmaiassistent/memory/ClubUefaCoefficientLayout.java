@@ -15,6 +15,7 @@ public record ClubUefaCoefficientLayout(int clubDataRel, int coefficientRel, int
         int value5Rel, int value10Rel, int currentPointsRel, long ruleVersionRva,
         int ruleVersionBytes, int ruleThreshold, int oldPointsScale, int newPointsScale, int coefficientScale) {
     public static final String MODULE_SHA256 = "eb6c86fab56e051fe41482c7b93d8cb0af716a1cc2c6197ce1babbff68372bb8";
+    public static final String FM27_MODULE_SHA256 = ClubFinanceLayout.FM27_MODULE_SHA256;
 
     public static ClubUefaCoefficientLayout current() {
         return new ClubUefaCoefficientLayout(0x100, 0x40, 0xD8, 0xB9, 0x108, 8,
@@ -22,7 +23,17 @@ public record ClubUefaCoefficientLayout(int clubDataRel, int coefficientRel, int
                 0x4E08742L, 2, 0x653, 4, 100, 1000);
     }
 
-    public int pointsScale(int ruleVersion) { return ruleVersion > ruleThreshold ? newPointsScale : oldPointsScale; }
+    public static ClubUefaCoefficientLayout fm27() {
+        return new ClubUefaCoefficientLayout(0x100,0x48,0xD8,0xB9,0x108,8,
+                0x4C,0,4,10,4,0x2C,0x30,0x34,0x38,0x3C,0x40,0x44,
+                0x56C212A,2,0x671,100,1000,1000);
+    }
+
+    public int pointsScale(int ruleVersion) {
+        // FM27 retains the pre-0x654 four-point scale as well as its new 0x672 scale.
+        if (ruleThreshold == 0x671 && ruleVersion < 0x654) return 4;
+        return ruleVersion > ruleThreshold ? newPointsScale : oldPointsScale;
+    }
 
     /** Pure decoding, never sums history to replace a native computed total. */
     public Values decode(byte[] raw, int ruleVersion) {
@@ -45,9 +56,9 @@ public record ClubUefaCoefficientLayout(int clubDataRel, int coefficientRel, int
 
     /** Old rows, unsupported images or malformed payloads remain unavailable. */
     public static Optional<Values> values(String hex, Integer ruleVersion, String sourceSha256) {
-        if (!MODULE_SHA256.equals(sourceSha256) || hex == null || ruleVersion == null || hex.length() != 152)
+        if ((!MODULE_SHA256.equals(sourceSha256) && !FM27_MODULE_SHA256.equals(sourceSha256)) || hex == null || ruleVersion == null || hex.length() != 152)
             return Optional.empty();
-        try { return Optional.of(current().decode(HexFormat.of().parseHex(hex), ruleVersion)); }
+        try { return Optional.of((FM27_MODULE_SHA256.equals(sourceSha256) ? fm27() : current()).decode(HexFormat.of().parseHex(hex), ruleVersion)); }
         catch (IllegalArgumentException | IndexOutOfBoundsException invalid) { return Optional.empty(); }
     }
 

@@ -64,6 +64,7 @@ final class ClubIdentitySnapshot {
                          ClubFinancialCompetitionLayout competitions,CompetitionNameLayout names,
                          ClubFinancialHistoryLayout history)throws IOException {
         this.reader=new BudgetReader(source);this.base=base;this.layout=layout;
+        PlayerSnapshotValidator.validateClubIdentityLayout(layout);
         if(history!=null){PlayerSnapshotValidator.validateClubFinancialHistoryLayout(history);
             if(!history.ledger().equals(ledger))throw new IOException("Financial history requires matching ledger layout anchor");}
         this.nameLayout=names;
@@ -189,9 +190,9 @@ final class ClubIdentitySnapshot {
         long finance=buffer(frame(club+ledger.financeRel(),Long.BYTES)).getLong();
         if(finance==0)return null;
         PlayerSnapshotValidator.validateContractPointer(finance,ledger.fullBytes());
-        byte[] prefix=frame(finance,ledger.ownerRel()+Long.BYTES);
+        byte[] prefix=frame(finance,Math.max(Long.BYTES,ledger.ownerRel()+Long.BYTES));
         var p=buffer(prefix);long type=p.getLong();
-        if(p.getLong(ledger.ownerRel())!=club)throw new IOException("Financial ledger owner identity anchor failed");
+        if(ledger.ownerRel()>=0&&p.getLong(ledger.ownerRel())!=club)throw new IOException("Financial ledger owner identity anchor failed");
         if(type==base+ledger.baseVtableRva())return null;
         if(type!=base+ledger.fullVtableRva())throw new IOException("Financial ledger native type anchor failed");
         byte[] blocks=frame(finance+ledger.blocksRel(),ledger.blockWindowBytes()),raw=new byte[ledger.payloadBytes()];

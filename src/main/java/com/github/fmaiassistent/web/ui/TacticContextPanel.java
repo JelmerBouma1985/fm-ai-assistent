@@ -85,7 +85,7 @@ final class TacticContextPanel extends Details {
         Span heading = new Span("Let the AI understand your current tactic");
         heading.addClassName("tactic-context-heading");
         Span help = new Span(
-                "Choose a Football Manager 2026 .fmf tactic from your tactics folder, or upload one. "
+                "Choose a Football Manager 2027 .fmf tactic from your tactics folder, or upload one. "
                         + "Its roles, duties, mentality and tactical style will be added automatically to Codex, Antigravity and GitHub Copilot chats. "
                         + "A tactic loaded from disk is remembered between restarts and silently reloaded when the file changes.");
         help.addClassName("tactic-context-help");
@@ -149,7 +149,7 @@ final class TacticContextPanel extends Details {
         if (notify) {
             if (found.isEmpty()) {
                 Notification.show("No .fmf tactics in " + contexts.diskDirectory()
-                        + ". Export a tactic in FM26 first, or upload one below.");
+                        + ". Export a tactic in FM27 first, or upload one below.");
             } else {
                 Notification.show("Found " + found.size() + " tactic(s) on disk.", 2500,
                         Notification.Position.TOP_CENTER);

@@ -22,7 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Reads the human-managed first team's match records from FM26 memory. */
+/** Reads the human-managed first team's match records from FM27 memory. */
 @Component
 public class FixtureExporter {
     public static final List<String> FIELD_NAMES = List.of(

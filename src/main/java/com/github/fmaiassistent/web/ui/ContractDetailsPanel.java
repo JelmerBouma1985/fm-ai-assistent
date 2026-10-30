@@ -2,7 +2,7 @@ package com.github.fmaiassistent.web.ui;
 
 import com.github.fmaiassistent.domain.ContractSnapshot;
 import com.github.fmaiassistent.domain.StoredContract;
-import com.github.fmaiassistent.exporter.ContractExporter;
+import com.github.fmaiassistent.memory.NativeModuleProfile;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.Span;
@@ -30,7 +30,7 @@ final class ContractDetailsPanel extends VerticalLayout {
             var c=stored.snapshot();
             String kind=switch(c.kind()){case "FULL"->"Employment contract";case "LOAN"->"Loan agreement";case "B_CLUB"->"Additional club agreement";case "BASIC"->"Club agreement";default->"Other agreement";};
             add(new H3(stored.futureTransfer()!=null?"Agreed future contract":(c.slot()==-1?"Main contract: ":"Additional contract: ")+kind));
-            if(!ContractExporter.MODULE_SHA256.equals(stored.moduleSha256())
+            if(!NativeModuleProfile.supported(stored.moduleSha256())
                     || !List.of("FULL","LOAN","B_CLUB","BASIC").contains(c.kind())) {
                 add(new Span("Detailed terms are unavailable for this snapshot. Refresh game data."));
                 continue;

@@ -245,7 +245,7 @@ class CodexConversationServiceTest {
                         .put("turnId", "turn-1")
                         .put("serverName", "fmaiassistent")
                         .put("mode", "form")
-                        .put("message", "Allow fmaiassistent to run fm26_get_role_attributes?")
+                        .put("message", "Allow fmaiassistent to run fm27_get_role_attributes?")
                         .set("_meta", mapper.createObjectNode()
                                 .put("codex_approval_kind", "mcp_tool_call")
                                 .put("tool_description", "Get positional role attributes")

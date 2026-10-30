@@ -13,13 +13,19 @@ public final class ContractCompetitionNameExporter {
     private final ProcessMemoryReader reader;
     private final long base;
     private final CompetitionNameLayout namesLayout;
-    private final ClubFinancialCompetitionLayout identity=ClubFinancialCompetitionLayout.current();
+    private final ClubFinancialCompetitionLayout identity;
     private final CompetitionBonusLayout bonusLayout=CompetitionBonusLayout.current();
     private final Map<Long,NativeCompetitionNameSnapshot> names=new LinkedHashMap<>();
     private final Map<Long,byte[]> guards=new LinkedHashMap<>();
     private long begin,count,readBytes;
 
     public ContractCompetitionNameExporter(ProcessMemoryReader reader,long base,CompetitionNameLayout layout)throws IOException {
+        this(reader,base,layout,ClubFinancialCompetitionLayout.current());
+    }
+
+    public ContractCompetitionNameExporter(ProcessMemoryReader reader,long base,CompetitionNameLayout layout,
+            ClubFinancialCompetitionLayout identity)throws IOException {
+        this.identity=identity;
         PlayerSnapshotValidator.validateCompetitionNameLayout(layout);
         PlayerSnapshotValidator.validateClubFinancialCompetitionLayout(identity);
         PlayerSnapshotValidator.validateCompetitionBonusLayout(bonusLayout);
@@ -27,9 +33,11 @@ public final class ContractCompetitionNameExporter {
     }
 
     static void capture(ProcessMemoryReader reader,Long suppliedBase,List<Map<String,Object>> rows)throws IOException {
-        if(reader.platform()!=ProcessMemoryReader.Platform.WINDOWS||rows.stream().noneMatch(r->ContractExporter.MODULE_SHA256.equals(r.get("_contract_profile"))))return;
+        if(reader.platform()!=ProcessMemoryReader.Platform.WINDOWS)return;
+        var profile=ContractExporter.capturedProfile(rows);if(profile.isEmpty())return;
         long base=suppliedBase==null?com.github.fmaiassistent.linux.FmOffsets.findGamePluginBase(reader):suppliedBase;
-        new ContractCompetitionNameExporter(reader,base,CompetitionNameLayout.current()).captureRows(rows);
+        new ContractCompetitionNameExporter(reader,base,CompetitionNameLayout.current(),NativeModuleProfile.fm27(profile.orElseThrow())
+                ? ClubFinancialCompetitionLayout.fm27() : ClubFinancialCompetitionLayout.current()).captureRows(rows);
     }
 
     public void captureRows(List<Map<String,Object>> rows)throws IOException {
@@ -39,7 +47,7 @@ public final class ContractCompetitionNameExporter {
             for(var owner:rows) {
                 if(Thread.currentThread().isInterrupted())throw new IOException("Contract competition name capture interrupted");
                 var selected=new LinkedHashMap<Long,NativeCompetitionNameSnapshot>();
-                if(ContractExporter.MODULE_SHA256.equals(owner.get("_contract_profile"))) {
+                if(moduleProfile().equals(owner.get("_contract_profile"))) {
                     var contracts=new ArrayList<ContractSnapshot>();
                     Object active=owner.get("_contracts");if(active instanceof List<?> list)for(var item:list) {
                         if(!(item instanceof ContractSnapshot c))throw new IOException("Invalid competition contract source");contracts.add(c);
@@ -61,10 +69,13 @@ public final class ContractCompetitionNameExporter {
             }
             for(var guard:guards.entrySet())if(!Arrays.equals(guard.getValue(),read(guard.getKey(),guard.getValue().length)))
                 throw new IOException("Contract competition name data changed during capture");
-            for(int i=0;i<rows.size();i++)if(ContractExporter.MODULE_SHA256.equals(rows.get(i).get("_contract_profile")))
+            for(int i=0;i<rows.size();i++)if(moduleProfile().equals(rows.get(i).get("_contract_profile")))
                 rows.get(i).put("_contract_competition_names",staged.get(i));
         }finally{names.clear();guards.clear();}
     }
+
+    private String moduleProfile(){return identity.equals(ClubFinancialCompetitionLayout.fm27())
+            ? NativeModuleProfile.FM27_SHA256 : NativeModuleProfile.LEGACY_SHA256;}
 
     private NativeCompetitionNameSnapshot readName(long uid,int index)throws IOException {
         if(names.containsKey(uid)) {
