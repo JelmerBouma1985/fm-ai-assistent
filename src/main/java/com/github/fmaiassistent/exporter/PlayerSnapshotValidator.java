@@ -24,7 +24,7 @@ public final class PlayerSnapshotValidator {
             throws PersonIdentityChangedException {
         if (layout == null || layout.staff() != 0x100 || layout.player() != 0x288
                 || layout.playerStaff() != 0x380
-                || layout.humanManager() != 0x440 && layout.humanManager() != 0x450) {
+                || layout.humanManager() != 0x440) {
             throw new PersonIdentityChangedException("PERSON subtype native displacement anchor failed");
         }
     }
@@ -72,7 +72,7 @@ public final class PlayerSnapshotValidator {
     public static void validateNonPlayingProfileLayout(
             com.github.fmaiassistent.memory.NonPlayingProfileLayout layout)throws IOException {
         var known=com.github.fmaiassistent.memory.NonPlayingProfileLayout.current();
-        if((!known.equals(layout)&&!com.github.fmaiassistent.memory.NonPlayingProfileLayout.fm27().equals(layout))
+        if((!known.equals(layout))
                 ||layout.profileOffset()<Long.BYTES||layout.profileBytes()!=52
                 ||layout.profileOffset()>layout.memberBytes()-layout.profileBytes())
             throw new IOException("NON_PLAYING_DATA range/native displacement anchor failed");
@@ -86,11 +86,10 @@ public final class PlayerSnapshotValidator {
     /** Independent16D2510/86A30 access/range anchors; reject plausible bytes at shifted displacements. */
     public static void validateClubFinancialLedgerLayout(
             com.github.fmaiassistent.memory.ClubFinancialLedgerLayout l)throws IOException {
-        boolean fm27=l.fullVtableRva()==0x4CF0CC8L;
-        if(l.financeRel()!=0x150||l.baseVtableRva()!=(fm27?0x4CF07F8L:0x456CE48L)||l.fullVtableRva()!=(fm27?0x4CF0CC8L:0x456D2E8L)
-                ||l.ownerRel()!=(fm27?-1:8)||l.fullBytes()!=(fm27?0x8B0:0x8C0)||l.blocksRel()!=(fm27?0x248:0x250)||l.blockStride()!=0x118||l.blockCount()!=5
+        if(l.financeRel()!=0x150||l.baseVtableRva()!=0x4CF07F8L||l.fullVtableRva()!=0x4CF0CC8L
+                ||l.ownerRel()!=-1||l.fullBytes()!=0x8B0||l.blocksRel()!=0x248||l.blockStride()!=0x118||l.blockCount()!=5
                 ||l.recordRel()!=0x30||l.recordBytes()!=0xE4||l.tailRel()!=0x114||l.tailBytes()!=4
-                ||l.slotCount()!=57||l.slotBytes()!=4||l.clockRva()!=(fm27?0x56AD378L:0x4DF3C18L)||l.clockBytes()!=4
+                ||l.slotCount()!=57||l.slotBytes()!=4||l.clockRva()!=0x56AD378L||l.clockBytes()!=4
                 ||l.blocksRel()+l.blockWindowBytes()>l.fullBytes()||l.recordBytes()!=l.slotCount()*l.slotBytes()
                 ||l.recordRel()+l.recordBytes()!=l.tailRel()||l.tailRel()+l.tailBytes()!=l.blockStride())
             throw new IOException("Financial ledger layout anchor failed");
@@ -107,8 +106,7 @@ public final class PlayerSnapshotValidator {
     public static void validateClubFinancialCompetitionLayout(
             com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout l)throws IOException {
         validateClubFinancialLedgerLayout(l.ledger());
-        boolean fm27=l.ledger().fullVtableRva()==0x4CF0CC8L;
-        if(l.competitionRootRva()!=(fm27?0x57036E8L:0x4E49590L)||l.registryHeaderRel()!=0x80||l.competitionVtableRva()!=(fm27?0x4CDFAD8L:0x44BFE68L)
+        if(l.competitionRootRva()!=0x57036E8L||l.registryHeaderRel()!=0x80||l.competitionVtableRva()!=0x4CDFAD8L
                 ||l.competitionPrefixBytes()!=16||l.competitionIndexRel()!=8||l.competitionUidRel()!=12
                 ||l.vectorCount()!=2||l.headerBytes()!=24||l.beginRel()!=0||l.endRel()!=8||l.capacityRel()!=16
                 ||l.entryBytes()!=16||l.competitionRel()!=0||l.amountRel()!=8||l.suffixRel()!=12||l.suffixBytes()!=4
@@ -143,8 +141,7 @@ public final class PlayerSnapshotValidator {
 
     /** Checkpoint54:43 UID/index/registry-checked AWARD prefixes and86 independently captured name strings. */
     public static void validateAwardNameLayout(com.github.fmaiassistent.memory.AwardNameLayout l)throws IOException {
-        boolean known=l.equals(com.github.fmaiassistent.memory.AwardNameLayout.current())
-                ||l.equals(com.github.fmaiassistent.memory.AwardNameLayout.fm27());
+        boolean known=l.equals(com.github.fmaiassistent.memory.AwardNameLayout.current());
         if(!known||l.registryHeaderRel()!=0x80||l.prefixBytes()!=64
                 ||l.indexRel()!=8||l.uidRel()!=12||l.nameRel()!=0x30||l.shortNameRel()!=0x38
                 ||l.lengthRel()!=0||l.dataRel()!=4||l.maximumBytes()!=1024||l.shortNameRel()+8!=l.prefixBytes()
@@ -155,8 +152,7 @@ public final class PlayerSnapshotValidator {
     /** A9BEB/A9DE2/A9E75: native ring displacements;16640C0/1664A90: exact field widths. */
     public static void validateClubFinancialHistoryLayout(com.github.fmaiassistent.memory.ClubFinancialHistoryLayout l)throws IOException {
         validateClubFinancialLedgerLayout(l.ledger());
-        boolean fm27=l.ledger().fullVtableRva()==0x4CF0CC8L;
-        if(l.summaryRel()!=(fm27?0x38:0x40)||l.baseRingRel()!=(fm27?0x228:0x230)||l.headerBytes()!=0x1F0||l.countRel()!=0
+        if(l.summaryRel()!=0x38||l.baseRingRel()!=0x228||l.headerBytes()!=0x1F0||l.countRel()!=0
                 ||l.pointersRel()!=8||l.pointerBytes()!=8||l.cursorRel()!=0x1E8||l.capacity()!=60
                 ||l.summaryBytes()!=48||l.baseBytes()!=228||l.balanceRel()!=0||l.remainingRel()!=8
                 ||l.wagesRel()!=16||l.scoutingRel()!=136||l.pointersRel()+l.capacity()*l.pointerBytes()!=l.cursorRel()
@@ -172,8 +168,7 @@ public final class PlayerSnapshotValidator {
 
     /**16E9450 allocates1C; fields18/19/1A, vector48 and date/amount extents are native anchors. */
     public static void validateClubFinancialLoanLayout(com.github.fmaiassistent.memory.ClubFinancialLoanLayout layout)throws IOException {
-        if((!com.github.fmaiassistent.memory.ClubFinancialLoanLayout.current().equals(layout)
-                &&!com.github.fmaiassistent.memory.ClubFinancialLoanLayout.fm27().equals(layout))
+        if((!com.github.fmaiassistent.memory.ClubFinancialLoanLayout.current().equals(layout))
                 ||layout.unassignedRel()+1!=layout.recordBytes()||layout.kindRel()+4!=layout.recordBytes()
                 ||layout.startRel()+Integer.BYTES>layout.kindRel()||layout.clockBytes()!=Integer.BYTES
                 ||layout.headerBytes()!=3*Long.BYTES||layout.pointerStride()!=Long.BYTES)
@@ -188,8 +183,7 @@ public final class PlayerSnapshotValidator {
 
     /** EB55F0/2714160/1C2180/2748080 offsets and extents; reject drift before any new read. */
     public static void validateClubUefaLayout(com.github.fmaiassistent.memory.ClubUefaCoefficientLayout layout) throws IOException {
-        if ((!com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.current().equals(layout)
-                && !com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.fm27().equals(layout))
+        if ((!com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.current().equals(layout))
                 || layout.historyRel() + layout.capacity() * layout.historyStride() > layout.cursorRel()
                 || layout.currentPointsRel() + Integer.BYTES > layout.objectBytes()
                 || layout.ruleVersionBytes() != Short.BYTES)
@@ -208,10 +202,9 @@ public final class PlayerSnapshotValidator {
     /** Native financial getter/typed allocation anchors; reject drift before reading a child. */
     public static void validateClubFinanceLayout(com.github.fmaiassistent.memory.ClubRecordLayout record,
             com.github.fmaiassistent.memory.ClubFinanceLayout finance) throws IOException {
-        boolean fm27=finance.fullVtableRva()==0x4CF0CC8L;
-        var known = fm27?com.github.fmaiassistent.memory.ClubRecordLayout.fm27():com.github.fmaiassistent.memory.ClubRecordLayout.current();
+        var known = com.github.fmaiassistent.memory.ClubRecordLayout.current();
         if (!known.equals(record)
-                ||!(fm27?com.github.fmaiassistent.memory.ClubFinanceLayout.fm27():com.github.fmaiassistent.memory.ClubFinanceLayout.current()).equals(finance)
+                ||!(com.github.fmaiassistent.memory.ClubFinanceLayout.current()).equals(finance)
                 || record.clubFinanceBlockRel() != known.clubFinanceBlockRel()
                 || record.clubBalanceRel() != known.clubBalanceRel()
                 || record.clubTransferBudgetRel() != known.clubTransferBudgetRel()
@@ -261,8 +254,7 @@ public final class PlayerSnapshotValidator {
     }
 
     public static void validateClubIdentityLayout(com.github.fmaiassistent.memory.ClubIdentityLayout layout)throws IOException {
-        if(!com.github.fmaiassistent.memory.ClubIdentityLayout.current().equals(layout)
-                &&!com.github.fmaiassistent.memory.ClubIdentityLayout.fm27().equals(layout))
+        if(!com.github.fmaiassistent.memory.ClubIdentityLayout.current().equals(layout))
             throw new ClubIdentityChangedException("CLUB/TEAM registry/native layout anchor failed");
     }
 
@@ -347,20 +339,17 @@ public final class PlayerSnapshotValidator {
 
     /** Root/type displacements are exact-image anchors, not values inferred from plausible records. */
     public static void validateContractLayout(com.github.fmaiassistent.memory.ContractRecordLayout layout) throws IOException {
-        if(!layout.equals(com.github.fmaiassistent.memory.ContractRecordLayout.current())
-                &&!layout.equals(com.github.fmaiassistent.memory.ContractRecordLayout.fm27()))
+        if(!layout.equals(com.github.fmaiassistent.memory.ContractRecordLayout.current()))
             throw new IOException("Contract native type/range layout anchor failed");
     }
 
     public static void validateFutureTransferLayout(com.github.fmaiassistent.memory.FutureTransferLayout layout) throws IOException {
-        if(!layout.equals(com.github.fmaiassistent.memory.FutureTransferLayout.current())
-                &&!layout.equals(com.github.fmaiassistent.memory.FutureTransferLayout.fm27()))
+        if(!layout.equals(com.github.fmaiassistent.memory.FutureTransferLayout.current()))
             throw new IOException("Future transfer native type/range layout anchor failed");
     }
 
     public static void validateFutureEmploymentLayout(com.github.fmaiassistent.memory.FutureEmploymentLayout layout) throws IOException {
-        if(!layout.equals(com.github.fmaiassistent.memory.FutureEmploymentLayout.current())
-                &&!layout.equals(com.github.fmaiassistent.memory.FutureEmploymentLayout.fm27()))
+        if(!layout.equals(com.github.fmaiassistent.memory.FutureEmploymentLayout.current()))
             throw new IOException("Future employment native type/range layout anchor failed");
     }
 

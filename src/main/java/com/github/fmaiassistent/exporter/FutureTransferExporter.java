@@ -29,8 +29,7 @@ final class FutureTransferExporter {
 
     FutureTransferExporter(ProcessMemoryReader reader,long base,FutureTransferLayout layout) {
         this.reader=reader;this.base=base;this.layout=layout;
-        this.contracts=new ContractExporter(reader,base,layout.equals(FutureTransferLayout.fm27())
-                ? ContractRecordLayout.fm27() : ContractRecordLayout.current());
+        this.contracts=new ContractExporter(reader,base,ContractRecordLayout.current());
     }
 
     Result read(long person,long uid) throws IOException {

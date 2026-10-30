@@ -127,8 +127,7 @@ public class ClubDatabaseService {
 
     @Transactional(readOnly = true)
     public Page<CoefficientClub> findCoefficientClubs(String name,Pageable pageable) {
-        var hashes=List.of(com.github.fmaiassistent.memory.NativeModuleProfile.LEGACY_SHA256,
-                com.github.fmaiassistent.memory.NativeModuleProfile.FM27_SHA256);
+        var hashes=List.of(com.github.fmaiassistent.memory.NativeModuleProfile.FM27_SHA256);
         var page=name==null||name.isBlank()?nativeClubs.findByUefaCoefficientHexIsNotNullAndModuleSha256In(hashes,pageable)
                 :nativeClubs.findByUefaCoefficientHexIsNotNullAndModuleSha256InAndNameContainingIgnoreCase(hashes,name.trim(),pageable);
         return page.map(ClubDatabaseService::coefficientClub);
@@ -141,8 +140,7 @@ public class ClubDatabaseService {
 
     @Transactional(readOnly = true)
     public long countCoefficientClubs(String name) {
-        var hashes=List.of(com.github.fmaiassistent.memory.NativeModuleProfile.LEGACY_SHA256,
-                com.github.fmaiassistent.memory.NativeModuleProfile.FM27_SHA256);
+        var hashes=List.of(com.github.fmaiassistent.memory.NativeModuleProfile.FM27_SHA256);
         return name==null||name.isBlank()?nativeClubs.countByUefaCoefficientHexIsNotNullAndModuleSha256In(hashes)
                 :nativeClubs.countByUefaCoefficientHexIsNotNullAndModuleSha256InAndNameContainingIgnoreCase(hashes,name.trim());
     }
@@ -199,9 +197,7 @@ public class ClubDatabaseService {
                 try{
                     if(row.getPrefixHex()==null||row.getPrefixHex().length()!=32||row.getRecordIndex()==null)continue;
                     var prefix=java.nio.ByteBuffer.wrap(java.util.HexFormat.of().parseHex(row.getPrefixHex())).order(java.nio.ByteOrder.LITTLE_ENDIAN);
-                    var identity=com.github.fmaiassistent.memory.NativeModuleProfile.fm27(club.getModuleSha256())
-                            ?com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.fm27()
-                            :com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.current();
+                    var identity=com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.current();
                     if(prefix.getInt(identity.competitionIndexRel())!=row.getRecordIndex()
                             ||Integer.toUnsignedLong(prefix.getInt(identity.competitionUidRel()))!=row.getUniqueId())continue;
                     var decoded=layout.decode(row.getNameHex(),row.getShortNameHex());

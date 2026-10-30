@@ -23,7 +23,7 @@ class PlayerRecordLayoutsTest {
         assertThat(match.installedBuildId()).isEqualTo(26227640L);
         assertThat(match.layouts().players()).isEqualTo(PlayerRecordLayout.current());
         assertThat(match.layouts().staff()).isEqualTo(StaffRecordLayout.current());
-        assertThat(match.layouts().clubs()).isEqualTo(ClubRecordLayout.fm27());
+        assertThat(match.layouts().clubs()).isEqualTo(ClubRecordLayout.current());
         assertThat(match.layouts().competitions()).isEqualTo(CompetitionRecordLayout.current());
     }
 
@@ -37,7 +37,7 @@ class PlayerRecordLayoutsTest {
         assertThat(match.installedBuildId()).isEqualTo(99999999L);
         assertThat(match.layouts().players()).isEqualTo(PlayerRecordLayout.current());
         assertThat(match.layouts().staff()).isEqualTo(StaffRecordLayout.current());
-        assertThat(match.layouts().clubs()).isEqualTo(ClubRecordLayout.fm27());
+        assertThat(match.layouts().clubs()).isEqualTo(ClubRecordLayout.current());
         assertThat(match.layouts().competitions()).isEqualTo(CompetitionRecordLayout.current());
     }
 

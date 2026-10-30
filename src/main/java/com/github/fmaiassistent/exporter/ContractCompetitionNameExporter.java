@@ -36,8 +36,7 @@ public final class ContractCompetitionNameExporter {
         if(reader.platform()!=ProcessMemoryReader.Platform.WINDOWS)return;
         var profile=ContractExporter.capturedProfile(rows);if(profile.isEmpty())return;
         long base=suppliedBase==null?com.github.fmaiassistent.linux.FmOffsets.findGamePluginBase(reader):suppliedBase;
-        new ContractCompetitionNameExporter(reader,base,CompetitionNameLayout.current(),NativeModuleProfile.fm27(profile.orElseThrow())
-                ? ClubFinancialCompetitionLayout.fm27() : ClubFinancialCompetitionLayout.current()).captureRows(rows);
+        new ContractCompetitionNameExporter(reader,base,CompetitionNameLayout.current(),ClubFinancialCompetitionLayout.current()).captureRows(rows);
     }
 
     public void captureRows(List<Map<String,Object>> rows)throws IOException {
@@ -74,8 +73,7 @@ public final class ContractCompetitionNameExporter {
         }finally{names.clear();guards.clear();}
     }
 
-    private String moduleProfile(){return identity.equals(ClubFinancialCompetitionLayout.fm27())
-            ? NativeModuleProfile.FM27_SHA256 : NativeModuleProfile.LEGACY_SHA256;}
+    private String moduleProfile(){return NativeModuleProfile.FM27_SHA256;}
 
     private NativeCompetitionNameSnapshot readName(long uid,int index)throws IOException {
         if(names.containsKey(uid)) {

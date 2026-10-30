@@ -29,7 +29,7 @@ class ContractDetailsPanelTest {
         assertThat(text(unknown)).anyMatch(s->s.contains("Detailed terms are unavailable"));
     }
 
-@Test void fm27CapturedBonusesAndAdditionalClubAgreementReachTheView() throws Exception {
+    @Test void fm27CapturedBonusesAndAdditionalClubAgreementReachTheView() throws Exception {
         var captured=captured(3);
         var panel=new ContractDetailsPanel(captured.stream().map(c->new StoredContract(1,NativeModuleProfile.FM27_SHA256,c)).toList(),n->"GBP "+n,true);
         assertThat(rows(panel)).contains(new ContractDetailsPanel.Detail("Appearance Fee","GBP 327"),
@@ -55,7 +55,7 @@ class ContractDetailsPanelTest {
 
     @Test void fm27FutureContractShowsCapturedWageEndAndDestination() throws Exception {
         var fixture=Fm27CapturedContractsTest.fixtures().get(4);
-        var e=Fm27CapturedContractsTest.exporter(fixture,ContractRecordLayout.fm27())
+        var e=Fm27CapturedContractsTest.exporter(fixture,ContractRecordLayout.current())
                 .readFutureEmployment(fixture.path("person").asLong(),fixture.path("uid").asLong(),0).orElseThrow();
         var future=new com.github.fmaiassistent.domain.FutureTransferSnapshot(java.time.LocalDate.of(2026,8,4),e);
         var panel=new ContractDetailsPanel(List.of(new StoredContract(1,NativeModuleProfile.FM27_SHA256,e.contract(),future,"Destination")),n->"MONEY "+n,n->"WEEKLY "+n,true);
@@ -71,7 +71,7 @@ class ContractDetailsPanelTest {
 
     private static List<com.github.fmaiassistent.domain.ContractSnapshot> captured(int index) throws Exception {
         var fixture=Fm27CapturedContractsTest.fixtures().get(index);
-        return Fm27CapturedContractsTest.exporter(fixture,ContractRecordLayout.fm27()).read(fixture.path("person").asLong(),fixture.path("uid").asLong());
+        return Fm27CapturedContractsTest.exporter(fixture,ContractRecordLayout.current()).read(fixture.path("person").asLong(),fixture.path("uid").asLong());
     }
 
     @SuppressWarnings("unchecked")

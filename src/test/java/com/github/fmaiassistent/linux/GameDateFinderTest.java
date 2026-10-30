@@ -16,15 +16,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GameDateFinderTest {
     private static final long GAME_PLUGIN_BASE = 0x1000_0000L;
-    private static final long BUILD_238BDD_CURRENT_DATE_RVA = 0x4df3c18L;
+    private static final long CURRENT_DATE_RVA = 0x56ad378L;
 
     @Test
-    void readsCapturedFm27ClockAndIgnoresOldBuildAddress() {
+    void readsCapturedFm27ClockAndRejectsUnknownBuild() {
         FakeReader reader = new FakeReader(ProcessMemoryReader.Platform.WINDOWS);
         // FULL_CONTRACT vE8 in 27.0.0+2486695 independently references this packed clock.
         reader.putU16(GAME_PLUGIN_BASE + 0x56ad378L, 0x1ad7);
         reader.putU16(GAME_PLUGIN_BASE + 0x56ad37aL, 2026);
-        putCurrentDate(reader, 8, 2028);
         assertEquals(LocalDate.of(2026, 8, 3), new GameDateFinder()
                 .find(reader, 0, FmOffsets.DEFAULT_BUILD, GAME_PLUGIN_BASE).orElseThrow());
         assertTrue(new GameDateFinder().find(reader, 0, FmOffsets.DEFAULT_BUILD + 1, GAME_PLUGIN_BASE).isEmpty());
@@ -36,7 +35,7 @@ class GameDateFinderTest {
         putCurrentDate(reader, 0x7E00 | 8, 2028);
 
         LocalDate date = new GameDateFinder()
-                .find(reader, 0, 0x238bdd, GAME_PLUGIN_BASE)
+                .find(reader, 0, FmOffsets.DEFAULT_BUILD, GAME_PLUGIN_BASE)
                 .orElseThrow();
 
         assertEquals(LocalDate.of(2028, 1, 8), date);
@@ -48,7 +47,7 @@ class GameDateFinderTest {
         putCurrentDate(reader, 0x1A00 | 159, 2026);
 
         LocalDate date = new GameDateFinder()
-                .find(reader, 0, 0x238bdd, GAME_PLUGIN_BASE)
+                .find(reader, 0, FmOffsets.DEFAULT_BUILD, GAME_PLUGIN_BASE)
                 .orElseThrow();
 
         assertEquals(LocalDate.of(2026, 6, 8), date);
@@ -65,8 +64,8 @@ class GameDateFinderTest {
     }
 
     private static void putCurrentDate(FakeReader reader, int day, int year) {
-        reader.putU16(GAME_PLUGIN_BASE + BUILD_238BDD_CURRENT_DATE_RVA, day);
-        reader.putU16(GAME_PLUGIN_BASE + BUILD_238BDD_CURRENT_DATE_RVA + Short.BYTES, year);
+        reader.putU16(GAME_PLUGIN_BASE + CURRENT_DATE_RVA, day);
+        reader.putU16(GAME_PLUGIN_BASE + CURRENT_DATE_RVA + Short.BYTES, year);
     }
 
     private static final class FakeReader implements ProcessMemoryReader {

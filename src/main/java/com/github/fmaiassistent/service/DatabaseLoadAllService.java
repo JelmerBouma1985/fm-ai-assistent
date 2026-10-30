@@ -432,7 +432,7 @@ public class DatabaseLoadAllService {
         if ("fm.exe".equals(name)) {
             score += 100;
         }
-        if (cmdline.contains("football manager 26")) {
+        if (cmdline.contains("football manager 27")) {
             score += 50;
         }
         if (cmdline.endsWith("fm.exe") || cmdline.endsWith("fm.exe\"")) {

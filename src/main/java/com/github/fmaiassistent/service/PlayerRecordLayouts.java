@@ -28,7 +28,7 @@ public final class PlayerRecordLayouts {
             return new LayoutSet(
                     PlayerRecordLayout.current(),
                     StaffRecordLayout.current(),
-                    ClubRecordLayout.fm27(),
+                    ClubRecordLayout.current(),
                     CompetitionRecordLayout.current());
         }
     }

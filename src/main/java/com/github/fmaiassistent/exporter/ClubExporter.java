@@ -24,7 +24,7 @@ public class ClubExporter {
             "sourceAddress", "uniqueId", "name", "gender", "competition", "reputation", "nation", "balance", "transferBudget", "payrollBudget", "currentWagesIncludingBonuses",
             "trainingFacilities", "youthFacilities", "youthCoaching", "youthRecruitment", "corporateFacilities");
 
-    private static final List<Integer> CLUB_FINANCE_MARKERS = List.of(0xB318, 0xD2E8);
+    private static final List<Integer> CLUB_FINANCE_MARKERS = List.of(0x07F8, 0x0CC8);
 
     private ClubRecordLayout recordLayout = ClubRecordLayout.current();
 
@@ -54,15 +54,14 @@ public class ClubExporter {
                         .filter(r->r.contains(base,1)&&!r.path().isBlank()).map(r->Path.of(r.path())).findFirst().orElse(null):Path.of(override);
                 identityProfile=module==null?null:com.github.fmaiassistent.memory.NativeModuleProfile.identify(module).orElse(null);
                 if(identityProfile!=null) {
-                    boolean fm27=com.github.fmaiassistent.memory.NativeModuleProfile.fm27(identityProfile);
-                    recordLayout=fm27?ClubRecordLayout.fm27():ClubRecordLayout.current();
-                    identities=new ClubIdentitySnapshot(reader,base,fm27?ClubIdentityLayout.fm27():ClubIdentityLayout.current(),
-                            fm27?com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.fm27():com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.current(),
-                            fm27?com.github.fmaiassistent.memory.ClubFinancialLoanLayout.fm27():com.github.fmaiassistent.memory.ClubFinancialLoanLayout.current(),
-                            fm27?com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.fm27():com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.current(),
-                            fm27?com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.fm27():com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.current(),
+                    recordLayout=ClubRecordLayout.current();
+                    identities=new ClubIdentitySnapshot(reader,base,ClubIdentityLayout.current(),
+                            com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.current(),
+                            com.github.fmaiassistent.memory.ClubFinancialLoanLayout.current(),
+                            com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.current(),
+                            com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.current(),
                             com.github.fmaiassistent.memory.CompetitionNameLayout.current(),
-                            fm27?com.github.fmaiassistent.memory.ClubFinancialHistoryLayout.fm27():com.github.fmaiassistent.memory.ClubFinancialHistoryLayout.current());
+                            com.github.fmaiassistent.memory.ClubFinancialHistoryLayout.current());
                 }
             }
             FmOffsets.Bounds bounds = FmOffsets.tableBounds(reader, build, gamePluginBase, "TeamOffset");
@@ -190,8 +189,7 @@ public class ClubExporter {
     }
 
     Finance readFinance(ProcessMemoryReader reader, long club, long verifiedModuleBase) throws IOException {
-        return readFinance(reader, club, verifiedModuleBase, recordLayout.equals(ClubRecordLayout.fm27())
-                ?com.github.fmaiassistent.memory.ClubFinanceLayout.fm27():com.github.fmaiassistent.memory.ClubFinanceLayout.current());
+        return readFinance(reader, club, verifiedModuleBase, com.github.fmaiassistent.memory.ClubFinanceLayout.current());
     }
 
     Finance readFinance(ProcessMemoryReader reader, long club, long verifiedModuleBase,
@@ -228,8 +226,7 @@ public class ClubExporter {
     }
 
     private Facilities readFacilities(ProcessMemoryReader reader,long club,long base)throws IOException {
-        var finance=recordLayout.equals(ClubRecordLayout.fm27())
-                ?com.github.fmaiassistent.memory.ClubFinanceLayout.fm27():com.github.fmaiassistent.memory.ClubFinanceLayout.current();
+        var finance=com.github.fmaiassistent.memory.ClubFinanceLayout.current();
         PlayerSnapshotValidator.validateClubFinanceLayout(recordLayout,finance);
         long data=reader.readU64(club+recordLayout.clubFacilitiesBlockRel());
         int training=0,youth=0,coaching=0,recruitment=0,corporate=0;

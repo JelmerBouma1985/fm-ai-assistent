@@ -86,6 +86,7 @@ public class FmfShortlistFile {
             throw new IllegalArgumentException("The embedded data is not a supported FM27 player shortlist");
         }
         long databaseVersion = Integer.toUnsignedLong(littleEndianInt(bytes, 9));
+        if (databaseVersion != SHORTLIST_DATABASE_VERSION) throw new IllegalArgumentException("Unsupported FM27 shortlist database version");
         Cursor cursor = new Cursor(bytes, 13);
         String name = cursor.string();
         int count = cursor.integer();

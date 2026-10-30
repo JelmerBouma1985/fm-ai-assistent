@@ -31,7 +31,7 @@ class Fm27ContractCaptureLiveTest {
                 var sample=entry.getValue().stream().filter(s->Boolean.TRUE.equals(s.get("competitionBonus"))).findFirst().orElse(entry.getValue().getFirst());
                 long person=Long.parseLong(((String)sample.get("person")).substring(2),16),uid=((Number)sample.get("uid")).longValue();
                 var reader=new RecordingReader(source);
-                var actual=new ContractExporter(reader,base,ContractRecordLayout.fm27()).read(person,uid);
+                var actual=new ContractExporter(reader,base,ContractRecordLayout.current()).read(person,uid);
                 assertThat(actual).isNotEmpty();
                 var item=new LinkedHashMap<String,Object>();item.put("nativeType",entry.getKey());item.put("base",base);item.put("person",person);item.put("uid",uid);
                 item.put("contracts",actual);item.put("memory",reader.memory);cases.add(item);
@@ -43,7 +43,7 @@ class Fm27ContractCaptureLiveTest {
             var sample=((List<Map<String,Object>>)future.get("employment")).getFirst();
             long person=Long.parseLong(((String)sample.get("person")).substring(2),16),uid=((Number)sample.get("uid")).longValue();
             int offer=((Number)sample.get("offerIndex")).intValue();var reader=new RecordingReader(source);
-            var actual=new ContractExporter(reader,base,ContractRecordLayout.fm27()).readFutureEmployment(person,uid,offer).orElseThrow();
+            var actual=new ContractExporter(reader,base,ContractRecordLayout.current()).readFutureEmployment(person,uid,offer).orElseThrow();
             assertThat(actual.wageRaw()).isEqualTo(((Number)sample.get("wage")).intValue());
             var item=new LinkedHashMap<String,Object>();item.put("nativeType","FUTURE");item.put("base",base);item.put("person",person);item.put("uid",uid);item.put("offer",offer);
             item.put("future",actual);item.put("memory",reader.memory);cases.add(item);

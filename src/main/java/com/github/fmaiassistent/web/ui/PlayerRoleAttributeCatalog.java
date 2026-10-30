@@ -43,8 +43,7 @@ final class PlayerRoleAttributeCatalog {
     }
 
     private static List<RoleDefinition> loadRoles() {
-        // Shared with the original Liquibase seed; keep its historical resource name.
-        try (InputStream input = PlayerRoleAttributeCatalog.class.getResourceAsStream("/db/data/fm26_positional_roles_attributes_flat.csv")) {
+        try (InputStream input = PlayerRoleAttributeCatalog.class.getResourceAsStream("/db/data/fm27_positional_roles_attributes_flat.csv")) {
             if (input == null) {
                 throw new IllegalStateException("Missing role attribute catalog resource");
             }

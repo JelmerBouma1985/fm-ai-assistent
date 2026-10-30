@@ -10,10 +10,9 @@ import java.util.*;
 public record ClubFinancialHistoryLayout(ClubFinancialLedgerLayout ledger,int summaryRel,int baseRingRel,
         int headerBytes,int countRel,int pointersRel,int pointerBytes,int cursorRel,int capacity,
         int summaryBytes,int baseBytes,int balanceRel,int remainingRel,int wagesRel,int scoutingRel) {
+
     public static ClubFinancialHistoryLayout current(){return new ClubFinancialHistoryLayout(
-            ClubFinancialLedgerLayout.current(),0x40,0x230,0x1F0,0,8,8,0x1E8,60,48,228,0,8,16,136);}
-    public static ClubFinancialHistoryLayout fm27(){return new ClubFinancialHistoryLayout(
-            ClubFinancialLedgerLayout.fm27(),0x38,0x228,0x1F0,0,8,8,0x1E8,60,48,228,0,8,16,136);}
+            ClubFinancialLedgerLayout.current(),0x38,0x228,0x1F0,0,8,8,0x1E8,60,48,228,0,8,16,136);}
     public int maximumPayloadBytes(){return 1+16+capacity*(1+summaryBytes)+1+16+capacity*(1+baseBytes);}
     public Profile decode(byte[] raw,int clock) {
         if(raw.length<18||raw.length>maximumPayloadBytes())throw new IllegalArgumentException("Financial history extent anchor failed");
@@ -54,8 +53,8 @@ public record ClubFinancialHistoryLayout(ClubFinancialLedgerLayout ledger,int su
         }return List.copyOf(points);
     }
     public static Optional<Profile> values(String hex,Integer clock,String sha) {
-        var l=ClubFinancialLedgerLayout.FM27_MODULE_SHA256.equals(sha)?fm27():current();
-        if((!ClubFinancialLedgerLayout.MODULE_SHA256.equals(sha)&&!ClubFinancialLedgerLayout.FM27_MODULE_SHA256.equals(sha))||hex==null||clock==null
+        var l=current();
+        if((!ClubFinancialLedgerLayout.MODULE_SHA256.equals(sha))||hex==null||clock==null
                 ||hex.length()<36||hex.length()>2*l.maximumPayloadBytes()||hex.length()%2!=0)return Optional.empty();
         try{return Optional.of(l.decode(HexFormat.of().parseHex(hex),clock));}catch(IllegalArgumentException invalid){return Optional.empty();}
     }

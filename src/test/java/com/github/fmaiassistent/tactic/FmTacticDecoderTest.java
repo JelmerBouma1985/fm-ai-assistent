@@ -32,7 +32,7 @@ class FmTacticDecoderTest {
                 0, 0x30, 0x01, 0, 0x0a, 0x50, 0x50, 0x21, 0x42, (byte) 0x81, 0, 0};
 
         var tactic = decoder.decode(FmfTacticParserTest.tactic(
-                "4222 WINNER! FM26", "Custom", teamSettings));
+                "4222 WINNER! FM27", "Custom", teamSettings));
 
         assertThat(tactic.markdown()).contains(
                 "Passing directness: Standard",

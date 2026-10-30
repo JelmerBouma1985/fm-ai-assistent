@@ -2,6 +2,8 @@
 
 ## 2.0.0
 
+WARNING! This version is not compatible with FM26, use version 1.3.0 of this app.
+
 ### Major
 - Works with FM27
 - FM27-inspired UI

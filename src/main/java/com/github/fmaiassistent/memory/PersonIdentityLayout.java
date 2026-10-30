@@ -17,10 +17,5 @@ public record PersonIdentityLayout(int indexRel, int uniqueIdRel, int prefixByte
         return new Subtypes(0x100, 0x288, 0x380, 0x440);
     }
 
-    /** Explicit historical profile used when replaying the original captured FM26 fixtures. */
-    public static Subtypes legacySubtypes() {
-        return new Subtypes(0x100, 0x288, 0x380, 0x450);
-    }
-
     public record Subtypes(int staff, int player, int playerStaff, int humanManager) { }
 }

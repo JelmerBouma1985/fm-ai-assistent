@@ -17,7 +17,7 @@ public class Fm27CapturedContractsTest {
         var fixtures=fixtures();assertThat(fixtures.size()).isEqualTo(5);
         for(int i=0;i<4;i++) {
             var fixture=fixtures.get(i);assertThat(fixture.path("uid").asLong()).isEqualTo(expected[i][0]);
-            var contracts=exporter(fixture,ContractRecordLayout.fm27()).read(fixture.path("person").asLong(),expected[i][0]);
+            var contracts=exporter(fixture,ContractRecordLayout.current()).read(fixture.path("person").asLong(),expected[i][0]);
             assertThat(contracts).extracting(com.github.fmaiassistent.domain.ContractSnapshot::kind).containsExactly(kinds[i]);
             assertThat(contracts.getFirst().teamUid()).isEqualTo(expected[i][1]);
             long owner=expected[i][0];
@@ -25,24 +25,24 @@ public class Fm27CapturedContractsTest {
             assertThat(contracts).allSatisfy(c->{assertThat(c.ownerUid()).isEqualTo(owner);assertThat(c.teamOwnerKind()).isEqualTo(namespace);});
             if(i==1)assertThat(contracts.getFirst().teamOwnerUid()).isEqualTo(784L);
         }
-        var full=exporter(fixtures.get(0),ContractRecordLayout.fm27()).read(fixtures.get(0).path("person").asLong(),386);
+        var full=exporter(fixtures.get(0),ContractRecordLayout.current()).read(fixtures.get(0).path("person").asLong(),386);
         assertThat(full.getFirst().terms()).hasSize(7);
         assertThat(full.getFirst().terms()).anyMatch(t->t.competitionReferences()!=null);
     }
 
     @Test void actualSeparateFutureContractRetainsItsWageEndAndOfferIdentity() throws Exception {
         var f=fixtures().get(4);
-        var future=exporter(f,ContractRecordLayout.fm27()).readFutureEmployment(f.path("person").asLong(),2000365091L,0).orElseThrow();
+        var future=exporter(f,ContractRecordLayout.current()).readFutureEmployment(f.path("person").asLong(),2000365091L,0).orElseThrow();
         assertThat(future.offerIndex()).isZero();assertThat(future.wageRaw()).isEqualTo(19821);
         assertThat(future.endDate()).isEqualTo(java.time.LocalDate.of(2030,6,30));
         assertThat(future.contract().ownerUid()).isEqualTo(2000365091L);
-        for(var shifted:shifted(FutureEmploymentLayout.fm27()))
-            assertThatThrownBy(()->exporter(f,ContractRecordLayout.fm27()).readFutureEmployment(f.path("person").asLong(),2000365091L,0,(FutureEmploymentLayout)shifted))
+        for(var shifted:shifted(FutureEmploymentLayout.current()))
+            assertThatThrownBy(()->exporter(f,ContractRecordLayout.current()).readFutureEmployment(f.path("person").asLong(),2000365091L,0,(FutureEmploymentLayout)shifted))
                     .isInstanceOf(IOException.class).hasMessageContaining("layout anchor");
     }
 
     @Test void everyContractRootTypeAndFieldDisplacementRejectsTheSameNativeFixtureWhenShifted() throws Exception {
-        var f=fixtures().get(0);var layout=ContractRecordLayout.fm27();
+        var f=fixtures().get(0);var layout=ContractRecordLayout.current();
         var components=ContractRecordLayout.class.getRecordComponents();
         var ctor=ContractRecordLayout.class.getDeclaredConstructor(Arrays.stream(components).map(java.lang.reflect.RecordComponent::getType).toArray(Class<?>[]::new));
         for(int i=0;i<components.length;i++) {
@@ -55,9 +55,9 @@ public class Fm27CapturedContractsTest {
                         .as(components[i].getName()).isInstanceOf(IOException.class).hasMessageContaining("layout anchor");
             }
         }
-        for(var shifted:shifted(FutureTransferLayout.fm27()))
+        for(var shifted:shifted(FutureTransferLayout.current()))
             assertThatThrownBy(()->PlayerSnapshotValidator.validateFutureTransferLayout((FutureTransferLayout)shifted)).isInstanceOf(IOException.class);
-        for(var shifted:shifted(AwardNameLayout.fm27()))
+        for(var shifted:shifted(AwardNameLayout.current()))
             assertThatThrownBy(()->PlayerSnapshotValidator.validateAwardNameLayout((AwardNameLayout)shifted)).isInstanceOf(IOException.class);
     }
 

@@ -16,7 +16,7 @@ class ManagedClubContextServiceTest {
         ManagedClubMemoryReader memory = mock(ManagedClubMemoryReader.class);
         ClubRepository clubs = mock(ClubRepository.class);
         ClubEntity club = mock(ClubEntity.class);
-        when(memory.read(42, 0x238bdd, null)).thenReturn(new ManagedClubIdentity(
+        when(memory.read(42, com.github.fmaiassistent.linux.FmOffsets.DEFAULT_BUILD, null)).thenReturn(new ManagedClubIdentity(
                 0x1000, 4242L, "Jelmer Bouma", 0x2000, 0x3000, "sc Heerenveen"));
         when(clubs.findFirstBySourceAddressOrderByReputationDesc(0x3000L)).thenReturn(Optional.of(club));
         when(club.getCompetition()).thenReturn("Eredivisie");
@@ -28,7 +28,7 @@ class ManagedClubContextServiceTest {
         when(club.getPayrollBudget()).thenReturn(240_000L);
         ManagedClubContextService service = new ManagedClubContextService(memory, clubs);
 
-        ManagedClubContext detected = service.refresh(42, 0x238bdd, null);
+        ManagedClubContext detected = service.refresh(42, com.github.fmaiassistent.linux.FmOffsets.DEFAULT_BUILD, null);
 
         assertThat(detected.managerName()).isEqualTo("Jelmer Bouma");
         assertThat(detected.careerKey()).isEqualTo("4242:jelmer-bouma");

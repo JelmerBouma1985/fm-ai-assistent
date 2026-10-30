@@ -42,7 +42,7 @@ class FmOffsetsTest {
         assertThat(profile.offsetTableRva()).isEqualTo(0x57035e8L);
         assertThat(profile.currentDateRva()).hasValue(0x56ad378L);
         assertThat(profile.currentHumanManagerRva()).hasValue(0x56f32c8L);
-        assertThat(FmOffsets.requireProfile(0x238bdd).offsetTableRva()).isEqualTo(0x4e49490L);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> FmOffsets.requireProfile(0x123456)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

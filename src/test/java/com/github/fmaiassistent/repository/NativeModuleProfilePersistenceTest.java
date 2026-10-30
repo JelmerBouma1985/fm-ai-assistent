@@ -41,7 +41,7 @@ class NativeModuleProfilePersistenceTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired jakarta.persistence.EntityManager em;
 
-    @Test void preservesActualContractAndAwardHashAndDoesNotJoinAnotherSupportedProfile() {
+    @Test void preservesActualContractAndAwardHashAndDoesNotJoinUnsupportedProfiles() {
         writer.savePlayers(new PlayerExporter.ExportResult("",List.of(owner(101,NativeModuleProfile.FM27_SHA256))),Map.of());
         long id=jdbc.queryForObject("SELECT id FROM players WHERE unique_id=101",Long.class);
         var stored=contracts.findPlayerContracts(id,101L).getFirst();
@@ -50,7 +50,7 @@ class NativeModuleProfilePersistenceTest {
         assertThat(jdbc.queryForObject("SELECT module_sha256 FROM award_name_records WHERE unique_id=55",String.class))
                 .isEqualTo(NativeModuleProfile.FM27_SHA256);
 
-        jdbc.update("UPDATE award_name_records SET module_sha256=? WHERE unique_id=55",NativeModuleProfile.LEGACY_SHA256);
+        jdbc.update("UPDATE award_name_records SET module_sha256=? WHERE unique_id=55","0".repeat(64));
         var mismatched=contracts.findPlayerContracts(id,101L).getFirst();
         assertThat(mismatched.awardNames()).isEmpty();
         assertThat(mismatched.snapshot().terms()).hasSize(1);
@@ -74,33 +74,35 @@ class NativeModuleProfilePersistenceTest {
 
     @Test void rejectsIdenticalNamesFromMixedProfilesInsteadOfSilentlyRelabellingThem() {
         assertThatThrownBy(()->writer.savePlayers(new PlayerExporter.ExportResult("",List.of(
-                owner(101,NativeModuleProfile.FM27_SHA256),owner(102,NativeModuleProfile.LEGACY_SHA256))),Map.of()))
-                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("Conflicting AWARD");
+                owner(101,NativeModuleProfile.FM27_SHA256),owner(102,"0".repeat(64)))),Map.of()))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("source profile");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM player_contracts",Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM award_name_records",Integer.class)).isZero();
     }
 
-    @Test void coefficientPaginationIncludesBothProfilesAndDecodesEachWithItsOwnRules() {
+    @Test void coefficientPaginationIncludesOnlyTheSupportedProfile() {
         byte[] bytes=new byte[76];ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).putInt(0x44,1000);
         String hex=HexFormat.of().formatHex(bytes);
         writer.saveNativeClubs(new ClubExporter.ExportResult(List.of(),List.of(new NativeClubSnapshot(
-                201,0,"CLUB","A legacy",0x10000000L,prefix(0,201),hex,1650)),NativeModuleProfile.LEGACY_SHA256));
+                201,0,"CLUB","A unsupported",0x10000000L,prefix(0,201),hex,1650)),NativeModuleProfile.FM27_SHA256));
+        jdbc.update("UPDATE club_records SET module_sha256=? WHERE unique_id=201","0".repeat(64));
+        em.clear();
         writer.saveNativeClubs(new ClubExporter.ExportResult(List.of(),List.of(new NativeClubSnapshot(
                 202,1,"CLUB","B current",0x10000100L,prefix(1,202),hex,1650)),NativeModuleProfile.FM27_SHA256));
         var service=clubs();
         assertThat(jdbc.queryForObject("SELECT module_sha256 FROM club_records WHERE unique_id=202",String.class))
                 .isEqualTo(NativeModuleProfile.FM27_SHA256);
-        assertThat(service.countCoefficientClubs()).isEqualTo(2);
-        var page=service.findCoefficientClubs(PageRequest.of(1,1,Sort.by("name")));
-        assertThat(page.getTotalElements()).isEqualTo(2);
+        assertThat(service.countCoefficientClubs()).isEqualTo(1);
+        var page=service.findCoefficientClubs(PageRequest.of(0,1,Sort.by("name")));
+        assertThat(page.getTotalElements()).isEqualTo(1);
         assertThat(page.getContent()).singleElement().satisfies(c->assertThat(c.uniqueId()).isEqualTo(202));
         assertThat(service.countCoefficientClubs("CURRENT")).isEqualTo(1);
-        assertThat(service.findClubCoefficients(201L).orElseThrow().coefficients().currentSeasonPoints()).isEqualByComparingTo("10");
+        assertThat(service.findClubCoefficients(201L)).isEmpty();
         assertThat(service.findClubCoefficients(202L).orElseThrow().coefficients().currentSeasonPoints()).isEqualByComparingTo("1");
     }
 
     @Test void financeLabelsRequireTheExactOwnerProfileWhileAmountsRemainAvailable() {
-        var ledgerLayout=com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.fm27();
+        var ledgerLayout=com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.current();
         byte[] ledger=new byte[ledgerLayout.payloadBytes()];
         ByteBuffer.wrap(ledger).order(ByteOrder.LITTLE_ENDIAN).putInt(53*4,17);
         ByteBuffer members=ByteBuffer.allocate(52).order(ByteOrder.LITTLE_ENDIAN);
@@ -113,7 +115,7 @@ class NativeModuleProfilePersistenceTest {
         writer.saveNativeClubs(new ClubExporter.ExportResult(List.of(),List.of(club),NativeModuleProfile.FM27_SHA256,List.of(name)));
         assertThat(clubs().findClubCompetitionIncome(202L).orElseThrow().names()).containsEntry(301L,"Synthetic competition");
 
-        jdbc.update("UPDATE competition_name_records SET module_sha256=? WHERE unique_id=301",NativeModuleProfile.LEGACY_SHA256);
+        jdbc.update("UPDATE competition_name_records SET module_sha256=? WHERE unique_id=301","0".repeat(64));
         em.clear();
         var income=clubs().findClubCompetitionIncome(202L).orElseThrow();
         assertThat(income.names()).isEmpty();

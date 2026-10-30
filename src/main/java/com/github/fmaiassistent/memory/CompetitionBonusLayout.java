@@ -4,11 +4,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.HexFormat;
 
-/**
- * Captured 26.3.2 FULL_80 row, not a complete competition/contract allocation.
- * Native anchors and two live owner rows: checkpoint56 in docs/reverse-engineering/fm26/.
- * Competition fields are registry indices; stage fields are stable UID keys.
- */
+/** FM27 FULL_80 competition bonus row. */
 public record CompetitionBonusLayout(int rowBytes, int dateRel, int conditionCompetitionRel,
         int stageUidRel, int secondaryStageUidRel, int conditionKindRel, int subjectCompetitionRel,
         int amountRel, int minimumGamesRel, int stateRel, int opaqueRel) {

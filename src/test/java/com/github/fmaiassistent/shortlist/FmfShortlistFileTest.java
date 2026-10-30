@@ -28,20 +28,6 @@ class FmfShortlistFileTest {
     }
 
     @Test
-    void decodesRealFm26ShortlistFixture() throws IOException {
-        byte[] bytes = getClass().getResourceAsStream("/my_shortlist.fmf").readAllBytes();
-
-        FmfShortlistFile.Shortlist shortlist = fmf.read(bytes);
-
-        assertThat(shortlist.name()).isEqualTo("my_shortlist");
-        assertThat(shortlist.databaseVersion()).isEqualTo(6455715L);
-        // Brayley Lipman, Sasa Zivadinovic and Romero Tagliaferro, in fixture order.
-        assertThat(shortlist.playerUniqueIds()).containsExactly(2002082558L, 2002093222L, 2002081310L);
-        assertThat(shortlist.resources()).containsExactly(
-                "image.img", "my_shortlist.slf", "_data/details.aom");
-    }
-
-    @Test
     void writesAPlayerShortlistThatCanBeDecodedAgain() {
         List<Long> uniqueIds = List.of(7458500L, 2002082558L, 4_000_000_000L);
 

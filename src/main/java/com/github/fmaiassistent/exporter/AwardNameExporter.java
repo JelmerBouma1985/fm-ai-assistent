@@ -29,8 +29,7 @@ public final class AwardNameExporter {
         if(reader.platform()!=ProcessMemoryReader.Platform.WINDOWS)return;
         var profile=ContractExporter.capturedProfile(rows);if(profile.isEmpty())return;
         long base=suppliedBase==null?com.github.fmaiassistent.linux.FmOffsets.findGamePluginBase(reader):suppliedBase;
-        new AwardNameExporter(reader,base,NativeModuleProfile.fm27(profile.orElseThrow())
-                ? AwardNameLayout.fm27() : AwardNameLayout.current()).captureRows(rows);
+        new AwardNameExporter(reader,base,AwardNameLayout.current()).captureRows(rows);
     }
     public void captureRows(List<Map<String,Object>> rows)throws IOException {
         guards.clear();names.clear();addresses.clear();begin=0;count=0;readBytes=0;
@@ -61,8 +60,7 @@ public final class AwardNameExporter {
                 rows.get(i).put("_award_names",staged.get(i));
         }finally{guards.clear();names.clear();addresses.clear();}
     }
-    private String moduleProfile(){return layout.equals(AwardNameLayout.fm27())
-            ? NativeModuleProfile.FM27_SHA256 : NativeModuleProfile.LEGACY_SHA256;}
+    private String moduleProfile(){return NativeModuleProfile.FM27_SHA256;}
 
     private NativeAwardNameSnapshot readName(long uid,long address)throws IOException {
         if(uid<=0||uid>0xffffffffL)throw new IOException("Invalid AWARD UID");

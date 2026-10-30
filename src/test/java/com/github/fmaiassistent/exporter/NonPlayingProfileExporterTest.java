@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.*;
 class NonPlayingProfileExporterTest {
     @Test void fm27CapturedStandaloneCombinedAndHumanMembersKeepAll52NativeBytes() throws Exception {
         var capture=fm27Capture();long base=Long.decode(capture.get("moduleBase").asString());
-        var layout=NonPlayingProfileLayout.fm27();
+        var layout=NonPlayingProfileLayout.current();
         for(String type:List.of(".?AVACTUAL_NON_PLAYER@db@@",".?AVACTUAL_PLAYER_AND_NON_PLAYER@db@@",".?AVHUMAN_NON_PLAYER@db@@")) {
             assertThat(capture.get("samples").get(type).size()).as("Native samples for %s",type).isPositive();
             for(var sample:capture.get("samples").get(type)) {
@@ -30,7 +30,7 @@ class NonPlayingProfileExporterTest {
     @Test void everyFm27OffsetShiftRejectsTheSameCapturedHumanWithoutReadingIt() throws Exception {
         var capture=fm27Capture();long base=Long.decode(capture.get("moduleBase").asString());
         var sample=capture.get("samples").get(".?AVHUMAN_NON_PLAYER@db@@").get(0);
-        var layout=NonPlayingProfileLayout.fm27();var components=NonPlayingProfileLayout.class.getRecordComponents();
+        var layout=NonPlayingProfileLayout.current();var components=NonPlayingProfileLayout.class.getRecordComponents();
         var types=java.util.Arrays.stream(components).map(java.lang.reflect.RecordComponent::getType).toArray(Class<?>[]::new);
         for(int i=0;i<components.length;i++) {
             if(components[i].getType()!=int.class&&components[i].getType()!=long.class)continue;
@@ -63,7 +63,7 @@ class NonPlayingProfileExporterTest {
         return new Fixture(memory,row,person,raw);
     }
     private static final long BASE=0x7FFCCF870000L;
-    private static final NonPlayingProfileLayout L=NonPlayingProfileLayout.fm27();
+    private static final NonPlayingProfileLayout L=NonPlayingProfileLayout.current();
 
     @Test void capturedCombinedMemberPreservesAll52BytesIncludingUnknown45And46()throws Exception {
         var f=fixture();var row=f.row();
@@ -115,7 +115,7 @@ class NonPlayingProfileExporterTest {
         assertThat(NonPlayingProfileLayout.values(null,null)).isEmpty();
     }
 
-@Test void everyNewNamedFieldRejectsItsOwnShiftAgainstTheSameCapturedFixture()throws Exception {
+    @Test void everyNewNamedFieldRejectsItsOwnShiftAgainstTheSameCapturedFixture()throws Exception {
         for(int at=0;at<L.fields().size();at++) {
             var f=fixture();var fields=new ArrayList<>(L.fields());var field=fields.get(at);
             fields.set(at,new NonPlayingProfileLayout.Field(field.index()+1,field.name(),field.scaledByFive()));

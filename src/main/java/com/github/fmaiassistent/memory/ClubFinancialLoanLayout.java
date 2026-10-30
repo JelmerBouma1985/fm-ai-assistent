@@ -14,12 +14,9 @@ public record ClubFinancialLoanLayout(int clubDataRel, int vectorRel, int header
         int recordBytes, int maximumRecords, int principalRel, int paymentRel, int interestRel,
         int promotionRel, int maturityRel, int startRel, int kindRel, int flagRel, int modeRel,
         int unassignedRel, long clockRva, int clockBytes) {
-    public static final String MODULE_SHA256="eb6c86fab56e051fe41482c7b93d8cb0af716a1cc2c6197ce1babbff68372bb8";
-    public static final String FM27_MODULE_SHA256=ClubFinanceLayout.FM27_MODULE_SHA256;
+    public static final String MODULE_SHA256="bc940e472418fc5c214208d7cf30fecf600f689b6f9d71c11ba19a2df0fe057f";
+
     public static ClubFinancialLoanLayout current() {
-        return new ClubFinancialLoanLayout(0x100,0x48,24,8,28,512,0,4,8,12,16,20,24,25,26,27,0x4DF3C18L,4);
-    }
-    public static ClubFinancialLoanLayout fm27() {
         return new ClubFinancialLoanLayout(0x100,0x50,24,8,28,512,0,4,8,12,16,20,24,25,26,27,0x56AD378L,4);
     }
 
@@ -60,7 +57,7 @@ public record ClubFinancialLoanLayout(int clubDataRel, int vectorRel, int header
 
     public static Optional<Profile> values(String hex,Integer clock,String sourceSha256) {
         var layout=current();
-        if((!MODULE_SHA256.equals(sourceSha256)&&!FM27_MODULE_SHA256.equals(sourceSha256))||hex==null||clock==null
+        if((!MODULE_SHA256.equals(sourceSha256))||hex==null||clock==null
                 ||hex.length()>layout.maximumRecords*layout.recordBytes*2||hex.length()%(layout.recordBytes*2)!=0)
             return Optional.empty();
         try{return Optional.of(layout.decode(HexFormat.of().parseHex(hex),clock));}

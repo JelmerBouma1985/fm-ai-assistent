@@ -36,7 +36,7 @@ class Fm27CapturedContractPersistenceTest {
         for (int i = 0; i < 4; i++) {
             var fixture = fixtures.get(i);
             long uid = fixture.path("uid").asLong();
-            var captured = Fm27CapturedContractsTest.exporter(fixture, ContractRecordLayout.fm27())
+            var captured = Fm27CapturedContractsTest.exporter(fixture, ContractRecordLayout.current())
                     .read(fixture.path("person").asLong(), uid);
             var row = Map.<String, Object>of("unique_id", uid, "_contract_profile", NativeModuleProfile.FM27_SHA256,
                     "_contracts", captured);
@@ -59,7 +59,7 @@ class Fm27CapturedContractPersistenceTest {
     @Test void capturedFutureContractKeepsOfferIdentityWageEndDateAndAllTerms() throws Exception {
         var fixture = Fm27CapturedContractsTest.fixtures().get(4);
         long uid = fixture.path("uid").asLong();
-        var employment = Fm27CapturedContractsTest.exporter(fixture, ContractRecordLayout.fm27())
+        var employment = Fm27CapturedContractsTest.exporter(fixture, ContractRecordLayout.current())
                 .readFutureEmployment(fixture.path("person").asLong(), uid, 0).orElseThrow();
         var future = new FutureTransferSnapshot(LocalDate.of(2026, 8, 4), employment);
         writer.savePlayers(new PlayerExporter.ExportResult("2026-08-03", List.of(Map.of(

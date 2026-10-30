@@ -78,8 +78,7 @@ public class StaffExporter {
         boolean basic = false;
         if (contract.isPresent() && windowsModuleBase != null) {
             long vtableRva = reader.readU64(contract.get()) - windowsModuleBase;
-            basic = vtableRva == ContractRecordLayout.current().basic().vtable()
-                    || vtableRva == ContractRecordLayout.fm27().basic().vtable();
+            basic = vtableRva == ContractRecordLayout.current().basic().vtable();
         }
         row.put("contract_end_date", basic ? "" : contract.map(value -> date(reader, value + recordLayout.contractDateRel())).orElse(""));
         row.put("home_reputation", reader.readU16(staffBase + recordLayout.homeReputationRel()));

@@ -90,8 +90,7 @@ public class SnapshotDatabaseWriter {
                     ||byAddress.put(record.sourceAddress(),record.uniqueId())!=null)
                 throw new IllegalArgumentException("Invalid native CLUB identity");
             var raw=java.nio.ByteBuffer.wrap(java.util.HexFormat.of().parseHex(record.prefixHex())).order(java.nio.ByteOrder.LITTLE_ENDIAN);
-            var layout=NativeModuleProfile.fm27(result.identityProfile())
-                    ?com.github.fmaiassistent.memory.ClubIdentityLayout.fm27():com.github.fmaiassistent.memory.ClubIdentityLayout.current();
+            var layout=com.github.fmaiassistent.memory.ClubIdentityLayout.current();
             if(raw.getInt(layout.index())!=record.recordIndex()||Integer.toUnsignedLong(raw.getInt(layout.uniqueId()))!=record.uniqueId())
                 throw new IllegalArgumentException("Native CLUB prefix/identity mismatch");
             if(record.uefaCoefficientHex()!=null||record.uefaRuleVersion()!=null) {
@@ -152,8 +151,7 @@ public class SnapshotDatabaseWriter {
         if(!NativeModuleProfile.supported(profile))
             throw new IllegalArgumentException("Unsupported native COMP names profile");
         var layout=com.github.fmaiassistent.memory.CompetitionNameLayout.current();
-        var identity=NativeModuleProfile.fm27(profile)?com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.fm27()
-                :com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.current();
+        var identity=com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.current();
         var ids=new java.util.HashSet<Long>();var indices=new java.util.HashSet<Integer>();var addresses=new java.util.HashSet<Long>();
         for(var record:captured) {
             if(record.uniqueId()<=0||record.uniqueId()>0xFFFFFFFFL||record.recordIndex()<0||record.prefixHex()==null||record.prefixHex().length()!=identity.competitionPrefixBytes()*2

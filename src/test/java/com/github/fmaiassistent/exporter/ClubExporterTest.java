@@ -21,17 +21,17 @@ class ClubExporterTest {
     private static final long FACILITIES = 0x2000_0000L;
     private static final long EXTRA = 0x3000_0000L;
 
-@Test
-    void readsFm26FacilityRatingsFromTheClubSubstructures() throws Exception {
+    @Test
+    void readsFm27FacilityRatingsFromTheClubSubstructures() throws Exception {
         FakeMemory memory = new FakeMemory();
         memory.putLong(CLUB + 0x100, FACILITIES);
-        memory.putU8(FACILITIES + 0x118, 18);
-        memory.putU8(FACILITIES + 0x123, 13);
-        memory.putU8(FACILITIES + 0x124, 20);
-        memory.putU8(FACILITIES + 0x125, 17);
+        memory.putU8(FACILITIES + 0x120, 18);
+        memory.putU8(FACILITIES + 0x12B, 13);
+        memory.putU8(FACILITIES + 0x12C, 20);
+        memory.putU8(FACILITIES + 0x12D, 17);
         memory.putLong(CLUB + 0x150, EXTRA);
-        memory.putU16(EXTRA, 0xB318);
-        memory.putU8(EXTRA + 0x8B5, 9);
+        memory.putU16(EXTRA, 0x0CC8);
+        memory.putU8(EXTRA + 0x8A9, 9);
 
         ClubExporter.Facilities facilities = new ClubExporter().readFacilities(memory, CLUB);
 
@@ -46,12 +46,12 @@ class ClubExporterTest {
     void shiftedBudgetOffsetFailsValidationWhileCurrentPasses() throws Exception {
         FakeMemory memory = new FakeMemory();
         memory.putLong(CLUB + 0x150, EXTRA);
-        memory.putU16(EXTRA, 0xB318);
-        memory.putI32(EXTRA + 0x14, 1_000_000);
-        memory.putI32(EXTRA + 0x7CC, 5_000_000);
-        memory.putI32(EXTRA + 0x810, 2_000_000);
-        memory.putI32(EXTRA + 0x7D0, -1_500_000_000);
-        memory.putI32(EXTRA + 0x814, 1_000_000);
+        memory.putU16(EXTRA, 0x0CC8);
+        memory.putI32(EXTRA + 0x0C, 1_000_000);
+        memory.putI32(EXTRA + 0x7C4, 5_000_000);
+        memory.putI32(EXTRA + 0x808, 2_000_000);
+        memory.putI32(EXTRA + 0x7C8, -1_500_000_000);
+        memory.putI32(EXTRA + 0x80C, 1_000_000);
 
         ClubExporter.Finance finance = new ClubExporter().readFinance(memory, CLUB);
         assertThat(finance.transferBudget()).isEqualTo(5_000_000L);

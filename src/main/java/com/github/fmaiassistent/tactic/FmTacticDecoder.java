@@ -8,9 +8,7 @@ import java.util.Map;
 
 final class FmTacticDecoder {
     private static final byte[] TACTIC_MAGIC = {3, 1, 'c', 'a', 't', '.'};
-    private static final byte[] ROLE_MARKER = {'B', 0, 2};
-    // Observed in a fresh FM27 export: marker 44 00 02 uses a 14-byte
-    // role header (the earlier marker 42 00 02 uses 15 bytes).
+    // FM27 role marker 44 00 02, followed by a 14-byte header.
     private static final byte[] FM27_ROLE_MARKER = {'D', 0, 2};
     private static final long LEFT_SIDED = 0x100000L;
     private static final long RIGHT_SIDED = 0x200000L;
@@ -228,18 +226,12 @@ final class FmTacticDecoder {
         String pressingTrap = option(PRESSING_TRAPS, trappingByte & 0x03);
         String shortGoalkeepingDistribution = option(SHORT_GOALKEEPING_DISTRIBUTION, pressingByte & 0x20);
 
-        int legacyFirstRole = indexOf(bytes, ROLE_MARKER, settingsOffset);
-        int fm27FirstRole = indexOf(bytes, FM27_ROLE_MARKER, settingsOffset);
-        // The tactic version word is unchanged; discriminate by the first role
-        // marker, so older archives remain readable with their original layout.
-        boolean fm27Roles = fm27FirstRole >= 0 && (legacyFirstRole < 0 || fm27FirstRole < legacyFirstRole);
-        byte[] roleMarker = fm27Roles ? FM27_ROLE_MARKER : ROLE_MARKER;
-        int firstRole = fm27Roles ? fm27FirstRole : legacyFirstRole;
+        int firstRole = indexOf(bytes, FM27_ROLE_MARKER, settingsOffset);
         if (firstRole < 0) {
             throw new IllegalArgumentException("The embedded tactic contains no player roles");
         }
         String style = findTacticalStyle(bytes, settingsOffset, firstRole, name);
-        List<RoleRecord> records = parseRoleRecords(bytes, firstRole, roleMarker, fm27Roles ? 14 : 15);
+        List<RoleRecord> records = parseRoleRecords(bytes, firstRole, FM27_ROLE_MARKER, 14);
         if (records.size() < 2 || records.size() % 2 != 0) {
             throw new IllegalArgumentException("The embedded tactic role data is incomplete");
         }

@@ -26,27 +26,10 @@ public record ClubRecordLayout(
         long clubYouthCoachingRel,
         long clubYouthRecruitmentRel) {
 
-    /** Historical layout for the earlier verified executable image. */
-    public static ClubRecordLayout current() {
-        return new ClubRecordLayout(
-                0x30L,
-                0x50L,
-                0xA8L,
-                0xF9L,
-                0x150L,
-                0x100L,
-                0x14L,
-                0x7CCL,
-                0x810L,
-                0x8B5L,
-                0x118L,
-                0x123L,
-                0x124L,
-                0x125L);
-    }
+    /** Current FM27 layout. */
 
     /** FM27 27.0.0+2486695: native finance prefix and CLUB_DATA member drift. */
-    public static ClubRecordLayout fm27() {
+    public static ClubRecordLayout current() {
         return new ClubRecordLayout(0x30,0x50,0xA8,0xF9,0x150,0x100,
                 0xC,0x7C4,0x808,0x8A9,0x120,0x12B,0x12C,0x12D);
     }

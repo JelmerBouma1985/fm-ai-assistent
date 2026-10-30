@@ -25,7 +25,7 @@ public final class NonPlayingProfileExporter {
         for (String profile : rows.stream().map(r->String.valueOf(r.get("_contract_profile"))).distinct()
                 .filter(NativeModuleProfile::supported).toList()) {
             captureVerifiedRows(reader,base,rows.stream().filter(r->profile.equals(r.get("_contract_profile"))).toList(),
-                    NativeModuleProfile.fm27(profile)?NonPlayingProfileLayout.fm27():NonPlayingProfileLayout.current());
+                    NonPlayingProfileLayout.current());
         }
     }
 
@@ -37,7 +37,7 @@ public final class NonPlayingProfileExporter {
             if(Thread.currentThread().isInterrupted())throw new IOException("Management profile capture interrupted");
             String profile=String.valueOf(row.get("_contract_profile"));
             if(!NativeModuleProfile.supported(profile))continue;
-            if(!layout.equals(NativeModuleProfile.fm27(profile)?NonPlayingProfileLayout.fm27():NonPlayingProfileLayout.current()))
+            if(!layout.equals(NonPlayingProfileLayout.current()))
                 throw new IOException("Management profile layout does not match its source binary");
             Object address=row.containsKey("record")?row.get("record"):row.get("record_address");
             final long person;

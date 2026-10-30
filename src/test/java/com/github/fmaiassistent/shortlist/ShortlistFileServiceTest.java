@@ -92,7 +92,7 @@ class ShortlistFileServiceTest {
 
     @Test
     void doesNotWriteIntoThePreviousGameShortlistFolder(@TempDir Path home) throws Exception {
-        Path oldFolder = home.resolve("Documents/Sports Interactive/Football Manager 26/shortlists");
+        Path oldFolder = home.resolve("Documents/Sports Interactive/Football Manager 25/shortlists");
         Files.createDirectories(oldFolder);
 
         assertThat(ShortlistFileService.resolveOutputDirectory(home)).isEqualTo(home.resolve(

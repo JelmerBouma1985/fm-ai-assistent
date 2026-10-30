@@ -29,14 +29,14 @@ class ClubUefaCoefficientPersistenceTest {
         var raw=captured();var prefix=ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
                 .putLong(0x7FFFD5260000L+0x4CDA1F8).putInt(0).putInt(630).array();
         var club=new NativeClubSnapshot(630,0,"CLUB","Chelsea",0x10000000L,HexFormat.of().formatHex(prefix),raw,1684);
-        writer.saveNativeClubs(new ClubExporter.ExportResult(List.of(),List.of(club),ClubUefaCoefficientLayout.FM27_MODULE_SHA256));
+        writer.saveNativeClubs(new ClubExporter.ExportResult(List.of(),List.of(club),ClubUefaCoefficientLayout.MODULE_SHA256));
         var service=new ClubDatabaseService(mock(ClubRepository.class),mock(CompetitionRepository.class),
                 mock(CompetitionDatabaseService.class),mock(LoadMetadataRepository.class),writer,nativeClubs,mock(CompetitionNameRepository.class));
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM clubs",Long.class)).isZero();
         var saved=nativeClubs.findById(630L).orElseThrow();
         assertThat(saved.getUefaCoefficientHex()).isEqualTo(raw);
         assertThat(saved.getUefaRuleVersion()).isEqualTo(1684);
-        assertThat(saved.getModuleSha256()).isEqualTo(ClubUefaCoefficientLayout.FM27_MODULE_SHA256);
+        assertThat(saved.getModuleSha256()).isEqualTo(ClubUefaCoefficientLayout.MODULE_SHA256);
         assertThat(service.countCoefficientClubs()).isEqualTo(1);
         assertThat(service.findCoefficientClubs(PageRequest.of(0,10))).hasSize(1);
         assertThat(service.findCoefficientClubs(" CHELSEA ",PageRequest.of(0,10))).hasSize(1);
@@ -48,7 +48,7 @@ class ClubUefaCoefficientPersistenceTest {
         assertThat(service.findClubCoefficients(999L)).isEmpty();
         var incomplete=new NativeClubSnapshot(630,0,"CLUB",null,club.sourceAddress(),club.prefixHex(),raw,null);
         assertThatThrownBy(()->writer.saveNativeClubs(new ClubExporter.ExportResult(List.of(),List.of(incomplete),
-                ClubUefaCoefficientLayout.FM27_MODULE_SHA256))).isInstanceOf(IllegalArgumentException.class);
+                ClubUefaCoefficientLayout.MODULE_SHA256))).isInstanceOf(IllegalArgumentException.class);
     }
 
     private static String captured()throws Exception {
