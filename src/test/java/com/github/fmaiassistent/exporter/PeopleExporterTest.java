@@ -35,58 +35,69 @@ class PeopleExporterTest {
     private static final LocalDate GAME_DATE = LocalDate.of(2033, 6, 23);
 
     @Test
-    void rejectsTheCapturedPersonAddressReuseInsteadOfAssigningAnOldPointerTableIndex() throws Exception {
-        var mapper = tools.jackson.databind.json.JsonMapper.builder().build();
-        Path evidence = Path.of("docs/reverse-engineering/fm26/evidence");
-        tools.jackson.databind.JsonNode before;
-        tools.jackson.databind.JsonNode after;
-        try (var input = Files.newInputStream(evidence.resolve("human_projection_membership_live_20261024.json"))) {
-            byte[] bytes = input.readNBytes(1_048_577);
-            if (bytes.length > 1_048_576) throw new IOException("Fixture too large");
-            before = mapper.readTree(bytes).get("returnValues").get(0);
-        }
-        try (var input = Files.newInputStream(evidence.resolve("two_human_identities_after_reload_1792826397.json"))) {
-            byte[] bytes = input.readNBytes(1_048_577);
-            if (bytes.length > 1_048_576) throw new IOException("Fixture too large");
-            after = mapper.readTree(bytes).get("returnValues").get(0);
-        }
+    void fm27CapturedRttiKeepsPlayersAndStaffAndRecognizesTheMovedHumanView() throws Exception {
+        var capture = fm27PersonCapture();
+        long moduleBase = Long.decode(capture.get("moduleBase").asString());
         MemoryImage image = new MemoryImage();
-        byte[] pointers = new byte[88_375 * Long.BYTES];
-        long moduleBase = Long.parseUnsignedLong(after.get("moduleBase").asString(), 16);
-        for (var old : before.get("rows")) {
-            long person = Long.parseUnsignedLong(old.get("person").asString(), 16);
-            putPointer(pointers, old.get("index").asInt(), person);
-            for (var current : after.get("rows")) {
-                if (!current.get("person").asString().equals(old.get("person").asString())) continue;
-                // Only identity/RTTI comes from RAM; unrelated staff fields below are synthetic controls.
-                putStaff(image, person, 0x450, current.get("uid").asLong(), "Replay control", 140, 160);
-                image.put(person, HexFormat.of().parseHex(current.get("personPrefix").asString()));
-                var type = current.get("type");
-                long vtable = moduleBase + Long.parseUnsignedLong(type.get("vtableRva").asString(), 16);
-                long col = moduleBase + Long.parseUnsignedLong(type.get("colRva").asString(), 16);
-                image.putLong(vtable - Long.BYTES, col);
-                image.put(col, HexFormat.of().parseHex(type.get("rawCol").asString()));
+        for (var metadata : capture.get("metadata")) {
+            long vtable = moduleBase + Long.decode(metadata.get("vtableRva").asString());
+            long col = moduleBase + Long.decode(metadata.get("rttiRva").asString());
+            image.putLong(vtable - Long.BYTES, col);
+            image.put(col, HexFormat.of().parseHex(metadata.get("rttiHex").asString()));
+            String name = metadata.get("name").asString();
+            var expected = switch (name) {
+                case ".?AVACTUAL_PLAYER@db@@" -> PersonMemoryClassifier.PersonType.PLAYER;
+                case ".?AVACTUAL_PLAYER_AND_NON_PLAYER@db@@" -> PersonMemoryClassifier.PersonType.PLAYER_STAFF;
+                case ".?AVACTUAL_NON_PLAYER@db@@" -> PersonMemoryClassifier.PersonType.STAFF;
+                case ".?AVHUMAN_NON_PLAYER@db@@" -> PersonMemoryClassifier.PersonType.HUMAN_MANAGER;
+                default -> PersonMemoryClassifier.PersonType.UNKNOWN;
+            };
+            assertThat(capture.get("samples").get(name).size()).as("Captured samples for %s",name).isPositive();
+            for (var sample : capture.get("samples").get(name)) {
+                long person = Long.decode(sample.get("person").asString());
+                byte[] prefix = HexFormat.of().parseHex(sample.get("prefix").asString());
+                image.put(person, prefix);
+                assertThat(new PersonMemoryClassifier(image.reader()).classify(person).type()).as(name).isEqualTo(expected);
+                assertThat(PlayerSnapshotValidator.validatePersonIdentity(sample.get("index").asInt(), prefix,
+                        com.github.fmaiassistent.memory.PersonIdentityLayout.current())).isEqualTo(sample.get("uid").asLong());
+            }
+            if (expected == PersonMemoryClassifier.PersonType.HUMAN_MANAGER) {
+                byte[] getter = HexFormat.of().parseHex(metadata.get("getter698Hex").asString());
+                assertThat(HexFormat.of().formatHex(getter, 0, 11)).isEqualTo("31c02b41fc4898488d8401");
+                assertThat(-ByteBuffer.wrap(getter).order(ByteOrder.LITTLE_ENDIAN).getInt(11))
+                        .isEqualTo(com.github.fmaiassistent.memory.PersonIdentityLayout.currentSubtypes().humanManager());
             }
         }
-        for (var current : after.get("rows")) {
-            long person = Long.parseUnsignedLong(current.get("person").asString(), 16);
-            image.putStringPointer(person + 0x40, 0x1_0000_0000L + current.get("index").asLong() * 0x1000,
-                    "Human " + current.get("uid").asLong());
-        }
-        PeopleExporter exporter = new PeopleExporter(pid -> image.reader(), () -> 1);
-        assertThatThrownBy(() -> {
-            var result = exporter.scanPointerTable(1, pointers, PeopleExporter.ExportMode.STAFF, 1);
-            assertThat(result.staffRows()).hasSize(2);
-            for (var row : result.staffRows()) {
-                long uid = ((Number) row.get("unique_id")).longValue();
-                int expectedNativeIndex = uid == 2002076189L ? 88373 : 88374;
-                assertThat(((Number) row.get("staff_index")).intValue()).isNotEqualTo(expectedNativeIndex);
-            }
-        })
-                .isInstanceOf(IOException.class).hasMessageContaining("PERSON identity");
     }
 
-    @ParameterizedTest
+    @Test
+    void everyShiftedFm27SubtypeLayoutRejectsTheSameCapturedHumanBeforeDecoding() throws Exception {
+        var capture = fm27PersonCapture();
+        var sample = capture.get("samples").get(".?AVHUMAN_NON_PLAYER@db@@").get(0);
+        long person = Long.decode(sample.get("person").asString());
+        MemoryImage image = new MemoryImage();
+        image.put(person, HexFormat.of().parseHex(sample.get("prefix").asString()));
+        var l = com.github.fmaiassistent.memory.PersonIdentityLayout.currentSubtypes();
+        for (var shifted : List.of(
+                new com.github.fmaiassistent.memory.PersonIdentityLayout.Subtypes(l.staff()+1,l.player(),l.playerStaff(),l.humanManager()),
+                new com.github.fmaiassistent.memory.PersonIdentityLayout.Subtypes(l.staff(),l.player()+1,l.playerStaff(),l.humanManager()),
+                new com.github.fmaiassistent.memory.PersonIdentityLayout.Subtypes(l.staff(),l.player(),l.playerStaff()+1,l.humanManager()),
+                new com.github.fmaiassistent.memory.PersonIdentityLayout.Subtypes(l.staff(),l.player(),l.playerStaff(),l.humanManager()+1))) {
+            assertThatThrownBy(() -> new PersonMemoryClassifier(image.reader(), shifted).classify(person))
+                    .isInstanceOf(PlayerSnapshotValidator.PersonIdentityChangedException.class)
+                    .hasMessageContaining("native displacement");
+        }
+    }
+
+    private static tools.jackson.databind.JsonNode fm27PersonCapture() throws IOException {
+        try (var in = Files.newInputStream(Path.of("src/test/resources/fm27/people-captured.json"))) {
+            byte[] bytes = in.readNBytes(1_048_577);
+            if (bytes.length > 1_048_576) throw new IOException("Fixture too large");
+            return tools.jackson.databind.json.JsonMapper.builder().build().readTree(bytes);
+        }
+    }
+
+@ParameterizedTest
     @CsvSource({
             "1,1",
             "2,1",
@@ -222,7 +233,7 @@ class PeopleExporterTest {
     void rejectsAnIdentityChangeInsideAnOtherwiseValidStaffDecode() throws Exception {
         MemoryImage image = new MemoryImage();
         long person = 0x40_0000;
-        putStaff(image, person, 0x450, 201, "Stable Control", 150, 160);
+        putStaff(image, person, PersonMemoryClassifier.HUMAN_MANAGER_DYNAMIC_OFFSET, 201, "Stable Control", 150, 160);
         byte[] pointers = new byte[Long.BYTES];
         putPointer(pointers, 0, person);
         PeopleExporter exporter = new PeopleExporter(pid -> {
@@ -232,7 +243,7 @@ class PeopleExporterTest {
                 @Override public List<MemoryRegion> maps() { return List.of(); }
                 @Override public void close() { }
                 @Override public byte[] readBytes(long address, int size) throws IOException {
-                    if (address == person - 0x450 + StaffAttributeDefinitions.ATTRIBUTES_REL) {
+                    if (address == person - PersonMemoryClassifier.HUMAN_MANAGER_DYNAMIC_OFFSET + StaffAttributeDefinitions.ATTRIBUTES_REL) {
                         memory.bytes().put(person + 0x0c, (byte) 202);
                     }
                     return memory.readBytes(address, size);

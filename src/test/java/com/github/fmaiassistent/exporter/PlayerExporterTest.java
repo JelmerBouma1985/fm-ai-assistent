@@ -299,7 +299,7 @@ class PlayerExporterTest {
             memory.putLong(vector + (long) index * Long.BYTES, item);
             memory.fill(item, 0x20, 0);
             DutyRecord record = records[index];
-            // Live FM26 records start with a pointer to the international team,
+            // Live FM27 records start with a pointer to the international team,
             // not an ASCII type marker.
             memory.putLong(item, team);
             memory.putI16(item + 0x10, record.startDay());

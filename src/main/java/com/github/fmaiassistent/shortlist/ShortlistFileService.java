@@ -64,7 +64,7 @@ public class ShortlistFileService {
             }
         }
         if (!missing.isEmpty()) {
-            throw new IllegalArgumentException("Unknown FM26 player unique IDs in the loaded save: " + missing);
+            throw new IllegalArgumentException("Unknown FM27 player unique IDs in the loaded save: " + missing);
         }
 
         byte[] bytes = fmf.write(shortlistName, selected.stream().map(PlayerEntity::getUniqueId).toList());
@@ -85,7 +85,7 @@ public class ShortlistFileService {
             }
             return created;
         } catch (IOException exception) {
-            throw new IllegalStateException("Could not write the FM26 shortlist to " + outputDirectory, exception);
+            throw new IllegalStateException("Could not write the FM27 shortlist to " + outputDirectory, exception);
         }
     }
 
@@ -124,23 +124,23 @@ public class ShortlistFileService {
         if (configured != null && !configured.isBlank()) {
             return Path.of(configured);
         }
-        Path nativeDefault = home.resolve("Documents/Sports Interactive/Football Manager 26/shortlists")
+        Path nativeDefault = home.resolve("Documents/Sports Interactive/Football Manager 27/shortlists")
                 .toAbsolutePath().normalize();
         if (Files.isDirectory(nativeDefault)) {
             return nativeDefault;
         }
-        // The library holding FM26 wins over stale shortlists folders in other libraries.
-        java.util.Optional<Path> gameLib = SteamLibraries.libraryWithApp(home, SteamLibraries.FM26_APP_ID);
+        // The library holding FM27 wins over stale shortlists folders in other libraries.
+        java.util.Optional<Path> gameLib = SteamLibraries.libraryWithApp(home, SteamLibraries.FM27_APP_ID);
         if (gameLib.isPresent()) {
             return gameLib.get()
-                    .resolve("steamapps/compatdata/" + SteamLibraries.FM26_APP_ID
-                            + "/pfx/drive_c/users/steamuser/Documents/Sports Interactive/Football Manager 26/shortlists")
+                    .resolve("steamapps/compatdata/" + SteamLibraries.FM27_APP_ID
+                            + "/pfx/drive_c/users/steamuser/Documents/Sports Interactive/Football Manager 27/shortlists")
                     .toAbsolutePath().normalize();
         }
         List<Path> candidates = new ArrayList<>();
         for (Path userDir : SteamLibraries.fmProtonUserDirectories(home)) {
-            candidates.add(userDir.resolve("Documents/Sports Interactive/Football Manager 26/shortlists"));
-            candidates.add(userDir.resolve("AppData/Local/Sports Interactive/Football Manager 26/cloud/shortlists"));
+            candidates.add(userDir.resolve("Documents/Sports Interactive/Football Manager 27/shortlists"));
+            candidates.add(userDir.resolve("AppData/Local/Sports Interactive/Football Manager 27/cloud/shortlists"));
         }
         return candidates.stream()
                 .map(path -> path.toAbsolutePath().normalize())
@@ -165,7 +165,7 @@ public class ShortlistFileService {
             result.put("player_count", players.size());
             result.put("players", players);
             result.put("player_unique_ids", playerUniqueIds);
-            result.put("next_step", "In FM26, open Scouting > Shortlists and import this .fmf file.");
+            result.put("next_step", "In FM27, open Scouting > Shortlists and import this .fmf file.");
             return result;
         }
     }

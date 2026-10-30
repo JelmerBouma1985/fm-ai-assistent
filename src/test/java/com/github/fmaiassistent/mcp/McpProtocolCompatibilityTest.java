@@ -176,30 +176,30 @@ class McpProtocolCompatibilityTest {
                     .map(tool -> tool.path("name").asString())
                     .collect(Collectors.toSet());
             assertTrue(names.containsAll(Set.of(
-                    "fm26_find_clubs",
-                    "fm26_find_players",
-                    "fm26_get_club_context",
-                    "fm26_get_player_details",
-                    "fm26_find_staff",
-                    "fm26_get_staff_details",
-                    "fm26_get_staff_coaching_roles",
-                    "fm26_get_role_attributes",
-                    "fm26_transfer_shortlist",
-                    "fm26_create_shortlist_file",
-                    "fm26_get_data_status",
-                    "fm26_refresh_data",
-                    "fm26_analyze_squad",
-                    "fm26_optimize_lineup",
-                    "fm26_recruit_for_tactic_slot",
-                    "fm26_compare_players",
-                    "fm26_find_replacements",
-                    "fm26_plan_squad_moves",
-                    "fm26_update_recruitment_case",
-                    "fm26_get_recruitment_board",
-                    "fm26_get_managed_club_fixtures",
-                    "fm26_analyze_next_opposition")));
+                    "fm27_find_clubs",
+                    "fm27_find_players",
+                    "fm27_get_club_context",
+                    "fm27_get_player_details",
+                    "fm27_find_staff",
+                    "fm27_get_staff_details",
+                    "fm27_get_staff_coaching_roles",
+                    "fm27_get_role_attributes",
+                    "fm27_transfer_shortlist",
+                    "fm27_create_shortlist_file",
+                    "fm27_get_data_status",
+                    "fm27_refresh_data",
+                    "fm27_analyze_squad",
+                    "fm27_optimize_lineup",
+                    "fm27_recruit_for_tactic_slot",
+                    "fm27_compare_players",
+                    "fm27_find_replacements",
+                    "fm27_plan_squad_moves",
+                    "fm27_update_recruitment_case",
+                    "fm27_get_recruitment_board",
+                    "fm27_get_managed_club_fixtures",
+                    "fm27_analyze_next_opposition")));
             JsonNode createShortlist = listedTools.valueStream()
-                    .filter(tool -> "fm26_create_shortlist_file".equals(tool.path("name").asString()))
+                    .filter(tool -> "fm27_create_shortlist_file".equals(tool.path("name").asString()))
                     .findFirst()
                     .orElseThrow();
             assertEquals("string", createShortlist.path("inputSchema").path("properties")
@@ -207,7 +207,7 @@ class McpProtocolCompatibilityTest {
             assertEquals("array", createShortlist.path("inputSchema").path("properties")
                     .path("playerUniqueIds").path("type").asString());
             JsonNode findStaff = listedTools.valueStream()
-                    .filter(tool -> "fm26_find_staff".equals(tool.path("name").asString()))
+                    .filter(tool -> "fm27_find_staff".equals(tool.path("name").asString()))
                     .findFirst()
                     .orElseThrow();
             assertEquals("object", findStaff.path("inputSchema").path("properties")
@@ -215,13 +215,13 @@ class McpProtocolCompatibilityTest {
             assertEquals("number", findStaff.path("inputSchema").path("properties")
                     .path("minimumCoachingStars").path("type").asString());
             JsonNode staffDetails = listedTools.valueStream()
-                    .filter(tool -> "fm26_get_staff_details".equals(tool.path("name").asString()))
+                    .filter(tool -> "fm27_get_staff_details".equals(tool.path("name").asString()))
                     .findFirst()
                     .orElseThrow();
             assertEquals("integer", staffDetails.path("inputSchema").path("properties")
                     .path("staffUniqueId").path("type").asString());
             JsonNode scenario = listedTools.valueStream()
-                    .filter(tool -> "fm26_plan_squad_moves".equals(tool.path("name").asString()))
+                    .filter(tool -> "fm27_plan_squad_moves".equals(tool.path("name").asString()))
                     .findFirst()
                     .orElseThrow();
             assertEquals("array", scenario.path("inputSchema").path("properties")
@@ -230,7 +230,7 @@ class McpProtocolCompatibilityTest {
                     .path("quotes").path("items").path("properties")
                     .path("playerUniqueId").path("type").asString());
             JsonNode optimizer = listedTools.valueStream()
-                    .filter(tool -> "fm26_optimize_lineup".equals(tool.path("name").asString()))
+                    .filter(tool -> "fm27_optimize_lineup".equals(tool.path("name").asString()))
                     .findFirst()
                     .orElseThrow();
             assertEquals("array", optimizer.path("inputSchema").path("properties")
@@ -238,34 +238,34 @@ class McpProtocolCompatibilityTest {
             assertEquals("integer", optimizer.path("inputSchema").path("properties")
                     .path("lockedAssignments").path("items").path("properties")
                     .path("playerUniqueId").path("type").asString());
-            for (String projected : Set.of("fm26_analyze_squad", "fm26_optimize_lineup",
-                    "fm26_plan_squad_moves", "fm26_get_role_attributes", "fm26_find_players",
-                    "fm26_find_staff", "fm26_get_club_context")) {
+            for (String projected : Set.of("fm27_analyze_squad", "fm27_optimize_lineup",
+                    "fm27_plan_squad_moves", "fm27_get_role_attributes", "fm27_find_players",
+                    "fm27_find_staff", "fm27_get_club_context")) {
                 JsonNode schema = listedTools.valueStream()
                         .filter(tool -> projected.equals(tool.path("name").asString()))
                         .findFirst().orElseThrow().path("inputSchema");
                 assertEquals(2, schema.path("properties").path("responseDetail").path("enum").size());
             }
             assertTrue(listedTools.valueStream()
-                    .filter(tool -> "fm26_create_shortlist_file".equals(tool.path("name").asString()))
+                    .filter(tool -> "fm27_create_shortlist_file".equals(tool.path("name").asString()))
                     .findFirst().orElseThrow().path("inputSchema").path("properties")
                     .path("responseDetail").isMissingNode());
 
-            JsonNode compact = toolCall("fm26_get_role_attributes", "{}", sessionId, protocol);
-            JsonNode full = toolCall("fm26_get_role_attributes", "{\"responseDetail\":\"full\"}",
+            JsonNode compact = toolCall("fm27_get_role_attributes", "{}", sessionId, protocol);
+            JsonNode full = toolCall("fm27_get_role_attributes", "{\"responseDetail\":\"full\"}",
                     sessionId, protocol);
             assertEquals("compact", compact.path("_response_detail").path("level").asString());
             assertTrue(compact.path("roles").get(0).path("primary_attributes").get(0).isString());
             assertTrue(full.path("roles").get(0).path("primary_attributes").get(0).isObject());
-            assertEquals("compact", toolCall("fm26_get_role_attributes", "[]", sessionId, protocol)
+            assertEquals("compact", toolCall("fm27_get_role_attributes", "[]", sessionId, protocol)
                     .path("_response_detail").path("level").asString());
-            assertEquals("compact", toolCall("fm26_get_role_attributes", "[{}]", sessionId, protocol)
+            assertEquals("compact", toolCall("fm27_get_role_attributes", "[{}]", sessionId, protocol)
                     .path("_response_detail").path("level").asString());
-            assertEquals(0, toolCall("fm26_find_players", "[{\"name\":\"no such player 987654\"}]",
+            assertEquals(0, toolCall("fm27_find_players", "[{\"name\":\"no such player 987654\"}]",
                     sessionId, protocol).path("count").asInt());
             HttpResponse<String> badArguments = post(
                     "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\","
-                            + "\"params\":{\"name\":\"fm26_find_players\",\"arguments\":[1,2]}}",
+                            + "\"params\":{\"name\":\"fm27_find_players\",\"arguments\":[1,2]}}",
                     sessionId, protocol);
             assertEquals(200, badArguments.statusCode());
             JsonNode error = mapper.readTree(badArguments.body());

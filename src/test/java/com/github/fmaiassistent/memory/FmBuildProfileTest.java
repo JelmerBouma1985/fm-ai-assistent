@@ -23,6 +23,6 @@ class FmBuildProfileTest {
     void unknownBuildsFailClosedBeforeAnyMemoryRead() {
         assertThatThrownBy(() -> FmOffsets.requireProfile(0x7fff_ffff))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Unsupported FM26 build");
+                .hasMessageContaining("Unsupported FM build");
     }
 }

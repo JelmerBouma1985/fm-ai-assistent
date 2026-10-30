@@ -14,13 +14,13 @@ class CopilotMcpPermissionTest {
         request.setKind("mcp");
         request.setExtensionData(Map.of(
                 "serverName", "fm-ai-assistent",
-                "toolName", "fm-ai-assistent-fm26_get_club_context",
-                "toolTitle", "fm26_get_club_context"));
+                "toolName", "fm-ai-assistent-fm27_get_club_context",
+                "toolTitle", "fm27_get_club_context"));
 
         CopilotMcpPermission permission = CopilotMcpPermission.applicationTool(request, null).orElseThrow();
 
         assertThat(permission.rule().kind()).isEqualTo("fm-ai-assistent");
-        assertThat(permission.rule().argument()).isEqualTo("fm26_get_club_context");
+        assertThat(permission.rule().argument()).isEqualTo("fm27_get_club_context");
     }
 
     @Test
@@ -43,9 +43,9 @@ class CopilotMcpPermissionTest {
         request.setToolCallId("call-1");
 
         CopilotMcpPermission permission = CopilotMcpPermission.applicationTool(
-                request, "MCP: fm-ai-assistent/fm26_get_club_context").orElseThrow();
+                request, "MCP: fm-ai-assistent/fm27_get_club_context").orElseThrow();
 
         assertThat(permission.rule().kind()).isEqualTo("fm-ai-assistent");
-        assertThat(permission.rule().argument()).isEqualTo("fm26_get_club_context");
+        assertThat(permission.rule().argument()).isEqualTo("fm27_get_club_context");
     }
 }

@@ -3,21 +3,19 @@ package com.github.fmaiassistent.memory;
 import java.util.HexFormat;
 import java.util.List;
 
-/** Native NON_PLAYING_DATA member, source-bound to26.3.2/2329565.
- * See nonplaying_named_native_field_model_checked_20261025.json: NPAT builds
- * records from C+10+index; their name handler uses the same index.
- * Values are raw signed bytes; scale describes native storage, not UI rounding.
- */
+/** FM27 NON_PLAYING_DATA member. Values are signed native bytes; scales describe storage. */
 public record NonPlayingProfileLayout(int personToMemberRel, int constructionRel, int memberBytes,
         int profileOffset, int profileBytes, long memberVtableRva,
         long standalonePersonVtableRva, long combinedPersonVtableRva,
         int humanPersonToMemberRel, long humanPersonVtableRva, List<Field> fields) {
-    public static final String MODULE_SHA256 = "eb6c86fab56e051fe41482c7b93d8cb0af716a1cc2c6197ce1babbff68372bb8";
+    public static final String MODULE_SHA256 = "bc940e472418fc5c214208d7cf30fecf600f689b6f9d71c11ba19a2df0fe057f";
     public NonPlayingProfileLayout { fields=List.copyOf(fields); }
     private static final NonPlayingProfileLayout CURRENT = createCurrent();
     public static NonPlayingProfileLayout current() { return CURRENT; }
+    /** FM27 27.0.0+2486695 typed members; human PERSON moved sixteen bytes towards its owner. */
+
     private static NonPlayingProfileLayout createCurrent() {
-        return new NonPlayingProfileLayout(-0xF8,-4,64,8,52,0x449B2E8L,0x4565018L,0x4785848L,-0x448,0x44A5238L,List.of(
+        return new NonPlayingProfileLayout(-0xF8,-4,64,8,52,0x4CB2718L,0x4D8BE78L,0x4F75F38L,-0x438,0x4CC08D8L,List.of(
                 new Field(0, "Attacking", false),
                 new Field(1, "Business", false),
                 new Field(2, "Coaching Technique", false),
@@ -74,9 +72,10 @@ public record NonPlayingProfileLayout(int personToMemberRel, int constructionRel
 
     /** Nullable older snapshots and unsupported source profiles remain unavailable. */
     public static List<AttributeValue> values(String profileHex,String sourceSha256) {
-        if(!MODULE_SHA256.equals(sourceSha256)||profileHex==null||profileHex.length()!=104)return List.of();
+        if(!NativeModuleProfile.supported(sourceSha256)||profileHex==null||profileHex.length()!=104)return List.of();
         final byte[] raw;
         try { raw=HexFormat.of().parseHex(profileHex); } catch(IllegalArgumentException malformed) { return List.of(); }
-        return current().fields().stream().map(f->new AttributeValue(f.name(),raw[f.index()],f.scaledByFive()?100:20)).toList();
+        var layout=current();
+        return layout.fields().stream().map(f->new AttributeValue(f.name(),raw[f.index()],f.scaledByFive()?100:20)).toList();
     }
 }

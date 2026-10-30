@@ -79,7 +79,7 @@ public class RecruitmentCaseService {
         String careerKey = currentCareerKey();
         if (blank(careerKey)) {
             throw new IllegalStateException(
-                    "current career identity is unavailable; refresh FM26 data before recording evidence");
+                    "current career identity is unavailable; refresh FM27 data before recording evidence");
         }
         RecruitmentCaseEntity entity = cases.findByIdCareerKeyAndIdPlayerUniqueId(careerKey, playerUniqueId)
                 .orElseGet(() -> new RecruitmentCaseEntity(careerKey, playerUniqueId));

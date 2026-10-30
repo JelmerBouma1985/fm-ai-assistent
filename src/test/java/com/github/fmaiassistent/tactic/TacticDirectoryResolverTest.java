@@ -11,6 +11,29 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class TacticDirectoryResolverTest {
     @Test
+    void injectedResolverUsesConfiguredDirectoryExclusively(@TempDir Path directory) throws Exception {
+        Files.write(directory.resolve("configured.fmf"), new byte[]{1});
+        String previous = System.getProperty(TacticDirectoryResolver.DIRECTORY_PROPERTY);
+        System.setProperty(TacticDirectoryResolver.DIRECTORY_PROPERTY, directory.toString());
+        try {
+            TacticDirectoryResolver resolver = new TacticDirectoryResolver();
+
+            assertThat(resolver.directory()).isEqualTo(directory.toAbsolutePath().normalize());
+            assertThat(resolver.candidateDirectories()).containsExactly(directory.toAbsolutePath().normalize());
+            assertThat(resolver.listTactics()).extracting(TacticDirectoryResolver.DiskTactic::fileName)
+                    .containsExactly("configured.fmf");
+            assertThat(resolver.contains(directory.resolve("configured.fmf"))).isTrue();
+            assertThat(resolver.contains(directory.resolveSibling("elsewhere.fmf"))).isFalse();
+        } finally {
+            if (previous == null) {
+                System.clearProperty(TacticDirectoryResolver.DIRECTORY_PROPERTY);
+            } else {
+                System.setProperty(TacticDirectoryResolver.DIRECTORY_PROPERTY, previous);
+            }
+        }
+    }
+
+    @Test
     void listsOnlyFmfFilesSortedByModifiedDesc(@TempDir Path dir) throws Exception {
         Path older = dir.resolve("older.fmf");
         Path newer = dir.resolve("newer.fmf");
@@ -40,14 +63,14 @@ class TacticDirectoryResolverTest {
 
         assertThat(candidates).hasSize(3);
         assertThat(candidates.getFirst()).isEqualTo(home.resolve(
-                "Documents/Sports Interactive/Football Manager 26/tactics").toAbsolutePath().normalize());
+                "Documents/Sports Interactive/Football Manager 27/tactics").toAbsolutePath().normalize());
     }
 
     @Test
     void findsCustomSteamLibraryFromLibraryFolders(@TempDir Path home) throws Exception {
         Path customLib = home.resolve("mnt/bcache/Steam");
         Path tactics = customLib.resolve(
-                "steamapps/compatdata/3551340/pfx/drive_c/users/steamuser/Documents/Sports Interactive/Football Manager 26/tactics");
+                "steamapps/compatdata/4530370/pfx/drive_c/users/steamuser/Documents/Sports Interactive/Football Manager 27/tactics");
         Files.createDirectories(tactics);
         Files.write(tactics.resolve("custom.fmf"), new byte[]{1});
         Path steamApps = home.resolve(".local/share/Steam/steamapps");

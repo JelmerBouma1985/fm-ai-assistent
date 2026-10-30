@@ -1,7 +1,7 @@
 package com.github.fmaiassistent.memory;
 
 /**
- * All byte offsets of the FM26 player record and its linked structures.
+ * All byte offsets of the FM27 player record and its linked structures.
  *
  * <p>Canonical home for the {@code *_REL} values previously scattered as
  * constants across the exporter. {@link #current()} holds the offsets of the
@@ -76,7 +76,7 @@ public record PlayerRecordLayout(Direct direct, Registration registration, Duty 
             int lightTrainingRel) {
     }
 
-    /** The offsets of the currently supported FM26 build. */
+    /** Shared scalar structure retained by FM27 27.0.0+2486695; live physical ranges rechecked. */
     public static PlayerRecordLayout current() {
         return new PlayerRecordLayout(
                 new Direct(

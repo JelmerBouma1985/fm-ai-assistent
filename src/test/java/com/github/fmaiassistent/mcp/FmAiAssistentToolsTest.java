@@ -49,7 +49,7 @@ class FmAiAssistentToolsTest {
                 mock(RecruitmentCaseService.class), snapshots);
         var callbacks = MethodToolCallbackProvider.builder().toolObjects(tools).build().getToolCallbacks();
         JsonMapper json = JsonMapper.builder().build();
-        for (String name : new String[] {"fm26_find_clubs", "fm26_find_players", "fm26_find_staff"}) {
+        for (String name : new String[] {"fm27_find_clubs", "fm27_find_players", "fm27_find_staff"}) {
             var callback = java.util.Arrays.stream(callbacks)
                     .filter(value -> value.getToolDefinition().name().equals(name)).findFirst().orElseThrow();
             JsonNode first = json.readTree(callback.call("{}"));
@@ -60,7 +60,7 @@ class FmAiAssistentToolsTest {
             assertThat(larger.path("count").asInt()).isEqualTo(30);
         }
         var clubSearch = java.util.Arrays.stream(callbacks)
-                .filter(value -> value.getToolDefinition().name().equals("fm26_find_clubs"))
+                .filter(value -> value.getToolDefinition().name().equals("fm27_find_clubs"))
                 .findFirst().orElseThrow();
         JsonNode secondPage = json.readTree(clubSearch.call("{\"offset\":20}"));
         assertThat(secondPage.path("count").asInt()).isEqualTo(10);

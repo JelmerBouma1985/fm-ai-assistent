@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.OptionalLong;
 
 /**
- * Matches the installed FM26 Steam build against known record layouts.
+ * Matches the installed FM27 Steam build against known record layouts.
  *
  * <p>Only exactingly verified builds are registered; anything else resolves to
  * the last known layouts so a game patch degrades to a warning instead of a
@@ -33,7 +33,7 @@ public final class PlayerRecordLayouts {
         }
     }
 
-    private static final Map<Long, LayoutSet> KNOWN_BUILDS = Map.of(23583635L, LayoutSet.current());
+    private static final Map<Long, LayoutSet> KNOWN_BUILDS = Map.of(26227640L, LayoutSet.current());
 
     private PlayerRecordLayouts() {
     }
@@ -47,7 +47,7 @@ public final class PlayerRecordLayouts {
      * to the last known layouts with {@code installedBuildId} {@code -1}.
      */
     public static LayoutMatch resolve(Path home) {
-        OptionalLong installed = SteamLibraries.installedBuildId(home, SteamLibraries.FM26_APP_ID);
+        OptionalLong installed = SteamLibraries.installedBuildId(home, SteamLibraries.FM27_APP_ID);
         if (installed.isPresent()) {
             LayoutSet known = KNOWN_BUILDS.get(installed.getAsLong());
             if (known != null) {

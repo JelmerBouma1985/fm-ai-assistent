@@ -324,9 +324,10 @@
     </changeSet>
 
     <changeSet id="002-baseline-role-attribute-data" author="codex">
+        <validCheckSum>9:f8fb2b4ea8256e59d9d23df022c8ee87</validCheckSum>
         <loadData
                 tableName="fm_role_attribute_import"
-                file="db/data/fm26_positional_roles_attributes_flat.csv"
+                file="db/data/fm27_positional_roles_attributes_flat.csv"
                 separator=","
                 quotchar="&quot;">
             <column header="game" name="game" type="STRING"/>
@@ -490,7 +491,13 @@
                                  constraintName="fk_staff_club" onDelete="SET NULL"/>
     </changeSet>
 
-    <changeSet id="008-fm26-staff-role-attributes" author="codex">
+    <changeSet id="008-staff-role-attributes" author="codex">
+        <preConditions onFail="MARK_RAN">
+            <not><and>
+                <columnExists tableName="staff" columnName="authority"/>
+                <columnExists tableName="staff" columnName="goalkeeping"/>
+            </and></not>
+        </preConditions>
         <addColumn tableName="staff">
             <column name="authority" type="INT"/>
             <column name="goalkeeping" type="INT"/>
@@ -518,4 +525,5 @@
     <include file="changes/027-club-financial-history.xml" relativeToChangelogFile="true"/>
     <include file="changes/028-contract-award-names.xml" relativeToChangelogFile="true"/>
     <include file="changes/029-contract-competition-references.xml" relativeToChangelogFile="true"/>
+    <include file="changes/030-current-role-catalog.xml" relativeToChangelogFile="true"/>
 </databaseChangeLog>

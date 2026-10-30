@@ -84,7 +84,7 @@ public class TacticContextService implements AiPromptContextContributor {
                     return;
                 }
                 TacticContext restored = build(saved.getFileName(), saved.getFmfData(), false, "UPLOAD", null);
-                log.info("Restored FM26 tactic context title={} fingerprint={}",
+                log.info("Restored FM27 tactic context title={} fingerprint={}",
                         restored.title(), restored.fingerprint());
             } catch (RuntimeException exception) {
                 String warning = "Saved tactic could not be restored; upload it again: " + safeMessage(exception);
@@ -204,11 +204,11 @@ public class TacticContextService implements AiPromptContextContributor {
 
     public TacticContext loadFromDisk(java.nio.file.Path path) {
         if (path == null) {
-            throw new IllegalArgumentException("Choose a tactic file from the FM26 tactics folder");
+            throw new IllegalArgumentException("Choose a tactic file from the FM27 tactics folder");
         }
         java.nio.file.Path resolved = path.toAbsolutePath().normalize();
         if (!disk.contains(resolved)) {
-            throw new IllegalArgumentException("Tactic file is outside the FM26 tactics folder");
+            throw new IllegalArgumentException("Tactic file is outside the FM27 tactics folder");
         }
         String fileName = resolved.getFileName().toString();
         if (!TacticDirectoryResolver.isFmfFileName(fileName)) {
@@ -275,9 +275,9 @@ public class TacticContextService implements AiPromptContextContributor {
             return "";
         }
         return """
-                <fm26_tactic_context>
+                <fm27_tactic_context>
                 %s
-                </fm26_tactic_context>
+                </fm27_tactic_context>
                 """.formatted(context.markdown());
     }
 
@@ -291,7 +291,7 @@ public class TacticContextService implements AiPromptContextContributor {
         }
         // Published only after persistence succeeded, so chats never see an unsaved tactic.
         current.set(context);
-        log.info("Loaded FM26 tactic context title={} file={} source={} warnings={}",
+        log.info("Loaded FM27 tactic context title={} file={} source={} warnings={}",
                 context.title(), fileName, sourceKind, context.warnings().size());
         return context;
     }
@@ -328,7 +328,7 @@ public class TacticContextService implements AiPromptContextContributor {
                 + "## FMF archive metadata\n"
                 + "Internal name: " + metadata.internalName() + "\n"
                 + "Contained resources: " + String.join(", ", metadata.resources()) + "\n\n"
-                + "## Decoded FM26 tactic\n"
+                + "## Decoded FM27 tactic\n"
                 + metadata.tactic().markdown() + "\n";
         List<String> allWarnings = new ArrayList<>(warnings);
         if (markdown.length() > properties.maxContextCharacters()) {

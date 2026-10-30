@@ -4,6 +4,7 @@ import com.github.fmaiassistent.domain.ContractSnapshot;
 import com.github.fmaiassistent.domain.FutureTransferSnapshot;
 import com.github.fmaiassistent.domain.NativeAwardNameSnapshot;
 import com.github.fmaiassistent.memory.AwardNameLayout;
+import com.github.fmaiassistent.memory.NativeModuleProfile;
 import com.github.fmaiassistent.memory.ProcessMemoryReader;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -25,7 +26,8 @@ public final class AwardNameExporter {
         PlayerSnapshotValidator.validateAwardNameLayout(layout);this.reader=reader;this.base=base;this.layout=layout;
     }
     static void capture(ProcessMemoryReader reader,Long suppliedBase,List<Map<String,Object>> rows)throws IOException {
-        if(reader.platform()!=ProcessMemoryReader.Platform.WINDOWS||rows.stream().noneMatch(r->ContractExporter.MODULE_SHA256.equals(r.get("_contract_profile"))))return;
+        if(reader.platform()!=ProcessMemoryReader.Platform.WINDOWS)return;
+        var profile=ContractExporter.capturedProfile(rows);if(profile.isEmpty())return;
         long base=suppliedBase==null?com.github.fmaiassistent.linux.FmOffsets.findGamePluginBase(reader):suppliedBase;
         new AwardNameExporter(reader,base,AwardNameLayout.current()).captureRows(rows);
     }
@@ -36,7 +38,7 @@ public final class AwardNameExporter {
             for(var owner:rows){
                 if(Thread.currentThread().isInterrupted())throw new IOException("Award name capture interrupted");
                 var selected=new LinkedHashMap<Long,NativeAwardNameSnapshot>();
-                if(ContractExporter.MODULE_SHA256.equals(owner.get("_contract_profile"))){
+                if(moduleProfile().equals(owner.get("_contract_profile"))){
                     var contracts=new ArrayList<ContractSnapshot>();
                     Object active=owner.get("_contracts");if(active instanceof List<?> list)for(var item:list){
                         if(!(item instanceof ContractSnapshot c))throw new IOException("Invalid award contract source");contracts.add(c);}
@@ -54,10 +56,12 @@ public final class AwardNameExporter {
                 staged.add(List.copyOf(selected.values()));
             }
             verify();
-            for(int i=0;i<rows.size();i++)if(ContractExporter.MODULE_SHA256.equals(rows.get(i).get("_contract_profile")))
+            for(int i=0;i<rows.size();i++)if(moduleProfile().equals(rows.get(i).get("_contract_profile")))
                 rows.get(i).put("_award_names",staged.get(i));
         }finally{guards.clear();names.clear();addresses.clear();}
     }
+    private String moduleProfile(){return NativeModuleProfile.FM27_SHA256;}
+
     private NativeAwardNameSnapshot readName(long uid,long address)throws IOException {
         if(uid<=0||uid>0xffffffffL)throw new IOException("Invalid AWARD UID");
         if(names.containsKey(uid)){if(addresses.get(uid)!=address)throw new IOException("AWARD UID has conflicting pointers");return names.get(uid);}

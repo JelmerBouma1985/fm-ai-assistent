@@ -1,7 +1,7 @@
 export const faqs = [
   {
     question: 'What is FM AI Assistent?',
-    answer: 'FM AI Assistent is a local companion application for Football Manager 2026. It loads a snapshot of your running save from memory so you can browse its data and optionally ask an AI assistant questions with relevant context.'
+    answer: 'FM AI Assistent is a local companion application for Football Manager 2027. It loads a snapshot of your running save from memory so you can browse its data and optionally ask an AI assistant questions with relevant context.'
   },
   {
     question: 'Is it an official Football Manager product?',
@@ -9,7 +9,7 @@ export const faqs = [
   },
   {
     question: 'Does it change my save or make transfers for me?',
-    answer: 'It does not write decisions back into the running FM26 process. It reads data into a local snapshot for browsing and analysis. It can create a separate FM26 shortlist file and keep recruitment evidence in its own local database.'
+    answer: 'It does not write decisions back into the running FM27 process. It reads data into a local snapshot for browsing and analysis. It can create a separate FM27 shortlist file and keep recruitment evidence in its own local database.'
   },
   {
     question: 'Can I use the database without an AI provider?',
@@ -37,7 +37,7 @@ export const faqs = [
   },
   {
     question: 'Can it analyze an exported tactic?',
-    answer: 'Yes. You can select an FM26 .fmf tactic from the detected tactics folder or upload one in Context. The app decodes it locally and can include that context in enabled AI conversations.'
+    answer: 'Yes. You can select an FM27 .fmf tactic from the detected tactics folder or upload one in Context. The app decodes it locally and can include that context in enabled AI conversations.'
   },
   {
     question: 'Where can I download updates or report a problem?',

@@ -4,6 +4,7 @@ import com.github.fmaiassistent.domain.ContractSnapshot;
 import com.github.fmaiassistent.domain.FutureEmploymentSnapshot;
 import com.github.fmaiassistent.memory.ContractRecordLayout;
 import com.github.fmaiassistent.memory.FutureEmploymentLayout;
+import com.github.fmaiassistent.memory.NativeModuleProfile;
 import com.github.fmaiassistent.memory.ProcessMemoryReader;
 
 import java.io.IOException;
@@ -25,7 +26,7 @@ import java.time.DateTimeException;
 
 /** Evidence-backed Windows capture; registry metadata is scoped to one verified snapshot, never across captures. */
 public final class ContractExporter {
-    public static final String MODULE_SHA256 = "eb6c86fab56e051fe41482c7b93d8cb0af716a1cc2c6197ce1babbff68372bb8";
+    public static final String MODULE_SHA256 = "bc940e472418fc5c214208d7cf30fecf600f689b6f9d71c11ba19a2df0fe057f";
     public static final String MODULE_PROPERTY = "fmaiassistent.contracts.module";
     private static final int MAX_ROWS = 2048;
     private static final long MAX_CAPTURE_BYTES = 64L * 1024 * 1024;
@@ -51,8 +52,10 @@ public final class ContractExporter {
             Path module = override == null || override.isBlank() ? reader.maps().stream()
                     .filter(r -> r.contains(moduleBase, 1) && !r.path().isBlank())
                     .map(r -> Path.of(r.path())).findFirst().orElse(null) : Path.of(override);
-            if (module != null && supportedModule(module)) {
-                ContractExporter exporter = new ContractExporter(reader, moduleBase, ContractRecordLayout.current());
+            var profile = module == null ? Optional.<String>empty() : NativeModuleProfile.identify(module);
+            if (profile.isPresent()) {
+                ContractExporter exporter = new ContractExporter(reader, moduleBase,
+                        ContractRecordLayout.current());
                 exporter.captureRows(rows);
                 return;
             }
@@ -65,21 +68,21 @@ public final class ContractExporter {
     }
 
     static boolean supportedModule(Path path) throws IOException {
-        if (Files.size(path) != 514_894_848L) return false;
-        try {
-            MessageDigest hash = MessageDigest.getInstance("SHA-256");
-            try (var input = Files.newInputStream(path)) {
-                byte[] chunk = new byte[65536];
-                long total = 0;
-                for (int n; (n = input.read(chunk)) != -1;) {
-                    total += n;
-                    if (total > 514_894_848L) return false;
-                    hash.update(chunk, 0, n);
-                }
-                return total == 514_894_848L && MODULE_SHA256.equals(HexFormat.of().formatHex(hash.digest()));
-            }
-        } catch (NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
+        return NativeModuleProfile.identify(path).isPresent();
     }
+
+    static Optional<String> capturedProfile(List<Map<String,Object>> rows) throws IOException {
+        String selected = null;
+        for (var row : rows) {
+            Object raw = row.get("_contract_profile");
+            if (!(raw instanceof String hash) || !NativeModuleProfile.supported(hash)) continue;
+            if (selected != null && !selected.equals(hash)) throw new IOException("Mixed native contract capture profiles");
+            selected = hash;
+        }
+        return Optional.ofNullable(selected);
+    }
+
+    private String moduleProfile() { return NativeModuleProfile.FM27_SHA256; }
 
     public List<ContractSnapshot> read(long person, long expectedUid) throws IOException {
         registries.clear(); competitionIdentityGuards.clear(); capturedBytes=0;
@@ -95,11 +98,14 @@ public final class ContractExporter {
      * This lookup does not certify the separate transfer offer as active/agreed. */
     public Optional<FutureEmploymentSnapshot> readFutureEmployment(long person, long uid, int offerIndex)
             throws IOException {
-        return readFutureEmployment(person, uid, offerIndex, FutureEmploymentLayout.current());
+        return readFutureEmployment(person, uid, offerIndex,
+                FutureEmploymentLayout.current());
     }
 
     Optional<FutureEmploymentSnapshot> readFutureEmployment(long person, long uid, int offerIndex,
                                                            FutureEmploymentLayout future) throws IOException {
+        PlayerSnapshotValidator.validateContractLayout(layout);
+        PlayerSnapshotValidator.validateFutureEmploymentLayout(future);
         if (offerIndex < 0) throw new IOException("Negative future employment offer index");
         registries.clear(); competitionIdentityGuards.clear(); capturedBytes = 0;
         try {
@@ -199,7 +205,7 @@ public final class ContractExporter {
             verifyRegistries();
             for(int i=0;i<rows.size();i++) {
                 rows.get(i).put("_contracts",staged.get(i));
-                rows.get(i).put("_contract_profile",MODULE_SHA256);
+                rows.get(i).put("_contract_profile",moduleProfile());
                 var future=stagedFuture.get(i);var row=rows.get(i);
                 row.put("_future_contracts",future.contracts());
                 row.put("_future_transfer_profile",future.complete()?"AVAILABLE":"PARTIAL");
@@ -215,6 +221,7 @@ public final class ContractExporter {
     }
 
     private List<ContractSnapshot> readPerson(long person, long expectedUid) throws IOException {
+        PlayerSnapshotValidator.validateContractLayout(layout);
         var l = layout.links();
         if (reader.readU32(person + l.uid()) != expectedUid) throw new IOException("Player identity changed during contract capture");
         long primary = reader.readU64(person + l.primary());

@@ -119,7 +119,7 @@ final class OpenRouterChatView extends Div {
                     }));
             confirmation.open();
         });
-        input.setPlaceholder("Ask OpenRouter about FM26 data…");
+        input.setPlaceholder("Ask OpenRouter about FM27 data…");
         input.setMinRows(2);
         input.setMaxRows(9);
         input.setWidthFull();

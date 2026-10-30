@@ -72,7 +72,7 @@ public class ManagedClubContextService implements AiPromptContextContributor {
                 club == null ? null : club.getTransferBudget(),
                 club == null ? null : club.getPayrollBudget(),
                 identity.clubAddress(),
-                "Detected from the loaded FM26 save");
+                "Detected from the loaded FM27 save");
     }
 
     public ManagedClubContext publish(ManagedClubContext context) {
@@ -87,7 +87,7 @@ public class ManagedClubContextService implements AiPromptContextContributor {
     /** Creates an unavailable state without exposing it before a snapshot commits. */
     public ManagedClubContext unavailable(String message) {
         String safeMessage = message == null || message.isBlank()
-                ? "The managed club could not be detected from FM26 RAM"
+                ? "The managed club could not be detected from FM27 RAM"
                 : message;
         return ManagedClubContext.unavailable(versions.incrementAndGet(), safeMessage);
     }
@@ -121,7 +121,7 @@ public class ManagedClubContextService implements AiPromptContextContributor {
             return "";
         }
         return """
-                <fm26_managed_club_context>
+                <fm27_managed_club_context>
                 Human manager: %s
                 Human manager FM Unique ID: %s
                 Managed club: %s
@@ -132,8 +132,8 @@ public class ManagedClubContextService implements AiPromptContextContributor {
                 Balance: %s
                 Transfer budget: %s
                 Payroll budget: %s
-                Data source: live FM26 RAM at the most recent application load
-                </fm26_managed_club_context>
+                Data source: live FM27 RAM at the most recent application load
+                </fm27_managed_club_context>
                 """.formatted(
                 context.managerName(), unknown(context.managerUniqueId()), context.clubName(), unknown(context.competition()),
                 unknown(context.nation()), unknown(context.gender()), unknown(context.reputation()),

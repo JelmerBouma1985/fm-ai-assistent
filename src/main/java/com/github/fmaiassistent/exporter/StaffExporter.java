@@ -75,8 +75,11 @@ public class StaffExporter {
         row.put("age_as_of", "");
         row.put("salary_weekly_raw", contract.map(value -> readU32(reader, value + recordLayout.contractSalaryWeeklyRel(), 0)).orElse(0L));
         // BASIC has no+0x48: its Ceda property returns a shared placeholder without reading this object.
-        boolean basic = contract.isPresent() && windowsModuleBase != null
-                && reader.readU64(contract.get()) == windowsModuleBase + ContractRecordLayout.current().basic().vtable();
+        boolean basic = false;
+        if (contract.isPresent() && windowsModuleBase != null) {
+            long vtableRva = reader.readU64(contract.get()) - windowsModuleBase;
+            basic = vtableRva == ContractRecordLayout.current().basic().vtable();
+        }
         row.put("contract_end_date", basic ? "" : contract.map(value -> date(reader, value + recordLayout.contractDateRel())).orElse(""));
         row.put("home_reputation", reader.readU16(staffBase + recordLayout.homeReputationRel()));
         row.put("current_reputation", reader.readU16(staffBase + recordLayout.currentReputationRel()));

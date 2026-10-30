@@ -4,7 +4,7 @@ import java.util.EnumSet;
 import java.util.OptionalLong;
 import java.util.Set;
 
-/** All build-gated roots that are safe to use for one FM26 executable build. */
+/** All build-gated roots that are safe to use for one executable build. */
 public record FmBuildProfile(
         int build,
         long offsetTableRva,

@@ -12,8 +12,9 @@ public record ClubFinancialCompetitionLayout(ClubFinancialLedgerLayout ledger,lo
         int registryHeaderRel,long competitionVtableRva,int competitionPrefixBytes,int competitionIndexRel,
         int competitionUidRel,int vectorCount,int headerBytes,int beginRel,int endRel,int capacityRel,
         int entryBytes,int competitionRel,int amountRel,int suffixRel,int suffixBytes,int maximumEntries) {
+
     public static ClubFinancialCompetitionLayout current(){return new ClubFinancialCompetitionLayout(
-            ClubFinancialLedgerLayout.current(),0x4E49590L,0x80,0x44BFE68L,16,8,12,2,24,0,8,16,16,0,8,12,4,512);}
+            ClubFinancialLedgerLayout.current(),0x57036E8L,0x80,0x4CDFAD8L,16,8,12,2,24,0,8,16,16,0,8,12,4,512);}
     public int maximumPayloadBytes(){return ledger.blockCount()*vectorCount*(4+maximumEntries*12);}
 
     public Profile decode(byte[] raw,int clock) {
@@ -38,7 +39,8 @@ public record ClubFinancialCompetitionLayout(ClubFinancialLedgerLayout ledger,lo
         return new Profile(date,periods,HexFormat.of().formatHex(raw));
     }
     public static Optional<Profile> values(String hex,Integer clock,String sourceSha256) {
-        var l=current();if(!ClubFinancialLedgerLayout.MODULE_SHA256.equals(sourceSha256)||hex==null||clock==null
+        var l=current();
+        if((!ClubFinancialLedgerLayout.MODULE_SHA256.equals(sourceSha256))||hex==null||clock==null
                 ||hex.length()>l.maximumPayloadBytes()*2||hex.length()%2!=0)return Optional.empty();
         try{return Optional.of(l.decode(HexFormat.of().parseHex(hex),clock));}catch(IllegalArgumentException invalid){return Optional.empty();}
     }

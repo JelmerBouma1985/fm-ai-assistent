@@ -41,7 +41,7 @@ public final class CompactFmToolCallback implements ToolCallback {
         String result = context == null ? delegate.call(json.writeValueAsString(arguments))
                 : delegate.call(json.writeValueAsString(arguments), context);
         boolean full = detail.equals("full") || detail.isEmpty()
-                && definition.name().equals("fm26_find_players")
+                && definition.name().equals("fm27_find_players")
                 && arguments.path("detailLevel").asString().equalsIgnoreCase("full");
         return full ? result : FmToolResultFormatter.compact(json, definition.name(), result);
     }

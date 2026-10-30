@@ -127,9 +127,9 @@ public class ClubDatabaseService {
 
     @Transactional(readOnly = true)
     public Page<CoefficientClub> findCoefficientClubs(String name,Pageable pageable) {
-        String hash=com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.MODULE_SHA256;
-        var page=name==null||name.isBlank()?nativeClubs.findByUefaCoefficientHexIsNotNullAndModuleSha256(hash,pageable)
-                :nativeClubs.findByUefaCoefficientHexIsNotNullAndModuleSha256AndNameContainingIgnoreCase(hash,name.trim(),pageable);
+        var hashes=List.of(com.github.fmaiassistent.memory.NativeModuleProfile.FM27_SHA256);
+        var page=name==null||name.isBlank()?nativeClubs.findByUefaCoefficientHexIsNotNullAndModuleSha256In(hashes,pageable)
+                :nativeClubs.findByUefaCoefficientHexIsNotNullAndModuleSha256InAndNameContainingIgnoreCase(hashes,name.trim(),pageable);
         return page.map(ClubDatabaseService::coefficientClub);
     }
 
@@ -140,9 +140,9 @@ public class ClubDatabaseService {
 
     @Transactional(readOnly = true)
     public long countCoefficientClubs(String name) {
-        String hash=com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.MODULE_SHA256;
-        return name==null||name.isBlank()?nativeClubs.countByUefaCoefficientHexIsNotNullAndModuleSha256(hash)
-                :nativeClubs.countByUefaCoefficientHexIsNotNullAndModuleSha256AndNameContainingIgnoreCase(hash,name.trim());
+        var hashes=List.of(com.github.fmaiassistent.memory.NativeModuleProfile.FM27_SHA256);
+        return name==null||name.isBlank()?nativeClubs.countByUefaCoefficientHexIsNotNullAndModuleSha256In(hashes)
+                :nativeClubs.countByUefaCoefficientHexIsNotNullAndModuleSha256InAndNameContainingIgnoreCase(hashes,name.trim());
     }
 
     @Transactional(readOnly = true)
@@ -186,12 +186,14 @@ public class ClubDatabaseService {
     /** Keep decoded amounts and UID labels in the same read transaction during snapshot replacement. */
     @Transactional(readOnly=true,isolation=org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public java.util.Optional<CompetitionIncome> findClubCompetitionIncome(Long uniqueId) {
-        return findClubFinancialCompetitions(uniqueId).map(profile->{
+        if(uniqueId==null)return java.util.Optional.empty();
+        return nativeClubs.findById(uniqueId).flatMap(club->com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.values(
+                club.getFinancialCompetitionsHex(),club.getFinancialLedgerClock(),club.getModuleSha256(),club.getFinancialLedgerHex()).map(profile->{
             var ids=new java.util.HashSet<Long>();for(var period:profile.periods()){
                 period.tvRevenue().forEach(m->ids.add(m.competitionUid()));period.prizeMoney().forEach(m->ids.add(m.competitionUid()));}
             var names=new HashMap<Long,String>();var layout=com.github.fmaiassistent.memory.CompetitionNameLayout.current();
             for(var row:competitionNames.findAllById(ids)) {
-                if(!com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.MODULE_SHA256.equals(row.getModuleSha256()))continue;
+                if(!club.getModuleSha256().equals(row.getModuleSha256()))continue;
                 try{
                     if(row.getPrefixHex()==null||row.getPrefixHex().length()!=32||row.getRecordIndex()==null)continue;
                     var prefix=java.nio.ByteBuffer.wrap(java.util.HexFormat.of().parseHex(row.getPrefixHex())).order(java.nio.ByteOrder.LITTLE_ENDIAN);
@@ -204,7 +206,7 @@ public class ClubDatabaseService {
                 }catch(IllegalArgumentException malformed){/* Optional corrupted labels must not hide monetary members. */}
             }
             return new CompetitionIncome(profile,names);
-        });
+        }));
     }
     public record CompetitionIncome(com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.Profile profile,Map<Long,String> names) {
         public CompetitionIncome {names=Map.copyOf(names);}

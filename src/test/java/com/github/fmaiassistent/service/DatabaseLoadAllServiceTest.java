@@ -50,23 +50,7 @@ class DatabaseLoadAllServiceTest {
         verify(fixture.writer).saveClubs(any(),org.mockito.ArgumentMatchers.eq(Map.of(0xA000L,1L,0xB000L,2L)));
     }
     @Test
-    void rejectsTheCapturedEmptyPeopleWindowBeforeClearingThePreviousSnapshot() throws Exception {
-        var reportPath = java.nio.file.Path.of("docs/reverse-engineering/fm26/evidence",
-                "load_readiness_reload_1792826397_verification.json");
-        tools.jackson.databind.JsonNode capture;
-        try (var input = java.nio.file.Files.newInputStream(reportPath)) {
-            byte[] bytes = input.readNBytes(1_048_577);
-            if (bytes.length > 1_048_576) throw new IOException("Fixture too large");
-            capture = tools.jackson.databind.json.JsonMapper.builder().build().readTree(bytes);
-        }
-        int capturedPeopleSlots = -1;
-        for (var sample : capture.get("rows")) {
-            if (sample.get("person").get("slots").asInt() == 0) {
-                capturedPeopleSlots = sample.get("person").get("slots").asInt();
-                break;
-            }
-        }
-        assertThat(capturedPeopleSlots).isZero();
+    void rejectsEmptyPeopleWindowBeforeClearingThePreviousSnapshot() throws Exception {
         Fixture fixture = new Fixture();
         when(fixture.people.exportAllPeople(123, 1530, null)).thenReturn(peopleResult(0, 0));
         when(fixture.clubs.exportAllClubs(123, 1530, null)).thenReturn(new ClubExporter.ExportResult(List.of()));

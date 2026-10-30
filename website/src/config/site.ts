@@ -1,13 +1,13 @@
 export const site = {
   name: 'FM AI Assistent',
-  tagline: 'AI companion for Football Manager 2026',
+  tagline: 'AI companion for Football Manager 2027',
   origin: 'https://fmaiassistant.com',
   repository: 'https://github.com/JelmerBouma1985/fm-ai-assistent',
   releases: 'https://github.com/JelmerBouma1985/fm-ai-assistent/releases',
   latestRelease: 'https://github.com/JelmerBouma1985/fm-ai-assistent/releases/latest',
   issues: 'https://github.com/JelmerBouma1985/fm-ai-assistent/issues',
   releaseNotes: 'https://github.com/JelmerBouma1985/fm-ai-assistent/blob/master/RELEASE_NOTES.md',
-  description: 'Explore scouting, recruitment, squad analysis and AI-assisted insights using data loaded from your Football Manager 2026 save.'
+  description: 'Explore scouting, recruitment, squad analysis and AI-assisted insights using data loaded from your Football Manager 2027 save.'
 } as const;
 
 export const featureLinks = [

@@ -44,7 +44,7 @@ public class FmFixtureTools {
         this.snapshots = snapshots;
     }
 
-    @Tool(name = "fm26_get_managed_club_fixtures", description = "Get fixtures read from FM26 RAM for the human-managed club, ordered by kickoff. Defaults to upcoming fixtures from the loaded in-game date.")
+    @Tool(name = "fm27_get_managed_club_fixtures", description = "Get fixtures read from FM27 RAM for the human-managed club, ordered by kickoff. Defaults to upcoming fixtures from the loaded in-game date.")
     @Transactional(readOnly = true)
     public Map<String, Object> getManagedClubFixtures(
             @ToolParam(required = false, description = "Include fixtures before the loaded game date. Defaults to false.") Boolean includePast,
@@ -66,7 +66,7 @@ public class FmFixtureTools {
         return out;
     }
 
-    @Tool(name = "fm26_analyze_next_opposition", description = "Analyze the next opponent from the managed club's RAM-loaded fixture list. Returns the opponent squad's strongest and weakest attribute groups, key players, availability and evidence for an AI agent to turn into a match plan.")
+    @Tool(name = "fm27_analyze_next_opposition", description = "Analyze the next opponent from the managed club's RAM-loaded fixture list. Returns the opponent squad's strongest and weakest attribute groups, key players, availability and evidence for an AI agent to turn into a match plan.")
     @Transactional(readOnly = true)
     public Map<String, Object> analyzeNextOpposition() {
         Map<String, Object> snapshot = snapshots.reference();

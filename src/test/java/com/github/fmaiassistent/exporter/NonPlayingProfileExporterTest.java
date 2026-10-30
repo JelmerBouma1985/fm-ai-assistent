@@ -10,14 +10,66 @@ import java.util.*;
 import static org.assertj.core.api.Assertions.*;
 
 class NonPlayingProfileExporterTest {
-    private static final long BASE=0x7FF988310000L;
+    @Test void fm27CapturedStandaloneCombinedAndHumanMembersKeepAll52NativeBytes() throws Exception {
+        var capture=fm27Capture();long base=Long.decode(capture.get("moduleBase").asString());
+        var layout=NonPlayingProfileLayout.current();
+        for(String type:List.of(".?AVACTUAL_NON_PLAYER@db@@",".?AVACTUAL_PLAYER_AND_NON_PLAYER@db@@",".?AVHUMAN_NON_PLAYER@db@@")) {
+            assertThat(capture.get("samples").get(type).size()).as("Native samples for %s",type).isPositive();
+            for(var sample:capture.get("samples").get(type)) {
+                var f=fm27Fixture(sample);
+                NonPlayingProfileExporter.captureVerifiedRows(f.memory(),base,List.of(f.row()),layout);
+                assertThat(f.row().get("non_playing_profile_hex")).isEqualTo(HexFormat.of().formatHex(f.raw(),8,60));
+                assertThat(f.row().get("non_playing_profile_sha256")).isEqualTo(com.github.fmaiassistent.memory.NativeModuleProfile.FM27_SHA256);
+                assertThat(NonPlayingProfileLayout.values((String)f.row().get("non_playing_profile_hex"),
+                        (String)f.row().get("non_playing_profile_sha256"))).hasSize(50);
+                assertThat(sample.get("member").get("relative").asInt()).isEqualTo(type.contains("HUMAN")?-0x438:-0xF8);
+            }
+        }
+    }
+
+    @Test void everyFm27OffsetShiftRejectsTheSameCapturedHumanWithoutReadingIt() throws Exception {
+        var capture=fm27Capture();long base=Long.decode(capture.get("moduleBase").asString());
+        var sample=capture.get("samples").get(".?AVHUMAN_NON_PLAYER@db@@").get(0);
+        var layout=NonPlayingProfileLayout.current();var components=NonPlayingProfileLayout.class.getRecordComponents();
+        var types=java.util.Arrays.stream(components).map(java.lang.reflect.RecordComponent::getType).toArray(Class<?>[]::new);
+        for(int i=0;i<components.length;i++) {
+            if(components[i].getType()!=int.class&&components[i].getType()!=long.class)continue;
+            Object[] args=new Object[components.length];
+            for(int j=0;j<components.length;j++)args[j]=components[j].getAccessor().invoke(layout);
+            if(components[i].getType()==int.class)args[i]=(Integer)args[i]+1;else args[i]=(Long)args[i]+1;
+            var shifted=NonPlayingProfileLayout.class.getDeclaredConstructor(types).newInstance(args);var f=fm27Fixture(sample);
+            assertThatThrownBy(()->NonPlayingProfileExporter.captureVerifiedRows(f.memory(),base,List.of(f.row()),shifted))
+                    .as(components[i].getName()).isInstanceOf(IOException.class);
+            assertThat(f.memory().reads).isZero();assertThat(f.row()).doesNotContainKey("non_playing_profile_hex");
+        }
+    }
+
+    private static tools.jackson.databind.JsonNode fm27Capture() throws Exception {
+        try(var in=Files.newInputStream(Path.of("src/test/resources/fm27/people-captured.json"))) {
+            byte[] bytes=in.readNBytes(1_048_577);assertThat(bytes.length).isLessThanOrEqualTo(1_048_576);
+            return JsonMapper.builder().build().readTree(bytes);
+        }
+    }
+
+    private static Fixture fm27Fixture(tools.jackson.databind.JsonNode sample) {
+        long person=Long.decode(sample.get("person").asString());
+        long member=person+sample.get("member").get("relative").asInt();
+        byte[] raw=HexFormat.of().parseHex(sample.get("member").get("rawHex").asString());
+        var memory=new FakeMemory(member);memory.put(person,HexFormat.of().parseHex(sample.get("prefix").asString()));
+        memory.put(person-4,new byte[4]);memory.put(member,raw);
+        var row=new HashMap<String,Object>();row.put("record_address",sample.get("person").asString());
+        row.put("staff_index",sample.get("index").asInt());row.put("unique_id",sample.get("uid").asLong());
+        row.put("_contract_profile",com.github.fmaiassistent.memory.NativeModuleProfile.FM27_SHA256);
+        return new Fixture(memory,row,person,raw);
+    }
+    private static final long BASE=0x7FFCCF870000L;
     private static final NonPlayingProfileLayout L=NonPlayingProfileLayout.current();
 
     @Test void capturedCombinedMemberPreservesAll52BytesIncludingUnknown45And46()throws Exception {
         var f=fixture();var row=f.row();
         NonPlayingProfileExporter.captureVerifiedRows(f.memory(),BASE,List.of(row),L);
         assertThat(row.get("non_playing_profile_hex")).isEqualTo(HexFormat.of().formatHex(f.raw(),8,60));
-        assertThat(row.get("non_playing_profile_sha256")).isEqualTo(ContractExporter.MODULE_SHA256);
+        assertThat(row.get("non_playing_profile_sha256")).isEqualTo(NativeModuleProfile.FM27_SHA256);
         assertThat(f.memory().memberReads).isEqualTo(2);
         assertThat(row).doesNotContainKey("job_id"); // Profile availability does not create employment.
     }
@@ -53,26 +105,14 @@ class NonPlayingProfileExporterTest {
 
     @Test void fieldModelNamesAndScalesMatchNativeBoundIndicesWithoutInventingUnknownBytes()throws Exception {
         var f=fixture();String raw=HexFormat.of().formatHex(f.raw(),8,60);
-        var values=NonPlayingProfileLayout.values(raw,NonPlayingProfileLayout.MODULE_SHA256);
+        var values=NonPlayingProfileLayout.values(raw,NativeModuleProfile.FM27_SHA256);
         assertThat(values).hasSize(50);
         assertThat(values).anySatisfy(v->{assertThat(v.name()).isEqualTo("Eccentricity");assertThat(v.nativeValue()).isEqualTo(f.raw()[8+48]);assertThat(v.scale()).isEqualTo(100);});
         assertThat(values).anySatisfy(v->{assertThat(v.name()).isEqualTo("Coaching Technique");assertThat(v.nativeValue()).isEqualTo(f.raw()[8+2]);assertThat(v.scale()).isEqualTo(20);});
         assertThat(L.fields()).noneMatch(v->v.index()==45||v.index()==46||v.index()==52);
         assertThat(NonPlayingProfileLayout.values(raw,"other-build")).isEmpty();
-        assertThat(NonPlayingProfileLayout.values("x".repeat(104),NonPlayingProfileLayout.MODULE_SHA256)).isEmpty();
+        assertThat(NonPlayingProfileLayout.values("x".repeat(104),NativeModuleProfile.FM27_SHA256)).isEmpty();
         assertThat(NonPlayingProfileLayout.values(null,null)).isEmpty();
-    }
-
-    @Test void all50ProductionOffsetsNamesAndScalesAgreeWithTheIndependentNativeBridge()throws Exception {
-        byte[] bytes;try(var in=Files.newInputStream(Path.of("docs/reverse-engineering/fm26/evidence/nonplaying_named_native_field_model_checked_20261025.json"))){bytes=in.readNBytes(131073);}
-        assertThat(bytes.length).isLessThanOrEqualTo(131072);var nativeRows=JsonMapper.builder().build().readTree(bytes).get("rows");
-        for(var field:L.fields()) {
-            var nativeField=nativeRows.get(field.index());
-            assertThat(nativeField.get("profileByteOffset").asInt()).isEqualTo(field.index());
-            assertThat(nativeField.get("nativeName").get(0).asString()).isEqualTo(field.name());
-            assertThat(nativeField.get("storageMode").asString().equals("SCALED_BY_FIVE")).isEqualTo(field.scaledByFive());
-        }
-        assertThat(L.fields()).hasSize(50);
     }
 
     @Test void everyNewNamedFieldRejectsItsOwnShiftAgainstTheSameCapturedFixture()throws Exception {
@@ -86,11 +126,11 @@ class NonPlayingProfileExporterTest {
         }
     }
 
-    @Test void bothCapturedHumansResolveTheSameMemberThroughTheirOwn450BaseView()throws Exception {
+    @Test void bothFm27CapturedHumansResolveTheirOwnMember()throws Exception {
         for(int i=0;i<2;i++) {
             var f=humanFixture(i);NonPlayingProfileExporter.captureVerifiedRows(f.memory(),BASE,List.of(f.row()),L);
             assertThat(f.row().get("non_playing_profile_hex")).isEqualTo(HexFormat.of().formatHex(f.raw(),8,60));
-            assertThat(f.memory().member).isEqualTo(f.person()-0x448);assertThat(f.memory().memberReads).isEqualTo(2);
+            assertThat(f.memory().member).isEqualTo(f.person()-0x438);assertThat(f.memory().memberReads).isEqualTo(2);
             assertThat(NonPlayingProfileLayout.values((String)f.row().get("non_playing_profile_hex"),(String)f.row().get("non_playing_profile_sha256"))).hasSize(50);
         }
     }
@@ -103,23 +143,11 @@ class NonPlayingProfileExporterTest {
         }
     }
 
-    private static Fixture humanFixture(int index)throws Exception {
-        byte[] data;try(var in=Files.newInputStream(Path.of("docs/reverse-engineering/fm26/evidence/human_nonplaying_profiles_live_20261025.json"))){data=in.readNBytes(65537);}assertThat(data.length).isLessThanOrEqualTo(65536);
-        var sample=JsonMapper.builder().build().readTree(data).get("returnValues").get(0).get("samples").get(index);
-        long person=Long.parseUnsignedLong(sample.get("person").asString(),16),member=Long.parseUnsignedLong(sample.get("member").asString(),16);var raw=HexFormat.of().parseHex(sample.get("memberRaw").asString());
-        var memory=new FakeMemory(member);memory.put(person,HexFormat.of().parseHex(sample.get("personPrefix").asString()));memory.put(person-4,new byte[4]);memory.put(member,raw);
-        var row=new HashMap<String,Object>();row.put("record_address","0x"+sample.get("person").asString());row.put("staff_index",sample.get("index").asInt());row.put("unique_id",sample.get("uid").asLong());row.put("_contract_profile",ContractExporter.MODULE_SHA256);
-        return new Fixture(memory,row,person,raw);
+private static Fixture fixture() throws Exception {
+        return fm27Fixture(fm27Capture().get("samples").get(".?AVACTUAL_PLAYER_AND_NON_PLAYER@db@@").get(0));
     }
-
-    private static Fixture fixture()throws Exception {
-        byte[] bytes;try(var in=Files.newInputStream(Path.of("docs/reverse-engineering/fm26/evidence/nonplaying_named_bridge_live_20261025.json"))){bytes=in.readNBytes(65537);}
-        assertThat(bytes.length).isLessThanOrEqualTo(65536);
-        var sample=JsonMapper.builder().build().readTree(bytes).get("returnValues").get(0).get("samples").get(0);
-        long p=Long.parseUnsignedLong(sample.get("person").asString(),16);byte[] raw=HexFormat.of().parseHex(sample.get("memberRaw").asString());
-        var memory=new FakeMemory(p+L.personToMemberRel());memory.put(p,HexFormat.of().parseHex(sample.get("personPrefix").asString()));memory.put(p+L.constructionRel(),new byte[4]);memory.put(p+L.personToMemberRel(),raw);
-        var row=new HashMap<String,Object>();row.put("record",p);row.put("index",sample.get("index").asInt());row.put("unique_id",sample.get("uid").asLong());row.put("_contract_profile",ContractExporter.MODULE_SHA256);
-        return new Fixture(memory,row,p,raw);
+    private static Fixture humanFixture(int index) throws Exception {
+        return fm27Fixture(fm27Capture().get("samples").get(".?AVHUMAN_NON_PLAYER@db@@").get(index));
     }
     private record Fixture(FakeMemory memory,Map<String,Object> row,long person,byte[] raw) { }
     private static final class FakeMemory implements ProcessMemoryReader {

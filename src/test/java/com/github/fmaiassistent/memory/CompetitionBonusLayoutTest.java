@@ -74,37 +74,4 @@ class CompetitionBonusLayoutTest {
         assertThrows(IOException.class,()->PlayerSnapshotValidator.validateCompetitionBonus(HexFormat.of().formatHex(raw),l));
     }
 
-    @Test void allRetainedRowsMatchIndependentNativeAnchoredReconciliation() throws Exception {
-        byte[] bytes;
-        try(var in=java.nio.file.Files.newInputStream(java.nio.file.Path.of(
-                "docs/reverse-engineering/fm26/evidence/competition_bonus_references_checkpoint56_verified_v3_20261027.json"))) {
-            bytes=in.readNBytes(2*1024*1024+1);
-        }
-        assertTrue(bytes.length<=2*1024*1024);
-        var report=tools.jackson.databind.json.JsonMapper.builder().build().readTree(bytes);
-        assertEquals("PASS",report.get("status").asString());
-        var rows=report.get("normalizedRows");
-        assertEquals(863,rows.size());
-        var layout=CompetitionBonusLayout.current();
-        int different=0,stage20=0;
-        for(var row:rows) {
-            String raw=row.get("rawHex").asString();
-            PlayerSnapshotValidator.validateCompetitionBonus(raw,layout);
-            var decoded=layout.decode(raw);
-            assertEquals(row.get("cbcpCompetitionIndex").asInt(),decoded.subjectCompetitionIndex());
-            assertEquals(row.get("conditionCompetitionIndex").asInt(),decoded.conditionCompetitionIndex());
-            assertEquals(row.get("conditionKind").asInt(),decoded.conditionKind());
-            assertEquals(row.get("amountRaw").asInt(),decoded.amountRaw());
-            assertEquals(row.get("minimumGames").asInt(),decoded.minimumGames());
-            if(decoded.conditionCompetitionIndex()>=0
-                    &&decoded.conditionCompetitionIndex()!=decoded.subjectCompetitionIndex())different++;
-            if(decoded.stageUid()==20)stage20++;
-            else assertEquals(-1,decoded.stageUid());
-            assertEquals(-1,decoded.secondaryStageUid());
-        }
-        assertEquals(65,different);
-        assertEquals(363,stage20);
-        // This is offline decoding proof. Only two owner rows had fresh live captures in checkpoint56.
-    }
-
 }

@@ -14,15 +14,19 @@ public record ClubUefaCoefficientLayout(int clubDataRel, int coefficientRel, int
         int capacity, int historyStride, int cursorRel, int cacheRel, int rank5Rel, int rank10Rel,
         int value5Rel, int value10Rel, int currentPointsRel, long ruleVersionRva,
         int ruleVersionBytes, int ruleThreshold, int oldPointsScale, int newPointsScale, int coefficientScale) {
-    public static final String MODULE_SHA256 = "eb6c86fab56e051fe41482c7b93d8cb0af716a1cc2c6197ce1babbff68372bb8";
+    public static final String MODULE_SHA256 = "bc940e472418fc5c214208d7cf30fecf600f689b6f9d71c11ba19a2df0fe057f";
 
     public static ClubUefaCoefficientLayout current() {
-        return new ClubUefaCoefficientLayout(0x100, 0x40, 0xD8, 0xB9, 0x108, 8,
-                0x4C, 0, 4, 10, 4, 0x2C, 0x30, 0x34, 0x38, 0x3C, 0x40, 0x44,
-                0x4E08742L, 2, 0x653, 4, 100, 1000);
+        return new ClubUefaCoefficientLayout(0x100,0x48,0xD8,0xB9,0x108,8,
+                0x4C,0,4,10,4,0x2C,0x30,0x34,0x38,0x3C,0x40,0x44,
+                0x56C212A,2,0x671,100,1000,1000);
     }
 
-    public int pointsScale(int ruleVersion) { return ruleVersion > ruleThreshold ? newPointsScale : oldPointsScale; }
+    public int pointsScale(int ruleVersion) {
+        // FM27 retains the pre-0x654 four-point scale as well as its new 0x672 scale.
+        if (ruleThreshold == 0x671 && ruleVersion < 0x654) return 4;
+        return ruleVersion > ruleThreshold ? newPointsScale : oldPointsScale;
+    }
 
     /** Pure decoding, never sums history to replace a native computed total. */
     public Values decode(byte[] raw, int ruleVersion) {

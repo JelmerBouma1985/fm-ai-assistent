@@ -83,11 +83,11 @@ public class RefreshCoordinator {
             return refresh.get(properties.timeout().toMillis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new IOException("Interrupted while refreshing the FM26 snapshot", exception);
+            throw new IOException("Interrupted while refreshing the FM27 snapshot", exception);
         } catch (TimeoutException exception) {
             // The shared refresh remains active for other callers. Native I/O has its
             // own deadline and will complete or fail independently.
-            throw new IOException("Timed out waiting for the FM26 snapshot refresh after "
+            throw new IOException("Timed out waiting for the FM27 snapshot refresh after "
                     + properties.timeout().toSeconds() + " seconds", exception);
         } catch (ExecutionException exception) {
             Throwable cause = exception.getCause();
@@ -97,7 +97,7 @@ public class RefreshCoordinator {
             if (cause instanceof RuntimeException runtimeException) {
                 throw runtimeException;
             }
-            throw new IOException("Could not refresh the FM26 snapshot", cause);
+            throw new IOException("Could not refresh the FM27 snapshot", cause);
         }
     }
 

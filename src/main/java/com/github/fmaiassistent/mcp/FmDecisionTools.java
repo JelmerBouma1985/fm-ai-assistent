@@ -89,7 +89,7 @@ public class FmDecisionTools {
                 new LineupOptimizerService(roleFits), recruitmentCases, snapshots);
     }
 
-    @Tool(name = "fm26_optimize_lineup", description = "Build the globally best unique XI for every slot of the loaded two-phase FM26 tactic. One player can fill only one slot; unfilled slots and disruptive alternatives are explicit.")
+    @Tool(name = "fm27_optimize_lineup", description = "Build the globally best unique XI for every slot of the loaded two-phase FM27 tactic. One player can fill only one slot; unfilled slots and disruptive alternatives are explicit.")
     @Transactional(readOnly = true)
     public Map<String, Object> optimizeLineup(
             @ToolParam(required = false, description = "Club name. Defaults to the club managed by the human manager.") String managingClub,
@@ -121,7 +121,7 @@ public class FmDecisionTools {
         return out;
     }
 
-    @Tool(name = "fm26_recruit_for_tactic_slot", description = "Recruit for one loaded-tactic slot using both phases, literal hard filters and the projected improvement to a globally re-optimized unique XI.")
+    @Tool(name = "fm27_recruit_for_tactic_slot", description = "Recruit for one loaded-tactic slot using both phases, literal hard filters and the projected improvement to a globally re-optimized unique XI.")
     @Transactional(readOnly = true)
     public Map<String, Object> recruitForTacticSlot(
             @ToolParam(description = "One-based slot in the loaded tactic.") Integer tacticSlot,
@@ -345,7 +345,7 @@ public class FmDecisionTools {
                 template.warnings());
     }
 
-    @Tool(name = "fm26_analyze_squad", description = "Analyze squad depth, both phases of the loaded FM26 tactic, contracts, age, injuries, loans and future transfers. Use this to decide which positions need recruitment before searching for players.")
+    @Tool(name = "fm27_analyze_squad", description = "Analyze squad depth, both phases of the loaded FM27 tactic, contracts, age, injuries, loans and future transfers. Use this to decide which positions need recruitment before searching for players.")
     @Transactional(readOnly = true)
     public Map<String, Object> analyzeSquad(
             @ToolParam(required = false, description = "Club name. Defaults to the club managed by the human manager.") String managingClub,
@@ -408,10 +408,10 @@ public class FmDecisionTools {
         return out;
     }
 
-    @Tool(name = "fm26_compare_players", description = "Compare 2-8 players by FM Unique ID with both-phase tactic fit, squad improvement, affordability, development outlook, risks and verified recruitment evidence.")
+    @Tool(name = "fm27_compare_players", description = "Compare 2-8 players by FM Unique ID with both-phase tactic fit, squad improvement, affordability, development outlook, risks and verified recruitment evidence.")
     @Transactional(readOnly = true)
     public Map<String, Object> comparePlayers(
-            @ToolParam(description = "Two to eight FM26 UNIQUE_ID/player_unique_id values.") List<Long> playerUniqueIds,
+            @ToolParam(description = "Two to eight FM27 UNIQUE_ID/player_unique_id values.") List<Long> playerUniqueIds,
             @ToolParam(required = false, description = "Managing club for squad and budget comparison. Defaults to the detected managed club.") String managingClub,
             @ToolParam(required = false, description = "One-based loaded-tactic slot. Omit to use each player's best slot.") Integer tacticSlot) {
         List<Long> ids = requireIds(playerUniqueIds, 2, 8);
@@ -469,10 +469,10 @@ public class FmDecisionTools {
         return out;
     }
 
-    @Tool(name = "fm26_find_replacements", description = "Find replacements for an explicitly supplied deployed position or loaded-tactic slot. The tool never guesses the incumbent's position from his highest position rating.")
+    @Tool(name = "fm27_find_replacements", description = "Find replacements for an explicitly supplied deployed position or loaded-tactic slot. The tool never guesses the incumbent's position from his highest position rating.")
     @Transactional(readOnly = true)
     public Map<String, Object> findReplacements(
-            @ToolParam(description = "FM26 UNIQUE_ID of the player to replace or emulate.") Long referencePlayerUniqueId,
+            @ToolParam(description = "FM27 UNIQUE_ID of the player to replace or emulate.") Long referencePlayerUniqueId,
             @ToolParam(required = false, description = "Managing club. Defaults to the detected managed club.") String managingClub,
             @ToolParam(required = false, description = "Maximum candidate age.") Integer maxAge,
             @ToolParam(required = false, description = "Literal maximum asking price in pounds; it is not silently capped to the club budget.") Long maxAskingPrice,
@@ -534,10 +534,10 @@ public class FmDecisionTools {
         return out;
     }
 
-    @Tool(name = "fm26_plan_squad_moves", description = "Model incoming and outgoing players without changing FM26. Returns depth, tactic coverage, known financial effects and unknown inputs before any transfer decision.")
+    @Tool(name = "fm27_plan_squad_moves", description = "Model incoming and outgoing players without changing FM27. Returns depth, tactic coverage, known financial effects and unknown inputs before any transfer decision.")
     @Transactional(readOnly = true)
     public Map<String, Object> planSquadMoves(
-            @ToolParam(required = false, description = "Incoming FM26 player UNIQUE_ID values.") List<Long> incomingPlayerUniqueIds,
+            @ToolParam(required = false, description = "Incoming FM27 player UNIQUE_ID values.") List<Long> incomingPlayerUniqueIds,
             @ToolParam(required = false, description = "Outgoing squad player UNIQUE_ID values.") List<Long> outgoingPlayerUniqueIds,
             @ToolParam(required = false, description = "Optional verified fee and weekly-wage quotes keyed by player UNIQUE_ID.") List<PlayerQuote> quotes,
             @ToolParam(required = false, description = "Managing club. Defaults to the detected managed club.") String managingClub) {
@@ -609,9 +609,9 @@ public class FmDecisionTools {
         return out;
     }
 
-    @Tool(name = "fm26_update_recruitment_case", description = "Store user or in-game verified recruitment evidence for a player. This writes only to the local app and overrides heuristic willingness in future decision tools.")
+    @Tool(name = "fm27_update_recruitment_case", description = "Store user or in-game verified recruitment evidence for a player. This writes only to the local app and overrides heuristic willingness in future decision tools.")
     public Map<String, Object> updateRecruitmentCase(
-            @ToolParam(description = "FM26 player UNIQUE_ID.") Long playerUniqueId,
+            @ToolParam(description = "FM27 player UNIQUE_ID.") Long playerUniqueId,
             @ToolParam(required = false, description = "unknown, interested or not_interested.") String interestStatus,
             @ToolParam(required = false, description = "monitoring, bid_submitted, bid_accepted, bid_rejected, contract_negotiation, contract_agreed, contract_rejected, joining_other_club, joined or dismissed.") String dealStage,
             @ToolParam(required = false, description = "Verified or quoted transfer fee in pounds.") Long quotedFee,
@@ -627,7 +627,7 @@ public class FmDecisionTools {
         return out;
     }
 
-    @Tool(name = "fm26_get_recruitment_board", description = "Get persistent recruitment cases, verified interest, deal stages, quotes and stale evidence.")
+    @Tool(name = "fm27_get_recruitment_board", description = "Get persistent recruitment cases, verified interest, deal stages, quotes and stale evidence.")
     public Map<String, Object> getRecruitmentBoard() {
         List<Map<String, Object>> cases = recruitmentCases.board();
         Map<String, Object> out = new LinkedHashMap<>();
@@ -797,7 +797,7 @@ public class FmDecisionTools {
     private TacticContext requireTactic() {
         TacticContext tactic = tactics.current();
         if (!tactic.active() || tactic.definition() == null) {
-            throw new IllegalArgumentException("no structured tactic is loaded; upload an FM26 tactic first");
+            throw new IllegalArgumentException("no structured tactic is loaded; upload an FM27 tactic first");
         }
         return tactic;
     }

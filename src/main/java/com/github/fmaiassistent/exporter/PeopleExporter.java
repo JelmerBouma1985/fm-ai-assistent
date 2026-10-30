@@ -49,6 +49,7 @@ public class PeopleExporter {
     private final ReaderFactory readers;
     private final IntSupplier availableProcessors;
     private final PersonIdentityLayout identityLayout;
+    private final PersonIdentityLayout.Subtypes subtypeLayout;
     private PlayerRecordLayout recordLayout = PlayerRecordLayout.current();
     private StaffRecordLayout staffRecordLayout = StaffRecordLayout.current();
 
@@ -61,9 +62,15 @@ public class PeopleExporter {
     }
 
     PeopleExporter(ReaderFactory readers, IntSupplier availableProcessors, PersonIdentityLayout identityLayout) {
+        this(readers, availableProcessors, identityLayout, PersonIdentityLayout.currentSubtypes());
+    }
+
+    PeopleExporter(ReaderFactory readers, IntSupplier availableProcessors, PersonIdentityLayout identityLayout,
+                   PersonIdentityLayout.Subtypes subtypeLayout) {
         this.readers = readers;
         this.availableProcessors = availableProcessors;
         this.identityLayout = identityLayout;
+        this.subtypeLayout = subtypeLayout;
     }
 
     /**
@@ -134,7 +141,7 @@ public class PeopleExporter {
             long elapsedMillis = elapsedMillis(started);
             Diagnostics diagnostics = scan.diagnostics();
             log.info(
-                    "FM26 people RAM extraction: processors={}, workers={}, slots={}, elapsedMs={}, "
+                    "FM27 people RAM extraction: processors={}, workers={}, slots={}, elapsedMs={}, "
                             + "players={}, staff={}, playerSubtype={}, playerStaffSubtype={}, staffSubtype={}, "
                             + "humanManagerSubtype={}, unknownSubtype={}, invalidBlocks={}, malformedPointers={}, "
                             + "unreadable={}, slowestWorkerMs={}",
@@ -214,7 +221,7 @@ public class PeopleExporter {
         List<Map<String, Object>> staff = new ArrayList<>();
         MutableDiagnostics diagnostics = new MutableDiagnostics();
         try (ProcessMemoryReader reader = readers.open(pid)) {
-            PersonMemoryClassifier classifier = new PersonMemoryClassifier(reader);
+            PersonMemoryClassifier classifier = new PersonMemoryClassifier(reader, subtypeLayout);
             Long staffModuleBase = mode.includesStaff() && reader.platform() == ProcessMemoryReader.Platform.WINDOWS
                     ? FmOffsets.findGamePluginBase(reader) : null;
             StaffExporter staffDecoder = new StaffExporter(staffRecordLayout, staffModuleBase);
@@ -389,15 +396,15 @@ public class PeopleExporter {
             return future.get(remaining, TimeUnit.NANOSECONDS);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new IOException("Interrupted while reading FM26 people data", exception);
+            throw new IOException("Interrupted while reading FM27 people data", exception);
         } catch (CancellationException exception) {
-            throw new IOException("FM26 people extraction was cancelled", exception);
+            throw new IOException("FM27 people extraction was cancelled", exception);
         } catch (TimeoutException exception) {
-            throw new IOException("FM26 people extraction exceeded " + SCAN_TIMEOUT_SECONDS + " seconds", exception);
+            throw new IOException("FM27 people extraction exceeded " + SCAN_TIMEOUT_SECONDS + " seconds", exception);
         } catch (ExecutionException exception) {
             Throwable cause = exception.getCause();
             if (cause instanceof InterruptedException interrupted) {
-                throw new IOException("FM26 people extraction worker was interrupted", interrupted);
+                throw new IOException("FM27 people extraction worker was interrupted", interrupted);
             }
             if (cause instanceof IOException ioException) {
                 throw ioException;
@@ -405,14 +412,14 @@ public class PeopleExporter {
             if (cause instanceof RuntimeException runtimeException) {
                 throw runtimeException;
             }
-            throw new IOException("Could not read FM26 people data", cause);
+            throw new IOException("Could not read FM27 people data", cause);
         }
     }
 
     private static void awaitTermination(ExecutorService executor) {
         try {
             if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
-                log.warn("FM26 people extraction workers did not terminate within 5 seconds");
+                log.warn("FM27 people extraction workers did not terminate within 5 seconds");
             }
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();

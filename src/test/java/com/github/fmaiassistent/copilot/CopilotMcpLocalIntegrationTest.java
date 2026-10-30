@@ -36,7 +36,7 @@ class CopilotMcpLocalIntegrationTest {
                     .setOnPermissionRequest((request, invocation) -> {
                         String details = String.valueOf(request.getExtensionData());
                         boolean readOnlyFmTool = details.contains("fm-ai-assistent")
-                                || details.contains("fm26_find_clubs");
+                                || details.contains("fm27_find_clubs");
                         return java.util.concurrent.CompletableFuture.completedFuture(readOnlyFmTool
                                 ? PermissionRequestResult.approveOnce()
                                 : PermissionRequestResult.reject("Only read-only FM MCP call is allowed"));
@@ -51,10 +51,10 @@ class CopilotMcpLocalIntegrationTest {
                     calledTool.set(event.getData().mcpToolName());
                 }
             });
-            session.sendAndWait("Call the fm-ai-assistent fm26_find_clubs tool with query Heerenveen. "
+            session.sendAndWait("Call the fm-ai-assistent fm27_find_clubs tool with query Heerenveen. "
                     + "Then briefly report its result.").get(3, TimeUnit.MINUTES);
             subscription.close();
-            assertThat(calledTool.get()).isEqualTo("fm26_find_clubs");
+            assertThat(calledTool.get()).isEqualTo("fm27_find_clubs");
             session.close();
             client.deleteSession(sessionId).get(15, TimeUnit.SECONDS);
         } finally {

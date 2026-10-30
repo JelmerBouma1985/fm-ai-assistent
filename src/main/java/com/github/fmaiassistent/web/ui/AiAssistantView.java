@@ -174,7 +174,7 @@ final class AiAssistantView extends Div {
         shortlistsDialog.getElement().setAttribute("theme", "professional-dialog ai-shortlists-dialog");
 
         Span introduction = new Span(
-                "Shortlists created by the AI assistant in this session. Import a file in FM26 under Scouting > Shortlists.");
+                "Shortlists created by the AI assistant in this session. Import a file in FM27 under Scouting > Shortlists.");
         introduction.addClassName("ai-shortlists-dialog-introduction");
         shortlistsGrid.addColumn(ShortlistFileService.CreatedShortlist::name).setHeader("Name")
                 .setAutoWidth(true).setFlexGrow(1)

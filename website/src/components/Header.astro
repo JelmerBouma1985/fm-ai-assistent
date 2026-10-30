@@ -1,23 +1,27 @@
 ---
 import { site } from '../config/site';
+const currentPath = Astro.url.pathname;
+const navigationLinks = [
+  { href: '/features/', label: 'Features' },
+  { href: '/how-it-works/', label: 'How it works' },
+  { href: '/getting-started/', label: 'Get started' },
+  { href: '/faq/', label: 'FAQ' }
+];
 ---
 <header class="site-header">
   <div class="nav-shell">
     <a class="brand" href="/" aria-label="FM AI Assistent home">
-      <span class="brand-mark" aria-hidden="true"><span>FA</span></span>
-      <span><strong>{site.name}</strong><small>Recruitment intelligence</small></span>
+      <span class="brand-mark" aria-hidden="true"><span>FM</span><span>27</span></span>
+      <span><strong>{site.name}</strong><small>Football Manager 27 companion</small></span>
     </a>
     <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-navigation">
       <span class="sr-only">Toggle navigation</span>
       <span></span><span></span><span></span>
     </button>
     <nav id="site-navigation" class="site-nav" aria-label="Primary navigation">
-      <a href="/features/">Features</a>
-      <a href="/how-it-works/">How it works</a>
-      <a href="/getting-started/">Get started</a>
-      <a href="/faq/">FAQ</a>
+      {navigationLinks.map(({ href, label }) => <a href={href} aria-current={currentPath === href ? 'page' : currentPath.startsWith(href) ? 'true' : undefined}>{label}</a>)}
       <a href={site.repository} rel="noopener noreferrer">GitHub</a>
-      <a class="button button-small" href="/download/">Download</a>
+      <a class="button button-small" href="/download/" aria-current={currentPath === '/download/' ? 'page' : undefined}>Download</a>
     </nav>
   </div>
 </header>

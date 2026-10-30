@@ -27,34 +27,36 @@ class ClubUefaCoefficientPersistenceTest {
 
     @Test void canonicalOnlyClubRetainsAllRawBytesAndIsBrowsableWithoutAContextualView() throws Exception {
         var raw=captured();var prefix=ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
-                .putLong(0x7FFAA0800000L+0x44BA518).putInt(0).putInt(1036).array();
-        var club=new NativeClubSnapshot(1036,0,"CLUB","sc Heerenveen",0x10000000L,HexFormat.of().formatHex(prefix),raw,1639);
+                .putLong(0x7FFFD5260000L+0x4CDA1F8).putInt(0).putInt(630).array();
+        var club=new NativeClubSnapshot(630,0,"CLUB","Chelsea",0x10000000L,HexFormat.of().formatHex(prefix),raw,1684);
         writer.saveNativeClubs(new ClubExporter.ExportResult(List.of(),List.of(club),ClubUefaCoefficientLayout.MODULE_SHA256));
         var service=new ClubDatabaseService(mock(ClubRepository.class),mock(CompetitionRepository.class),
                 mock(CompetitionDatabaseService.class),mock(LoadMetadataRepository.class),writer,nativeClubs,mock(CompetitionNameRepository.class));
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM clubs",Long.class)).isZero();
-        var saved=nativeClubs.findById(1036L).orElseThrow();
+        var saved=nativeClubs.findById(630L).orElseThrow();
         assertThat(saved.getUefaCoefficientHex()).isEqualTo(raw);
-        assertThat(saved.getUefaRuleVersion()).isEqualTo(1639);
+        assertThat(saved.getUefaRuleVersion()).isEqualTo(1684);
         assertThat(saved.getModuleSha256()).isEqualTo(ClubUefaCoefficientLayout.MODULE_SHA256);
         assertThat(service.countCoefficientClubs()).isEqualTo(1);
         assertThat(service.findCoefficientClubs(PageRequest.of(0,10))).hasSize(1);
-        assertThat(service.findCoefficientClubs(" HEERENVEEN ",PageRequest.of(0,10))).hasSize(1);
+        assertThat(service.findCoefficientClubs(" CHELSEA ",PageRequest.of(0,10))).hasSize(1);
         assertThat(service.countCoefficientClubs("no such club")).isZero();
-        var values=service.findClubCoefficients(1036L).orElseThrow().coefficients();
-        assertThat(values.currentSeasonPoints()).isEqualByComparingTo("37");
-        assertThat(values.fiveYearRank()).isEqualTo(16);assertThat(values.history()).hasSize(10);
+        var values=service.findClubCoefficients(630L).orElseThrow().coefficients();
+        assertThat(values.currentSeasonPoints()).isEqualByComparingTo("0");
+        assertThat(values.fiveYearRank()).isEqualTo(12);assertThat(values.history()).hasSize(10);
         assertThat(service.findClubCoefficients(null)).isEmpty();
         assertThat(service.findClubCoefficients(999L)).isEmpty();
-        var incomplete=new NativeClubSnapshot(1036,0,"CLUB",null,club.sourceAddress(),club.prefixHex(),raw,null);
+        var incomplete=new NativeClubSnapshot(630,0,"CLUB",null,club.sourceAddress(),club.prefixHex(),raw,null);
         assertThatThrownBy(()->writer.saveNativeClubs(new ClubExporter.ExportResult(List.of(),List.of(incomplete),
                 ClubUefaCoefficientLayout.MODULE_SHA256))).isInstanceOf(IllegalArgumentException.class);
     }
 
     private static String captured()throws Exception {
-        byte[] b;try(var in=Files.newInputStream(Path.of("docs/reverse-engineering/fm26/evidence/club_uefa_coefficients_population_live_20261026.csv"))){b=in.readNBytes(8*1024*1024+1);}
-        assertThat(b.length).isLessThanOrEqualTo(8*1024*1024);
-        return new String(b,java.nio.charset.StandardCharsets.US_ASCII).lines().skip(1).map(l->l.split(",",-1))
-                .filter(r->r[1].equals("1036")).findFirst().orElseThrow()[6];
+        try(var input=Files.newInputStream(Path.of("src/test/resources/fm27/clubs-captured.json"))) {
+            byte[] bytes=input.readNBytes(131073);assertThat(bytes.length).isLessThanOrEqualTo(131072);
+            var capture=tools.jackson.databind.json.JsonMapper.builder().build().readTree(bytes);
+            for(var sample:capture.path("samples"))if(sample.path("uid").asLong()==630)return sample.path("coefficientRaw").asString();
+            throw new AssertionError("Missing captured FM27 Chelsea coefficients");
+        }
     }
 }

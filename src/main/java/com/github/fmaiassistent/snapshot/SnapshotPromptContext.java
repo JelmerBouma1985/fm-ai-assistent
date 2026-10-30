@@ -25,6 +25,6 @@ public class SnapshotPromptContext implements AiPromptContextContributor {
         Map<String, Object> snapshot = new LinkedHashMap<>(snapshots.reference());
         snapshot.remove("refresh_policy");
         Map<String, Object> previous = delivered.asMap().put(conversationKey, snapshot);
-        return snapshot.equals(previous) ? "" : "FM26 database snapshot: " + snapshot;
+        return snapshot.equals(previous) ? "" : "FM27 database snapshot: " + snapshot;
     }
 }

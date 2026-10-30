@@ -33,7 +33,8 @@ public class FmfShortlistFile {
     private static final int MAX_PLAYERS = 10_000;
     private static final long MAX_UNIQUE_ID = 0xffff_ffffL;
     private static final long EMPTY_RESOURCE_TIMESTAMP = -62_135_596_800L;
-    private static final int FM26_DATABASE_VERSION = 0x006281a3;
+    // Fresh FM27 export my_shortlist.fmf, .slf bytes 9..12 (little endian).
+    private static final int SHORTLIST_DATABASE_VERSION = 0x007b4924;
 
     private final SecureRandom random = new SecureRandom();
 
@@ -82,9 +83,10 @@ public class FmfShortlistFile {
 
     private Shortlist decodeShortlist(byte[] bytes, List<String> resources) {
         if (!matchesAt(bytes, 0, SHORTLIST_MAGIC) || bytes.length < 18) {
-            throw new IllegalArgumentException("The embedded data is not a supported FM26 player shortlist");
+            throw new IllegalArgumentException("The embedded data is not a supported FM27 player shortlist");
         }
         long databaseVersion = Integer.toUnsignedLong(littleEndianInt(bytes, 9));
+        if (databaseVersion != SHORTLIST_DATABASE_VERSION) throw new IllegalArgumentException("Unsupported FM27 shortlist database version");
         Cursor cursor = new Cursor(bytes, 13);
         String name = cursor.string();
         int count = cursor.integer();
@@ -118,7 +120,7 @@ public class FmfShortlistFile {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         output.writeBytes(SHORTLIST_MAGIC);
         output.writeBytes(new byte[]{2, 0, 1});
-        integer(output, FM26_DATABASE_VERSION);
+        integer(output, SHORTLIST_DATABASE_VERSION);
         string(output, name);
         integer(output, uniqueIds.size());
         uniqueIds.forEach(id -> integer(output, (int) (long) id));

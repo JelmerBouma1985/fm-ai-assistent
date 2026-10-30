@@ -29,7 +29,7 @@ class TacticContextLocalIntegrationTest {
         assertThat(context.warnings()).isEmpty();
         assertThat(context.markdown())
                 .contains("FMF archive metadata")
-                .contains("Decoded FM26 tactic")
+                .contains("Decoded FM27 tactic")
                 .contains("Mentality: Positive")
                 .contains("Inverted Wing-Back")
                 .contains("Ball-Playing Centre-Back")

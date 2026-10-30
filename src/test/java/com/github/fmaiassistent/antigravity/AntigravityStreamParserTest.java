@@ -31,7 +31,7 @@ class AntigravityStreamParserTest {
                         """).orElseThrow());
         AntigravityStreamEvent.Step tool = assertInstanceOf(AntigravityStreamEvent.Step.class,
                 parser.parse("""
-                        {"event":"step_update","step_update":{"conversation_id":"abc","step_index":3,"state":"ACTIVE","step_type":"tool","tool_name":"call_mcp_tool","tool_info":{"name":"call_mcp_tool","parameters":{"ServerName":"fm-ai-assistent","ToolName":"fm26_find_players"}}}}
+                        {"event":"step_update","step_update":{"conversation_id":"abc","step_index":3,"state":"ACTIVE","step_type":"tool","tool_name":"call_mcp_tool","tool_info":{"name":"call_mcp_tool","parameters":{"ServerName":"fm-ai-assistent","ToolName":"fm27_find_players"}}}}
                         """).orElseThrow());
         AntigravityStreamEvent.Result result = assertInstanceOf(AntigravityStreamEvent.Result.class,
                 parser.parse("""

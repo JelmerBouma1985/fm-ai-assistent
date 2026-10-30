@@ -4,7 +4,8 @@ package com.github.fmaiassistent.memory;
 public record AwardNameLayout(int registryRva,int registryHeaderRel,long vtableRva,int prefixBytes,
         int indexRel,int uidRel,int nameRel,int shortNameRel,int lengthRel,int dataRel,int maximumBytes,
         int rowBytes,int amountRel,int stateRel) {
-    public static AwardNameLayout current(){return new AwardNameLayout(0x4E49578,0x80,0x44D82B8L,64,8,12,0x30,0x38,0,4,1024,16,8,12);}
+
+    public static AwardNameLayout current(){return new AwardNameLayout(0x57036D0,0x80,0x4CF6078L,64,8,12,0x30,0x38,0,4,1024,16,8,12);}
     public int identityBytes(){return uidRel+Integer.BYTES;}
     public boolean identityMatches(long uid,int index,String prefixHex){
         if(uid<=0||uid>0xffffffffL||index<0||index>=100000||prefixHex==null||prefixHex.length()!=identityBytes()*2)return false;

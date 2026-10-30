@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class StaffRoleRatingCalculatorTest {
     @Test
-    void calculatesTheNineFm26AssignmentsUsingTheReferenceWeights() {
+    void calculatesTheNineFm27AssignmentsUsingTheReferenceWeights() {
         StaffEntity staff = staffWithAttributes(Map.ofEntries(
                 Map.entry("authority", 12), Map.entry("determination", 14), Map.entry("motivating", 16),
                 Map.entry("attacking", 18), Map.entry("defending", 10), Map.entry("fitness", 8),
@@ -27,7 +27,7 @@ class StaffRoleRatingCalculatorTest {
     }
 
     @Test
-    void usesFm26HalfStarRoundingAndQualityThresholds() {
+    void usesFm27HalfStarRoundingAndQualityThresholds() {
         StaffEntity average = staffWithAttributes(Map.of());
         var rating = StaffRoleRatingCalculator.rating(average, "fitness").orElseThrow();
 
@@ -44,7 +44,7 @@ class StaffRoleRatingCalculatorTest {
     }
 
     @Test
-    void possessionTechnicalUsesTechnicalAsTheFm26SpecialistAttribute() {
+    void possessionTechnicalUsesTechnicalAsTheFm27SpecialistAttribute() {
         StaffEntity staff = staffWithAttributes(Map.of("technical", 20, "possession", 1));
 
         var rating = StaffRoleRatingCalculator.rating(staff, "possession_technical").orElseThrow();
