@@ -1,53 +1,65 @@
-vaadin-grid.data-grid {
-    --_lumo-grid-border-color: #d9dfdb;
-    color: #17201c;
-    font-size: 12px;
+/* Compact FM-style tables, including tables inside detail dialogs. */
+vaadin-grid {
+    --vaadin-grid-background: #100e14;
+    --vaadin-grid-cell-background: #100e14;
+    --vaadin-grid-cell-padding: 7px 12px;
+    --_lumo-grid-border-color: var(--fmai-border);
+    --lumo-contrast-5pct: rgba(224, 208, 234, .065);
+    background: #100e14;
+    color: var(--fmai-ink);
+    font-family: var(--lumo-font-family);
+    font-size: 13px;
 }
 
-vaadin-grid.data-grid::part(row) {
-    min-height: 38px;
-}
+vaadin-grid-cell-content { font-family: var(--lumo-font-family); }
 
-vaadin-grid.data-grid::part(cell) {
-    min-height: 38px;
+vaadin-grid::part(cell) {
+    min-height: 35px;
     padding: 0 12px;
-    border-bottom-color: #e9edea;
+    border-bottom: 1px solid #ffffff06;
+    background: #100e14;
+    color: var(--fmai-ink);
     background-clip: padding-box;
 }
 
-vaadin-grid.data-grid::part(header-cell) {
+vaadin-grid::part(odd-row-cell) { background: #211b24; }
+vaadin-grid::part(even-row-cell) { background: #131016; }
+vaadin-grid::part(selected-row-cell) { background: #493054; color: #ffffff; }
+
+vaadin-grid::part(header-cell) {
     min-height: 42px;
-    border-bottom: 1px solid #cfd6d2;
-    background: #f7f9f8;
-    color: #46524b;
-    font-size: 11px;
-    font-weight: 750;
-    text-transform: uppercase;
+    border-bottom: 1px solid #514453;
+    background: #1a151e;
+    color: #bfb3c8;
+    font-family: "Bahnschrift", "Arial Narrow", "Segoe UI", sans-serif;
+    font-size: 12px;
+    font-weight: 500;
 }
 
-vaadin-grid.data-grid::part(body-cell) {
+vaadin-grid::part(body-cell) {
     font-variant-numeric: tabular-nums;
 }
 
-vaadin-grid.data-grid::part(row):hover,
-vaadin-grid.data-grid::part(body-cell):hover {
-    background-color: #f1f6f3;
+vaadin-grid::part(body-cell):hover {
+    background-color: #35263f;
 }
 
-vaadin-grid.data-grid::part(first-column-cell) {
+vaadin-grid::part(first-column-cell) {
     font-weight: 650;
 }
 
-vaadin-grid.data-grid::part(reorder-ghost) {
-    border: 1px solid #aebbb4;
-    background: #ffffff;
-    box-shadow: 0 8px 24px rgba(23, 32, 28, 0.18);
+vaadin-grid::part(reorder-ghost) {
+    border: 1px solid var(--fmai-accent);
+    background: var(--fmai-surface-raised);
+    box-shadow: 0 8px 24px #0006;
 }
 
 vaadin-grid.data-grid::part(contract-club-loaned-out) {
-    background-color: #fbe8e8;
+    background-color: #43202e;
+    color: #ff9bb0;
 }
 
 vaadin-grid.data-grid::part(playing-club-loaned-in) {
-    background-color: #e7f0fb;
+    background-color: #192d41;
+    color: #85d0ff;
 }

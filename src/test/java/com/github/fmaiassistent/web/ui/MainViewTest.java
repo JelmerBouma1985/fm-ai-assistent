@@ -33,6 +33,78 @@ import static org.mockito.Mockito.when;
 
 class MainViewTest {
 
+    @Test
+    void roleMenusHaveBundledOptionsAndAttributePriorities() throws Exception {
+        var factory = MainView.class.getDeclaredMethod("roleComboBox", String.class, String.class);
+        factory.setAccessible(true);
+        for (String phase : List.of(PlayerRoleAttributeCatalog.IN_POSSESSION, PlayerRoleAttributeCatalog.OUT_OF_POSSESSION)) {
+            var combo = (com.vaadin.flow.component.combobox.ComboBox<?>) factory.invoke(null, phase, phase);
+            var roles = combo.getListDataView().getItems().toList();
+            assertFalse(roles.isEmpty(), phase);
+            for (Object role : roles) {
+                var priorities = PlayerRoleAttributeCatalog.priorities(phase, (String) role);
+                assertFalse(priorities.isEmpty(), phase + ": " + role);
+                assertTrue(priorities.values().stream().allMatch(p -> List.of("primary", "secondary").contains(p)));
+            }
+        }
+        assertEquals("primary", PlayerRoleAttributeCatalog.priorities(
+                PlayerRoleAttributeCatalog.IN_POSSESSION, "Goalkeeper").get("aerial_ability"));
+    }
+
+    @Test
+    void clubTabsSeparateOverviewFinancesAndMissingCoefficients() throws Exception {
+        MainView view = view();
+        var club = com.github.fmaiassistent.domain.entity.ClubEntity.fromExportRow(
+                java.util.Map.of("uniqueId", 1036L, "name", "Feyenoord", "balance", 123456L));
+        var method = MainView.class.getDeclaredMethod("opponentClubView", club.getClass(), String.class);
+        method.setAccessible(true);
+        var result = (com.vaadin.flow.component.Component) method.invoke(view, club, "Feyenoord");
+        var tabs = descendants(result).filter(Tabs.class::isInstance).map(Tabs.class::cast).findFirst().orElseThrow();
+        assertEquals(List.of("Overview", "Finances", "Coefficients"),
+                tabs.getChildren().map(Tab.class::cast).map(Tab::getLabel).toList());
+        assertTrue(textOf(result).contains("Training Facilities"));
+        assertFalse(textOf(result).contains("Balance"));
+        selectClubTab(result, "Finances");
+        assertTrue(textOf(result).contains("Balance"));
+        assertFalse(textOf(result).contains("Training Facilities"));
+        selectClubTab(result, "Coefficients");
+        assertTrue(textOf(result).contains("No coefficients are loaded for this club."));
+        selectClubTab(result, "Overview");
+        assertTrue(textOf(result).contains("Training Facilities"));
+    }
+
+    private static String textOf(com.vaadin.flow.component.Component component) {
+        return component.getElement().getTextRecursively();
+    }
+
+    private static void selectClubTab(com.vaadin.flow.component.Component root, String label) {
+        var tabs = descendants(root).filter(Tabs.class::isInstance).map(Tabs.class::cast).findFirst().orElseThrow();
+        tabs.setSelectedTab(tabs.getChildren().map(Tab.class::cast)
+                .filter(t -> label.equals(t.getLabel())).findFirst().orElseThrow());
+    }
+
+    @Test
+    void navigationKeepsHeadingFiltersAndWorkspaceInSync() throws Exception {
+        MainView view = view();
+        Tabs tabs = field(view, "tabs");
+        com.vaadin.flow.component.html.H1 title = field(view, "workspaceTitle");
+        com.vaadin.flow.component.button.Button filter = field(view, "filterButton");
+        assertEquals(Tabs.Orientation.VERTICAL, tabs.getOrientation());
+        assertEquals("Players", title.getText());
+        assertTrue(filter.isVisible());
+
+        for (String name : List.of("staffTab", "clubsTab", "coefficientsTab", "competitionsTab",
+                "fixturesTab", "recruitmentTab", "aiAssistantTab", "playersTab")) {
+            Tab tab = field(view, name);
+            tabs.setSelectedTab(tab);
+            assertEquals(tab.getLabel(), title.getText());
+            assertEquals(List.of("playersTab", "staffTab", "clubsTab", "competitionsTab").contains(name),
+                    filter.isVisible());
+            com.vaadin.flow.component.html.Div content = field(view, "content");
+            assertTrue(content.getChildren().findAny().isPresent());
+        }
+    }
+
     @Test void competitionIncomeIsShownWithoutCoefficientsLoansOrLedgerPanel()throws Exception {
         MainView view=view();ClubDatabaseService service=field(view,"clubs");
         var profile=new com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.Profile(
@@ -42,6 +114,7 @@ class MainViewTest {
         var club=com.github.fmaiassistent.domain.entity.ClubEntity.fromExportRow(java.util.Map.of("uniqueId",1036L,"name","sc Heerenveen"));
         var method=MainView.class.getDeclaredMethod("opponentClubView",com.github.fmaiassistent.domain.entity.ClubEntity.class,String.class);method.setAccessible(true);
         var result=(com.vaadin.flow.component.Component)method.invoke(view,club,"sc Heerenveen");
+        selectClubTab(result, "Finances");
         assertTrue(descendants(result).anyMatch(c->c instanceof ClubFinancialCompetitionsPanel));
     }
 
@@ -54,6 +127,7 @@ class MainViewTest {
         var club=com.github.fmaiassistent.domain.entity.ClubEntity.fromExportRow(java.util.Map.of("uniqueId",1036L,"name","sc Heerenveen"));
         var method=MainView.class.getDeclaredMethod("opponentClubView",com.github.fmaiassistent.domain.entity.ClubEntity.class,String.class);method.setAccessible(true);
         var result=(com.vaadin.flow.component.Component)method.invoke(view,club,"sc Heerenveen");
+        selectClubTab(result, "Finances");
         assertTrue(descendants(result).anyMatch(c->c instanceof ClubFinancialLedgerPanel));
     }
 
@@ -68,6 +142,7 @@ class MainViewTest {
         var club=com.github.fmaiassistent.domain.entity.ClubEntity.fromExportRow(java.util.Map.of("uniqueId",1036L,"name","sc Heerenveen"));
         var method=MainView.class.getDeclaredMethod("opponentClubView",com.github.fmaiassistent.domain.entity.ClubEntity.class,String.class);method.setAccessible(true);
         var result=(com.vaadin.flow.component.Component)method.invoke(view,club,"sc Heerenveen");
+        selectClubTab(result, "Finances");
         assertTrue(descendants(result).anyMatch(c->c instanceof ClubFinancialLoansPanel));
     }
 

@@ -39,6 +39,8 @@ import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.grid.GridVariant;
 import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.html.H1;
+import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
@@ -129,6 +131,9 @@ public class MainView extends VerticalLayout {
     private Registration pollRegistration;
     private final Tabs tabs = new Tabs();
     private final Div content = new Div();
+    private final H1 workspaceTitle = new H1("Players");
+    private final Span workspaceDescription = new Span("Find the right player for your next chapter.");
+    private final Span workspaceSection = new Span("Scouting centre");
     private final Grid<PlayerEntity> playersGrid = new Grid<>();
     private final Grid<StaffEntity> staffGrid = new Grid<>();
     private final Grid<ClubEntity> clubsGrid = new Grid<>();
@@ -192,8 +197,14 @@ public class MainView extends VerticalLayout {
         addClassName("main-view");
         content.addClassName("workspace-content");
 
-        add(header(), content);
-        expand(content);
+        Div workspace = new Div(workspaceHeader(), content, workspaceFooter());
+        workspace.addClassName("workspace");
+        workspace.getElement().setAttribute("role", "main");
+        workspace.getElement().setAttribute("aria-labelledby", "workspace-title");
+        Div body = new Div(navigation(), workspace);
+        body.addClassName("app-body");
+        add(header(), body);
+        expand(body);
         configureTabs();
         configureGrid(playersGrid);
         configureGrid(staffGrid);
@@ -207,6 +218,10 @@ public class MainView extends VerticalLayout {
         fixturesGrid.addItemClickListener(event -> openOpponentDetailsDialog(event.getItem()));
         clubsGrid.addItemClickListener(event -> {
             var club=event.getItem();var dialog=new Dialog();dialog.setHeaderTitle(display(club.getName()));
+            dialog.setWidth("1100px");
+            dialog.setHeight("min(850px, calc(100dvh - 32px))");
+            dialog.setMaxWidth("calc(100vw - 32px)");
+            dialog.getElement().getThemeList().add("professional-dialog");
             dialog.add(opponentClubView(club,club.getName()));
             dialog.getFooter().add(new Button("Close",e->dialog.close()));dialog.open();
         });
@@ -233,11 +248,11 @@ public class MainView extends VerticalLayout {
         settingsButton.getElement().setAttribute("aria-label", "Settings");
         status.addClassName("app-status");
 
-        Div brandIcon = new Div(VaadinIcon.CHART.create());
+        Div brandIcon = new Div(new Span("FM"), new Span("27"));
         brandIcon.addClassName("brand-icon");
         Span product = new Span("FM AI Assistent");
         product.addClassName("brand-title");
-        Span descriptor = new Span("Recruitment intelligence");
+        Span descriptor = new Span("Football Manager 27 companion");
         descriptor.addClassName("brand-descriptor");
         Div brandCopy = new Div(product, descriptor);
         brandCopy.addClassName("brand-copy");
@@ -246,7 +261,7 @@ public class MainView extends VerticalLayout {
         brand.setSpacing(false);
         brand.addClassName("brand");
 
-        HorizontalLayout actions = new HorizontalLayout(status, freshnessBadge, loadButton, settingsButton);
+        HorizontalLayout actions = new HorizontalLayout(freshnessBadge, loadButton, settingsButton);
         actions.setAlignItems(Alignment.CENTER);
         actions.setSpacing(false);
         actions.addClassName("app-actions");
@@ -259,31 +274,85 @@ public class MainView extends VerticalLayout {
         appBar.setSpacing(false);
         appBar.addClassName("app-bar");
 
-        HorizontalLayout navigation = new HorizontalLayout(tabs, filterButton);
-        navigation.setWidthFull();
-        navigation.setAlignItems(Alignment.CENTER);
-        navigation.expand(tabs);
-        navigation.setPadding(false);
-        navigation.setSpacing(false);
-        navigation.addClassName("workspace-nav");
-
-        Div header = new Div(appBar, navigation);
+        Div header = new Div(appBar);
         header.addClassName("app-header");
         return header;
+    }
+
+    private Component navigation() {
+        Span heading = new Span("Your workspace");
+        heading.addClassName("navigation-heading");
+        Span edition = new Span("FM27");
+        edition.addClassName("navigation-edition");
+        Span caption = new Span("Every decision starts here.");
+        caption.addClassName("navigation-caption");
+        Div footer = new Div(edition, caption);
+        footer.addClassName("navigation-footer");
+        Div navigation = new Div(heading, tabs, footer);
+        navigation.addClassName("workspace-nav");
+        navigation.getElement().setAttribute("role", "navigation");
+        navigation.getElement().setAttribute("aria-label", "Main workspace");
+        return navigation;
+    }
+
+    private Component workspaceHeader() {
+        workspaceSection.addClassName("workspace-section");
+        workspaceTitle.addClassName("workspace-title");
+        workspaceTitle.setId("workspace-title");
+        workspaceDescription.addClassName("workspace-description");
+        Div heading = new Div(workspaceSection, workspaceTitle, workspaceDescription);
+        heading.addClassName("workspace-heading-copy");
+        Div header = new Div(heading, filterButton);
+        header.addClassName("workspace-heading");
+        return header;
+    }
+
+    private Component workspaceFooter() {
+        Span source = new Span("FM27 snapshot");
+        source.addClassName("snapshot-source");
+        Div footer = new Div(source, status);
+        footer.addClassName("workspace-footer");
+        footer.getElement().setAttribute("aria-label", "Loaded data summary");
+        return footer;
+    }
+
+    private void updateWorkspaceHeading(Tab selected) {
+        workspaceTitle.setText(selected.getLabel());
+        if (selected == aiAssistantTab) {
+            workspaceSection.setText("Manager's office");
+            workspaceDescription.setText("Turn your squad, tactic and shortlist into a plan.");
+        } else if (selected == recruitmentTab) {
+            workspaceSection.setText("Scouting centre");
+            workspaceDescription.setText("Keep your targets and recruitment decisions in one place.");
+        } else if (selected == fixturesTab) {
+            workspaceSection.setText("Match centre");
+            workspaceDescription.setText("Know the schedule. Get to know the opposition.");
+        } else {
+            workspaceSection.setText(selected == playersTab || selected == staffTab ? "Scouting centre" : "World football");
+            workspaceDescription.setText(selected == playersTab ? "Find the right player for your next chapter."
+                    : selected == staffTab ? "Build the team behind your team."
+                    : selected == clubsTab ? "Explore clubs, finances and facilities."
+                    : selected == coefficientsTab ? "See where clubs stand in continental football."
+                    : "Explore the competitions in your loaded world.");
+        }
     }
 
     private void configureTabs() {
         tabs.add(playersTab, staffTab, clubsTab, coefficientsTab, competitionsTab, fixturesTab, recruitmentTab, aiAssistantTab);
         tabs.setWidthFull();
+        tabs.setOrientation(Tabs.Orientation.VERTICAL);
+        tabs.getElement().setAttribute("aria-label", "Workspace sections");
         tabs.addClassName("workspace-tabs");
         playersTab.addComponentAsFirst(VaadinIcon.USERS.create());
         staffTab.addComponentAsFirst(VaadinIcon.USER_STAR.create());
         clubsTab.addComponentAsFirst(VaadinIcon.OFFICE.create());
+        coefficientsTab.addComponentAsFirst(VaadinIcon.CHART.create());
         competitionsTab.addComponentAsFirst(VaadinIcon.TROPHY.create());
         fixturesTab.addComponentAsFirst(VaadinIcon.CALENDAR.create());
         recruitmentTab.addComponentAsFirst(VaadinIcon.CLIPBOARD_TEXT.create());
         aiAssistantTab.addComponentAsFirst(VaadinIcon.CHAT.create());
         tabs.addSelectedChangeListener(event -> {
+            updateWorkspaceHeading(event.getSelectedTab());
             filterButton.setVisible(event.getSelectedTab() == playersTab
                     || event.getSelectedTab() == staffTab
                     || event.getSelectedTab() == clubsTab
@@ -306,12 +375,13 @@ public class MainView extends VerticalLayout {
                 showAiAssistant();
             }
         });
+        tabs.getChildren().forEach(tab -> tab.getElement().setAttribute("title", ((Tab) tab).getLabel()));
     }
 
     private void configureGrid(Grid<?> grid) {
         grid.setSizeFull();
         grid.setColumnReorderingAllowed(true);
-        grid.addThemeVariants(GridVariant.LUMO_NO_BORDER);
+        grid.addThemeVariants(GridVariant.LUMO_NO_BORDER, GridVariant.LUMO_ROW_STRIPES);
         grid.addClassName("data-grid");
     }
 
@@ -461,6 +531,7 @@ public class MainView extends VerticalLayout {
     protected void onAttach(AttachEvent event) {
         super.onAttach(event);
         getUI().ifPresent(ui -> {
+            ui.getElement().setAttribute("theme", "dark");
             ui.setPollInterval(BADGE_POLL_INTERVAL_MS);
             if (pollRegistration == null) {
                 pollRegistration = ui.addPollListener(this::onPoll);
@@ -748,24 +819,43 @@ public class MainView extends VerticalLayout {
                 new DetailField("Youth Facilities", club.getYouthFacilities()),
                 new DetailField("Youth Coaching", club.getYouthCoaching()),
                 new DetailField("Youth Recruitment", club.getYouthRecruitment()),
-                new DetailField("Corporate Facilities", club.getCorporateFacilities()),
+                new DetailField("Corporate Facilities", club.getCorporateFacilities())));
+        var finances = new VerticalLayout(detailLayout(List.of(
                 new DetailField("Balance", moneyDisplay(club.getBalance())),
                 new DetailField("Transfer Budget", moneyDisplay(club.getTransferBudget())),
                 new DetailField("Payroll Budget (per week)", moneyDisplay(club.getPayrollBudget())),
-                new DetailField("Current wages incl. bonuses (per week)",moneyDisplay(club.getCurrentWagesIncludingBonuses()))));
+                new DetailField("Current wages incl. bonuses (per week)",moneyDisplay(club.getCurrentWagesIncludingBonuses())))));
+        finances.setPadding(false);
         var coefficient=clubs.findClubCoefficients(club.getUniqueId());
         var loans=clubs.findClubFinancialLoans(club.getUniqueId());
         var ledger=clubs.findClubFinancialLedger(club.getUniqueId());
         var competitionIncome=clubs.findClubCompetitionIncome(club.getUniqueId());
         var history=clubs.findClubFinancialHistory(club.getUniqueId());
-        if(coefficient.isEmpty()&&loans.isEmpty()&&ledger.isEmpty()&&competitionIncome.isEmpty()&&history.isEmpty())return details;
-        var layout=new VerticalLayout(details);
-        coefficient.ifPresent(c->layout.add(new ClubCoefficientsPanel(c.coefficients())));
-        loans.ifPresent(l->layout.add(new ClubFinancialLoansPanel(l)));
-        ledger.ifPresent(l->layout.add(new ClubFinancialLedgerPanel(l)));
-        competitionIncome.ifPresent(p->layout.add(new ClubFinancialCompetitionsPanel(p.profile(),p.names())));
-        history.ifPresent(p->layout.add(new ClubFinancialHistoryPanel(p)));
-        layout.setPadding(false);return layout;
+        loans.ifPresent(l->finances.add(new ClubFinancialLoansPanel(l)));
+        ledger.ifPresent(l->finances.add(new ClubFinancialLedgerPanel(l)));
+        competitionIncome.ifPresent(p->finances.add(new ClubFinancialCompetitionsPanel(p.profile(),p.names())));
+        history.ifPresent(p->finances.add(new ClubFinancialHistoryPanel(p)));
+        Component coefficients = coefficient.<Component>map(c -> new ClubCoefficientsPanel(c.coefficients()))
+                .orElseGet(() -> emptyDialogMessage("No coefficients are loaded for this club."));
+        Tab overviewTab = new Tab("Overview");
+        Tab financesTab = new Tab("Finances");
+        Tab coefficientsTab = new Tab("Coefficients");
+        Tabs clubTabs = new Tabs(overviewTab, financesTab, coefficientsTab);
+        clubTabs.addClassName("dialog-tabs");
+        Div clubContent = new Div(details);
+        clubContent.setWidthFull();
+        clubContent.addClassName("dialog-content");
+        clubTabs.addSelectedChangeListener(event -> {
+            clubContent.removeAll();
+            clubContent.add(event.getSelectedTab() == financesTab ? finances
+                    : event.getSelectedTab() == coefficientsTab ? coefficients : details);
+        });
+        var layout = new VerticalLayout(clubTabs, clubContent);
+        layout.addClassName("club-details");
+        layout.setPadding(false);
+        layout.setSpacing(false);
+        layout.setWidthFull();
+        return layout;
     }
 
     private void showClubCoefficients() {
@@ -1098,6 +1188,7 @@ public class MainView extends VerticalLayout {
         Dialog dialog = new Dialog();
         dialog.setHeaderTitle(display(player.getName()));
         dialog.setWidth("1100px");
+        dialog.setHeight("min(850px, calc(100dvh - 32px))");
         dialog.setMaxWidth("calc(100vw - 32px)");
         dialog.getElement().getThemeList().add("professional-dialog");
         dialog.getElement().getThemeList().add("player-detail-dialog");
@@ -1184,7 +1275,11 @@ public class MainView extends VerticalLayout {
 
         Button close = new Button("Close", VaadinIcon.CLOSE_SMALL.create(), event -> dialog.close());
         close.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        dialog.add(detailTabs, detailContent);
+        dialog.add(profileHeader(player.getName(), PositionTextFormatter.format(player),
+                List.of(new DetailField("Club", player.getClub()),
+                        new DetailField("Age", player.getAge()),
+                        new DetailField("Current ability", player.getCa()),
+                        new DetailField("Potential ability", player.getPa()))), detailTabs, detailContent);
         dialog.getFooter().add(close);
         dialog.open();
     }
@@ -1329,7 +1424,10 @@ public class MainView extends VerticalLayout {
         });
         Button close = new Button("Close", VaadinIcon.CLOSE_SMALL.create(), event -> dialog.close());
         close.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        dialog.add(detailTabs, detailContent);
+        dialog.add(profileHeader(staffMember.getName(), staffMember.getJob(),
+                List.of(new DetailField("Club", staffMember.getClub()),
+                        new DetailField("Age", staffMember.getAge()),
+                        new DetailField("Nationality", staffMember.getNationality()))), detailTabs, detailContent);
         dialog.getFooter().add(close);
         dialog.open();
     }
@@ -1994,6 +2092,22 @@ public class MainView extends VerticalLayout {
         return layout;
     }
 
+    private static Div profileHeader(String name, String subtitle, List<DetailField> fields) {
+        Span avatar = new Span();
+        avatar.add(VaadinIcon.USER.create());
+        avatar.addClassName("profile-avatar");
+        H2 title = new H2(display(name));
+        Span description = new Span(display(subtitle));
+        Div identity = new Div(title, description);
+        identity.addClassName("profile-identity");
+        Div statistics = new Div();
+        statistics.addClassName("profile-statistics");
+        fields.forEach(field -> statistics.add(detailField(field.label(), field.value())));
+        Div header = new Div(avatar, identity, statistics);
+        header.addClassName("profile-header");
+        return header;
+    }
+
     private static Div detailField(String label, Object value) {
         Span labelText = new Span(label);
         labelText.addClassName("detail-label");
@@ -2281,10 +2395,8 @@ public class MainView extends VerticalLayout {
                 .set("border-radius", "4px");
         if ("primary".equals(rolePriority)) {
             row.addClassName("role-primary");
-            row.getStyle().set("background", "#dcfce7");
         } else if ("secondary".equals(rolePriority)) {
             row.addClassName("role-secondary");
-            row.getStyle().set("background", "#dbeafe");
         }
         return row;
     }
@@ -2303,15 +2415,15 @@ public class MainView extends VerticalLayout {
             return "var(--lumo-secondary-text-color)";
         }
         if (score <= 5) {
-            return "#dc2626";
+            return "var(--fmai-score-low)";
         }
         if (score <= 10) {
-            return "#ea580c";
+            return "var(--fmai-score-average)";
         }
         if (score <= 15) {
-            return "#ca8a04";
+            return "var(--fmai-score-good)";
         }
-        return "#16a34a";
+        return "var(--fmai-score-excellent)";
     }
 
     private static ComboBox<String> roleComboBox(String label, String phase) {

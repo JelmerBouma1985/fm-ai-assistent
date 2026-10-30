@@ -6,6 +6,8 @@
 - Works in FM27!
 
 ### Features 
+- FM27-inspired dark interface with a burgundy workspace, purple accents, compact striped tables and a persistent navigation rail.
+- Redesigned player and staff profile headers, dark detail dialogs and controls, and compact navigation on smaller screens.
 - View more player and staff contract details, including bonuses and clauses.
 - See agreed playing time, loan terms and future contracts.
 - Identify competition and individual award bonuses by name.
