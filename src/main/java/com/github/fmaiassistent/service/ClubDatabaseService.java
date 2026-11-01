@@ -16,6 +16,7 @@ import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class ClubDatabaseService {
@@ -99,6 +100,11 @@ public class ClubDatabaseService {
     @Transactional(readOnly = true)
     public List<ClubEntity> findAllClubs() {
         return clubs.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<ClubEntity> findBySourceAddress(Long sourceAddress) {
+        return clubs.findFirstBySourceAddressOrderByReputationDesc(sourceAddress);
     }
 
     @Transactional(readOnly = true)

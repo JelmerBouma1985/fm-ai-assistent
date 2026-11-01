@@ -1286,6 +1286,17 @@ public class FmDecisionTools {
     }
 
     private ClubEntity requireClub(String name) {
+        // The managed club is resolved by its RAM source address, not by name:
+        // women's teams share a name with the men's club (e.g. "R. Madrid" vs
+        // "R. Madrid (W)") and name + max reputation would pick the men's record.
+        ManagedClubContext context = managedClubs.current();
+        if (context != null && context.available() && context.clubAddress() != null
+                && (blank(name) || equalsText(name, context.clubName()))) {
+            Optional<ClubEntity> byAddress = clubs.findBySourceAddress(context.clubAddress());
+            if (byAddress.isPresent()) {
+                return byAddress.get();
+            }
+        }
         return clubs.findAllClubs().stream()
                 .filter(club -> equalsText(club.getName(), name))
                 .max(Comparator.comparingInt(club -> value(club.getReputation())))

@@ -5,6 +5,7 @@ import com.github.fmaiassistent.domain.entity.ClubEntity;
 import com.github.fmaiassistent.domain.entity.PlayerEntity;
 import com.github.fmaiassistent.exporter.ClubExporter;
 import com.github.fmaiassistent.exporter.PlayerExporter;
+import com.github.fmaiassistent.managedclub.ManagedClubContext;
 import com.github.fmaiassistent.managedclub.ManagedClubContextService;
 import com.github.fmaiassistent.recruitment.RecruitmentCaseService;
 import com.github.fmaiassistent.service.ClubDatabaseService;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -201,14 +203,59 @@ class FmDecisionToolsTest {
                 new RoleFitService.PhaseFit("Out of Possession", "DC", "Covering Centre-Back", 18, role, true));
     }
 
+    @Test
+    void resolvesManagedClubByRamAddressWhenMenAndWomenShareABaseName() {
+        PlayerDatabaseService players = mock(PlayerDatabaseService.class);
+        ClubDatabaseService clubs = mock(ClubDatabaseService.class);
+        ManagedClubContextService managed = mock(ManagedClubContextService.class);
+        TacticContextService tactics = mock(TacticContextService.class);
+        RoleFitService fits = mock(RoleFitService.class);
+        RecruitmentCaseService cases = mock(RecruitmentCaseService.class);
+        SnapshotStatusService snapshots = mock(SnapshotStatusService.class);
+        ClubEntity men = club("R. Madrid", 9_100, "male", 1_068_000_000L, 111L);
+        ClubEntity women = club("R. Madrid (W)", 7_900, "female", 66_250L, 222L);
+        PlayerEntity outgoing = player("Outgoing", 2002000001L, 125, 135, "R. Madrid");
+        when(players.findAllPlayerEntities()).thenReturn(List.of(outgoing));
+        when(clubs.findAllClubs()).thenReturn(List.of(men, women));
+        when(clubs.findBySourceAddress(222L)).thenReturn(Optional.of(women));
+        when(managed.current()).thenReturn(new ManagedClubContext(
+                1, ManagedClubContext.State.AVAILABLE, "Manager", 1L, "R. Madrid",
+                "Spanish Women's First Division", "Spain", "female", 7_900,
+                175_000L, 66_250L, 58_000L, 222L, "test"));
+        when(tactics.current()).thenReturn(new TacticContext(
+                0, "No tactic loaded", null, null, List.of(), List.of()));
+        when(snapshots.reference()).thenReturn(Map.of("snapshot_id", "snapshot-1"));
+        when(fits.positionScore(any(), anyString())).thenReturn(0);
+
+        FmDecisionTools tools = new FmDecisionTools(
+                players, clubs, managed, tactics, fits, cases, snapshots);
+
+        Map<String, Object> result = tools.planSquadMoves(
+                List.of(),
+                List.of(2002000001L),
+                List.of(new FmDecisionTools.PlayerQuote(2002000001L, 81_000L, 1_632L)),
+                null);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> finances = (Map<String, Object>) result.get("finances");
+        assertThat(finances)
+                .containsEntry("transfer_budget", 66_250L)
+                .containsEntry("known_receipts", 81_000L);
+    }
+
     private static ClubEntity club(String name) {
+        return club(name, 5_000, "male", 10_000_000L, null);
+    }
+
+    private static ClubEntity club(String name, int reputation, String gender, long transferBudget, Long sourceAddress) {
         Map<String, Object> row = new HashMap<>();
         ClubExporter.FIELD_NAMES.forEach(field -> row.put(field, null));
         row.put("name", name);
-        row.put("gender", "male");
-        row.put("reputation", 5_000);
-        row.put("transferBudget", 10_000_000L);
+        row.put("gender", gender);
+        row.put("reputation", reputation);
+        row.put("transferBudget", transferBudget);
         row.put("payrollBudget", 1_000_000L);
+        row.put("sourceAddress", sourceAddress);
         return ClubEntity.fromExportRow(row);
     }
 
