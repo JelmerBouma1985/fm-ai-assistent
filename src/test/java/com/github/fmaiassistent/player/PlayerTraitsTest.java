@@ -2,9 +2,39 @@ package com.github.fmaiassistent.player;
 
 import org.junit.jupiter.api.Test;
 import java.util.Map;
+import java.nio.charset.StandardCharsets;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class PlayerTraitsTest {
+    @Test
+    void matchesAllAdditionalOwnerProfilesIncludingNiangAndNaDisplays() throws Exception {
+        byte[] raw;
+        try (var input = getClass().getResourceAsStream("/fm27/player-traits-owner-observations.tsv")) {
+            assertThat(input).isNotNull();
+            raw = input.readNBytes(65_537);
+        }
+        assertThat(raw.length).isLessThanOrEqualTo(65_536);
+        var observations = new String(raw, StandardCharsets.UTF_8).lines()
+                .filter(line -> !line.startsWith("#")).toList();
+        assertThat(observations).hasSize(43);
+        for (String observation : observations) {
+            String[] fields = observation.split("\t", -1);
+            assertThat(fields).hasSize(3);
+            long mask = Long.parseUnsignedLong(fields[1], 16);
+            assertThat(PlayerTraits.describe(mask)).as("Player UID %s", fields[0]).isEqualTo(fields[2]);
+            assertThat(PlayerTraits.rawHex(mask)).isEqualTo(fields[1]);
+        }
+    }
+
+    @Test
+    void retainsNoDisplayAndUnverifiedBitsInRawMasksWithoutInventingTraitNames() {
+        long noDisplay = (1L << 48) | (1L << 49) | (1L << 61) | (1L << 62);
+        assertThat(PlayerTraits.describe(noDisplay)).isEmpty();
+        assertThat(PlayerTraits.rawHex(noDisplay)).isEqualTo("6003000000000000");
+        assertThat(PlayerTraits.describe(noDisplay | (1L << 15) | (1L << 53) | Long.MIN_VALUE))
+                .isEqualTo("Unknown player trait (bit 15), Unknown player trait (bit 53), Unknown player trait (bit 63)");
+    }
+
     @Test
     void matchesAllTenOwnerProfilesAgainstIndependentlyCapturedMasks() {
         // PERSON+C0 captured 2026-10-31, PID 21484; see traits_verification.json.
