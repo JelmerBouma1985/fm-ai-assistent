@@ -71,6 +71,8 @@ For agent-driven staff recruitment, call `fm27_get_staff_coaching_roles` to disc
 
 Select **Load data** again after opening another save, changing clubs or advancing to data you want the app to refresh. Player, staff, club and competition data is extracted from RAM concurrently and written with bounded database batches; the completed results are committed as one atomic local snapshot, so a failed reader or database write leaves the previous snapshot available.
 
+On the supported Windows FM27 build, select **Scout all players in view** to create full scouting reports for every player matching the current filters, across all pages. **Scout this player** in a player popup creates or replaces only that player's report and adds it to FM's **Recruitment → Scouting → Scout Reports** list. A progress dialog tracks the job; **Cancel** finishes the current report and stops before the next player, keeping completed reports. Batches of more than 100 players show a warning that they can take a long time. FM keeps up to 100 scouting-centre entries; completed reports remain available on player profiles. **Don't show again** saves your preference; you can reenable the warning in **Settings**. Under **Settings → Scout reports**, choose **Best scout at club** (the default) or **20/20 scout**. The latter temporarily raises the selected club scout's judging ability and potential for report generation, then restores their original attributes. These preferences are stored in the local database and survive data reloads. Reports are created in the currently loaded game; FM's normal save operation saves game changes.
+
 ![Player database after loading Football Manager 2027 data](screenshots/players_tab.png)
 
 ## Use the AI assistant

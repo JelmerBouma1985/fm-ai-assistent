@@ -34,6 +34,320 @@ import static org.mockito.Mockito.when;
 class MainViewTest {
 
     @Test
+    void bulkScoutingUsesTheActiveFilterAndShowsProgressUntilCompletion() throws Exception {
+        var ui = new com.vaadin.flow.component.UI();
+        ui.getInternals().setSession(mock(com.vaadin.flow.server.VaadinSession.class));
+        com.vaadin.flow.component.UI.setCurrent(ui);
+        try {
+            MainView view = view();
+            ScoutReportService scouting = field(view, "scouting");
+            when(scouting.isSupported()).thenReturn(true);
+            var filter = new com.github.fmaiassistent.repository.PlayerFilterCriteria(
+                    "Abel", "", "", "", "", null, null, null, null, "", null, null, null, null, null, null,
+                    null, null, null, null, null, null, null, null, null, java.util.Map.of(), java.util.Map.of());
+            Field filterField = MainView.class.getDeclaredField("playerFilter");
+            filterField.setAccessible(true);
+            filterField.set(view, filter);
+            var future = new java.util.concurrent.CompletableFuture<ScoutReportService.Result>();
+            when(scouting.scoutFiltered(filter)).thenReturn(future);
+            when(scouting.progress()).thenReturn(new ScoutReportService.Progress(2, 5, "Scouting 2 of 5"));
+            var update = MainView.class.getDeclaredMethod("updateScoutingProgress");
+            update.setAccessible(true);
+            update.invoke(view);
+            com.vaadin.flow.component.button.Button bulk = field(view, "scoutAllButton");
+            bulk.click();
+            org.mockito.Mockito.verify(scouting).scoutFiltered(filter);
+            assertFalse(bulk.isEnabled());
+            assertEquals("Scouting...", bulk.getText());
+            com.vaadin.flow.component.progressbar.ProgressBar progress = field(view, "scoutingProgress");
+            assertEquals(0.4, progress.getValue());
+            com.vaadin.flow.component.html.Span phase = field(view, "scoutingPhase");
+            assertEquals("Scouting 2 of 5", phase.getText());
+            future.complete(new ScoutReportService.Result(3, 1, 1));
+            update.invoke(view);
+            assertTrue(bulk.isEnabled());
+            assertEquals("Scout all players in view", bulk.getText());
+            com.vaadin.flow.component.dialog.Dialog dialog = field(view, "scoutingDialog");
+            assertFalse(dialog.isOpened());
+        } finally {
+            com.vaadin.flow.component.UI.setCurrent(null);
+        }
+    }
+
+    @Test
+    void popupScoutsOnlyItsPlayerAndUnsupportedOverviewIsDisabled() throws Exception {
+        var ui = new com.vaadin.flow.component.UI();
+        ui.getInternals().setSession(mock(com.vaadin.flow.server.VaadinSession.class));
+        com.vaadin.flow.component.UI.setCurrent(ui);
+        try {
+            MainView view = view();
+            com.vaadin.flow.component.button.Button bulk = field(view, "scoutAllButton");
+            assertFalse(bulk.isEnabled());
+            ScoutReportService scouting = field(view, "scouting");
+            when(scouting.isSupported()).thenReturn(true);
+            when(scouting.scoutPlayer(67288450L)).thenReturn(new java.util.concurrent.CompletableFuture<>());
+            var player = playerRow(java.util.Map.of("unique_id", 67288450L, "name", "Abel Bretones"));
+            var open = MainView.class.getDeclaredMethod("openPlayerDetailsDialog", player.getClass());
+            open.setAccessible(true);
+            open.invoke(view, player);
+            ui.getInternals().getStateTree().runExecutionsBeforeClientResponse();
+            var dialog = ui.getChildren().filter(com.vaadin.flow.component.dialog.Dialog.class::isInstance)
+                    .map(com.vaadin.flow.component.dialog.Dialog.class::cast)
+                    .filter(d -> "Abel Bretones".equals(d.getHeaderTitle())).findFirst().orElseThrow();
+            var scout = dialog.getFooter().getElement().getChildren().flatMap(element -> element.getComponent().stream())
+                    .filter(com.vaadin.flow.component.button.Button.class::isInstance)
+                    .map(com.vaadin.flow.component.button.Button.class::cast)
+                    .filter(b -> "Scout this player".equals(b.getText())).findFirst().orElseThrow();
+            scout.click();
+            org.mockito.Mockito.verify(scouting).scoutPlayer(67288450L);
+            org.mockito.Mockito.verify(scouting, org.mockito.Mockito.never())
+                    .scoutFiltered(org.mockito.ArgumentMatchers.any());
+        } finally {
+            com.vaadin.flow.component.UI.setCurrent(null);
+        }
+    }
+
+    @Test
+    void settingsShowAndPersistTheDatabaseScoutChoice() throws Exception {
+        var ui = new com.vaadin.flow.component.UI();
+        ui.getInternals().setSession(mock(com.vaadin.flow.server.VaadinSession.class));
+        com.vaadin.flow.component.UI.setCurrent(ui);
+        try {
+            MainView view = view();
+            ScoutSettingsService settings = field(view, "scoutSettings");
+            when(settings.mode()).thenReturn(com.github.fmaiassistent.domain.enums.ScoutingMode.BEST_CLUB_SCOUT);
+            var open = MainView.class.getDeclaredMethod("openSettingsDialog");
+            open.setAccessible(true);
+            open.invoke(view);
+            ui.getInternals().getStateTree().runExecutionsBeforeClientResponse();
+            var dialog = ui.getChildren().filter(com.vaadin.flow.component.dialog.Dialog.class::isInstance)
+                    .map(com.vaadin.flow.component.dialog.Dialog.class::cast)
+                    .filter(d -> "Settings".equals(d.getHeaderTitle())).findFirst().orElseThrow();
+            @SuppressWarnings("unchecked")
+            var choice = (com.vaadin.flow.component.select.Select<com.github.fmaiassistent.domain.enums.ScoutingMode>)
+                    descendants(dialog).filter(com.vaadin.flow.component.select.Select.class::isInstance)
+                            .map(com.vaadin.flow.component.select.Select.class::cast)
+                            .filter(s -> "Scout reports".equals(s.getLabel())).findFirst().orElseThrow();
+            assertEquals(com.github.fmaiassistent.domain.enums.ScoutingMode.BEST_CLUB_SCOUT, choice.getValue());
+            choice.setValue(com.github.fmaiassistent.domain.enums.ScoutingMode.PERFECT_SCOUT);
+            var warning = descendants(dialog).filter(com.vaadin.flow.component.checkbox.Checkbox.class::isInstance)
+                    .map(com.vaadin.flow.component.checkbox.Checkbox.class::cast)
+                    .filter(c -> "Warn before scouting more than 100 players".equals(c.getLabel())).findFirst().orElseThrow();
+            assertFalse(warning.getValue());
+            warning.setValue(true);
+            dialog.getFooter().getElement().getChildren().flatMap(element -> element.getComponent().stream())
+                    .filter(com.vaadin.flow.component.button.Button.class::isInstance)
+                    .map(com.vaadin.flow.component.button.Button.class::cast)
+                    .filter(b -> "Save".equals(b.getText())).findFirst().orElseThrow().click();
+            org.mockito.Mockito.verify(settings).saveMode(com.github.fmaiassistent.domain.enums.ScoutingMode.PERFECT_SCOUT);
+            org.mockito.Mockito.verify(settings).saveWarnForLargeBatch(true);
+        } finally {
+            com.vaadin.flow.component.UI.setCurrent(null);
+        }
+    }
+
+    @Test
+    void scoutingFailureRestoresControlsAndClosesTheProgressDialog() throws Exception {
+        var ui = new com.vaadin.flow.component.UI();
+        ui.getInternals().setSession(mock(com.vaadin.flow.server.VaadinSession.class));
+        com.vaadin.flow.component.UI.setCurrent(ui);
+        try {
+            MainView view = view();
+            ScoutReportService scouting = field(view, "scouting");
+            when(scouting.isSupported()).thenReturn(true);
+            var future = new java.util.concurrent.CompletableFuture<ScoutReportService.Result>();
+            when(scouting.scoutFiltered(org.mockito.ArgumentMatchers.any())).thenReturn(future);
+            var update = MainView.class.getDeclaredMethod("updateScoutingProgress");
+            update.setAccessible(true);
+            update.invoke(view);
+            com.vaadin.flow.component.button.Button bulk = field(view, "scoutAllButton");
+            com.vaadin.flow.component.button.Button load = field(view, "loadButton");
+            bulk.click();
+            assertFalse(load.isEnabled());
+            future.completeExceptionally(new IllegalStateException("FM is no longer running"));
+            update.invoke(view);
+            assertTrue(bulk.isEnabled());
+            assertTrue(load.isEnabled());
+            assertEquals("Scout all players in view", bulk.getText());
+            com.vaadin.flow.component.dialog.Dialog dialog = field(view, "scoutingDialog");
+            assertFalse(dialog.isOpened());
+        } finally {
+            com.vaadin.flow.component.UI.setCurrent(null);
+        }
+    }
+
+    @Test
+    void exactlyOneHundredPlayersStartWithoutAWarning() throws Exception {
+        var ui = scoutingUi();
+        try {
+            MainView view = view();
+            prepareBulkScouting(view, 100, true);
+            com.vaadin.flow.component.button.Button bulk = field(view, "scoutAllButton");
+            bulk.click();
+            ScoutReportService scouting = field(view, "scouting");
+            org.mockito.Mockito.verify(scouting).scoutFiltered(org.mockito.ArgumentMatchers.any());
+            ui.getInternals().getStateTree().runExecutionsBeforeClientResponse();
+            assertFalse(ui.getChildren().filter(com.vaadin.flow.component.dialog.Dialog.class::isInstance)
+                    .map(com.vaadin.flow.component.dialog.Dialog.class::cast)
+                    .anyMatch(d -> d.getHeaderTitle().startsWith("Scout 100")));
+        } finally {
+            com.vaadin.flow.component.UI.setCurrent(null);
+        }
+    }
+
+    @Test
+    void oneHundredAndOnePlayersRequireContinueAndDismissingDoesNotSaveSuppression() throws Exception {
+        var ui = scoutingUi();
+        try {
+            MainView view = view();
+            prepareBulkScouting(view, 101, true);
+            com.vaadin.flow.component.button.Button bulk = field(view, "scoutAllButton");
+            bulk.click();
+            var confirmation = scoutingDialog(ui, "Scout 101 players?");
+            ScoutReportService scouting = field(view, "scouting");
+            org.mockito.Mockito.verify(scouting, org.mockito.Mockito.never()).scoutFiltered(org.mockito.ArgumentMatchers.any());
+            descendants(confirmation).filter(com.vaadin.flow.component.checkbox.Checkbox.class::isInstance)
+                    .map(com.vaadin.flow.component.checkbox.Checkbox.class::cast).findFirst().orElseThrow().setValue(true);
+            footerButton(confirmation, "Cancel").click();
+            assertFalse(confirmation.isOpened());
+            org.mockito.Mockito.verify(scouting, org.mockito.Mockito.never()).scoutFiltered(org.mockito.ArgumentMatchers.any());
+            ScoutSettingsService settings = field(view, "scoutSettings");
+            org.mockito.Mockito.verify(settings, org.mockito.Mockito.never()).saveWarnForLargeBatch(org.mockito.ArgumentMatchers.anyBoolean());
+        } finally {
+            com.vaadin.flow.component.UI.setCurrent(null);
+        }
+    }
+
+    @Test
+    void continueUsesTheCapturedFilterAndSavesDontShowAgain() throws Exception {
+        var ui = scoutingUi();
+        try {
+            MainView view = view();
+            prepareBulkScouting(view, 101, true);
+            var captured = new com.github.fmaiassistent.repository.PlayerFilterCriteria(
+                    "Abel", "", "", "", "", null, null, null, null, "", null, null, null, null, null, null,
+                    null, null, null, null, null, null, null, null, null, java.util.Map.of(), java.util.Map.of());
+            var filter = MainView.class.getDeclaredField("playerFilter");
+            filter.setAccessible(true);
+            filter.set(view, captured);
+            com.vaadin.flow.component.button.Button bulk = field(view, "scoutAllButton");
+            bulk.click();
+            var confirmation = scoutingDialog(ui, "Scout 101 players?");
+            filter.set(view, com.github.fmaiassistent.repository.PlayerFilterCriteria.empty());
+            descendants(confirmation).filter(com.vaadin.flow.component.checkbox.Checkbox.class::isInstance)
+                    .map(com.vaadin.flow.component.checkbox.Checkbox.class::cast).findFirst().orElseThrow().setValue(true);
+            footerButton(confirmation, "Continue").click();
+            ScoutReportService scouting = field(view, "scouting");
+            org.mockito.Mockito.verify(scouting).scoutFiltered(captured);
+            ScoutSettingsService settings = field(view, "scoutSettings");
+            org.mockito.Mockito.verify(settings).saveWarnForLargeBatch(false);
+            assertFalse(confirmation.isOpened());
+        } finally {
+            com.vaadin.flow.component.UI.setCurrent(null);
+        }
+    }
+
+    @Test
+    void disabledBatchWarningStartsLargeBatchesImmediately() throws Exception {
+        var ui = scoutingUi();
+        try {
+            MainView view = view();
+            prepareBulkScouting(view, 101, false);
+            com.vaadin.flow.component.button.Button bulk = field(view, "scoutAllButton");
+            bulk.click();
+            ScoutReportService scouting = field(view, "scouting");
+            org.mockito.Mockito.verify(scouting).scoutFiltered(org.mockito.ArgumentMatchers.any());
+        } finally {
+            com.vaadin.flow.component.UI.setCurrent(null);
+        }
+    }
+
+    @Test
+    void cancelKeepsTheModalOpenUntilTheCurrentReportFinishesAndReportsPartialCounts() throws Exception {
+        var ui = scoutingUi();
+        try {
+            MainView view = view();
+            var future = prepareBulkScouting(view, 100, true);
+            ScoutReportService scouting = field(view, "scouting");
+            when(scouting.cancel(future)).thenReturn(true);
+            when(scouting.progress()).thenReturn(new ScoutReportService.Progress(2, 100, "Scouting 2 of 100"));
+            com.vaadin.flow.component.button.Button bulk = field(view, "scoutAllButton");
+            bulk.click();
+            com.vaadin.flow.component.button.Button cancel = field(view, "cancelScoutingButton");
+            cancel.click();
+            org.mockito.Mockito.verify(scouting).cancel(future);
+            assertEquals("Cancelling...", cancel.getText());
+            assertFalse(cancel.isEnabled());
+            com.vaadin.flow.component.dialog.Dialog modal = field(view, "scoutingDialog");
+            assertTrue(modal.isOpened());
+            assertFalse(future.isDone());
+            future.complete(new ScoutReportService.Result(2, 1, 0, true));
+            var update = MainView.class.getDeclaredMethod("updateScoutingProgress");
+            update.setAccessible(true);
+            try (var notifications = org.mockito.Mockito.mockStatic(com.vaadin.flow.component.notification.Notification.class)) {
+                update.invoke(view);
+                notifications.verify(() -> com.vaadin.flow.component.notification.Notification.show(
+                        "Scouting cancelled: 2 created, 1 updated, 0 skipped", 6000,
+                        com.vaadin.flow.component.notification.Notification.Position.TOP_CENTER));
+            }
+            assertFalse(modal.isOpened());
+            assertTrue(bulk.isEnabled());
+        } finally {
+            com.vaadin.flow.component.UI.setCurrent(null);
+        }
+    }
+
+    private static com.vaadin.flow.component.UI scoutingUi() {
+        var ui = new com.vaadin.flow.component.UI();
+        ui.getInternals().setSession(mock(com.vaadin.flow.server.VaadinSession.class));
+        com.vaadin.flow.component.UI.setCurrent(ui);
+        return ui;
+    }
+
+    private static java.util.concurrent.CompletableFuture<ScoutReportService.Result> prepareBulkScouting(
+            MainView view, long count, boolean warning) throws Exception {
+        PlayerDatabaseService players = field(view, "players");
+        when(players.countPlayers(org.mockito.ArgumentMatchers.any())).thenReturn(count);
+        ScoutSettingsService settings = field(view, "scoutSettings");
+        when(settings.warnForLargeBatch()).thenReturn(warning);
+        ScoutReportService scouting = field(view, "scouting");
+        when(scouting.isSupported()).thenReturn(true);
+        var future = new java.util.concurrent.CompletableFuture<ScoutReportService.Result>();
+        when(scouting.scoutFiltered(org.mockito.ArgumentMatchers.any())).thenReturn(future);
+        var update = MainView.class.getDeclaredMethod("updateScoutingProgress");
+        update.setAccessible(true);
+        update.invoke(view);
+        return future;
+    }
+
+    private static com.vaadin.flow.component.dialog.Dialog scoutingDialog(com.vaadin.flow.component.UI ui, String title) {
+        ui.getInternals().getStateTree().runExecutionsBeforeClientResponse();
+        return ui.getChildren().filter(com.vaadin.flow.component.dialog.Dialog.class::isInstance)
+                .map(com.vaadin.flow.component.dialog.Dialog.class::cast)
+                .filter(d -> title.equals(d.getHeaderTitle())).findFirst().orElseThrow();
+    }
+
+    private static com.vaadin.flow.component.button.Button footerButton(com.vaadin.flow.component.dialog.Dialog dialog, String label) {
+        return dialog.getFooter().getElement().getChildren().flatMap(element -> element.getComponent().stream())
+                .filter(com.vaadin.flow.component.button.Button.class::isInstance)
+                .map(com.vaadin.flow.component.button.Button.class::cast)
+                .filter(b -> label.equals(b.getText())).findFirst().orElseThrow();
+    }
+
+    @Test
+    void playerInfoDistinguishesLoadedTraitsNoTraitsAndMissingSnapshotData() {
+        MainView view = view();
+        for (var sample : java.util.Map.of(
+                "Moves Into Channels", "Moves Into Channels", "", "None").entrySet()) {
+            var player = playerRow(java.util.Map.of("name", "Trait player", "player_traits", sample.getKey()));
+            assertEquals(sample.getValue(), view.playerInfoFields(player).stream()
+                    .filter(field -> "Player Traits".equals(field.label())).findFirst().orElseThrow().value());
+        }
+        assertEquals("Not loaded", view.playerInfoFields(playerRow(java.util.Map.of("name", "Legacy"))).stream()
+                .filter(field -> "Player Traits".equals(field.label())).findFirst().orElseThrow().value());
+    }
+
+    @Test
     void roleMenusHaveBundledOptionsAndAttributePriorities() throws Exception {
         var factory = MainView.class.getDeclaredMethod("roleComboBox", String.class, String.class);
         factory.setAccessible(true);
@@ -359,7 +673,8 @@ class MainViewTest {
                 mock(PlayerDatabaseService.class), mock(StaffDatabaseService.class),
                 mock(ClubDatabaseService.class), mock(CompetitionDatabaseService.class),
                 mock(com.github.fmaiassistent.repository.FixtureRepository.class),
-                mock(AppSettingsService.class), mock(SnapshotStatusService.class),
+                mock(AppSettingsService.class), mock(ScoutSettingsService.class), mock(ScoutReportService.class),
+                mock(SnapshotStatusService.class),
                 codex, antigravity, copilot, openRouter, tactics, managedClub,
                 mock(com.github.fmaiassistent.shortlist.ShortlistFileService.class),
                 mock(com.github.fmaiassistent.recruitment.RecruitmentCaseService.class),

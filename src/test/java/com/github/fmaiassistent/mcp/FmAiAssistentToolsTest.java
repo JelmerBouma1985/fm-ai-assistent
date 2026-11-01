@@ -31,6 +31,34 @@ import static org.mockito.Mockito.when;
 
 class FmAiAssistentToolsTest {
     @Test
+    void playerDetailsAndSquadContextPreserveTraitsAndUnknownState() {
+        PlayerDatabaseService players = mock(PlayerDatabaseService.class);
+        ClubDatabaseService clubs = mock(ClubDatabaseService.class);
+        SnapshotStatusService snapshots = mock(SnapshotStatusService.class);
+        var loaded = PlayerEntity.fromExportRow(Map.of("unique_id", 1L, "name", "Trait player", "club", "Test FC",
+                "playing_club", "Test FC", "player_traits", "Moves Into Channels", "player_traits_raw_hex", "0000000000000010"));
+        var none = PlayerEntity.fromExportRow(Map.of("unique_id", 2L, "name", "No traits", "club", "Test FC",
+                "playing_club", "Test FC", "player_traits", "", "player_traits_raw_hex", "0000000000000000"));
+        var legacy = PlayerEntity.fromExportRow(Map.of("unique_id", 3L, "name", "Legacy", "club", "Test FC", "playing_club", "Test FC"));
+        when(players.findAllPlayerEntities()).thenReturn(List.of(loaded, none, legacy));
+        when(clubs.findAllClubs()).thenReturn(List.of(club("Test FC", 5000, 1000)));
+        when(snapshots.reference()).thenReturn(Map.of("snapshot_id", "test"));
+        var tools = new FmAiAssistentTools(players, clubs, mock(StaffDatabaseService.class), new PlayerMapper(),
+                mock(JdbcTemplate.class), mock(ShortlistFileService.class), mock(RecruitmentCaseService.class), snapshots);
+        @SuppressWarnings("unchecked")
+        var details = (List<Map<String, Object>>) tools.getPlayerDetails(null, 1L, 1).get("players");
+        assertThat(details.getFirst()).containsEntry("PLAYER_TRAITS", "Moves Into Channels")
+                .containsEntry("PLAYER_TRAITS_RAW_HEX", "0000000000000010");
+        @SuppressWarnings("unchecked")
+        var squad = (List<Map<String, Object>>) tools.getClubContext("Test FC", 10).get("squad");
+        assertThat(squad.stream().filter(row -> "Trait player".equals(row.get("name"))).findFirst().orElseThrow())
+                .containsEntry("player_traits", "Moves Into Channels");
+        assertThat(squad.stream().filter(row -> "No traits".equals(row.get("name"))).findFirst().orElseThrow())
+                .containsEntry("player_traits", "");
+        assertThat(squad.stream().filter(row -> "Legacy".equals(row.get("name"))).findFirst().orElseThrow())
+                .containsEntry("player_traits", null);
+    }
+    @Test
     void searchesDefaultToTwentyAndAllowLargerPages() {
         PlayerDatabaseService players = mock(PlayerDatabaseService.class);
         ClubDatabaseService clubs = mock(ClubDatabaseService.class);

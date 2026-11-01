@@ -15,11 +15,11 @@ public final class FmToolResultFormatter {
             "fm27_get_role_attributes", "fm27_find_players", "fm27_find_staff",
             "fm27_get_club_context");
     private static final Set<String> PLAYER_SUMMARY = Set.of(
-            "player_unique_id", "name", "age", "position_text", "ca", "pa", "injured", "contract_end");
+            "player_unique_id", "name", "age", "position_text", "ca", "pa", "injured", "contract_end", "player_traits");
     private static final Set<String> SEARCH_PLAYER_SUMMARY = Set.of(
             "unique_id", "name", "age", "gender", "nationality", "club", "playing_club", "position_text",
             "ca", "pa", "asking_price", "salary_weekly_raw", "contract_end_date", "transfer_listed",
-            "listed_for_loan", "transfer_agreed", "injured");
+            "listed_for_loan", "transfer_agreed", "injured", "player_traits");
     private static final Set<String> FIT_SUMMARY = Set.of("slot", "position_fit", "role_fit", "overall", "viable");
     private static final Set<String> COACHING_SUMMARY = Set.of("role", "label", "score_20", "stars", "quality");
 
@@ -155,7 +155,7 @@ public final class FmToolResultFormatter {
         if (!(value instanceof ObjectNode object)) return;
         Set<String> extras = Set.of(extra);
         for (String name : new ArrayList<>(object.propertyNames())) {
-            if (!keep.contains(name) && !extras.contains(name)) object.remove(name);
+            if (!keep.contains(name.toLowerCase(java.util.Locale.ROOT)) && !extras.contains(name)) object.remove(name);
         }
     }
 

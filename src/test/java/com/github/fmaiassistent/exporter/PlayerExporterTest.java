@@ -21,6 +21,36 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PlayerExporterTest {
     private static final long PERSON = 0x4000;
 
+    @Test
+    void decodesLiveWindowsTraitsAndRejectsShiftedLayoutOnSameFixture() throws Exception {
+        FakeMemory memory = minimalPlayerRow();
+        memory.windows = true;
+        memory.putLong(PERSON + 0xC0, 0x1000000000010000L);
+        var row = new PlayerExporter().decodeRow(memory, 1, PERSON, "", null);
+        assertThat(row.get("player_traits")).isEqualTo("Winds Up Opponents, Brings Ball Out of Defence");
+        assertThat(row.get("player_traits_raw_hex")).isEqualTo("1000000000010000");
+        var drifted = new PlayerExporter(PlayerRecordLayout.current(),
+                new com.github.fmaiassistent.memory.PlayerTraitsLayout(0xC1, Long.BYTES));
+        assertThatThrownBy(() -> drifted.decodeRow(memory, 1, PERSON, "", null))
+                .isInstanceOf(PlayerSnapshotValidator.PersonIdentityChangedException.class)
+                .hasMessageContaining("traits PERSON range/displacement anchor");
+    }
+
+    @Test
+    void distinguishesKnownEmptyTraitsFromUnsupportedPlatformAndUnreadableMemory() throws Exception {
+        FakeMemory memory = minimalPlayerRow();
+        var unknown = new PlayerExporter().decodeRow(memory, 1, PERSON, "", null);
+        assertThat(unknown.get("player_traits")).isNull();
+        assertThat(unknown.get("player_traits_raw_hex")).isNull();
+        memory.windows = true;
+        var empty = new PlayerExporter().decodeRow(memory, 1, PERSON, "", null);
+        assertThat(empty.get("player_traits")).isEqualTo("");
+        assertThat(empty.get("player_traits_raw_hex")).isEqualTo("0000000000000000");
+        memory.bytes.remove(PERSON + 0xC0);
+        assertThatThrownBy(() -> new PlayerExporter().decodeRow(memory, 1, PERSON, "", null))
+                .isInstanceOf(IOException.class);
+    }
+
     @Test void windowsDoesNotReadFutureFieldsBeyondPrimaryFullAllocationAndPreservesUnknownStatus()throws Exception {
         var memory=minimalPlayerRow();memory.windows=true;
         long contract=0xA000;memory.fill(contract,0xC8,0);
@@ -277,6 +307,7 @@ class PlayerExporterTest {
         FakeMemory memory = memoryWithType(PersonMemoryClassifier.PLAYER_DYNAMIC_OFFSET);
         memory.fill(PERSON - 0x1A0, 0x1A0, 0);
         memory.fill(PERSON + Long.BYTES, 0x90 - Long.BYTES, 0);
+        memory.putLong(PERSON + 0xC0, 0);
         memory.putI16(PERSON + AttributeDefinitions.CURRENT_ABILITY_REL, 120);
         memory.putI16(PERSON + AttributeDefinitions.POTENTIAL_ABILITY_REL, 140);
         putPlausiblePlayerBlock(memory, 0, true);

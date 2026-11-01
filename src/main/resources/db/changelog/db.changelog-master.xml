@@ -526,4 +526,7 @@
     <include file="changes/028-contract-award-names.xml" relativeToChangelogFile="true"/>
     <include file="changes/029-contract-competition-references.xml" relativeToChangelogFile="true"/>
     <include file="changes/030-current-role-catalog.xml" relativeToChangelogFile="true"/>
+    <include file="changes/031-player-traits.xml" relativeToChangelogFile="true"/>
+    <include file="changes/032-scout-settings.xml" relativeToChangelogFile="true"/>
+    <include file="changes/033-scout-large-batch-warning.xml" relativeToChangelogFile="true"/>
 </databaseChangeLog>

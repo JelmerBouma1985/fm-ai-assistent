@@ -14,7 +14,36 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 class CompactFmToolCallbackTest {
+    @org.junit.jupiter.api.Test
+    void fullPlayerSearchRetainsTraitsWhenResponseIsCompacted() throws Exception {
+        String result = "{\"players\":[{\"UNIQUE_ID\":7,\"NAME\":\"A\",\"PLAYER_TRAITS\":\"Curls Ball\",\"PLAYER_TRAITS_RAW_HEX\":\"0000000000000800\"}]}";
+        var compact = new tools.jackson.databind.ObjectMapper().readTree(
+                FmToolResultFormatter.compact(new tools.jackson.databind.ObjectMapper(), "fm27_find_players", result));
+        var player = compact.path("players").get(0);
+        org.junit.jupiter.api.Assertions.assertEquals("Curls Ball", player.path("PLAYER_TRAITS").asString());
+        org.junit.jupiter.api.Assertions.assertEquals(7, player.path("UNIQUE_ID").asInt());
+        org.junit.jupiter.api.Assertions.assertFalse(player.has("PLAYER_TRAITS_RAW_HEX"));
+    }
     private final JsonMapper json = JsonMapper.builder().build();
+
+    @Test void compactPlayerViewsKeepTraitsForAdvice() {
+        for (String tool : new String[] {"fm27_find_players", "fm27_get_club_context", "fm27_analyze_squad"}) {
+            var original = fixture(tool);
+            var row = (ObjectNode) switch (tool) {
+                case "fm27_find_players" -> original.path("players").get(0);
+                case "fm27_get_club_context" -> original.path("squad").get(0);
+                default -> original.path("tactic_slots").get(0).path("best_options").get(0);
+            };
+            row.put("player_traits", "Moves Into Channels");
+            var compact = json.readTree(callback(tool, json.writeValueAsString(original)).call("{}"));
+            var projected = switch (tool) {
+                case "fm27_find_players" -> compact.path("players").get(0);
+                case "fm27_get_club_context" -> compact.path("squad").get(0);
+                default -> compact.path("tactic_slots").get(0).path("best_options").get(0);
+            };
+            assertEquals("Moves Into Channels", projected.path("player_traits").asString(), tool);
+        }
+    }
 
     @Test void allSevenReadViewsKeepDecisionFieldsAndSnapshotIdentity() {
         for (String tool : new String[] {"fm27_analyze_squad", "fm27_optimize_lineup",

@@ -27,13 +27,19 @@ public class PlayerExporter {
     private static final int DUTY_MAX_RECORDS_BYTES = 512;
 
     private final PlayerRecordLayout recordLayout;
+    private final com.github.fmaiassistent.memory.PlayerTraitsLayout traitsLayout;
 
     public PlayerExporter() {
         this(PlayerRecordLayout.current());
     }
 
     public PlayerExporter(PlayerRecordLayout recordLayout) {
+        this(recordLayout, com.github.fmaiassistent.memory.PlayerTraitsLayout.current());
+    }
+
+    PlayerExporter(PlayerRecordLayout recordLayout, com.github.fmaiassistent.memory.PlayerTraitsLayout traitsLayout) {
         this.recordLayout = recordLayout;
+        this.traitsLayout = traitsLayout;
     }
     private static final int MAX_SOURCE_OFFSET = Math.max(
             POSITION_FIELDS.stream().mapToInt(FieldDef::offset).max().orElseThrow(),
@@ -135,6 +141,15 @@ public class PlayerExporter {
         row.put("record", "0x" + Long.toHexString(record));
         row.put("unique_id", reader.readU32(record + recordLayout.direct().uniqueIdRel()));
         row.put("name", FmMemoryStrings.playerName(reader, record).orElse("0x" + Long.toHexString(record)));
+        row.put("player_traits", null);
+        row.put("player_traits_raw_hex", null);
+        // Only the Windows FM27 member has been verified. Unknown is distinct from an empty mask.
+        if (reader.platform() == ProcessMemoryReader.Platform.WINDOWS) {
+            PlayerSnapshotValidator.validatePlayerTraitsLayout(traitsLayout);
+            long traits = reader.readU64(record + traitsLayout.personRel());
+            row.put("player_traits", com.github.fmaiassistent.player.PlayerTraits.describe(traits));
+            row.put("player_traits_raw_hex", com.github.fmaiassistent.player.PlayerTraits.rawHex(traits));
+        }
         row.put("gender", playerGender(reader, record));
         row.put("nationality", FmMemoryStrings.playerNationality(reader, record).orElse(""));
         row.put("club", club);
@@ -613,7 +628,7 @@ public class PlayerExporter {
 
     private static List<String> buildFieldNames() {
         List<String> names = new ArrayList<>(List.of(
-                "index", "record", "unique_id", "name", "gender", "nationality", "club", "playing_club", "loan_club", "is_loaned_out",
+                "index", "record", "unique_id", "name", "player_traits", "player_traits_raw_hex", "gender", "nationality", "club", "playing_club", "loan_club", "is_loaned_out",
                 "current_reputation", "home_reputation", "world_reputation", "ca", "pa",
                 "asking_price", "asking_price_raw", "joined_club_date", "transfer_listed", "listed_for_loan",
                 "transfer_agreed", "future_transfer_club", "future_transfer_date", "future_transfer_contract_end_date", "injured",

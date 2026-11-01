@@ -18,6 +18,7 @@ import com.github.fmaiassistent.tactic.TacticContextService;
 import com.github.fmaiassistent.snapshot.SnapshotStatusService;
 import com.github.fmaiassistent.snapshot.RefreshCoordinator;
 import com.github.fmaiassistent.domain.enums.MoneyCurrency;
+import com.github.fmaiassistent.domain.enums.ScoutingMode;
 import com.github.fmaiassistent.repository.*;
 import com.github.fmaiassistent.player.AttributeDefinitions;
 import com.github.fmaiassistent.player.FieldDef;
@@ -115,6 +116,8 @@ public class MainView extends VerticalLayout {
     private final FixtureRepository fixtures;
     private final RecruitmentCaseService recruitment;
     private final AppSettingsService settings;
+    private final ScoutSettingsService scoutSettings;
+    private final ScoutReportService scouting;
     private final SnapshotStatusService snapshots;
     private final ContractRepository contracts;
 
@@ -125,6 +128,13 @@ public class MainView extends VerticalLayout {
     private final Button freshnessBadge = new Button("Freshness unknown");
     private final Button settingsButton = new Button(VaadinIcon.COG.create());
     private final Button filterButton = new Button("Filter", VaadinIcon.FILTER.create());
+    private final Button scoutAllButton = new Button("Scout all players in view", VaadinIcon.SEARCH.create());
+    private final Dialog scoutingDialog = new Dialog();
+    private final ProgressBar scoutingProgress = new ProgressBar();
+    private final Span scoutingPhase = new Span();
+    private final Button cancelScoutingButton = new Button("Cancel");
+    private boolean scoutingCancellationRequested;
+    private CompletableFuture<ScoutReportService.Result> scoutingTask;
     private final Span status = new Span();
     private Instant lastFreshnessPoll;
     private Boolean lastStale;
@@ -165,6 +175,8 @@ public class MainView extends VerticalLayout {
             CompetitionDatabaseService competitions,
             FixtureRepository fixtures,
             AppSettingsService settings,
+            ScoutSettingsService scoutSettings,
+            ScoutReportService scouting,
             SnapshotStatusService snapshots,
             CodexConversationService codexConversations,
             AntigravityConversationService antigravityConversations,
@@ -183,6 +195,8 @@ public class MainView extends VerticalLayout {
         this.fixtures = fixtures;
         this.recruitment = recruitment;
         this.settings = settings;
+        this.scoutSettings = scoutSettings;
+        this.scouting = scouting;
         this.snapshots = snapshots;
         this.contracts = contracts;
         this.aiAssistant = new AiAssistantView(
@@ -213,6 +227,7 @@ public class MainView extends VerticalLayout {
         configureGrid(fixturesGrid);
         configureGrid(recruitmentGrid);
         configureLoadingDialog();
+        configureScoutingDialog();
         playersGrid.addItemClickListener(event -> openPlayerDetailsDialog(event.getItem()));
         staffGrid.addItemClickListener(event -> openStaffDetailsDialog(event.getItem()));
         fixturesGrid.addItemClickListener(event -> openOpponentDetailsDialog(event.getItem()));
@@ -302,7 +317,13 @@ public class MainView extends VerticalLayout {
         workspaceDescription.addClassName("workspace-description");
         Div heading = new Div(workspaceSection, workspaceTitle, workspaceDescription);
         heading.addClassName("workspace-heading-copy");
-        Div header = new Div(heading, filterButton);
+        scoutAllButton.setTooltipText("Create scout reports for all players matching the current filters, across all pages");
+        scoutAllButton.setEnabled(scouting.isSupported() && !scouting.isRunning());
+        scoutAllButton.addClickListener(event -> confirmBulkScouting());
+        HorizontalLayout actions = new HorizontalLayout(scoutAllButton, filterButton);
+        actions.setAlignItems(Alignment.CENTER);
+        actions.getStyle().set("flex-wrap", "wrap").set("justify-content", "flex-end");
+        Div header = new Div(heading, actions);
         header.addClassName("workspace-heading");
         return header;
     }
@@ -353,6 +374,7 @@ public class MainView extends VerticalLayout {
         aiAssistantTab.addComponentAsFirst(VaadinIcon.CHAT.create());
         tabs.addSelectedChangeListener(event -> {
             updateWorkspaceHeading(event.getSelectedTab());
+            scoutAllButton.setVisible(event.getSelectedTab() == playersTab);
             filterButton.setVisible(event.getSelectedTab() == playersTab
                     || event.getSelectedTab() == staffTab
                     || event.getSelectedTab() == clubsTab
@@ -435,6 +457,115 @@ public class MainView extends VerticalLayout {
                     loadButton.setIcon(VaadinIcon.DATABASE.create());
                     loadButton.removeClassName("is-loading");
                 }));
+    }
+
+    private void configureScoutingDialog() {
+        scoutingDialog.setHeaderTitle("Creating scout reports");
+        scoutingDialog.setCloseOnEsc(false);
+        scoutingDialog.setCloseOnOutsideClick(false);
+        scoutingDialog.setWidth("440px");
+        scoutingDialog.setMaxWidth("calc(100vw - 32px)");
+        scoutingPhase.getElement().setAttribute("aria-live", "polite");
+        scoutingProgress.setIndeterminate(true);
+        scoutingDialog.add(new VerticalLayout(scoutingPhase, scoutingProgress));
+        cancelScoutingButton.addClickListener(event -> {
+            if (scoutingTask != null && scouting.cancel(scoutingTask)) {
+                scoutingCancellationRequested = true;
+                cancelScoutingButton.setText("Cancelling...");
+                cancelScoutingButton.setEnabled(false);
+            }
+            updateScoutingProgress();
+        });
+        scoutingDialog.getFooter().add(cancelScoutingButton);
+    }
+
+    private void confirmBulkScouting() {
+        PlayerFilterCriteria capturedFilter = playerFilter;
+        long count = players.countPlayers(capturedFilter);
+        if (count <= 100 || !scoutSettings.warnForLargeBatch()) {
+            startScouting(() -> scouting.scoutFiltered(capturedFilter));
+            return;
+        }
+        Dialog confirmation = new Dialog();
+        confirmation.setHeaderTitle("Scout " + count + " players?");
+        confirmation.setWidth("440px");
+        confirmation.setMaxWidth("calc(100vw - 32px)");
+        Checkbox suppressWarning = new Checkbox("Don't show again");
+        confirmation.add(new VerticalLayout(
+                new Span("Creating scout reports for " + count + " players can take a long time. You can cancel scouting after the current report finishes. FM keeps up to 100 entries in the scouting centre; completed reports remain available on player profiles."),
+                suppressWarning));
+        Button proceed = new Button("Continue", event -> {
+            if (suppressWarning.getValue()) {
+                scoutSettings.saveWarnForLargeBatch(false);
+            }
+            confirmation.close();
+            startScouting(() -> scouting.scoutFiltered(capturedFilter));
+        });
+        proceed.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        confirmation.getFooter().add(new Button("Cancel", event -> confirmation.close()), proceed);
+        confirmation.open();
+    }
+
+    private void startScouting(java.util.function.Supplier<CompletableFuture<ScoutReportService.Result>> action) {
+        if (scoutingTask != null || scouting.isRunning()) {
+            Notification.show("Scouting is already running", 3000, Notification.Position.TOP_CENTER);
+            return;
+        }
+        try {
+            scoutingTask = Objects.requireNonNull(action.get());
+            scoutingCancellationRequested = false;
+            cancelScoutingButton.setText("Cancel");
+            cancelScoutingButton.setEnabled(true);
+            scoutAllButton.setEnabled(false);
+            scoutAllButton.setText("Scouting...");
+            scoutAllButton.addClassName("is-loading");
+            loadButton.setEnabled(false);
+            scoutingProgress.setIndeterminate(true);
+            scoutingPhase.setText("Preparing scout reports...");
+            scoutingDialog.open();
+            getUI().ifPresent(ui -> ui.setPollInterval(LOADING_POLL_INTERVAL_MS));
+            updateScoutingProgress();
+        } catch (RuntimeException exception) {
+            scoutingTask = null;
+            Notification.show("Scouting failed: " + exception.getMessage(), 8000, Notification.Position.TOP_CENTER);
+        }
+    }
+
+    private void updateScoutingProgress() {
+        if (scoutingTask == null) {
+            scoutAllButton.setEnabled(scouting.isSupported() && !scouting.isRunning());
+            return;
+        }
+        ScoutReportService.Progress progress = scouting.progress();
+        if (progress != null) {
+            scoutingPhase.setText(scoutingCancellationRequested
+                    ? "Finishing the current report before stopping..." : progress.message());
+            scoutingProgress.setIndeterminate(progress.total() <= 0);
+            if (progress.total() > 0) {
+                scoutingProgress.setValue(Math.clamp((double) progress.completed() / progress.total(), 0, 1));
+            }
+        }
+        if (!scoutingTask.isDone()) {
+            return;
+        }
+        try {
+            ScoutReportService.Result result = scoutingTask.join();
+            Notification.show((result.cancelled() ? "Scouting cancelled: " : "Scout reports: ")
+                    + result.created() + " created, " + result.updated()
+                    + " updated, " + result.skipped() + " skipped", 6000, Notification.Position.TOP_CENTER);
+        } catch (CompletionException exception) {
+            Throwable cause = exception.getCause() == null ? exception : exception.getCause();
+            Notification.show("Scouting failed: " + cause.getMessage(), 8000, Notification.Position.TOP_CENTER);
+        } finally {
+            scoutingTask = null;
+            scoutingDialog.close();
+            scoutAllButton.setText("Scout all players in view");
+            scoutAllButton.removeClassName("is-loading");
+            scoutAllButton.setEnabled(scouting.isSupported() && !scouting.isRunning());
+            loadButton.setEnabled(true);
+            getUI().ifPresent(ui -> ui.setPollInterval(loadingDialog.isOpened()
+                    ? LOADING_POLL_INTERVAL_MS : BADGE_POLL_INTERVAL_MS));
+        }
     }
 
     private void refreshFreshnessBadge(boolean manual) {
@@ -532,7 +663,7 @@ public class MainView extends VerticalLayout {
         super.onAttach(event);
         getUI().ifPresent(ui -> {
             ui.getElement().setAttribute("theme", "dark");
-            ui.setPollInterval(BADGE_POLL_INTERVAL_MS);
+            ui.setPollInterval(scoutingTask != null ? LOADING_POLL_INTERVAL_MS : BADGE_POLL_INTERVAL_MS);
             if (pollRegistration == null) {
                 pollRegistration = ui.addPollListener(this::onPoll);
             }
@@ -551,6 +682,10 @@ public class MainView extends VerticalLayout {
     }
 
     private void onPoll(PollEvent event) {
+        updateScoutingProgress();
+        if (scoutingTask != null) {
+            return;
+        }
         if (loadingDialog.isOpened()) {
             updateLoadingPhase();
             return;
@@ -1280,7 +1415,11 @@ public class MainView extends VerticalLayout {
                         new DetailField("Age", player.getAge()),
                         new DetailField("Current ability", player.getCa()),
                         new DetailField("Potential ability", player.getPa()))), detailTabs, detailContent);
-        dialog.getFooter().add(close);
+        Button scoutPlayer = new Button("Scout this player", VaadinIcon.SEARCH.create());
+        scoutPlayer.setEnabled(player.getUniqueId() != null && player.getUniqueId() > 0
+                && scouting.isSupported() && !scouting.isRunning());
+        scoutPlayer.addClickListener(event -> startScouting(() -> scouting.scoutPlayer(player.getUniqueId())));
+        dialog.getFooter().add(scoutPlayer, close);
         dialog.open();
     }
 
@@ -1314,6 +1453,8 @@ public class MainView extends VerticalLayout {
                 new DetailField("Club", player.getClub()),
                 new DetailField("Playing Club", player.getPlayingClub()),
                 new DetailField("Position", PositionTextFormatter.format(player)),
+                new DetailField("Player Traits", player.getPlayerTraits() == null ? "Not loaded"
+                        : player.getPlayerTraits().isBlank() ? "None" : player.getPlayerTraits()),
                 new DetailField("Salary Weekly", salaryWeeklyDisplay(player.getSalaryWeeklyRaw())),
                 new DetailField("Asking Price", moneyDisplay(player.getAskingPrice())),
                 new DetailField("Joined Club Date", player.getJoinedClubDate()),
@@ -1458,13 +1599,24 @@ public class MainView extends VerticalLayout {
         currencySelect.setItemLabelGenerator(MoneyCurrency::label);
         currencySelect.setValue(currency);
 
+        Select<ScoutingMode> scoutingSelect = new Select<>();
+        scoutingSelect.setLabel("Scout reports");
+        scoutingSelect.setItems(ScoutingMode.values());
+        scoutingSelect.setItemLabelGenerator(ScoutingMode::label);
+        scoutingSelect.setValue(scoutSettings.mode());
+        scoutingSelect.setWidthFull();
+        Span scoutingHelp = new Span("Reports use your club's best scout. In 20/20 mode, judging ability and potential are temporarily raised for each report and restored immediately afterwards. This choice is saved in the database.");
+        scoutingHelp.getStyle().set("font-size", "var(--lumo-font-size-s)");
+        Checkbox warnForLargeBatch = new Checkbox("Warn before scouting more than 100 players");
+        warnForLargeBatch.setValue(scoutSettings.warnForLargeBatch());
+
         Span file = new Span("Stored in " + settings.settingsPath());
         file.getStyle()
                 .set("font-size", "var(--lumo-font-size-xs)")
                 .set("color", "var(--lumo-secondary-text-color)")
                 .set("overflow-wrap", "anywhere");
 
-        VerticalLayout layout = new VerticalLayout(currencySelect, file);
+        VerticalLayout layout = new VerticalLayout(currencySelect, file, scoutingSelect, scoutingHelp, warnForLargeBatch);
         layout.setPadding(false);
         layout.setSpacing(true);
         layout.addClassName("settings-content");
@@ -1473,6 +1625,8 @@ public class MainView extends VerticalLayout {
         Button save = new Button("Save", VaadinIcon.CHECK.create(), event -> {
             currency = currencySelect.getValue() == null ? MoneyCurrency.POUND : currencySelect.getValue();
             settings.saveCurrency(currency);
+            scoutSettings.saveMode(scoutingSelect.getValue());
+            scoutSettings.saveWarnForLargeBatch(warnForLargeBatch.getValue());
             refreshSelectedTab();
             Notification.show("Settings saved", 2500, Notification.Position.TOP_CENTER);
             dialog.close();

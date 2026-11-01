@@ -350,6 +350,10 @@ public class SnapshotDatabaseWriter {
             return missingValue(column);
         }
         String text = String.valueOf(value);
+        // An observed zero trait mask is an empty list; null means traits were not captured.
+        if ("player_traits".equals(column.exportName()) && text.isEmpty()) {
+            return "";
+        }
         if (text.isBlank()) {
             return missingValue(column);
         }

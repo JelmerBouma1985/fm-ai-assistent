@@ -35,6 +35,8 @@ public class PlayerMapper implements Function<PlayerEntity, Map<String, Object>>
         out.put("GENDER", entity.getGender());
         out.put("RECORD_ADDRESS", entity.getRecordAddress());
         out.put("NAME", entity.getName());
+        out.put("PLAYER_TRAITS", entity.getPlayerTraits());
+        out.put("PLAYER_TRAITS_RAW_HEX", entity.getPlayerTraitsRawHex());
         out.put("NATIONALITY", entity.getNationality());
         out.put("CLUB", entity.getClub());
         out.put("PLAYING_CLUB", entity.getPlayingClub());

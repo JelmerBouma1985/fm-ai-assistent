@@ -13,6 +13,7 @@ import com.github.fmaiassistent.linux.ProcessInfo;
 import com.github.fmaiassistent.managedclub.ManagedClubContext;
 import com.github.fmaiassistent.managedclub.ManagedClubContextService;
 import com.github.fmaiassistent.memory.ProcessReaders;
+import com.github.fmaiassistent.memory.FmMemoryAccess;
 import com.github.fmaiassistent.repository.DatabaseService;
 import com.github.fmaiassistent.domain.entity.LoadMetadataEntity;
 import com.github.fmaiassistent.repository.LoadMetadataRepository;
@@ -103,7 +104,8 @@ public class DatabaseLoadAllService {
                 warningPrefix.set("Unknown FM27 build " + installed + " - using last known memory layout");
             }
             reportPhase("Reading FM27 memory");
-            RamSnapshot ram = readRamInParallel(resolvedPid, build, gamePluginBase);
+            RamSnapshot ram = FmMemoryAccess.exclusive(
+                    () -> readRamInParallel(resolvedPid, build, gamePluginBase));
             if (ram.peopleSlots() <= 0) {
                 throw new IOException("FM27 people registry is empty; wait until the save has finished loading");
             }

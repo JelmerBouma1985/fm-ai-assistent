@@ -18,6 +18,38 @@ public final class PlayerSnapshotValidator {
     private PlayerSnapshotValidator() {
     }
 
+    /** Live100/5 tags and native factory/registration/disposal callers anchor this write ABI. */
+    public static void validateScoutingReportLayout(com.github.fmaiassistent.memory.ScoutingReportLayout layout)
+            throws PersonIdentityChangedException {
+        if (!com.github.fmaiassistent.memory.ScoutingReportLayout.current().equals(layout)
+                || layout.percentRel() + 1 != layout.categoryRel()
+                || layout.extraRel() + Long.BYTES > layout.percentRel()
+                || layout.tagPersonRel() + Long.BYTES != layout.tagStaffRel()
+                || layout.tagStaffRel() + Long.BYTES != layout.tagTeamRel()
+                || layout.tagTeamRel() + Long.BYTES > layout.extraRel()
+                || layout.humanDataRel() + Long.BYTES > layout.humanDisplacement()
+                || layout.recruitmentEntriesRel() + 3 * Long.BYTES != 0x150
+                || layout.recruitmentEntryTagRel() + Long.BYTES > layout.recruitmentEntryBytes()
+                || layout.recruitmentEntryDateRel() + Integer.BYTES != layout.recruitmentEntryIdRel()
+                || layout.recruitmentEntryDefaultsRel() + Long.BYTES != layout.recruitmentEntryDeliveryRel()
+                || layout.recruitmentEntryDeliveryRel() >= layout.recruitmentEntryBytes()
+                || layout.recruitmentPoolsBeginRel() + Long.BYTES != layout.recruitmentPoolsEndRel()
+                || layout.recruitmentPoolPointerBytes() != Long.BYTES
+                || layout.reportsRel() + 3 * Long.BYTES != 0x128
+                || layout.judgementRel() + 2 != 0x2E) {
+            throw new PersonIdentityChangedException("Scouting report native range/displacement anchor failed");
+        }
+    }
+
+    /** Ten UID-checked live PERSON windows anchor the eight-byte mask at +C0. */
+    public static void validatePlayerTraitsLayout(com.github.fmaiassistent.memory.PlayerTraitsLayout layout)
+            throws PersonIdentityChangedException {
+        if (layout.personRel() != 0xC0 || layout.bytes() != Long.BYTES
+                || layout.personRel() + layout.bytes() != 0xC8) {
+            throw new PersonIdentityChangedException("Player traits PERSON range/displacement anchor failed");
+        }
+    }
+
     /** Native RTTI and the human PERSON getter independently anchor the complete-object displacements. */
     public static void validatePersonSubtypeLayout(
             com.github.fmaiassistent.memory.PersonIdentityLayout.Subtypes layout)

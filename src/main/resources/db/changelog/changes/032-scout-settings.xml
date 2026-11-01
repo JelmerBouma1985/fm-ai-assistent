@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+ <changeSet id="032-scout-settings" author="codex">
+  <createTable tableName="scout_settings">
+   <column name="id" type="INT"><constraints primaryKey="true" nullable="false"/></column>
+   <column name="scouting_mode" type="VARCHAR(32)" defaultValue="BEST_CLUB_SCOUT"><constraints nullable="false"/></column>
+  </createTable>
+  <insert tableName="scout_settings">
+   <column name="id" valueNumeric="1"/>
+   <column name="scouting_mode" value="BEST_CLUB_SCOUT"/>
+  </insert>
+  <rollback><dropTable tableName="scout_settings"/></rollback>
+ </changeSet>
+</databaseChangeLog>

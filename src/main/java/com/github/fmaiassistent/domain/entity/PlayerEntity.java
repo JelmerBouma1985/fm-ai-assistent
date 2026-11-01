@@ -37,6 +37,10 @@ public class PlayerEntity {
     private String nonPlayingProfileSha256;
     @Column(length = 1024)
     private String name;
+    @Column(name = "player_traits", length = 4096)
+    private String playerTraits;
+    @Column(name = "player_traits_raw_hex", length = 16)
+    private String playerTraitsRawHex;
     @Column(length = 1024)
     private String gender;
     @Column(length = 1024)
@@ -298,6 +302,11 @@ public class PlayerEntity {
     public String getName() {
         return name;
     }
+
+    /** Null means unavailable in this snapshot; an empty value means no traits. */
+    public String getPlayerTraits() { return playerTraits; }
+
+    public String getPlayerTraitsRawHex() { return playerTraitsRawHex; }
 
     public ClubEntity getClubEntity() {
         return clubEntity;
@@ -801,7 +810,8 @@ public class PlayerEntity {
         try {
             Field field = PlayerEntity.class.getDeclaredField(PlayerColumnNames.toEntityFieldName(exportField));
             field.setAccessible(true);
-            field.set(this, convertValue(value, field.getType()));
+            field.set(this, "player_traits".equals(exportField) && "".equals(value)
+                    ? "" : convertValue(value, field.getType()));
         } catch (NoSuchFieldException | IllegalAccessException ex) {
             throw new IllegalArgumentException("unmapped player export field: " + exportField, ex);
         }

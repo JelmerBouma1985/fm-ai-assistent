@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+ <changeSet id="033-scout-large-batch-warning" author="codex">
+  <addColumn tableName="scout_settings">
+   <column name="warn_for_large_batch" type="BOOLEAN" defaultValueBoolean="true"/>
+  </addColumn>
+  <rollback><dropColumn tableName="scout_settings" columnName="warn_for_large_batch"/></rollback>
+ </changeSet>
+</databaseChangeLog>

@@ -216,7 +216,7 @@ public class FmAiAssistentTools {
         return withSnapshot(out);
     }
 
-    @Tool(name = "fm27_get_player_details", description = "Get full player details including attributes, positions, CA/PA, reputation, contract and club data.")
+    @Tool(name = "fm27_get_player_details", description = "Get full player details including player traits, attributes, positions, CA/PA, reputation, contract and club data. Player traits describe playing tendencies to consider when advising on roles and tactics; null means unavailable in this snapshot and an empty string means no traits.")
     @Transactional(readOnly = true)
     public Map<String, Object> getPlayerDetails(
             @ToolParam(required = false, description = "Player name. Exact match is preferred; contains match is used as fallback.") String name,
@@ -1139,6 +1139,7 @@ public class FmAiAssistentTools {
         out.put("home_reputation", player.getHomeReputation());
         out.put("world_reputation", player.getWorldReputation());
         out.put("height_cm", player.getHeightCm());
+        out.put("player_traits", player.getPlayerTraits());
         return out;
     }
 

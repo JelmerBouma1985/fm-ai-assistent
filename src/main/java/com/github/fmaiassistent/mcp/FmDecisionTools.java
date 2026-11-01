@@ -1023,6 +1023,7 @@ public class FmDecisionTools {
 
     private Map<String, Object> compactPlayer(PlayerEntity player) {
         Map<String, Object> out = new LinkedHashMap<>();
+        out.put("player_traits", player.getPlayerTraits());
         out.put("player_unique_id", player.getUniqueId());
         out.put("name", player.getName());
         out.put("age", parsedAge(player));
@@ -1042,6 +1043,7 @@ public class FmDecisionTools {
 
     private static Map<String, Object> slotCandidateMap(PlayerEntity player, RoleFitService.SlotFit fit) {
         Map<String, Object> out = new LinkedHashMap<>();
+        out.put("player_traits", player.getPlayerTraits());
         out.put("player_unique_id", player.getUniqueId());
         out.put("name", player.getName());
         out.put("age", parsedAge(player));
