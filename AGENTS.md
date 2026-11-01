@@ -37,9 +37,9 @@ browsing plus AI-assisted recruitment/tactics advice.
 
 ## Code conventions
 
-- Commit messages in English. PR descriptions state that AI-agent-written code
-  was produced by `Muse Spark 1.3 Contributor (opencode-go/muse-spark-1.3-contributor)`
-  via OpenCode, reviewed and tested by the repository owner.
+- Commit messages in English. PR descriptions state which AI agent produced the
+  AI-agent-written code (name the actual agent and tool, not a hardcoded one),
+  reviewed and tested by the repository owner.
 - No emojis in code, UI strings, or communication unless requested.
 - When referencing code, use `path:line` citations.
 - Prefer editing existing files over creating new ones. Never commit build
