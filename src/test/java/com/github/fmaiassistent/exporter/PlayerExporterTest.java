@@ -51,6 +51,20 @@ class PlayerExporterTest {
                 .isInstanceOf(IOException.class);
     }
 
+    @Test
+    void exportsOwnerConfirmedNamesAndPreservesRawBitsWithoutDisplayedTraits() throws Exception {
+        FakeMemory memory = minimalPlayerRow();
+        memory.windows = true;
+        memory.putLong(PERSON + 0xC0, 0x0009000000000200L);
+        var niang = new PlayerExporter().decodeRow(memory, 1, PERSON, "", null);
+        assertThat(niang.get("player_traits")).isEqualTo("Shoots With Power, Runs With Ball Often");
+        assertThat(niang.get("player_traits_raw_hex")).isEqualTo("0009000000000200");
+        memory.putLong(PERSON + 0xC0, 0x0002000000000000L);
+        var noDisplayedTrait = new PlayerExporter().decodeRow(memory, 1, PERSON, "", null);
+        assertThat(noDisplayedTrait.get("player_traits")).isEqualTo("");
+        assertThat(noDisplayedTrait.get("player_traits_raw_hex")).isEqualTo("0002000000000000");
+    }
+
     @Test void windowsDoesNotReadFutureFieldsBeyondPrimaryFullAllocationAndPreservesUnknownStatus()throws Exception {
         var memory=minimalPlayerRow();memory.windows=true;
         long contract=0xA000;memory.fill(contract,0xC8,0);
