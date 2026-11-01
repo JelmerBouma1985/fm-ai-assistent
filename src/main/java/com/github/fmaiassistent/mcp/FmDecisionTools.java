@@ -100,7 +100,8 @@ public class FmDecisionTools {
             @ToolParam(required = false, description = "Assignments that must be used, each containing tacticSlot and playerUniqueId.") List<LineupOptimizerService.LockedAssignment> lockedAssignments,
             @ToolParam(required = false, description = "Alternatives per tactic slot. Defaults to 3, maximum 10.") Integer alternativeLimit) {
         String clubName = resolveManagingClub(managingClub);
-        List<PlayerEntity> squad = currentSquad(players.findAllPlayerEntities(), clubName);
+        ClubEntity club = requireClub(clubName);
+        List<PlayerEntity> squad = currentSquad(players.findAllPlayerEntities(), club);
         TacticContext tactic = requireTactic();
         Map<String, Object> snapshot = snapshots.reference();
         LineupOptimizerService.Constraints constraints = lineupConstraints(
@@ -154,7 +155,7 @@ public class FmDecisionTools {
 
         Map<String, Object> snapshot = snapshots.reference();
         List<PlayerEntity> all = players.findAllPlayerEntities();
-        List<PlayerEntity> squad = currentSquad(all, clubName);
+        List<PlayerEntity> squad = currentSquad(all, club);
         Map<Long, RecruitmentCaseEntity> evidenceByPlayer = recruitmentCases.byPlayerUniqueId();
         LineupOptimizerService.Constraints baseConstraints = lineupConstraints(
                 minimum, false, List.of(), List.of(), 0, snapshot, tacticContext);
@@ -166,7 +167,7 @@ public class FmDecisionTools {
         int excludedByEvidence = 0;
         for (PlayerEntity player : all) {
             if (player.getUniqueId() == null
-                    || belongsToClub(player, clubName)
+                    || belongsToClub(player, club)
                     || !sameGender(player, club)
                     || (maxAge != null && age(player) > maxAge)
                     || (minCurrentAbility != null && value(player.getCa()) < minCurrentAbility)
@@ -352,10 +353,11 @@ public class FmDecisionTools {
             @ToolParam(required = false, description = "Minimum positional ability for a viable option, 1-20. Defaults to 15.") Integer minimumPositionScore,
             @ToolParam(required = false, description = "Contract-risk horizon in months. Defaults to 12.") Integer contractHorizonMonths) {
         String clubName = resolveManagingClub(managingClub);
+        ClubEntity club = requireClub(clubName);
         int minimum = clamp(minimumPositionScore == null ? 15 : minimumPositionScore, 1, 20);
         int horizon = clamp(contractHorizonMonths == null ? 12 : contractHorizonMonths, 1, 60);
         List<PlayerEntity> all = players.findAllPlayerEntities();
-        List<PlayerEntity> squad = currentSquad(all, clubName);
+        List<PlayerEntity> squad = currentSquad(all, club);
         TacticContext tactic = tactics.current();
         Map<String, Object> snapshot = snapshots.reference();
 
@@ -386,12 +388,12 @@ public class FmDecisionTools {
         out.put("injuries", squad.stream().filter(player -> Boolean.TRUE.equals(player.getInjured()))
                 .map(this::compactPlayer).toList());
         out.put("loaned_out", all.stream()
-                .filter(player -> equalsText(player.getClub(), clubName)
+                .filter(player -> owningClubMatches(player, club)
                         && !blank(player.getPlayingClub())
-                        && !equalsText(player.getPlayingClub(), clubName))
+                        && !playingClubMatches(player, club))
                 .map(this::compactPlayer).toList());
         out.put("loaned_in", squad.stream()
-                .filter(player -> equalsText(player.getPlayingClub(), clubName) && !equalsText(player.getClub(), clubName))
+                .filter(player -> playingClubMatches(player, club) && !owningClubMatches(player, club))
                 .map(this::compactPlayer).toList());
         out.put("future_arrivals", all.stream()
                 .filter(player -> Boolean.TRUE.equals(player.getTransferAgreed()))
@@ -422,7 +424,7 @@ public class FmDecisionTools {
         TacticContext tacticContext = tactics.current();
         TacticDefinition tactic = tacticContext.definition();
         TacticDefinition.TacticSlot requestedSlot = resolveSlot(tactic, tacticSlot);
-        List<PlayerEntity> squad = currentSquad(all, clubName);
+        List<PlayerEntity> squad = currentSquad(all, club);
         int squadBenchmark = firstTeamAverageCa(squad);
         Map<String, Object> snapshot = snapshots.reference();
         LineupOptimizerService.Constraints baseConstraints = requestedSlot == null ? null : lineupConstraints(
@@ -499,7 +501,7 @@ public class FmDecisionTools {
         List<Map<String, Object>> candidates = all.stream()
                 .filter(player -> !Objects.equals(player.getUniqueId(), referencePlayerUniqueId))
                 .filter(player -> sameGender(player, club))
-                .filter(player -> !belongsToClub(player, clubName))
+                .filter(player -> !belongsToClub(player, club))
                 .filter(player -> maxAge == null || age(player) <= maxAge)
                 .filter(player -> minCurrentAbility == null || value(player.getCa()) >= minCurrentAbility)
                 .filter(player -> slot == null
@@ -556,7 +558,7 @@ public class FmDecisionTools {
         ClubEntity club = requireClub(clubName);
         List<PlayerEntity> all = players.findAllPlayerEntities();
         Map<Long, PlayerEntity> byId = byUniqueId(all);
-        List<PlayerEntity> before = new ArrayList<>(currentSquad(all, clubName));
+        List<PlayerEntity> before = new ArrayList<>(currentSquad(all, club));
         List<PlayerEntity> incoming = incomingIds.stream().map(id -> requirePlayer(byId, id)).toList();
         List<PlayerEntity> outgoing = outgoingIds.stream().map(id -> requirePlayer(byId, id)).toList();
         Set<Long> currentSquadIds = before.stream().map(PlayerEntity::getUniqueId)
@@ -1303,13 +1305,38 @@ public class FmDecisionTools {
                 .orElseThrow(() -> new IllegalArgumentException("club not found: " + name));
     }
 
-    private static List<PlayerEntity> currentSquad(List<PlayerEntity> players, String club) {
-        return players.stream().filter(player -> equalsText(player.getPlayingClub(), club)
-                || (blank(player.getPlayingClub()) && equalsText(player.getClub(), club))).toList();
+    private static List<PlayerEntity> currentSquad(List<PlayerEntity> players, ClubEntity club) {
+        return players.stream().filter(player -> playingClubMatches(player, club)
+                || (blank(player.getPlayingClub()) && player.getPlayingClubEntity() == null
+                        && owningClubMatches(player, club))).toList();
     }
 
-    private static boolean belongsToClub(PlayerEntity player, String club) {
-        return equalsText(player.getClub(), club) || equalsText(player.getPlayingClub(), club);
+    private static boolean belongsToClub(PlayerEntity player, ClubEntity club) {
+        return owningClubMatches(player, club) || playingClubMatches(player, club);
+    }
+
+    // Prefer the RAM-linked club association when present; fall back to the
+    // stored name only when it is absent (women's players share the men's
+    // club base name, e.g. "R. Madrid" vs "R. Madrid (W)").
+    private static boolean playingClubMatches(PlayerEntity player, ClubEntity club) {
+        if (player.getPlayingClubEntity() != null) {
+            return linkedTo(player.getPlayingClubEntity(), club);
+        }
+        return !blank(player.getPlayingClub()) && equalsText(player.getPlayingClub(), club.getName());
+    }
+
+    private static boolean owningClubMatches(PlayerEntity player, ClubEntity club) {
+        if (player.getClubEntity() != null) {
+            return linkedTo(player.getClubEntity(), club);
+        }
+        return !blank(player.getClub()) && equalsText(player.getClub(), club.getName());
+    }
+
+    private static boolean linkedTo(ClubEntity playerClub, ClubEntity club) {
+        if (playerClub.getSourceAddress() != null && club.getSourceAddress() != null) {
+            return playerClub.getSourceAddress().equals(club.getSourceAddress());
+        }
+        return club.getId() != null && Objects.equals(playerClub.getId(), club.getId());
     }
 
     private static boolean sameGender(PlayerEntity player, ClubEntity club) {

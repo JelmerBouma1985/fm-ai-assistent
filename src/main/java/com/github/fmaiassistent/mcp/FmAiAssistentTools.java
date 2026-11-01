@@ -648,16 +648,29 @@ public class FmAiAssistentTools {
         return players.stream()
                 .filter(player -> playingClubMatches(player, club)
                         || (blank(player.getPlayingClub()) && player.getPlayingClubEntity() == null
-                                && clubNameMatches(player.getClub(), club)))
+                                && owningClubMatches(player, club)))
                 .toList();
     }
 
     private static boolean belongsToClub(PlayerEntity player, ClubEntity club) {
-        return clubNameMatches(player.getClub(), club) || playingClubMatches(player, club);
+        return owningClubMatches(player, club) || playingClubMatches(player, club);
     }
 
+    // Prefer the RAM-linked club association when present; fall back to the
+    // stored name only when it is absent (women's players share the men's
+    // club base name, e.g. "R. Madrid" vs "R. Madrid (W)").
     private static boolean playingClubMatches(PlayerEntity player, ClubEntity club) {
-        return clubNameMatches(player.getPlayingClub(), club) || linkedTo(player.getPlayingClubEntity(), club);
+        if (player.getPlayingClubEntity() != null) {
+            return linkedTo(player.getPlayingClubEntity(), club);
+        }
+        return clubNameMatches(player.getPlayingClub(), club);
+    }
+
+    private static boolean owningClubMatches(PlayerEntity player, ClubEntity club) {
+        if (player.getClubEntity() != null) {
+            return linkedTo(player.getClubEntity(), club);
+        }
+        return clubNameMatches(player.getClub(), club);
     }
 
     private static boolean clubNameMatches(String playerClub, ClubEntity club) {

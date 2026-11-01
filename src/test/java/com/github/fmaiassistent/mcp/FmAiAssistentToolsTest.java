@@ -155,7 +155,10 @@ class FmAiAssistentToolsTest {
         PlayerEntity womensPlayer = player("Womens Player", 2002000001L, "R. Madrid", 22, 150, 170, 1_000_000L, 18);
         womensPlayer.setClubEntity(women);
         womensPlayer.setPlayingClubEntity(women);
-        when(players.findAllPlayerEntities()).thenReturn(List.of(womensPlayer));
+        PlayerEntity mensPlayer = player("Mens Player", 2002000002L, "R. Madrid", 24, 160, 180, 5_000_000L, 18);
+        mensPlayer.setClubEntity(men);
+        mensPlayer.setPlayingClubEntity(men);
+        when(players.findAllPlayerEntities()).thenReturn(List.of(womensPlayer, mensPlayer));
         when(clubs.findAllClubs()).thenReturn(List.of(men, women));
         when(clubs.findBySourceAddress(222L)).thenReturn(java.util.Optional.of(women));
         when(managed.current()).thenReturn(new ManagedClubContext(
@@ -178,6 +181,8 @@ class FmAiAssistentToolsTest {
                 .containsEntry("TRANSFER_BUDGET", 66_250L);
         @SuppressWarnings("unchecked")
         Map<String, Object> summary = (Map<String, Object>) result.get("squad_summary");
+        // The men's player shares the stored name "R. Madrid" but is linked to
+        // the men's club record, so only the women's player is counted.
         assertThat(summary).containsEntry("player_count", 1);
     }
 

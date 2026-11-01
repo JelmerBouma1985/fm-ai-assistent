@@ -215,7 +215,12 @@ class FmDecisionToolsTest {
         ClubEntity men = club("R. Madrid", 9_100, "male", 1_068_000_000L, 111L);
         ClubEntity women = club("R. Madrid (W)", 7_900, "female", 66_250L, 222L);
         PlayerEntity outgoing = player("Outgoing", 2002000001L, 125, 135, "R. Madrid");
-        when(players.findAllPlayerEntities()).thenReturn(List.of(outgoing));
+        outgoing.setClubEntity(women);
+        outgoing.setPlayingClubEntity(women);
+        PlayerEntity mensPlayer = player("Mens Player", 2002000002L, 150, 170, "R. Madrid");
+        mensPlayer.setClubEntity(men);
+        mensPlayer.setPlayingClubEntity(men);
+        when(players.findAllPlayerEntities()).thenReturn(List.of(outgoing, mensPlayer));
         when(clubs.findAllClubs()).thenReturn(List.of(men, women));
         when(clubs.findBySourceAddress(222L)).thenReturn(Optional.of(women));
         when(managed.current()).thenReturn(new ManagedClubContext(
@@ -241,6 +246,16 @@ class FmDecisionToolsTest {
         assertThat(finances)
                 .containsEntry("transfer_budget", 66_250L)
                 .containsEntry("known_receipts", 81_000L);
+
+        // The men's player shares the stored club name "R. Madrid" but is
+        // linked to the men's club record, so he is not part of the women's squad.
+        assertThatThrownBy(() -> tools.planSquadMoves(
+                List.of(),
+                List.of(2002000002L),
+                List.of(new FmDecisionTools.PlayerQuote(2002000002L, 5_000_000L, 1_000L)),
+                null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("not in the current squad");
     }
 
     private static ClubEntity club(String name) {
