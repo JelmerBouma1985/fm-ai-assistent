@@ -35,6 +35,8 @@ public class PlayerMapper implements Function<PlayerEntity, Map<String, Object>>
         out.put("GENDER", entity.getGender());
         out.put("RECORD_ADDRESS", entity.getRecordAddress());
         out.put("NAME", entity.getName());
+        out.put("PLAYER_TRAITS", entity.getPlayerTraits());
+        out.put("PLAYER_TRAITS_RAW_HEX", entity.getPlayerTraitsRawHex());
         out.put("NATIONALITY", entity.getNationality());
         out.put("CLUB", entity.getClub());
         out.put("PLAYING_CLUB", entity.getPlayingClub());
@@ -55,6 +57,7 @@ public class PlayerMapper implements Function<PlayerEntity, Map<String, Object>>
         out.put("FUTURE_TRANSFER_DATE", entity.getFutureTransferDate());
         out.put("FUTURE_TRANSFER_CONTRACT_END_DATE", entity.getFutureTransferContractEndDate());
         out.put("INJURED", entity.getInjured());
+        fitnessMap(entity).forEach((key, value) -> out.put(key.toUpperCase(java.util.Locale.ROOT), value));
         out.put("INJURY", entity.getInjury());
         out.put("INJURY_START_DATE", entity.getInjuryStartDate());
         out.put("INJURY_LIGHT_TRAINING_DAYS_REMAINING", entity.getInjuryLightTrainingDaysRemaining());
@@ -148,6 +151,21 @@ public class PlayerMapper implements Function<PlayerEntity, Map<String, Object>>
         out.put("SPORTSMANSHIP", entity.getSportsmanship());
         out.put("TEMPERAMENT", entity.getTemperament());
         out.put("CONTROVERSY", entity.getControversy());
+        return out;
+    }
+
+    /** Snapshot values; absent RAM evidence remains null, including on older snapshots. */
+    public static Map<String, Object> fitnessMap(PlayerEntity player) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("match_load", player.getMatchLoad());
+        out.put("training_load", player.getTrainingLoad());
+        out.put("injury_susceptibility", player.getInjurySusceptibility());
+        out.put("condition", player.getCondition());
+        out.put("sharpness", player.getSharpness());
+        out.put("overall_risk", player.getOverallRisk());
+        out.put("fatigue", player.getFatigue());
+        out.put("fitness_units", Map.of("condition", "raw 0..10000", "sharpness", "raw 0..10000",
+                "fatigue", "signed raw value; lower is fresher"));
         return out;
     }
 
