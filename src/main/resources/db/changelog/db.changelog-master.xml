@@ -529,4 +529,5 @@
     <include file="changes/031-player-traits.xml" relativeToChangelogFile="true"/>
     <include file="changes/032-scout-settings.xml" relativeToChangelogFile="true"/>
     <include file="changes/033-scout-large-batch-warning.xml" relativeToChangelogFile="true"/>
+    <include file="changes/034-player-fitness.xml" relativeToChangelogFile="true"/>
 </databaseChangeLog>

@@ -570,6 +570,26 @@ class MainViewTest {
     }
 
     @Test
+    void playerDetailsShowFitnessAndKeepLegacyFitnessUnknown() {
+        MainView view = view();
+        var loaded = playerRow(java.util.Map.of("condition", 9587, "sharpness", 10000, "fatigue", -123,
+                "match_load", "Light", "training_load", "Medium", "injury_susceptibility", "High",
+                "overall_risk", "Increased"));
+        var fields = view.playerInfoFields(loaded).stream().collect(java.util.stream.Collectors.toMap(
+                field -> field.label(), field -> field.value() == null ? "" : field.value()));
+        assertEquals("95.87%", fields.get("Condition"));
+        assertEquals("100.00%", fields.get("Sharpness"));
+        assertEquals(-123, fields.get("Fatigue (raw)"));
+        assertEquals("Light", fields.get("Match Load"));
+        assertEquals("Medium", fields.get("Training Load"));
+        assertEquals("High", fields.get("Injury Susceptibility"));
+        assertEquals("Increased", fields.get("Overall Risk"));
+        var legacy = view.playerInfoFields(playerRow(java.util.Map.of("name", "Legacy")));
+        assertEquals("Unknown", legacy.stream().filter(field -> field.label().equals("Condition"))
+                .findFirst().orElseThrow().value());
+    }
+
+    @Test
     void dialogFilterBuilderMapsFieldsToCriteria() {
         MainView view = view();
         com.vaadin.flow.component.textfield.TextField name = new com.vaadin.flow.component.textfield.TextField();

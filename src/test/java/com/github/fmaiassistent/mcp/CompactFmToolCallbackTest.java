@@ -26,6 +26,31 @@ class CompactFmToolCallbackTest {
     }
     private final JsonMapper json = JsonMapper.builder().build();
 
+    @Test void compactPlayerViewsPreserveFitnessAndUnknownAssessments() {
+        for (String tool : new String[] {"fm27_find_players", "fm27_get_club_context", "fm27_analyze_squad"}) {
+            var original = fixture(tool);
+            var row = (ObjectNode) switch (tool) {
+                case "fm27_find_players" -> original.path("players").get(0);
+                case "fm27_get_club_context" -> original.path("squad").get(0);
+                default -> original.path("tactic_slots").get(0).path("best_options").get(0);
+            };
+            row.put("match_load", "Light").put("training_load", "Medium")
+                    .put("condition", 9587).put("sharpness", 10000).put("fatigue", -125)
+                    .put("injury_susceptibility", "High").putNull("overall_risk");
+            row.putObject("fitness_units").put("condition", "raw 0..10000");
+            var compact = json.readTree(callback(tool, json.writeValueAsString(original)).call("{}"));
+            var projected = switch (tool) {
+                case "fm27_find_players" -> compact.path("players").get(0);
+                case "fm27_get_club_context" -> compact.path("squad").get(0);
+                default -> compact.path("tactic_slots").get(0).path("best_options").get(0);
+            };
+            for (String field : new String[] {"match_load", "training_load", "condition", "sharpness", "fatigue",
+                    "injury_susceptibility", "overall_risk", "fitness_units"}) {
+                assertEquals(row.get(field), projected.get(field), tool + ":" + field);
+            }
+        }
+    }
+
     @Test void compactPlayerViewsKeepTraitsForAdvice() {
         for (String tool : new String[] {"fm27_find_players", "fm27_get_club_context", "fm27_analyze_squad"}) {
             var original = fixture(tool);

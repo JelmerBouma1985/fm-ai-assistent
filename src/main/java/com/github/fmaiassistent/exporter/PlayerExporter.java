@@ -28,6 +28,7 @@ public class PlayerExporter {
 
     private final PlayerRecordLayout recordLayout;
     private final com.github.fmaiassistent.memory.PlayerTraitsLayout traitsLayout;
+    private final com.github.fmaiassistent.memory.PlayerFitnessLayout fitnessLayout;
 
     public PlayerExporter() {
         this(PlayerRecordLayout.current());
@@ -38,8 +39,14 @@ public class PlayerExporter {
     }
 
     PlayerExporter(PlayerRecordLayout recordLayout, com.github.fmaiassistent.memory.PlayerTraitsLayout traitsLayout) {
+        this(recordLayout, traitsLayout, com.github.fmaiassistent.memory.PlayerFitnessLayout.current());
+    }
+
+    PlayerExporter(PlayerRecordLayout recordLayout, com.github.fmaiassistent.memory.PlayerTraitsLayout traitsLayout,
+            com.github.fmaiassistent.memory.PlayerFitnessLayout fitnessLayout) {
         this.recordLayout = recordLayout;
         this.traitsLayout = traitsLayout;
+        this.fitnessLayout = fitnessLayout;
     }
     private static final int MAX_SOURCE_OFFSET = Math.max(
             POSITION_FIELDS.stream().mapToInt(FieldDef::offset).max().orElseThrow(),
@@ -176,6 +183,16 @@ public class PlayerExporter {
             row.put("_future_transfer_profile","UNVERIFIED");
         }
         row.put("injured", status.injured());
+        for (String field : List.of("condition", "sharpness", "fatigue", "match_load", "training_load",
+                "injury_susceptibility", "overall_risk")) {
+            row.put(field, null);
+        }
+        if (reader.platform() == ProcessMemoryReader.Platform.WINDOWS) {
+            PlayerSnapshotValidator.validatePlayerFitnessLayout(fitnessLayout);
+            row.put("condition", reader.readU16(record + layout.relative(fitnessLayout.conditionRel())));
+            row.put("fatigue", (int) reader.readI16(record + layout.relative(fitnessLayout.fatigueRel())));
+            row.put("sharpness", reader.readU16(record + layout.relative(fitnessLayout.sharpnessRel())));
+        }
         row.put("injury", status.injury().description());
         row.put("injury_start_date", status.injury().startDate());
         row.put("injury_light_training_days_remaining", "");
@@ -629,6 +646,7 @@ public class PlayerExporter {
     private static List<String> buildFieldNames() {
         List<String> names = new ArrayList<>(List.of(
                 "index", "record", "unique_id", "name", "player_traits", "player_traits_raw_hex", "gender", "nationality", "club", "playing_club", "loan_club", "is_loaned_out",
+                "condition", "sharpness", "fatigue", "match_load", "training_load", "injury_susceptibility", "overall_risk",
                 "current_reputation", "home_reputation", "world_reputation", "ca", "pa",
                 "asking_price", "asking_price_raw", "joined_club_date", "transfer_listed", "listed_for_loan",
                 "transfer_agreed", "future_transfer_club", "future_transfer_date", "future_transfer_contract_end_date", "injured",

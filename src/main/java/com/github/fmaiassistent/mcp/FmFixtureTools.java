@@ -4,6 +4,7 @@ import com.github.fmaiassistent.domain.entity.ClubEntity;
 import com.github.fmaiassistent.domain.entity.FixtureEntity;
 import com.github.fmaiassistent.domain.entity.PlayerEntity;
 import com.github.fmaiassistent.player.PositionTextFormatter;
+import com.github.fmaiassistent.player.PlayerMapper;
 import com.github.fmaiassistent.repository.ClubRepository;
 import com.github.fmaiassistent.repository.FixtureRepository;
 import com.github.fmaiassistent.service.PlayerDatabaseService;
@@ -107,7 +108,7 @@ public class FmFixtureTools {
                 .map(FmFixtureTools::availabilityMap).toList());
         out.put("limitations", List.of(
                 "Strengths and weaknesses are inferred from the loaded player attributes and squad composition.",
-                "Opponent tactics, recent form, match statistics, morale, condition, suspensions and likely rotation are not loaded."));
+                "Opponent tactics, recent form, match statistics, morale, suspensions and likely rotation are not loaded. Fitness fields are snapshot observations; null means not loaded."));
         return out;
     }
 
@@ -163,6 +164,7 @@ public class FmFixtureTools {
 
     private static Map<String, Object> playerMap(PlayerEntity player) {
         Map<String, Object> out = new LinkedHashMap<>();
+        out.putAll(PlayerMapper.fitnessMap(player));
         out.put("player_unique_id", player.getUniqueId());
         out.put("name", player.getName());
         out.put("age", player.getAge());
@@ -176,6 +178,7 @@ public class FmFixtureTools {
 
     private static Map<String, Object> availabilityMap(PlayerEntity player) {
         Map<String, Object> out = new LinkedHashMap<>();
+        out.putAll(PlayerMapper.fitnessMap(player));
         out.put("player_unique_id", player.getUniqueId());
         out.put("name", player.getName());
         out.put("injured", player.getInjured());

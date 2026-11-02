@@ -107,7 +107,10 @@ class FmDecisionToolsTest {
         assertThat(compared).extracting(row -> row.get("player_unique_id"))
                 .containsExactlyInAnyOrder(2002000001L, 2002000002L);
         assertThat(compared).allSatisfy(row -> assertThat(row)
-                .containsKeys("decision_score", "score_components", "tactic_fit", "development", "risks"));
+                .containsKeys("decision_score", "score_components", "tactic_fit", "development", "risks")
+                .containsEntry("condition", null).containsEntry("sharpness", null).containsEntry("fatigue", null)
+                .containsEntry("match_load", null).containsEntry("training_load", null)
+                .containsEntry("injury_susceptibility", null).containsEntry("overall_risk", null));
     }
 
     @Test

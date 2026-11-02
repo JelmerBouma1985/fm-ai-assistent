@@ -135,6 +135,7 @@ public class PeopleExporter {
             AwardNameExporter.capture(coordinator, gamePluginBase, contractOwners);
             ContractCompetitionNameExporter.capture(coordinator, gamePluginBase, contractOwners);
             NonPlayingProfileExporter.capture(coordinator, gamePluginBase, contractOwners);
+            PlayerFitnessExporter.capture(coordinator, gamePluginBase, scan.playerRows(), gameDate);
             List<Map<String, Object>> playerRows = finishPlayers(scan.playerRows(), gameDate);
             List<Map<String, Object>> staffRows = finishStaff(scan.staffRows(), gameDate);
             String gameDateValue = gameDate == null ? "" : gameDate.toString();

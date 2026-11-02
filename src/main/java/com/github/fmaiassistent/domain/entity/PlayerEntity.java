@@ -89,6 +89,20 @@ public class PlayerEntity {
     private String futureTransferContractEndDate;
     @Column
     private Boolean injured;
+    @Column
+    private Integer condition;
+    @Column
+    private Integer sharpness;
+    @Column
+    private Integer fatigue;
+    @Column(name = "match_load", length = 128)
+    private String matchLoad;
+    @Column(name = "training_load", length = 128)
+    private String trainingLoad;
+    @Column(name = "injury_susceptibility", length = 128)
+    private String injurySusceptibility;
+    @Column(name = "overall_risk", length = 128)
+    private String overallRisk;
     @Column(length = 1024)
     private String injury;
     @Column(name = "injury_start_date", length = 1024)
@@ -307,6 +321,15 @@ public class PlayerEntity {
     public String getPlayerTraits() { return playerTraits; }
 
     public String getPlayerTraitsRawHex() { return playerTraitsRawHex; }
+
+    /** Null means this fitness value was not loaded for this snapshot. */
+    public Integer getCondition() { return condition; }
+    public Integer getSharpness() { return sharpness; }
+    public Integer getFatigue() { return fatigue; }
+    public String getMatchLoad() { return matchLoad; }
+    public String getTrainingLoad() { return trainingLoad; }
+    public String getInjurySusceptibility() { return injurySusceptibility; }
+    public String getOverallRisk() { return overallRisk; }
 
     public ClubEntity getClubEntity() {
         return clubEntity;

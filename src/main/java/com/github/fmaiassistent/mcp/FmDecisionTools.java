@@ -9,6 +9,7 @@ import com.github.fmaiassistent.managedclub.ManagedClubContext;
 import com.github.fmaiassistent.managedclub.ManagedClubContextService;
 import com.github.fmaiassistent.player.AttributeDefinitions;
 import com.github.fmaiassistent.player.FieldDef;
+import com.github.fmaiassistent.player.PlayerMapper;
 import com.github.fmaiassistent.recruitment.RecruitmentCaseService;
 import com.github.fmaiassistent.service.ClubDatabaseService;
 import com.github.fmaiassistent.service.PlayerDatabaseService;
@@ -116,7 +117,7 @@ public class FmDecisionTools {
         out.put("constraints", constraintsMap(constraints));
         out.putAll(lineupMap(result));
         out.put("limitations", List.of(
-                "Condition, morale, match sharpness, suspensions and squad registration are not available. International duty is detected.",
+                "Fitness values are snapshot observations; null fitness fields were not loaded. Morale, suspensions and squad registration are not available. International duty is detected.",
                 "This is an attribute-and-availability XI, not a match-day prediction."));
         return out;
     }
@@ -403,7 +404,7 @@ public class FmDecisionTools {
                 .sorted(Comparator.comparingInt((PlayerEntity player) -> value(player.getPa())).reversed())
                 .map(this::compactPlayer).toList());
         out.put("limitations", List.of(
-                "No condition, morale, match sharpness, suspension, squad registration or match-performance data is loaded. International duty is detected.",
+                "Fitness values are snapshot observations; null fitness fields were not loaded. Morale, suspension, squad registration and match-performance data are not loaded. International duty is detected.",
                 "Best-XI suggestions are attribute and availability estimates, not match-day selections."));
         return out;
     }
@@ -1023,6 +1024,7 @@ public class FmDecisionTools {
 
     private Map<String, Object> compactPlayer(PlayerEntity player) {
         Map<String, Object> out = new LinkedHashMap<>();
+        out.putAll(PlayerMapper.fitnessMap(player));
         out.put("player_traits", player.getPlayerTraits());
         out.put("player_unique_id", player.getUniqueId());
         out.put("name", player.getName());
@@ -1043,6 +1045,7 @@ public class FmDecisionTools {
 
     private static Map<String, Object> slotCandidateMap(PlayerEntity player, RoleFitService.SlotFit fit) {
         Map<String, Object> out = new LinkedHashMap<>();
+        out.putAll(PlayerMapper.fitnessMap(player));
         out.put("player_traits", player.getPlayerTraits());
         out.put("player_unique_id", player.getUniqueId());
         out.put("name", player.getName());

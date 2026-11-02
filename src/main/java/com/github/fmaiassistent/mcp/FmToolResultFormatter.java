@@ -15,11 +15,13 @@ public final class FmToolResultFormatter {
             "fm27_get_role_attributes", "fm27_find_players", "fm27_find_staff",
             "fm27_get_club_context");
     private static final Set<String> PLAYER_SUMMARY = Set.of(
-            "player_unique_id", "name", "age", "position_text", "ca", "pa", "injured", "contract_end", "player_traits");
+            "player_unique_id", "name", "age", "position_text", "ca", "pa", "injured", "contract_end", "player_traits",
+            "match_load", "training_load", "injury_susceptibility", "condition", "sharpness", "overall_risk", "fatigue", "fitness_units");
     private static final Set<String> SEARCH_PLAYER_SUMMARY = Set.of(
             "unique_id", "name", "age", "gender", "nationality", "club", "playing_club", "position_text",
             "ca", "pa", "asking_price", "salary_weekly_raw", "contract_end_date", "transfer_listed",
-            "listed_for_loan", "transfer_agreed", "injured", "player_traits");
+            "listed_for_loan", "transfer_agreed", "injured", "player_traits",
+            "match_load", "training_load", "injury_susceptibility", "condition", "sharpness", "overall_risk", "fatigue", "fitness_units");
     private static final Set<String> FIT_SUMMARY = Set.of("slot", "position_fit", "role_fit", "overall", "viable");
     private static final Set<String> COACHING_SUMMARY = Set.of("role", "label", "score_20", "stars", "quality");
 

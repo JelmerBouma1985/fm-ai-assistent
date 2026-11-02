@@ -13,6 +13,41 @@ import java.util.Map;
  * several fields are legitimately absent for some records.
  */
 public final class PlayerSnapshotValidator {
+    public static void validatePlayerMedicalStaffLayout(
+            com.github.fmaiassistent.memory.PlayerMedicalStaffLayout layout) throws IOException {
+        if (!com.github.fmaiassistent.memory.PlayerMedicalStaffLayout.current().equals(layout))
+            throw new IOException("Player medical staff exact-build layout anchor failed");
+    }
+    public static void validatePlayerTrainingSelectionLayout(
+            com.github.fmaiassistent.memory.PlayerTrainingSelectionLayout layout) throws IOException {
+        if (!com.github.fmaiassistent.memory.PlayerTrainingSelectionLayout.current().equals(layout))
+            throw new IOException("Player training selection exact-build layout anchor failed");
+    }
+    public static void validatePlayerMedicalAssessmentLayout(
+            com.github.fmaiassistent.memory.PlayerMedicalAssessmentLayout layout) throws IOException {
+        if (!com.github.fmaiassistent.memory.PlayerMedicalAssessmentLayout.current().equals(layout))
+            throw new IOException("Player medical assessment range anchor failed: exact-build layout changed");
+    }
+    public static void validatePlayerInjuryRiskLayout(
+            com.github.fmaiassistent.memory.PlayerInjuryRiskLayout layout) throws IOException {
+        if (!com.github.fmaiassistent.memory.PlayerInjuryRiskLayout.current().equals(layout))
+            throw new IOException("Player injury risk range anchor failed: exact-build layout changed");
+    }
+    public static void validatePlayerInjuryTrainingLayout(
+            com.github.fmaiassistent.memory.PlayerInjuryRiskLayout.TrainingCategories layout) throws IOException {
+        if (!com.github.fmaiassistent.memory.PlayerInjuryRiskLayout.TrainingCategories.current().equals(layout))
+            throw new IOException("Player injury training range anchor failed: exact-build layout changed");
+    }
+    public static void validatePlayerInjuryCalculationLayout(
+            com.github.fmaiassistent.memory.PlayerInjuryRiskLayout.Calculation layout) throws IOException {
+        if (!com.github.fmaiassistent.memory.PlayerInjuryRiskLayout.Calculation.current().equals(layout))
+            throw new IOException("Player injury calculation range anchor failed: exact-build layout changed");
+    }
+    public static void validatePlayerTrainingLoadLayout(
+            com.github.fmaiassistent.memory.PlayerTrainingLoadLayout layout) throws IOException {
+        if (!com.github.fmaiassistent.memory.PlayerTrainingLoadLayout.current().equals(layout))
+            throw new IOException("Player training load exact-build layout anchor failed");
+    }
     private static final long MIN_PLAUSIBLE_CLUB_BUDGET = -1_000_000_000L;
 
     private PlayerSnapshotValidator() {
@@ -424,6 +459,19 @@ public final class PlayerSnapshotValidator {
      *
      * @throws IOException when any anchor fails
      */
+    public static void validatePlayerFitnessLayout(com.github.fmaiassistent.memory.PlayerFitnessLayout layout)
+            throws IOException {
+        if (!com.github.fmaiassistent.memory.PlayerFitnessLayout.current().equals(layout)) {
+            throw new IOException("Player fitness exact-build range/displacement anchor failed");
+        }
+    }
+
+    public static void validatePlayerMatchLoadLayout(com.github.fmaiassistent.memory.PlayerMatchLoadLayout layout)
+            throws IOException {
+        if (!com.github.fmaiassistent.memory.PlayerMatchLoadLayout.current().equals(layout))
+            throw new IOException("Player match load exact-build range/displacement anchor failed");
+    }
+
     public static void validate(List<Map<String, Object>> rows, int peopleSlots, String gameDate)
             throws IOException {
         if (rows.isEmpty()) {
@@ -447,6 +495,9 @@ public final class PlayerSnapshotValidator {
             checkRange(row, "pa", 1, 200, identity, "Player");
             checkRange(row, "age", 14, 60, identity, "Player");
             checkRange(row, "height_cm", 130, 230, identity, "Player");
+            checkRange(row, "condition", 0, 10000, identity, "Player");
+            checkRange(row, "sharpness", 0, 10000, identity, "Player");
+            checkRange(row, "fatigue", -10000, 10000, identity, "Player");
             checkBirthDate(row, reference, identity, "Player", 70);
         }
     }

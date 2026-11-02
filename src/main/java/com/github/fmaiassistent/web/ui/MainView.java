@@ -752,6 +752,13 @@ public class MainView extends VerticalLayout {
                 new PlayerColumn("FUTURE_TRANSFER_DATE", "Future Transfer Date", PlayerEntity::getFutureTransferDate),
                 new PlayerColumn("FUTURE_TRANSFER_CONTRACT_END_DATE", "Future Contract End", PlayerEntity::getFutureTransferContractEndDate),
                 new PlayerColumn("INJURED", "Injured", PlayerEntity::getInjured),
+                new PlayerColumn("MATCH_LOAD", "Match Load", PlayerEntity::getMatchLoad),
+                new PlayerColumn("TRAINING_LOAD", "Training Load", PlayerEntity::getTrainingLoad),
+                new PlayerColumn("INJURY_SUSCEPTIBILITY", "Injury Susceptibility", PlayerEntity::getInjurySusceptibility),
+                new PlayerColumn("CONDITION", "Condition", PlayerEntity::getCondition),
+                new PlayerColumn("SHARPNESS", "Sharpness", PlayerEntity::getSharpness),
+                new PlayerColumn("OVERALL_RISK", "Overall Risk", PlayerEntity::getOverallRisk),
+                new PlayerColumn("FATIGUE", "Fatigue (raw)", PlayerEntity::getFatigue),
                 new PlayerColumn("ON_DUTY", "On Duty", PlayerEntity::getOnDuty),
                 new PlayerColumn("INJURY", "Injury", PlayerEntity::getInjury),
                 new PlayerColumn("INJURY_LIGHT_TRAINING_DAYS_REMAINING", "Light Training Days", PlayerEntity::getInjuryLightTrainingDaysRemaining),
@@ -1030,7 +1037,7 @@ public class MainView extends VerticalLayout {
         profiles.stream().sorted(Comparator.comparingDouble(OppositionProfile::rating)).limit(3)
                 .forEach(profile -> fields.add(new DetailField("Weakness — " + profile.label(), profile.rating() + " / 20")));
         Span note = new Span("Based on the best " + firstTeam.size()
-                + " loaded players by current ability. Opponent tactics, form, morale, condition, suspensions and rotation are not loaded.");
+                + " loaded players by current ability. Fitness reflects the loaded snapshot; unknown values are not loaded. Opponent tactics, form, morale, suspensions and rotation are not loaded.");
         note.addClassName("report-note");
         VerticalLayout layout = new VerticalLayout(detailLayout(fields), note);
         layout.setPadding(false);
@@ -1453,6 +1460,13 @@ public class MainView extends VerticalLayout {
                 new DetailField("Club", player.getClub()),
                 new DetailField("Playing Club", player.getPlayingClub()),
                 new DetailField("Position", PositionTextFormatter.format(player)),
+                new DetailField("Match Load", fitnessDisplay(player.getMatchLoad())),
+                new DetailField("Training Load", fitnessDisplay(player.getTrainingLoad())),
+                new DetailField("Injury Susceptibility", fitnessDisplay(player.getInjurySusceptibility())),
+                new DetailField("Condition", fitnessPercentage(player.getCondition())),
+                new DetailField("Sharpness", fitnessPercentage(player.getSharpness())),
+                new DetailField("Overall Risk", fitnessDisplay(player.getOverallRisk())),
+                new DetailField("Fatigue (raw)", fitnessDisplay(player.getFatigue())),
                 new DetailField("Player Traits", player.getPlayerTraits() == null ? "Not loaded"
                         : player.getPlayerTraits().isBlank() ? "None" : player.getPlayerTraits()),
                 new DetailField("Salary Weekly", salaryWeeklyDisplay(player.getSalaryWeeklyRaw())),
@@ -1473,6 +1487,15 @@ public class MainView extends VerticalLayout {
                     display(player.getInjuryLightTrainingDaysRemaining())));
         }
         return fields;
+    }
+
+    private static Object fitnessDisplay(Object value) {
+        return value == null ? "Unknown" : value;
+    }
+
+    private static String fitnessPercentage(Object value) {
+        return value instanceof Number number ? String.format(Locale.ROOT, "%.2f%%", number.doubleValue() / 100.0)
+                : "Unknown";
     }
 
     static String injurySummary(PlayerEntity player) {
@@ -2185,6 +2208,9 @@ public class MainView extends VerticalLayout {
     }
 
     private String displayColumn(String column, Object value) {
+        if ("CONDITION".equals(column) || "SHARPNESS".equals(column)) return fitnessPercentage(value);
+        if (value == null && java.util.Set.of("MATCH_LOAD", "TRAINING_LOAD", "INJURY_SUSCEPTIBILITY",
+                "OVERALL_RISK", "FATIGUE").contains(column)) return "Unknown";
         if ("SALARY_WEEKLY_RAW".equals(column)) {
             return salaryWeeklyDisplay(value);
         }

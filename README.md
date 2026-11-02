@@ -8,6 +8,7 @@ It reads your loaded FM27 save directly from memory so you can:
 
 - search and compare players, staff, clubs and competitions;
 - inspect attributes, positions, contracts, wages and budgets;
+- inspect player condition, sharpness, fatigue, workloads and injury risk;
 - ask an AI assistant for recruitment, squad and tactical advice;
 - give the AI extra context about your managed club and an exported `.fmf` tactic.
 
@@ -66,6 +67,10 @@ The application is available at [http://127.0.0.1:8080](http://127.0.0.1:8080). 
 5. Browse the **Players**, **Staff**, **Clubs** and **Competitions** tabs, or open **AI assistent**.
 
 The **Staff** tab includes job, club, division, ability, reputation, salary, contract and English attribute filters. Its dedicated **Coaching roles** filter tab lists all nine assignments and lets you set an independent minimum star rating for each one; a staff member must satisfy every selected role threshold. The table shows every staff member's best training assignment. Select a staff member to inspect all nine FM27 coaching ratings, their role-specific weighted attributes, the calculated 0-20 score and its English quality tier.
+
+Player tables and profiles include **Match Load**, **Training Load**, **Injury Susceptibility**, **Condition**, **Sharpness**, **Overall Risk** and **Fatigue**. Condition and sharpness display as percentages; MCP responses preserve their native 0–10000 values and include units. Fatigue uses the signed native value, where lower means fresher. These snapshot fields also accompany MCP squad, search and lineup responses.
+
+Fitness extraction is verified against the Windows FM27 27.0.0+2486695 layout. Older snapshots and unavailable native training or medical context show **Unknown**, rather than a healthy default. Recent injury assessments can also read FM's active temporary injury-history archive, located through its RAM metadata; an explicit archive override is available with `-Dfmaiassistent.fitness.injuryHistoryArchive=<archive-file>`.
 
 For agent-driven staff recruitment, call `fm27_get_staff_coaching_roles` to discover the supported assignment keys and formula, then pass `coachingRole` and `minimumCoachingStars` to `fm27_find_staff`. Use `fm27_get_staff_details` with the returned FM Unique ID to compare the complete attribute and role-rating breakdown.
 

@@ -31,6 +31,39 @@ import static org.mockito.Mockito.when;
 
 class FmAiAssistentToolsTest {
     @Test
+    void playerDetailsAndSquadContextCarryFitnessIncludingUnknownLegacyValues() {
+        PlayerDatabaseService players = mock(PlayerDatabaseService.class);
+        ClubDatabaseService clubs = mock(ClubDatabaseService.class);
+        SnapshotStatusService snapshots = mock(SnapshotStatusService.class);
+        Map<String, Object> row = new HashMap<>(Map.of("unique_id", 1L, "name", "Fitness player", "club", "Test FC",
+                "playing_club", "Test FC"));
+        row.putAll(Map.of("condition", 9587, "sharpness", 10000, "fatigue", -123, "match_load", "Light",
+                "training_load", "Medium", "injury_susceptibility", "High", "overall_risk", "Increased"));
+        var loaded = PlayerEntity.fromExportRow(row);
+        var legacy = PlayerEntity.fromExportRow(Map.of("unique_id", 2L, "name", "Legacy", "club", "Test FC", "playing_club", "Test FC"));
+        when(players.findAllPlayerEntities()).thenReturn(List.of(loaded, legacy));
+        when(clubs.findAllClubs()).thenReturn(List.of(club("Test FC", 5000, 1000)));
+        when(snapshots.reference()).thenReturn(Map.of("snapshot_id", "test"));
+        var tools = new FmAiAssistentTools(players, clubs, mock(StaffDatabaseService.class), new PlayerMapper(),
+                mock(JdbcTemplate.class), mock(ShortlistFileService.class), mock(RecruitmentCaseService.class), snapshots);
+        @SuppressWarnings("unchecked")
+        var details = (List<Map<String, Object>>) tools.getPlayerDetails(null, 1L, 1).get("players");
+        assertThat(details.getFirst()).containsEntry("CONDITION", 9587).containsEntry("SHARPNESS", 10000)
+                .containsEntry("FATIGUE", -123).containsEntry("MATCH_LOAD", "Light")
+                .containsEntry("TRAINING_LOAD", "Medium").containsEntry("INJURY_SUSCEPTIBILITY", "High")
+                .containsEntry("OVERALL_RISK", "Increased");
+        @SuppressWarnings("unchecked")
+        var squad = (List<Map<String, Object>>) tools.getClubContext("Test FC", 10).get("squad");
+        assertThat(squad.stream().filter(p -> "Fitness player".equals(p.get("name"))).findFirst().orElseThrow())
+                .containsEntry("condition", 9587).containsEntry("sharpness", 10000).containsEntry("fatigue", -123)
+                .containsEntry("match_load", "Light").containsEntry("training_load", "Medium")
+                .containsEntry("injury_susceptibility", "High").containsEntry("overall_risk", "Increased");
+        var old = squad.stream().filter(p -> "Legacy".equals(p.get("name"))).findFirst().orElseThrow();
+        for (String field : List.of("condition", "sharpness", "fatigue", "match_load", "training_load",
+                "injury_susceptibility", "overall_risk")) assertThat(old).containsEntry(field, null);
+    }
+
+    @Test
     void playerDetailsAndSquadContextPreserveTraitsAndUnknownState() {
         PlayerDatabaseService players = mock(PlayerDatabaseService.class);
         ClubDatabaseService clubs = mock(ClubDatabaseService.class);

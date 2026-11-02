@@ -117,7 +117,7 @@ public class FmAiAssistentTools {
         return withSnapshot(out);
     }
 
-    @Tool(name = "fm27_get_club_context", description = "Get a club profile, facility ratings, finances and squad snapshot for transfer advice. Facility ratings use FM's 0-20 scale. Money values are raw pounds.")
+    @Tool(name = "fm27_get_club_context", description = "Get a club profile, facility ratings, finances and squad snapshot including player fitness for transfer and availability advice. Facility ratings use FM's 0-20 scale. Money values are raw pounds. Null fitness values are not available in the loaded snapshot.")
     @Transactional(readOnly = true)
     public Map<String, Object> getClubContext(
             @ToolParam(description = "Club name, for example Feyenoord") String clubName,
@@ -216,7 +216,7 @@ public class FmAiAssistentTools {
         return withSnapshot(out);
     }
 
-    @Tool(name = "fm27_get_player_details", description = "Get full player details including player traits, attributes, positions, CA/PA, reputation, contract and club data. Player traits describe playing tendencies to consider when advising on roles and tactics; null means unavailable in this snapshot and an empty string means no traits.")
+    @Tool(name = "fm27_get_player_details", description = "Get full player details including fitness (match load, training load, injury susceptibility, condition, sharpness, overall risk and fatigue), player traits, attributes, positions, CA/PA, reputation, contract and club data. Fitness units accompany raw values; null means unavailable in this snapshot. Player traits describe playing tendencies to consider when advising on roles and tactics; an empty string means no traits.")
     @Transactional(readOnly = true)
     public Map<String, Object> getPlayerDetails(
             @ToolParam(required = false, description = "Player name. Exact match is preferred; contains match is used as fallback.") String name,
@@ -1101,6 +1101,7 @@ public class FmAiAssistentTools {
 
     private Map<String, Object> playerSummaryMap(PlayerEntity player) {
         Map<String, Object> out = new LinkedHashMap<>();
+        out.putAll(PlayerMapper.fitnessMap(player));
         out.put("id", player.getId());
         out.put("unique_id", player.getUniqueId());
         out.put("name", player.getName());

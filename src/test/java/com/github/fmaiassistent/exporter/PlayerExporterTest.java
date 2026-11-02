@@ -22,6 +22,54 @@ class PlayerExporterTest {
     private static final long PERSON = 0x4000;
 
     @Test
+    void decodesCapturedFitnessAndRejectsEachShiftedOffsetOnTheSameFixture() throws Exception {
+        FakeMemory memory = minimalPlayerRow();
+        memory.windows = true;
+        // Jeremiah St. Juste UID37049949, PID13340, supported FM27 build.
+        memory.putI32(PERSON + 12, 37049949);
+        memory.putU8(PERSON - 0x5A, 186);
+        // PERSON-0x30..-0x2B: condition8744, fatigue-125, sharpness9909.
+        memory.put(PERSON - 0x30, java.util.HexFormat.of().parseHex("282283ffb526"));
+        var row = new PlayerExporter().decodeRow(memory, 1, PERSON, "", null);
+        assertThat(row).containsEntry("condition", 8744).containsEntry("fatigue", -125)
+                .containsEntry("sharpness", 9909);
+        PlayerSnapshotValidator.validate(List.of(row), 1, "");
+        var current = com.github.fmaiassistent.memory.PlayerFitnessLayout.current();
+        for (var shifted : List.of(
+                new com.github.fmaiassistent.memory.PlayerFitnessLayout(current.conditionRel() + 1, current.fatigueRel(), current.sharpnessRel()),
+                new com.github.fmaiassistent.memory.PlayerFitnessLayout(current.conditionRel(), current.fatigueRel() + 1, current.sharpnessRel()),
+                new com.github.fmaiassistent.memory.PlayerFitnessLayout(current.conditionRel(), current.fatigueRel(), current.sharpnessRel() + 1))) {
+            var exporter = new PlayerExporter(PlayerRecordLayout.current(),
+                    com.github.fmaiassistent.memory.PlayerTraitsLayout.current(), shifted);
+            assertThatThrownBy(() -> exporter.decodeRow(memory, 1, PERSON, "", null))
+                    .isInstanceOf(IOException.class).hasMessageContaining("fitness exact-build range/displacement anchor");
+        }
+        memory.putI16(PERSON - 0x30, 10001);
+        var corrupt = new PlayerExporter().decodeRow(memory, 1, PERSON, "", null);
+        assertThatThrownBy(() -> PlayerSnapshotValidator.validate(List.of(corrupt), 1, ""))
+                .isInstanceOf(IOException.class).hasMessageContaining("condition=10001");
+    }
+
+    @Test
+    void fitnessUsesPlayerStaffDisplacementAndUnsupportedPlatformIsUnknown() throws Exception {
+        FakeMemory memory = minimalPlayerRow();
+        assertThat(new PlayerExporter().decodeRow(memory, 1, PERSON, "", null))
+                .containsEntry("condition", null).containsEntry("sharpness", null).containsEntry("fatigue", null);
+        memory.windows = true;
+        int shift = -PersonMemoryClassifier.PLAYER_STAFF_SHIFT;
+        memory.putI32(0x7000 + 4, PersonMemoryClassifier.PLAYER_STAFF_DYNAMIC_OFFSET);
+        memory.fill(PERSON + shift - 0x1A0, 0x1A0, 0);
+        memory.putI16(PERSON + shift + AttributeDefinitions.CURRENT_ABILITY_REL, 120);
+        memory.putI16(PERSON + shift + AttributeDefinitions.POTENTIAL_ABILITY_REL, 140);
+        putPlausiblePlayerBlock(memory, shift, true);
+        memory.putI16(PERSON + shift - 0x30, 9500);
+        memory.putI16(PERSON + shift - 0x2e, -250);
+        memory.putI16(PERSON + shift - 0x2c, 8000);
+        assertThat(new PlayerExporter().decodeRow(memory, 1, PERSON, "", null))
+                .containsEntry("condition", 9500).containsEntry("fatigue", -250).containsEntry("sharpness", 8000);
+    }
+
+    @Test
     void decodesLiveWindowsTraitsAndRejectsShiftedLayoutOnSameFixture() throws Exception {
         FakeMemory memory = minimalPlayerRow();
         memory.windows = true;
