@@ -81,6 +81,19 @@ class Fm27CurrentFeaturesLiveTest {
     }
 
     @Test
+    void productionClubExportPublishesCoefficientsAndFinancesOnTheCurrentPlatform() throws Exception {
+        var clubs = new ClubExporter().exportAllClubs(pid(), FmOffsets.DEFAULT_BUILD, null);
+
+        assertThat(clubs.identityProfile()).isEqualTo(profile());
+        assertThat(clubs.nativeRecords()).anyMatch(club -> club.uefaCoefficientHex() != null);
+        assertThat(clubs.nativeRecords()).anyMatch(club -> club.financialLedgerHex() != null);
+        assertThat(clubs.rows()).anyMatch(club -> club.get("balance") instanceof Number balance
+                && balance.longValue() != 0);
+        assertThat(clubs.rows()).anyMatch(club -> club.get("transferBudget") instanceof Number budget
+                && budget.longValue() != 0);
+    }
+
+    @Test
     void productionPeopleExportMatchesIndependentTypedCensusAndFutureEmploymentRecords() throws Exception {
         var result=new PeopleExporter().exportAllPeople(pid(),FmOffsets.DEFAULT_BUILD,null);
         assertThat(result.players().rows()).hasSize(35490);

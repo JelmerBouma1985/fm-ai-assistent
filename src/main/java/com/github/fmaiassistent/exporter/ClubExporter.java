@@ -49,7 +49,7 @@ public class ClubExporter {
             ClubIdentitySnapshot identities=null;
             String identityProfile=null;
             financeLayout=com.github.fmaiassistent.memory.ClubFinanceLayout.current();
-            if(reader.platform()==ProcessMemoryReader.Platform.WINDOWS) {
+            if(supportsTypedNativeCapture(reader.platform())) {
                 long base=gamePluginBase==null?FmOffsets.findGamePluginBase(reader):gamePluginBase;
                 String override=System.getProperty(ContractExporter.MODULE_PROPERTY);
                 Path module=override==null||override.isBlank()?reader.maps().stream()
@@ -104,6 +104,11 @@ public class ClubExporter {
             return new ExportResult(rows,identities==null?List.of():identities.records(),identities==null?null:identityProfile,
                     identities==null?null:identities.competitionNames());
         }
+    }
+
+    static boolean supportsTypedNativeCapture(ProcessMemoryReader.Platform platform) {
+        return platform == ProcessMemoryReader.Platform.WINDOWS
+                || platform == ProcessMemoryReader.Platform.LINUX;
     }
 
     private Map<String,Object> decodeNativeTeamClub(ProcessMemoryReader reader,long team,int index,ClubIdentitySnapshot identities)throws IOException {
