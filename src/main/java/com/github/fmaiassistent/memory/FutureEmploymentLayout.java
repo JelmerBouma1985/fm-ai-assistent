@@ -7,7 +7,11 @@ public record FutureEmploymentLayout(int personRecords, int recordSize, int reco
                                      int gameDateRva, int peopleRegistry) {
 
     public static FutureEmploymentLayout current() {
+        return forModule(NativeModuleProfile.FM27_SHA256);
+    }
+
+    public static FutureEmploymentLayout forModule(String profile) {
         return new FutureEmploymentLayout(0xA0, 0x48, 0x10, 0x28, 0x3E,
-                0x20, 0x2B, 8, 0x48, 0x56AD378, 0x5703738);
+                0x20, 0x2B, 8, 0x48, NativeModuleProfile.rva(profile, 0x56AD378), NativeModuleProfile.rva(profile, 0x5703738));
     }
 }

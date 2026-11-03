@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @EnabledIfSystemProperty(named="fm27.live",matches="true")
 class Fm27CurrentFeaturesLiveTest {
     private int pid() { int pid=Integer.getInteger("fm27.live.pid",-1);assertThat(pid).isPositive();return pid; }
+    private String profile() { return System.getProperty("fm27.live.profile",NativeModuleProfile.FM27_SHA256); }
 
     @Test
     void rootsAndManagedClubMatchTheNewSave() throws Exception {
@@ -40,7 +41,7 @@ class Fm27CurrentFeaturesLiveTest {
     @Test
     void productionClubAndCompetitionExportsMatchTheNativeRestartCapture() throws Exception {
         var clubs=new ClubExporter().exportAllClubs(pid(),FmOffsets.DEFAULT_BUILD,null);
-        assertThat(clubs.identityProfile()).isEqualTo(NativeModuleProfile.FM27_SHA256);
+        assertThat(clubs.identityProfile()).isEqualTo(profile());
         assertThat(clubs.nativeRecords()).hasSize(23998);
         assertThat(clubs.nativeRecords()).extracting(com.github.fmaiassistent.domain.NativeClubSnapshot::uniqueId).doesNotHaveDuplicates();
         assertThat(clubs.nativeRecords().stream().filter(r->r.uefaCoefficientHex()!=null).count()).isEqualTo(812);
@@ -87,7 +88,7 @@ class Fm27CurrentFeaturesLiveTest {
         PlayerSnapshotValidator.validate(result.players().rows(),94815,result.players().gameDate());
         PlayerSnapshotValidator.validateStaff(result.staff().rows(),result.staff().gameDate(),35490);
         var owners=new java.util.ArrayList<>(result.players().rows());owners.addAll(result.staff().rows());
-        assertThat(owners).allSatisfy(row->assertThat(row.get("_contract_profile")).isEqualTo(NativeModuleProfile.FM27_SHA256));
+        assertThat(owners).allSatisfy(row->assertThat(row.get("_contract_profile")).isEqualTo(profile()));
         long contracts=owners.stream().map(r->(List<?>)r.get("_contracts")).mapToLong(List::size).sum();
         assertThat(contracts).isEqualTo(50948);
         var futures=owners.stream().flatMap(r->((List<?>)r.get("_future_contracts")).stream())
@@ -100,7 +101,7 @@ class Fm27CurrentFeaturesLiveTest {
         Map<String,Object> report=new LinkedHashMap<>();
         report.put("players",35490);report.put("staff",23556);report.put("contracts",contracts);
         report.put("futureContracts",futures);report.put("competitionTerms",compTerms);report.put("gameDate",result.players().gameDate());
-        report.put("profile",NativeModuleProfile.FM27_SHA256);report.put("diagnostics",result.diagnostics());
+        report.put("profile",profile());report.put("diagnostics",result.diagnostics());
         report.put("samplePlayers",result.players().rows().stream().filter(r->String.valueOf(r.get("name")).contains("St. Juste")).toList());
         Files.write(Path.of("target/fm27-people-production-live.json"),JsonMapper.builder().build().writeValueAsBytes(report));
     }

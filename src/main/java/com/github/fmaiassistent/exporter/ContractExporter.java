@@ -33,14 +33,20 @@ public final class ContractExporter {
     private final ProcessMemoryReader reader;
     private final long base;
     private final ContractRecordLayout layout;
+    private final String profile;
     private long capturedBytes;
     private final Map<Integer,RegistrySnapshot> registries = new HashMap<>();
     private final Map<Long,byte[]> competitionIdentityGuards = new HashMap<>();
 
     public ContractExporter(ProcessMemoryReader reader, long base, ContractRecordLayout layout) {
+        this(reader, base, layout, NativeModuleProfile.FM27_SHA256);
+    }
+
+    ContractExporter(ProcessMemoryReader reader, long base, ContractRecordLayout layout, String profile) {
         this.reader = reader;
         this.base = base;
         this.layout = layout;
+        this.profile = profile;
     }
 
     /** Called once for player and staff rows before publication; unsupported profiles remain explicitly absent. */
@@ -55,7 +61,7 @@ public final class ContractExporter {
             var profile = module == null ? Optional.<String>empty() : NativeModuleProfile.identify(module);
             if (profile.isPresent()) {
                 ContractExporter exporter = new ContractExporter(reader, moduleBase,
-                        ContractRecordLayout.current());
+                        ContractRecordLayout.forModule(profile.orElseThrow()), profile.orElseThrow());
                 exporter.captureRows(rows);
                 return;
             }
@@ -82,7 +88,7 @@ public final class ContractExporter {
         return Optional.ofNullable(selected);
     }
 
-    private String moduleProfile() { return NativeModuleProfile.FM27_SHA256; }
+    private String moduleProfile() { return profile; }
 
     public List<ContractSnapshot> read(long person, long expectedUid) throws IOException {
         registries.clear(); competitionIdentityGuards.clear(); capturedBytes=0;
@@ -99,7 +105,7 @@ public final class ContractExporter {
     public Optional<FutureEmploymentSnapshot> readFutureEmployment(long person, long uid, int offerIndex)
             throws IOException {
         return readFutureEmployment(person, uid, offerIndex,
-                FutureEmploymentLayout.current());
+                FutureEmploymentLayout.forModule(profile));
     }
 
     Optional<FutureEmploymentSnapshot> readFutureEmployment(long person, long uid, int offerIndex,
@@ -186,7 +192,7 @@ public final class ContractExporter {
         registries.clear(); competitionIdentityGuards.clear(); capturedBytes=0;
         try {
             List<List<ContractSnapshot>> staged=new ArrayList<>(rows.size());
-            var futureExporter=new FutureTransferExporter(reader,base,com.github.fmaiassistent.memory.FutureTransferLayout.current());
+            var futureExporter=new FutureTransferExporter(reader,base,com.github.fmaiassistent.memory.FutureTransferLayout.forModule(profile),profile);
             var stagedFuture=new ArrayList<FutureTransferExporter.Result>(rows.size());
             for(var row:rows) {
                 if(Thread.currentThread().isInterrupted())throw new IOException("Contract capture interrupted");
@@ -389,7 +395,7 @@ public final class ContractExporter {
 
     private Long competitionUid(int index)throws IOException {
         if(index==-1)return null;
-        var identity=com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.current();
+        var identity=com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.forModule(profile);
         PlayerSnapshotValidator.validateClubFinancialCompetitionLayout(identity);
         var r=registry((int)identity.competitionRootRva());
         if(index<0||index>=r.count())throw new IOException("Competition bonus registry index anchor failed");

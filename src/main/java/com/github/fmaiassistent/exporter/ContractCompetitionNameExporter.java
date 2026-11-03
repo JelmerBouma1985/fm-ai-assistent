@@ -14,6 +14,7 @@ public final class ContractCompetitionNameExporter {
     private final long base;
     private final CompetitionNameLayout namesLayout;
     private final ClubFinancialCompetitionLayout identity;
+    private final String profile;
     private final CompetitionBonusLayout bonusLayout=CompetitionBonusLayout.current();
     private final Map<Long,NativeCompetitionNameSnapshot> names=new LinkedHashMap<>();
     private final Map<Long,byte[]> guards=new LinkedHashMap<>();
@@ -25,7 +26,12 @@ public final class ContractCompetitionNameExporter {
 
     public ContractCompetitionNameExporter(ProcessMemoryReader reader,long base,CompetitionNameLayout layout,
             ClubFinancialCompetitionLayout identity)throws IOException {
+        this(reader,base,layout,identity,NativeModuleProfile.FM27_SHA256);
+    }
+    private ContractCompetitionNameExporter(ProcessMemoryReader reader,long base,CompetitionNameLayout layout,
+            ClubFinancialCompetitionLayout identity,String profile)throws IOException {
         this.identity=identity;
+        this.profile=profile;
         PlayerSnapshotValidator.validateCompetitionNameLayout(layout);
         PlayerSnapshotValidator.validateClubFinancialCompetitionLayout(identity);
         PlayerSnapshotValidator.validateCompetitionBonusLayout(bonusLayout);
@@ -36,7 +42,7 @@ public final class ContractCompetitionNameExporter {
         if(reader.platform()!=ProcessMemoryReader.Platform.WINDOWS)return;
         var profile=ContractExporter.capturedProfile(rows);if(profile.isEmpty())return;
         long base=suppliedBase==null?com.github.fmaiassistent.linux.FmOffsets.findGamePluginBase(reader):suppliedBase;
-        new ContractCompetitionNameExporter(reader,base,CompetitionNameLayout.current(),ClubFinancialCompetitionLayout.current()).captureRows(rows);
+        new ContractCompetitionNameExporter(reader,base,CompetitionNameLayout.current(),ClubFinancialCompetitionLayout.forModule(profile.orElseThrow()),profile.orElseThrow()).captureRows(rows);
     }
 
     public void captureRows(List<Map<String,Object>> rows)throws IOException {
@@ -73,7 +79,7 @@ public final class ContractCompetitionNameExporter {
         }finally{names.clear();guards.clear();}
     }
 
-    private String moduleProfile(){return NativeModuleProfile.FM27_SHA256;}
+    private String moduleProfile(){return profile;}
 
     private NativeCompetitionNameSnapshot readName(long uid,int index)throws IOException {
         if(names.containsKey(uid)) {

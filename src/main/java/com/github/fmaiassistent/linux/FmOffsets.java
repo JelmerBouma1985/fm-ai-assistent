@@ -18,24 +18,28 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class FmOffsets {
     private static final Logger log = LoggerFactory.getLogger(FmOffsets.class);
-    public static final int DEFAULT_BUILD = 0x25f1a7;
+    public static final int DEFAULT_BUILD = 0x260bf2;
     public static final String PEOPLE_SLOT = "PeopleOffset";
-    private static final long MAX_SCAN_REGION_SIZE = 80_000_000L;
+    private static final int SCAN_CHUNK_BYTES = 1024 * 1024;
     // FM27 moved the data registries beyond the old 0x05200000 scan window.
     private static final long GAME_PLUGIN_SCAN_RANGE = 0x0600_0000L;
     private static final int MIN_VALID_TABLE_SCORE = 35;
 
-    private static final Map<Integer, Long> BUILD_TO_TABLE_RVA = Map.of(DEFAULT_BUILD, 0x57035e8L);
+    private static final Map<Integer, Long> BUILD_TO_TABLE_RVA = Map.of(
+            0x25f1a7, 0x57035e8L,
+            0x260bf2, 0x57055e8L);
 
     // FM's native game_plugin.dll layout is the same on Windows and under Proton.
     private static final Map<Integer, Long> BUILD_TO_CURRENT_DATE_RVA = Map.of(
-            0x25f1a7, 0x56ad378L
+            0x25f1a7, 0x56ad378L,
+            0x260bf2, 0x56af378L
     );
 
     // Points at the current human manager person record. Keep this build-gated:
     // accepting a stale pointer here could silently attach the wrong club context.
     private static final Map<Integer, Long> BUILD_TO_CURRENT_HUMAN_MANAGER_RVA = Map.of(
-            0x25f1a7, 0x56f32c8L
+            0x25f1a7, 0x56f32c8L,
+            0x260bf2, 0x56f52c8L
     );
 
     private static final Map<String, Long> SLOTS = new LinkedHashMap<>();
@@ -114,59 +118,83 @@ public final class FmOffsets {
                 .filter(MemoryRegion::readable)
                 .sorted(Comparator.comparingLong(MemoryRegion::start))
                 .toList();
-        List<MemoryRegion> candidateRegions = maps.stream()
-                .filter(region -> region.start() >= gamePluginBase)
+        List<MemoryRegion> pluginRegions = maps.stream()
+                .filter(region -> region.end() > gamePluginBase)
                 .filter(region -> region.start() < gamePluginBase + GAME_PLUGIN_SCAN_RANGE)
-                .toList();
-        List<MemoryRegion> pluginRegions = candidateRegions.stream()
-                .filter(region -> region.size() <= MAX_SCAN_REGION_SIZE)
                 .sorted(Comparator
                         .comparing(MemoryRegion::writable).reversed()
+                        .thenComparing(region -> !region.path().contains("game_plugin.dll"))
                         .thenComparingLong(MemoryRegion::size))
                 .toList();
-        long largestCandidateSize = candidateRegions.stream().mapToLong(MemoryRegion::size).max().orElse(0);
-        log.info("FM offset scan: {} readable regions near game_plugin.dll base 0x{}, {} within size cap ({} skipped as oversized, largest {} bytes, cap {})",
-                candidateRegions.size(), Long.toHexString(gamePluginBase), pluginRegions.size(),
-                candidateRegions.size() - pluginRegions.size(), largestCandidateSize, MAX_SCAN_REGION_SIZE);
+        log.info("FM offset scan: {} readable regions near game_plugin.dll base 0x{}, bounded to {} bytes per read",
+                pluginRegions.size(), Long.toHexString(gamePluginBase), SCAN_CHUNK_BYTES);
 
         long bestTable = 0;
         int bestScore = 0;
-        int unreadableRegions = 0;
+        int unreadableChunks = 0;
         long maxSlot = SLOTS.values().stream().mapToLong(Long::longValue).max().orElseThrow();
+        int tableBytes = Math.toIntExact(maxSlot + Long.BYTES);
+        int step = (SCAN_CHUNK_BYTES - tableBytes) & -Long.BYTES;
         for (MemoryRegion region : pluginRegions) {
-            byte[] data;
-            try {
-                data = reader.readBytes(region.start(), Math.toIntExact(region.size()));
-            } catch (IOException | ArithmeticException ex) {
-                unreadableRegions++;
-                continue;
+            long end = Math.min(region.end(), gamePluginBase + GAME_PLUGIN_SCAN_RANGE);
+            long readableEnd = region.end();
+            // A table can straddle two adjacent readable mappings with different protections.
+            for (MemoryRegion next : maps) {
+                if (next.start() == readableEnd) readableEnd = next.end();
             }
-            ByteBuffer buffer = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN);
-            int maxOffset = Math.toIntExact(data.length - maxSlot - Long.BYTES);
-            for (int offset = 0; offset < maxOffset; offset += Long.BYTES) {
-                long continentPtr = buffer.getLong(Math.toIntExact(offset + SLOTS.get("ContinentOffset")));
-                long regionPtr = buffer.getLong(Math.toIntExact(offset + SLOTS.get("RegionOffset")));
-                long peoplePtr = buffer.getLong(Math.toIntExact(offset + SLOTS.get("PeopleOffset")));
-                if (!isReadable(maps, continentPtr + 0x88)
-                        || !isReadable(maps, regionPtr + 0x88)
-                        || !isReadable(maps, peoplePtr + 0x88)) {
+            for (long cursor = Math.max(region.start(), gamePluginBase); cursor < end; cursor += step) {
+                long candidateEnd = Math.min(end, cursor + step);
+                int length = Math.toIntExact(Math.min(readableEnd, candidateEnd + tableBytes - 1) - cursor);
+                if (length < tableBytes) continue;
+                byte[] data;
+                try {
+                    data = reader.readBytes(cursor, length);
+                } catch (IOException ex) {
+                    unreadableChunks++;
                     continue;
                 }
-                long table = region.start() + offset;
-                int score = tableScore(reader, table);
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestTable = table;
+                ByteBuffer buffer = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN);
+                int aligned = (int) ((Long.BYTES - cursor % Long.BYTES) % Long.BYTES);
+                for (int offset = aligned; offset + tableBytes <= data.length && cursor + offset < candidateEnd; offset += Long.BYTES) {
+                    long continentPtr = buffer.getLong(Math.toIntExact(offset + SLOTS.get("ContinentOffset")));
+                    long regionPtr = buffer.getLong(Math.toIntExact(offset + SLOTS.get("RegionOffset")));
+                    long peoplePtr = buffer.getLong(Math.toIntExact(offset + SLOTS.get("PeopleOffset")));
+                    if (continentPtr == 0 || regionPtr == 0 || peoplePtr == 0
+                            || !isReadable(maps, continentPtr + 0x80) || !isReadable(maps, continentPtr + 0x87)
+                            || !isReadable(maps, regionPtr + 0x80) || !isReadable(maps, regionPtr + 0x87)
+                            || !isReadable(maps, peoplePtr + 0x80) || !isReadable(maps, peoplePtr + 0x87)) {
+                        continue;
+                    }
+                    long table = cursor + offset;
+                    // Reject ordinary pointer arrays before reading all eleven registry chains.
+                    if (!hasCount(reader, continentPtr, 7) || !hasCount(reader, regionPtr, 28)) continue;
+                    int score = tableScore(reader, table);
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestTable = table;
+                    }
+                    if (score >= MIN_VALID_TABLE_SCORE) return table;
                 }
             }
         }
         if (bestScore < MIN_VALID_TABLE_SCORE) {
-            log.warn("FM offset scan: best candidate scored {} (minimum {}) at 0x{}, {} regions failed to read",
-                    bestScore, MIN_VALID_TABLE_SCORE, Long.toHexString(bestTable), unreadableRegions);
+            log.warn("FM offset scan: best candidate scored {} (minimum {}) at 0x{}, {} chunks failed to read",
+                    bestScore, MIN_VALID_TABLE_SCORE, Long.toHexString(bestTable), unreadableChunks);
             throw new IllegalStateException("FM offset table not found for game_plugin.dll base 0x"
                     + Long.toHexString(gamePluginBase));
         }
         return bestTable;
+    }
+
+    private static boolean hasCount(ProcessMemoryReader reader, long descriptor, long expected) {
+        try {
+            long header = reader.readU64(descriptor + 0x80);
+            long start = reader.readU64(header);
+            long end = reader.readU64(header + Long.BYTES);
+            return start > 0 && end >= start && end - start == expected * Long.BYTES;
+        } catch (IOException | RuntimeException ex) {
+            return false;
+        }
     }
 
     private static int tableScore(ProcessMemoryReader reader, long tableBase) {

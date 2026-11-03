@@ -10,12 +10,16 @@ public record NonPlayingProfileLayout(int personToMemberRel, int constructionRel
         int humanPersonToMemberRel, long humanPersonVtableRva, List<Field> fields) {
     public static final String MODULE_SHA256 = "bc940e472418fc5c214208d7cf30fecf600f689b6f9d71c11ba19a2df0fe057f";
     public NonPlayingProfileLayout { fields=List.copyOf(fields); }
-    private static final NonPlayingProfileLayout CURRENT = createCurrent();
+    private static final NonPlayingProfileLayout CURRENT = createCurrent(NativeModuleProfile.FM27_SHA256);
     public static NonPlayingProfileLayout current() { return CURRENT; }
+    public static NonPlayingProfileLayout forModule(String profile) {
+        if (NativeModuleProfile.FM27_SHA256.equals(profile)) return CURRENT;
+        return createCurrent(profile);
+    }
     /** FM27 27.0.0+2486695 typed members; human PERSON moved sixteen bytes towards its owner. */
 
-    private static NonPlayingProfileLayout createCurrent() {
-        return new NonPlayingProfileLayout(-0xF8,-4,64,8,52,0x4CB2718L,0x4D8BE78L,0x4F75F38L,-0x438,0x4CC08D8L,List.of(
+    private static NonPlayingProfileLayout createCurrent(String profile) {
+        return new NonPlayingProfileLayout(-0xF8,-4,64,8,52,NativeModuleProfile.rva(profile, 0x4CB2718),NativeModuleProfile.rva(profile, 0x4D8BE78),NativeModuleProfile.rva(profile, 0x4F75F38),-0x438,NativeModuleProfile.rva(profile, 0x4CC08D8),List.of(
                 new Field(0, "Attacking", false),
                 new Field(1, "Business", false),
                 new Field(2, "Coaching Technique", false),
@@ -75,7 +79,7 @@ public record NonPlayingProfileLayout(int personToMemberRel, int constructionRel
         if(!NativeModuleProfile.supported(sourceSha256)||profileHex==null||profileHex.length()!=104)return List.of();
         final byte[] raw;
         try { raw=HexFormat.of().parseHex(profileHex); } catch(IllegalArgumentException malformed) { return List.of(); }
-        var layout=current();
+        var layout=forModule(sourceSha256);
         return layout.fields().stream().map(f->new AttributeValue(f.name(),raw[f.index()],f.scaledByFive()?100:20)).toList();
     }
 }
