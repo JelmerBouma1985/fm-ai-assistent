@@ -70,6 +70,7 @@ class ArchiveStagerTest {
         try (var out = new TarArchiveOutputStream(new GZIPOutputStream(Files.newOutputStream(archive))); var paths = Files.walk(image)) {
             for (Path path : paths.filter(Files::isRegularFile).toList()) {
                 var e = new TarArchiveEntry(path, "FM AI Assistent/" + image.relativize(path));
+                if (path.equals(ImageFiles.launcher(image, "linux"))) e.setMode(0755);
                 out.putArchiveEntry(e); Files.copy(path, out); out.closeArchiveEntry();
             }
         }

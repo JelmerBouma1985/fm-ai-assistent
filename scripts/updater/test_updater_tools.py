@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import updater_tools as tools
 
 
@@ -41,6 +41,29 @@ class UpdaterToolsTest(unittest.TestCase):
                 self.assertEqual(hashlib.sha256(file.read_bytes()).hexdigest(), asset['sha256'])
             tools.aggregate(argparse.Namespace(directory=str(root / 'releases'), version='2.1.1'))
             self.assertEqual(2, len(json.loads((root / 'releases/update-manifest.json').read_text())['assets']))
+
+    def test_wait_reaps_launcher_and_reports_helper_error(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            platform = 'windows-x64' if tools.os.name == 'nt' else 'linux-x64'
+            old = self.image(root / 'old', platform, '2.1.0')
+            new = self.image(root / 'new', platform)
+            sandbox = root / 'sandbox'
+            process = Mock(pid=123)
+
+            def start(*args, **kwargs):
+                tx = sandbox / 'profile/.fm-ai-assistent/updater/test-transaction'
+                tx.mkdir(parents=True)
+                (tx / 'transaction.properties').write_text('state=DATA_REVIEW_REQUIRED')
+                (tx / 'error.txt').write_text('New application did not acknowledge readiness')
+                return process
+
+            args = argparse.Namespace(old_image=str(old), new_image=str(new), sandbox=str(sandbox),
+                                      automated=False, wait=True, timeout=2, failure=None)
+            with patch.object(tools.subprocess, 'Popen', side_effect=start):
+                with self.assertRaisesRegex(RuntimeError, 'New application did not acknowledge readiness'):
+                    tools.test(args)
+            process.poll.assert_called_once()
 
     def test_refuses_version_mismatch_and_unsafe_sandbox(self):
         with tempfile.TemporaryDirectory() as temp:

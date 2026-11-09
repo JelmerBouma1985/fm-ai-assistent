@@ -7,6 +7,12 @@ import java.util.Properties;
 /** Real child process for the helper integration tests, without closing the test runner. */
 public final class UpdaterProcessFixture {
     public static void main(String[] args) throws Exception {
+        if (args[1].equals("install")) {
+            Path directory = Path.of(args[0]);
+            new com.github.fmaiassistent.update.helper.InstallationTransaction(
+                    directory, directory.getParent().getParent().getParent(), 10000).execute();
+            return;
+        }
         if (args[1].equals("healthy")) {
             Path directory = Path.of(args[0]);
             Properties tx = ImageFiles.properties(directory.resolve("transaction.properties"));

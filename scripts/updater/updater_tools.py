@@ -157,6 +157,8 @@ def test(args):
         return
     deadline = time.monotonic() + args.timeout
     while time.monotonic() < deadline:
+        # Reap an exited Linux launcher so it cannot block the independent updater.
+        process.poll()
         journals = list((data / 'updater').glob('*/transaction.properties')) if (data / 'updater').exists() else []
         for journal in journals:
             text = journal.read_text()
@@ -170,6 +172,10 @@ def test(args):
                     assert os.access(installed / 'bin/FM AI Assistent', os.X_OK)
                 print(f'PASS: packaged {old_version} -> {new_version}, health acknowledgement, backup and data preservation. Close the new desktop app after inspection.')
                 return
+            error = journal.parent / 'error.txt'
+            if error.is_file():
+                raise RuntimeError(f'Updater failed: {error.read_text(errors="replace")}. '
+                                   f'Inspect {journal.parent}, especially helper-console.log and restarted-app.log')
         if args.failure == 'checksum' and 'Update checksum or size mismatch' in (sandbox / 'original-app.log').read_text(errors='replace'):
             assert metadata(installed)['version'] == old_version
             assert process.poll() is None

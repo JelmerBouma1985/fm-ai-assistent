@@ -60,6 +60,36 @@ class UpdaterTransactionTest {
         assertThrows(IOException.class, () -> transaction().execute());
         assertEquals("2.1.0", ImageFiles.metadata(install).getProperty("version"));
     }
+    @Test void exitedLinuxZombieDoesNotBlockInstallation() throws Exception {
+        Assumptions.assumeTrue(os.equals("linux"));
+        // Keep the parent alive without waitpid, reproducing a launcher that is not reaped.
+        Process parent = new ProcessBuilder("python3", "-u", "-c",
+                "import os,time,signal; pid=os.fork(); "
+                + "os._exit(0) if pid == 0 else None; "
+                + "signal.signal(signal.SIGTERM, lambda *_: (os.waitpid(pid, 0), os._exit(0))); "
+                + "print(pid, flush=True); time.sleep(30); os.waitpid(pid, 0)")
+                .redirectError(ProcessBuilder.Redirect.INHERIT).start();
+        try {
+            long pid = Long.parseLong(parent.inputReader().readLine());
+            Path stat = Path.of("/proc", Long.toString(pid), "stat");
+            long deadline = System.nanoTime() + java.time.Duration.ofSeconds(5).toNanos();
+            while (!Files.readString(stat).contains(") Z") && System.nanoTime() < deadline) Thread.sleep(10);
+            assertTrue(Files.readString(stat).contains(") Z"));
+            ProcessHandle zombie = ProcessHandle.of(pid).orElseThrow();
+            assertTrue(zombie.isAlive());
+            p.setProperty("oldPid", Long.toString(pid));
+            p.setProperty("oldStart", zombie.info().startInstant().orElseThrow().toString());
+            save();
+            Files.createFile(tx.resolve("clean-shutdown"));
+            Process[] child = new Process[1];
+            try {
+                new InstallationTransaction(tx, home, 10000, (command, directory) -> child[0] = fixture("healthy")).execute();
+                assertEquals("COMPLETED", ImageFiles.properties(tx.resolve("transaction.properties")).getProperty("state"));
+            } finally {
+                if (child[0] != null) { child[0].destroyForcibly(); child[0].waitFor(); }
+            }
+        } finally { parent.destroy(); parent.waitFor(); }
+    }
     @Test void recoverInterruptedBetweenRenamesWithoutDeletingImages() throws Exception {
         ImageFiles.move(install, backup); p.setProperty("state", "BACKUP_PENDING"); save();
         transaction().recover();
@@ -109,6 +139,27 @@ class UpdaterTransactionTest {
             assertEquals("keep", Files.readString(tx.resolve("data-backup/settings.txt")));
         } finally { if (child.get() != null) { child.get().destroyForcibly(); child.get().waitFor(); } }
     }
+    @Test
+    @org.junit.jupiter.api.condition.EnabledOnOs(org.junit.jupiter.api.condition.OS.LINUX)
+    void restartClearsInheritedJpackageMarker() throws Exception {
+        Files.createFile(tx.resolve("clean-shutdown"));
+        String ack = tx.resolve("healthy.properties").toString().replace("'", "'\"'\"'");
+        Path launcher = ImageFiles.launcher(stage, os);
+        Files.writeString(launcher, "#!/bin/sh\n"
+                + "[ \"${_JPACKAGE_LAUNCHER+x}\" != x ] || exit 23\n"
+                + "[ \"$FM_UPDATER_TEST_SENTINEL\" = preserved ] || exit 24\n"
+                + "printf 'id=" + id + "\\nversion=2.1.1\\n' > '" + ack + "'\n");
+        Files.setPosixFilePermissions(launcher, java.nio.file.attribute.PosixFilePermissions.fromString("rwxr-xr-x"));
+        Process child = fixture("install");
+        try {
+            assertTrue(child.waitFor(15, java.util.concurrent.TimeUnit.SECONDS));
+            assertEquals(0, child.exitValue(), () -> {
+                try { return Files.readString(tx.resolve("fixture.log")); }
+                catch (IOException e) { return e.toString(); }
+            });
+            assertEquals("COMPLETED", ImageFiles.properties(tx.resolve("transaction.properties")).getProperty("state"));
+        } finally { child.destroyForcibly(); child.waitFor(); }
+    }
     @Test void realChildFailureRequiresRecoveryAndDoesNotRelaunchOldCode() throws Exception {
         Files.createFile(tx.resolve("clean-shutdown"));
         var transaction = new InstallationTransaction(tx, home, 10000, (command, directory) -> fixture("fail"));
@@ -118,8 +169,13 @@ class UpdaterTransactionTest {
         assertTrue(Files.exists(install.resolve(".updater-data-review")));
     }
     private Process fixture(String mode) throws IOException {
-        return new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", os.equals("windows") ? "java.exe" : "java").toString(),
+        var builder = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", os.equals("windows") ? "java.exe" : "java").toString(),
                 "-cp", System.getProperty("java.class.path"), UpdaterProcessFixture.class.getName(), tx.toString(), mode).redirectErrorStream(true)
-                .redirectOutput(tx.resolve("fixture.log").toFile()).start();
+                .redirectOutput(tx.resolve("fixture.log").toFile());
+        if (mode.equals("install")) {
+            builder.environment().put("_JPACKAGE_LAUNCHER", "123456");
+            builder.environment().put("FM_UPDATER_TEST_SENTINEL", "preserved");
+        }
+        return builder.start();
     }
 }

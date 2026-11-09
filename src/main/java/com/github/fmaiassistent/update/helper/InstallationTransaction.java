@@ -13,8 +13,14 @@ public final class InstallationTransaction {
     private final ProcessStarter starter;
     @FunctionalInterface public interface ProcessStarter { Process start(List<String> command, Path directory) throws IOException; }
     public InstallationTransaction(Path directory, Path home, long waitMillis) throws IOException {
-        this(directory, home, waitMillis, (command, workingDirectory) -> new ProcessBuilder(command).directory(workingDirectory.toFile()).redirectErrorStream(true)
-                .redirectOutput(directory.resolve("restarted-app.log").toFile()).start());
+        this(directory, home, waitMillis, (command, workingDirectory) -> {
+            var builder = new ProcessBuilder(command).directory(workingDirectory.toFile()).redirectErrorStream(true)
+                    .redirectOutput(directory.resolve("restarted-app.log").toFile());
+            // The Linux jpackage launcher sets this for its own internal re-exec.
+            // Inheriting it can make a fresh launcher skip its cfg and interpret app arguments as JVM options.
+            builder.environment().remove("_JPACKAGE_LAUNCHER");
+            return builder.start();
+        });
     }
     public InstallationTransaction(Path directory, Path home, long waitMillis, ProcessStarter starter) throws IOException {
         this.starter = starter;
@@ -117,11 +123,29 @@ public final class InstallationTransaction {
             String start = p.getProperty(key + "Start", "");
             while (true) {
                 var process = ProcessHandle.of(pid);
-                if (process.isEmpty() || !process.get().isAlive()) break;
+                if (process.isEmpty() || !isRunning(process.get())) break;
                 if (start.isBlank() || !process.get().info().startInstant().map(Instant::toString).orElse("").equals(start)) throw new IOException("PID identity changed; refusing update");
                 if (System.nanoTime() >= deadline) throw new IOException("Application did not exit before update timeout");
                 Thread.sleep(200);
             }
+        }
+    }
+    /** Linux keeps exited children visible until their parent reaps them. */
+    private boolean isRunning(ProcessHandle process) throws IOException {
+        if (!process.isAlive()) return false;
+        if (!p.getProperty("os").equals("linux")) return true;
+        Path stat = Path.of("/proc", Long.toString(process.pid()), "stat");
+        try (InputStream input = Files.newInputStream(stat)) {
+            byte[] bytes = input.readNBytes(4097);
+            if (bytes.length > 4096) throw new IOException("Oversized process status");
+            String status = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+            // comm is parenthesized and may itself contain spaces or parentheses.
+            int end = status.lastIndexOf(')');
+            if (end < 0 || end + 2 >= status.length()) throw new IOException("Invalid process status");
+            char state = status.charAt(end + 2);
+            return state != 'Z' && state != 'X';
+        } catch (NoSuchFileException exited) {
+            return process.isAlive();
         }
     }
     /** Conservative, idempotent recovery. Never deletes an image and never launches old code. */
@@ -132,7 +156,7 @@ public final class InstallationTransaction {
         for (String key : List.of("old", "launcher", "new")) {
             if (p.containsKey(key + "Pid")) {
                 var process = ProcessHandle.of(Long.parseLong(p.getProperty(key + "Pid")));
-                if (process.isPresent() && process.get().isAlive()) throw new IOException("Close application processes before recovery");
+                if (process.isPresent() && isRunning(process.get())) throw new IOException("Close application processes before recovery");
             }
         }
         if (Files.exists(backup)) {
