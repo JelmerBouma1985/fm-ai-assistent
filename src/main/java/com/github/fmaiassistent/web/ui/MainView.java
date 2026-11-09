@@ -174,7 +174,8 @@ public class MainView extends VerticalLayout {
             ManagedClubContextService managedClubContexts,
             ShortlistFileService shortlistFiles,
             RecruitmentCaseService recruitment,
-            ContractRepository contracts) {
+            ContractRepository contracts,
+            com.github.fmaiassistent.update.UpdateCoordinator updates) {
         this.refreshes = refreshes;
         this.players = players;
         this.staff = staff;
@@ -204,6 +205,7 @@ public class MainView extends VerticalLayout {
         Div body = new Div(navigation(), workspace);
         body.addClassName("app-body");
         add(header(), body);
+        add(new UpdatePanel(updates));
         expand(body);
         configureTabs();
         configureGrid(playersGrid);
@@ -428,7 +430,7 @@ public class MainView extends VerticalLayout {
                 })
                 .whenComplete((result, ex) -> ui.access(() -> {
                     loadingDialog.close();
-                    ui.setPollInterval(BADGE_POLL_INTERVAL_MS);
+                    ui.setPollInterval(1000);
                     refreshFreshnessBadge(false);
                     loadButton.setEnabled(true);
                     loadButton.setText("Load data");
@@ -532,7 +534,7 @@ public class MainView extends VerticalLayout {
         super.onAttach(event);
         getUI().ifPresent(ui -> {
             ui.getElement().setAttribute("theme", "dark");
-            ui.setPollInterval(BADGE_POLL_INTERVAL_MS);
+            ui.setPollInterval(1000);
             if (pollRegistration == null) {
                 pollRegistration = ui.addPollListener(this::onPoll);
             }

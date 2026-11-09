@@ -52,6 +52,7 @@ final class DesktopLifecycle {
             log.info("Spring application context closed");
         } catch (RuntimeException exception) {
             log.error("Spring application context reported an error while closing", exception);
+            return false;
         }
         return true;
     }
