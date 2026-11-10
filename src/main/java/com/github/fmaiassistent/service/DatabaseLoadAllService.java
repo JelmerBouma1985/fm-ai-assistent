@@ -103,6 +103,10 @@ public class DatabaseLoadAllService {
                         + "continuing with the last known record layouts", installed);
                 warningPrefix.set("Unknown FM27 build " + installed + " - using last known memory layout");
             }
+            unavailableFeatureWarning(image.profile()).ifPresent(warning -> {
+                log.warn("{}", warning);
+                warningPrefix.updateAndGet(previous -> previous == null ? warning : previous + " | " + warning);
+            });
             reportPhase("Reading FM27 memory");
             RamSnapshot ram = readRamInParallel(resolvedPid, build, gamePluginBase,
                     com.github.fmaiassistent.exporter.CaptureBudget.scaledTimeout(RAM_READ_TIMEOUT, image.peopleSlots()));
@@ -370,6 +374,15 @@ public class DatabaseLoadAllService {
             throw new IOException("Timed out while reading FM27 " + dataType + " data after "
                     + timeout.toSeconds() + " seconds", exception);
         }
+    }
+
+    /** Data a verified image cannot provide yet, so an empty list is not mistaken for "none". */
+    static java.util.Optional<String> unavailableFeatureWarning(String moduleProfile) {
+        if (!com.github.fmaiassistent.memory.NativeModuleProfile.supported(moduleProfile)
+                || com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.forModuleIfMapped(moduleProfile).isPresent()) {
+            return java.util.Optional.empty();
+        }
+        return java.util.Optional.of("UEFA club coefficients are not yet verified for this FM27 build and stay unavailable");
     }
 
     /** Exact image identity and people-registry size; both are optional hints for the load. */

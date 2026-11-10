@@ -21,15 +21,23 @@ public final class PlayerSnapshotValidator {
     /** A layout is verified when it equals the exact layout of any supported image; images
      * that lack a verified root for that layout cannot vouch for it. */
     private static boolean verifiedLayout(Object layout, java.util.function.Function<String, ?> forModule) {
-        for (String profile : com.github.fmaiassistent.memory.NativeModuleProfile.supportedProfiles()) {
-            try {
-                if (forModule.apply(profile).equals(layout)) return true;
-            } catch (IllegalArgumentException unmapped) {
-                // root not verified for this image
+        if (layout == null) return false;
+        // Validation runs once per PERSON; build each image's exact layouts once per layout type.
+        return VERIFIED_LAYOUTS.computeIfAbsent(layout.getClass(), type -> {
+            var known = new java.util.ArrayList<Object>();
+            for (String profile : com.github.fmaiassistent.memory.NativeModuleProfile.supportedProfiles()) {
+                try {
+                    known.add(forModule.apply(profile));
+                } catch (IllegalArgumentException unmapped) {
+                    // root not verified for this image
+                }
             }
-        }
-        return false;
+            return java.util.List.copyOf(known);
+        }).contains(layout);
     }
+
+    private static final java.util.Map<Class<?>, java.util.List<Object>> VERIFIED_LAYOUTS =
+            new java.util.concurrent.ConcurrentHashMap<>();
 
     /** Native RTTI and the human PERSON getter independently anchor the complete-object displacements. */
     public static void validatePersonSubtypeLayout(

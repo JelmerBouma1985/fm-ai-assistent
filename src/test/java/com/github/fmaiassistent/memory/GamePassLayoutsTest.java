@@ -72,6 +72,19 @@ class GamePassLayoutsTest {
     }
 
     @Test
+    void independentlyResolvedRootsKeepTheirSteamDistances() {
+        // Registry slots were found from live counts, the table by its score, the two manager
+        // roots by live pointers; their spacing must still match the Steam image.
+        int table = 0x57035E8;
+        for (int slot : new int[]{0x57036D0, 0x57036E0, 0x57036E8, 0x5703730, 0x5703738, 0x5703768}) {
+            assertThat(NativeModuleProfile.rva(GAME_PASS, slot) - NativeModuleProfile.rva(GAME_PASS, table))
+                    .as("slot 0x%x", slot).isEqualTo(slot - table);
+        }
+        assertThat(NativeModuleProfile.rva(GAME_PASS, 0x56F32C8) - NativeModuleProfile.rva(GAME_PASS, 0x56F2EF0))
+                .isEqualTo(0x56F32C8 - 0x56F2EF0);
+    }
+
+    @Test
     void unresolvedRootsStayUnavailableInsteadOfGuessed() {
         assertThat(NativeModuleProfile.mapsRva(GAME_PASS, 0x56C212A)).isFalse();
         assertThatThrownBy(() -> NativeModuleProfile.rva(GAME_PASS, 0x56C212A))

@@ -59,7 +59,9 @@ public final class NativeModuleProfile {
             Map.entry(0x5703738, 0x5683D28),  // registry slot +0x150 (people)
             Map.entry(0x5703768, 0x5683D58)); // registry slot +0x180 (teams)
 
-    /** Hashing a 400 MB image takes seconds; a module file is hashed once per size and timestamp. */
+    /** Hashing a 400 MB image takes seconds; a module file is hashed once per size and timestamp.
+     * A file replaced with identical size and a preserved timestamp keeps its earlier identity;
+     * game updates rewrite the file, and record anchors still guard every read. */
     private static final Map<Path, CachedIdentity> IDENTITIES = new ConcurrentHashMap<>();
 
     private NativeModuleProfile() { }
