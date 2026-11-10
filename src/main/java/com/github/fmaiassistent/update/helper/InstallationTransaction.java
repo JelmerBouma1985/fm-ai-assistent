@@ -1,6 +1,7 @@
 package com.github.fmaiassistent.update.helper;
 
 import java.io.*;
+import java.net.*;
 import java.nio.file.*;
 import java.time.*;
 import java.util.*;
@@ -49,6 +50,7 @@ public final class InstallationTransaction {
         waitForOldProcesses();
         ensureNoImageProcesses();
         if (!Files.isRegularFile(directory.resolve("clean-shutdown"))) throw new IOException("Application did not acknowledge clean database shutdown");
+        waitForServerPort();
         backupData();
         state("BACKUP_PENDING");
         try {
@@ -82,6 +84,8 @@ public final class InstallationTransaction {
         List<String> command = new ArrayList<>();
         command.add(ImageFiles.launcher(install, p.getProperty("os")).toString());
         command.add("--app.updates.transaction=" + p.getProperty("id"));
+        if (p.containsKey("serverPort")) command.add("--server.port=" + p.getProperty("serverPort"));
+        if (p.containsKey("serverAddress")) command.add("--server.address=" + p.getProperty("serverAddress"));
         if (p.getProperty("source", "github").equals("local")) {
             command.add("--app.updates.source=local"); command.add("--app.updates.developer-mode=true");
             command.add("--app.updates.local-directory=" + p.getProperty("localDirectory"));
@@ -126,6 +130,25 @@ public final class InstallationTransaction {
                 if (process.isEmpty() || !isRunning(process.get())) break;
                 if (start.isBlank() || !process.get().info().startInstant().map(Instant::toString).orElse("").equals(start)) throw new IOException("PID identity changed; refusing update");
                 if (System.nanoTime() >= deadline) throw new IOException("Application did not exit before update timeout");
+                Thread.sleep(200);
+            }
+        }
+    }
+    private void waitForServerPort() throws Exception {
+        if (!p.containsKey("serverPort")) return; // Transactions created by older versions.
+        int port = Integer.parseInt(p.getProperty("serverPort"));
+        if (port < 1 || port > 65535) throw new IOException("Invalid application port in update transaction");
+        String configuredAddress = p.getProperty("serverAddress");
+        InetAddress address = configuredAddress == null ? null : InetAddress.getByName(configuredAddress);
+        long deadline = System.nanoTime() + Duration.ofMillis(waitMillis).toNanos();
+        while (true) {
+            try (ServerSocket socket = new ServerSocket()) {
+                // Match the embedded server: TIME_WAIT connections need not prevent rebinding.
+                socket.setReuseAddress(true);
+                socket.bind(new InetSocketAddress(address, port));
+                return;
+            } catch (BindException occupied) {
+                if (System.nanoTime() >= deadline) throw new IOException("Application port " + port + " is still in use; update stopped", occupied);
                 Thread.sleep(200);
             }
         }

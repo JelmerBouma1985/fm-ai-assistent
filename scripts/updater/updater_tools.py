@@ -12,6 +12,7 @@ import sys
 import tarfile
 import time
 import zipfile
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 NAME = 'FM AI Assistent'
@@ -163,6 +164,14 @@ def test(args):
         for journal in journals:
             text = journal.read_text()
             if 'state=COMPLETED' in text:
+                assert process.poll() is not None, 'Original launcher is still running'
+                original_urls = re.findall(r'Desktop application URL: (\S+)',
+                                           (sandbox / 'original-app.log').read_text(errors='replace'))
+                restarted_urls = re.findall(r'Desktop application URL: (\S+)',
+                                            (journal.parent / 'restarted-app.log').read_text(errors='replace'))
+                assert original_urls and restarted_urls, 'Missing original or restarted application URL'
+                original_port = urlsplit(original_urls[-1]).port
+                assert original_port == urlsplit(restarted_urls[-1]).port, 'Updated app changed server port'
                 assert metadata(installed)['version'] == new_version
                 assert (data / 'preservation-sentinel.txt').read_text() == 'preserve me'
                 assert (journal.parent / 'healthy.properties').is_file()
@@ -170,7 +179,7 @@ def test(args):
                 assert list(installed.parent.glob(f'{NAME}.backup-*'))
                 if os.name != 'nt':
                     assert os.access(installed / 'bin/FM AI Assistent', os.X_OK)
-                print(f'PASS: packaged {old_version} -> {new_version}, health acknowledgement, backup and data preservation. Close the new desktop app after inspection.')
+                print(f'PASS: packaged {old_version} -> {new_version}, original launcher exited, same port {original_port}, health acknowledgement, backup and data preservation. Close the new desktop app after inspection.')
                 return
             error = journal.parent / 'error.txt'
             if error.is_file():

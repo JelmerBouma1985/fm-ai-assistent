@@ -171,6 +171,10 @@ launches the helper and verifies its handshake before desktop shutdown. The
 helper waits for the exact JVM/launcher PIDs plus start times and requires a
 clean-shutdown marker. It never kills stuck/unrelated processes. A per-install
 lock prevents concurrent swaps; bounded retries handle sharing violations.
+The transaction records the running server's actual port and bind address.
+After the old processes exit, the helper waits for that port to be free before
+backing up or replacing files. The new app starts on the same port; updater
+restarts never fall back to another port if it becomes occupied.
 
 Only after shutdown closes H2 does the helper copy normal user data (excluding
 updater state) into `<transaction>/data-backup`. Linked/special data files abort

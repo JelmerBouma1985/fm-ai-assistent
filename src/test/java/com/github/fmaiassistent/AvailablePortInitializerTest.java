@@ -14,6 +14,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class AvailablePortInitializerTest {
     @Test
+    void updaterRestartKeepsOriginalPortEvenWhenOccupied() throws Exception {
+        try (ServerSocket occupied = new ServerSocket(0)) {
+            var context = new AnnotationConfigServletWebServerApplicationContext();
+            context.setEnvironment(new MockEnvironment()
+                    .withProperty("server.port", Integer.toString(occupied.getLocalPort()))
+                    .withProperty("app.updates.transaction", "update-transaction"));
+
+            new AvailablePortInitializer().initialize(context);
+
+            assertThat(context.getEnvironment().getProperty("server.port", Integer.class))
+                    .isEqualTo(occupied.getLocalPort());
+            assertThat(context.getEnvironment().getPropertySources().contains("availableServerPort")).isFalse();
+        }
+    }
+
+    @Test
     void skipsOccupiedPortsInOrder() throws Exception {
         InetAddress loopback = InetAddress.getLoopbackAddress();
         for (int attempt = 0; attempt < 20; attempt++) {

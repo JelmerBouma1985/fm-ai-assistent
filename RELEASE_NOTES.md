@@ -1,7 +1,5 @@
 # Release Notes
 
-## Unreleased
-
 ## 2.0.2
 
 ### Features

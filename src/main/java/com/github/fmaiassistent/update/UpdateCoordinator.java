@@ -102,6 +102,11 @@ public class UpdateCoordinator {
                 tx.setProperty("backup", installed.root().resolveSibling(installed.root().getFileName() + ".backup-" + id).toString());
                 tx.setProperty("oldVersion", installed.version()); tx.setProperty("newVersion", release.version());
                 tx.setProperty("os", installed.os()); tx.setProperty("game", installed.game());
+                int serverPort = environment.getRequiredProperty("local.server.port", Integer.class);
+                if (serverPort < 1 || serverPort > 65535) throw new IOException("Invalid running application port");
+                tx.setProperty("serverPort", Integer.toString(serverPort));
+                String serverAddress = environment.getProperty("server.address");
+                if (serverAddress != null && !serverAddress.isBlank()) tx.setProperty("serverAddress", serverAddress);
                 recordProcess(tx, "old", ProcessHandle.current());
                 ProcessHandle.current().parent().ifPresent(parent -> {
                     if (parent.info().command().map(s -> Path.of(s).toAbsolutePath().normalize().startsWith(installed.root())).orElse(false)) recordProcess(tx, "launcher", parent);

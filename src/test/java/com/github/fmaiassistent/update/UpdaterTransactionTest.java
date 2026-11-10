@@ -47,6 +47,60 @@ class UpdaterTransactionTest {
     }
     void save() throws IOException { ImageFiles.store(tx.resolve("transaction.properties"), p); }
     InstallationTransaction transaction() throws IOException { return new InstallationTransaction(tx, home, 100); }
+    @Test void occupiedOriginalPortStopsUpdateBeforeReplacingImage() throws Exception {
+        try (var occupied = new java.net.ServerSocket(0)) {
+            p.setProperty("serverPort", Integer.toString(occupied.getLocalPort()));
+            save();
+            Files.createFile(tx.resolve("clean-shutdown"));
+            IOException failure = assertThrows(IOException.class, () -> transaction().execute());
+            assertTrue(failure.getMessage().contains("is still in use"));
+            assertEquals("2.1.0", ImageFiles.metadata(install).getProperty("version"));
+            assertFalse(Files.exists(backup));
+            assertFalse(Files.exists(tx.resolve("data-backup")));
+        }
+    }
+
+    @Test void waitsForOldServerToExitAndRestartsOnItsPort() throws Exception {
+        String address = "127.0.0.1";
+        try (var reservation = new java.net.ServerSocket(0, 0, java.net.InetAddress.getByName(address))) {
+            p.setProperty("serverPort", Integer.toString(reservation.getLocalPort()));
+        }
+        p.setProperty("serverAddress", address);
+        save();
+        Process old = fixture("server");
+        Process[] child = new Process[1];
+        try {
+            long deadline = System.nanoTime() + java.time.Duration.ofSeconds(5).toNanos();
+            while (!Files.exists(tx.resolve("server-listening")) && old.isAlive() && System.nanoTime() < deadline) Thread.sleep(20);
+            assertTrue(Files.exists(tx.resolve("server-listening")));
+            p.setProperty("oldPid", Long.toString(old.pid()));
+            p.setProperty("oldStart", old.info().startInstant().orElseThrow().toString());
+            save();
+            Files.createFile(tx.resolve("clean-shutdown"));
+            var release = java.util.concurrent.CompletableFuture.runAsync(() -> {
+                try {
+                    while (!Files.exists(tx.resolve("helper-started"))) Thread.sleep(20);
+                    Thread.sleep(300);
+                    Files.createFile(tx.resolve("exit-server"));
+                } catch (Exception e) { throw new java.util.concurrent.CompletionException(e); }
+            });
+            new InstallationTransaction(tx, home, 10000, (command, directory) -> {
+                assertFalse(old.isAlive(), "Old server must exit before the new app starts");
+                assertTrue(command.contains("--server.port=" + p.getProperty("serverPort")));
+                assertTrue(command.contains("--server.address=" + address));
+                try (var socket = new java.net.ServerSocket()) {
+                    socket.bind(new java.net.InetSocketAddress(address, Integer.parseInt(p.getProperty("serverPort"))));
+                }
+                return child[0] = fixture("healthy");
+            }).execute();
+            release.get(5, java.util.concurrent.TimeUnit.SECONDS);
+            assertEquals("COMPLETED", ImageFiles.properties(tx.resolve("transaction.properties")).getProperty("state"));
+        } finally {
+            old.destroyForcibly(); old.waitFor();
+            if (child[0] != null) { child[0].destroyForcibly(); child[0].waitFor(); }
+        }
+    }
+
     @Test void noCleanShutdownNeverReplacesImage() throws Exception {
         assertThrows(IOException.class, () -> transaction().execute());
         assertEquals("2.1.0", ImageFiles.metadata(install).getProperty("version")); assertFalse(Files.exists(backup));
