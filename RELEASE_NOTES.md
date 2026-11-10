@@ -10,3 +10,4 @@
 
 ### Bug fixes
 - Works with very large databases (thx to @canilbey)
+- AI agents get the right context when managing women clubs (thx to @hostlund)
