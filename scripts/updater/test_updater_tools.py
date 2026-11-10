@@ -27,7 +27,7 @@ class UpdaterToolsTest(unittest.TestCase):
 
     def test_merge_platforms_and_final_checksums(self):
         with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
+            root = Path(temp).resolve(strict=True)
             for platform in ('windows-x64', 'linux-x64'):
                 image = self.image(root / platform, platform)
                 args = argparse.Namespace(app_image=str(image), output_directory=str(root / 'releases'),
@@ -44,7 +44,8 @@ class UpdaterToolsTest(unittest.TestCase):
 
     def test_wait_reaps_launcher_and_reports_helper_error(self):
         with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
+            # Windows temporary paths can contain short names or junctions.
+            root = Path(temp).resolve(strict=True)
             platform = 'windows-x64' if tools.os.name == 'nt' else 'linux-x64'
             old = self.image(root / 'old', platform, '2.1.0')
             new = self.image(root / 'new', platform)
