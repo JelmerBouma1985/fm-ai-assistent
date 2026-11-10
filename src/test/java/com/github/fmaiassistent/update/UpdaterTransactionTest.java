@@ -14,6 +14,8 @@ class UpdaterTransactionTest {
     Properties p;
     String id, os;
     @BeforeEach void setup() throws Exception {
+        // Windows TEMP may use a junction or short path; match the helper's canonical-path contract.
+        temp = temp.toRealPath();
         home = Files.createDirectory(temp.resolve("home")).toRealPath();
         install = temp.resolve("Installed app with spaces").toAbsolutePath();
         id = UUID.randomUUID().toString(); os = InstalledApplicationInfo.currentOs();
@@ -53,7 +55,7 @@ class UpdaterTransactionTest {
             save();
             Files.createFile(tx.resolve("clean-shutdown"));
             IOException failure = assertThrows(IOException.class, () -> transaction().execute());
-            assertTrue(failure.getMessage().contains("is still in use"));
+            assertTrue(failure.getMessage().contains("is still in use"), failure::getMessage);
             assertEquals("2.1.0", ImageFiles.metadata(install).getProperty("version"));
             assertFalse(Files.exists(backup));
             assertFalse(Files.exists(tx.resolve("data-backup")));
