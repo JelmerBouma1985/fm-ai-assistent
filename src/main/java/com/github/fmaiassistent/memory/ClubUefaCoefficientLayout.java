@@ -16,6 +16,16 @@ public record ClubUefaCoefficientLayout(int clubDataRel, int coefficientRel, int
         int ruleVersionBytes, int ruleThreshold, int oldPointsScale, int newPointsScale, int coefficientScale) {
     public static final String MODULE_SHA256 = "bc940e472418fc5c214208d7cf30fecf600f689b6f9d71c11ba19a2df0fe057f";
 
+    /** Exact-image profile for FM27 27.0.1+2494687. */
+    public static ClubUefaCoefficientLayout forModule(String hash) {
+        if (NativeModuleProfile.FM27_SHA256.equals(hash)) return current();
+        NativeModuleProfile.require2701(hash);
+        return new ClubUefaCoefficientLayout(0x100,0x48,0xD8,0xB9,0x108,8,
+                0x4C,0,4,10,4,0x2C,0x30,0x34,0x38,0x3C,0x40,0x44,
+                0x57DF16A,2,0x671,100,1000,1000);
+
+    }
+
     public static ClubUefaCoefficientLayout current() {
         return new ClubUefaCoefficientLayout(0x100,0x48,0xD8,0xB9,0x108,8,
                 0x4C,0,4,10,4,0x2C,0x30,0x34,0x38,0x3C,0x40,0x44,
@@ -49,7 +59,7 @@ public record ClubUefaCoefficientLayout(int clubDataRel, int coefficientRel, int
 
     /** Old rows, unsupported images or malformed payloads remain unavailable. */
     public static Optional<Values> values(String hex, Integer ruleVersion, String sourceSha256) {
-        if (!MODULE_SHA256.equals(sourceSha256) || hex == null || ruleVersion == null || hex.length() != 152)
+        if (!NativeModuleProfile.supported(sourceSha256) || hex == null || ruleVersion == null || hex.length() != 152)
             return Optional.empty();
         try { return Optional.of(current().decode(HexFormat.of().parseHex(hex), ruleVersion)); }
         catch (IllegalArgumentException | IndexOutOfBoundsException invalid) { return Optional.empty(); }

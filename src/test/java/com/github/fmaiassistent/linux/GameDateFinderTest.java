@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GameDateFinderTest {
     private static final long GAME_PLUGIN_BASE = 0x1000_0000L;
-    private static final long CURRENT_DATE_RVA = 0x56ad378L;
+    private static final long CURRENT_DATE_RVA = 0x57ca3b8L;
 
     @Test
     void readsCapturedFm27ClockAndRejectsUnknownBuild() {
@@ -25,8 +25,18 @@ class GameDateFinderTest {
         reader.putU16(GAME_PLUGIN_BASE + 0x56ad378L, 0x1ad7);
         reader.putU16(GAME_PLUGIN_BASE + 0x56ad37aL, 2026);
         assertEquals(LocalDate.of(2026, 8, 3), new GameDateFinder()
-                .find(reader, 0, FmOffsets.DEFAULT_BUILD, GAME_PLUGIN_BASE).orElseThrow());
+                .find(reader, 0, 2486695, GAME_PLUGIN_BASE).orElseThrow());
         assertTrue(new GameDateFinder().find(reader, 0, FmOffsets.DEFAULT_BUILD + 1, GAME_PLUGIN_BASE).isEmpty());
+    }
+
+    @Test
+    void readsUpdatedClockAndRejectsShiftedAndLegacyRoots() {
+        FakeReader reader = new FakeReader(ProcessMemoryReader.Platform.WINDOWS);
+        putCurrentDate(reader, 0x1ad7, 2026);
+        assertEquals(LocalDate.of(2026, 8, 3), new GameDateFinder()
+                .find(reader, 0, 2494687, GAME_PLUGIN_BASE).orElseThrow());
+        assertTrue(new GameDateFinder().find(reader, 0, 2486695, GAME_PLUGIN_BASE).isEmpty());
+        assertTrue(new GameDateFinder().find(reader, 0, 2494687, GAME_PLUGIN_BASE + 4).isEmpty());
     }
 
     @Test

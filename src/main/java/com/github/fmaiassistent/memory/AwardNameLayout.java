@@ -5,6 +5,13 @@ public record AwardNameLayout(int registryRva,int registryHeaderRel,long vtableR
         int indexRel,int uidRel,int nameRel,int shortNameRel,int lengthRel,int dataRel,int maximumBytes,
         int rowBytes,int amountRel,int stateRel) {
 
+    /** Exact-image profile for FM27 27.0.1+2494687. */
+    public static AwardNameLayout forModule(String hash) {
+        if (NativeModuleProfile.FM27_SHA256.equals(hash)) return current();
+        NativeModuleProfile.require2701(hash);
+        return new AwardNameLayout(0x5820710,0x80,0x4DFA1E8L,64,8,12,0x30,0x38,0,4,1024,16,8,12);
+    }
+
     public static AwardNameLayout current(){return new AwardNameLayout(0x57036D0,0x80,0x4CF6078L,64,8,12,0x30,0x38,0,4,1024,16,8,12);}
     public int identityBytes(){return uidRel+Integer.BYTES;}
     public boolean identityMatches(long uid,int index,String prefixHex){

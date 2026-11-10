@@ -22,6 +22,27 @@ public record ContractRecordLayout(Links links, Full full, Loan loan, List<Vecto
     public record TeamOwner(int flag, int reference, int clubsRegistry, int nationalContainersRegistry,
                             long clubVtable, long nationalContainerVtable) { }
 
+    /** Exact-image profile for FM27 27.0.1+2494687. */
+    public static ContractRecordLayout forModule(String hash) {
+        if (NativeModuleProfile.FM27_SHA256.equals(hash)) return current();
+        NativeModuleProfile.require2701(hash);
+        return new ContractRecordLayout(
+                new Links(0xA8, 0xB0, 8, 12, 8, 0x10, 0x54, 0x80,
+                        0x58207A8, 0x5820728, 8, 16, 4),
+                new Full(0xC8, 0x4C04B08, 0x68, 0x80, 0x98, 8, 32, 16),
+                new Loan(0xF8, 0x4ECDCF8, 0x68, 0xA0, 0xA8, 0xB0, 0xB4,
+                        0xEF, 0xF0, 0x90, 0x94, 0x98, 0x9C, 200, 0x70, 0x88, 32, 16),
+                List.of(new Vector("SHARED_00", 0, 12), new Vector("SHARED_18", 0x18, 8),
+                        new Vector("SHARED_30", 0x30, 8), new Vector("SHARED_48", 0x48, 8),
+                        new Vector("SHARED_60", 0x60, 8), new Vector("SHARED_78", 0x78, 16),
+                        new Vector("SHARED_90", 0x90, 32), new Vector("SHARED_A8", 0xA8, 16)),
+                new TermFields(0, 4, 6), new TermFields(0, 4, 8),
+                new Plain(0x68, 0x506C938, "B_CLUB"), new Plain(0x28, 0x4C05078, "BASIC"),
+                new Award(0x5820710, 0, 0x4DFA1E8),
+                new TeamOwner(0x2F, 0x30, 0x5820720, 0x5820770, 0x4DDE298, 0x4DF0228));
+
+    }
+
     /** FM27 27.0.0+2486695; typed live census in fm27/contracts_inventory.json. */
     public static ContractRecordLayout current() {
         return new ContractRecordLayout(

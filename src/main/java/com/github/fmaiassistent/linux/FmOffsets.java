@@ -18,24 +18,28 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class FmOffsets {
     private static final Logger log = LoggerFactory.getLogger(FmOffsets.class);
-    public static final int DEFAULT_BUILD = 0x25f1a7;
+    public static final int DEFAULT_BUILD = 2494687; // FM27 27.0.1, Steam build 26385295
     public static final String PEOPLE_SLOT = "PeopleOffset";
     private static final long MAX_SCAN_REGION_SIZE = 80_000_000L;
     // FM27 moved the data registries beyond the old 0x05200000 scan window.
     private static final long GAME_PLUGIN_SCAN_RANGE = 0x0600_0000L;
     private static final int MIN_VALID_TABLE_SCORE = 35;
 
-    private static final Map<Integer, Long> BUILD_TO_TABLE_RVA = Map.of(DEFAULT_BUILD, 0x57035e8L);
+    private static final Map<Integer, Long> BUILD_TO_TABLE_RVA = Map.of(
+            2486695, 0x57035e8L,
+            2494687, 0x5820628L);
 
     // FM's native game_plugin.dll layout is the same on Windows and under Proton.
     private static final Map<Integer, Long> BUILD_TO_CURRENT_DATE_RVA = Map.of(
-            0x25f1a7, 0x56ad378L
+            2486695, 0x56ad378L,
+            2494687, 0x57ca3b8L
     );
 
     // Points at the current human manager person record. Keep this build-gated:
     // accepting a stale pointer here could silently attach the wrong club context.
     private static final Map<Integer, Long> BUILD_TO_CURRENT_HUMAN_MANAGER_RVA = Map.of(
-            0x25f1a7, 0x56f32c8L
+            2486695, 0x56f32c8L,
+            2494687, 0x5810308L
     );
 
     private static final Map<String, Long> SLOTS = new LinkedHashMap<>();

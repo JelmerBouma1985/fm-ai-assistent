@@ -11,6 +11,15 @@ public record NonPlayingProfileLayout(int personToMemberRel, int constructionRel
     public static final String MODULE_SHA256 = "bc940e472418fc5c214208d7cf30fecf600f689b6f9d71c11ba19a2df0fe057f";
     public NonPlayingProfileLayout { fields=List.copyOf(fields); }
     private static final NonPlayingProfileLayout CURRENT = createCurrent();
+
+    /** Exact-image profile for FM27 27.0.1+2494687. */
+    public static NonPlayingProfileLayout forModule(String hash) {
+        if (NativeModuleProfile.FM27_SHA256.equals(hash)) return current();
+        NativeModuleProfile.require2701(hash);
+        return new NonPlayingProfileLayout(-0xF8,-4,64,8,52,0x4DB6758L,
+                0x4E908B8L,0x50901E8L,-0x438,0x4DC4938L,current().fields());
+    }
+
     public static NonPlayingProfileLayout current() { return CURRENT; }
     /** FM27 27.0.0+2486695 typed members; human PERSON moved sixteen bytes towards its owner. */
 

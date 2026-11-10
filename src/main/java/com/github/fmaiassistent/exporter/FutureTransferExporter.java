@@ -29,7 +29,13 @@ final class FutureTransferExporter {
 
     FutureTransferExporter(ProcessMemoryReader reader,long base,FutureTransferLayout layout) {
         this.reader=reader;this.base=base;this.layout=layout;
-        this.contracts=new ContractExporter(reader,base,ContractRecordLayout.current());
+        this.contracts=new ContractExporter(reader,base,ContractRecordLayout.forModule(moduleProfile()));
+    }
+
+    private String moduleProfile() {
+        return layout.equals(FutureTransferLayout.forModule(com.github.fmaiassistent.memory.NativeModuleProfile.FM27_2701_SHA256))
+                ? com.github.fmaiassistent.memory.NativeModuleProfile.FM27_2701_SHA256
+                : com.github.fmaiassistent.memory.NativeModuleProfile.FM27_SHA256;
     }
 
     Result read(long person,long uid) throws IOException {
@@ -60,7 +66,7 @@ final class FutureTransferExporter {
                 var employment=contracts.readFutureEmployment(person,uid,index);
                 if(employment.isEmpty()){complete=false;unchanged(offer,core);continue;}
                 var snapshot=employment.orElseThrow();
-                var cl=ContractRecordLayout.current();
+                var cl=ContractRecordLayout.forModule(moduleProfile());
                 byte[] contractCore=java.util.HexFormat.of().parseHex(snapshot.contract().coreHex());
                 long team=buffer(contractCore).getLong(cl.links().team());
                 if(team!=buffer(core).getLong(layout.buyerTeam()))throw new IOException("Future buyer/contract TEAM anchor failed");

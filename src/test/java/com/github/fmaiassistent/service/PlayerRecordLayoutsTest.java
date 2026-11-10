@@ -14,6 +14,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class PlayerRecordLayoutsTest {
     @Test
+    void resolvesNovemberUpdate(@TempDir Path home) throws Exception {
+        writeManifest(home, "\"AppState\"\n{\n\t\"buildid\"\t\t\"26385295\"\n}");
+        var match = PlayerRecordLayouts.resolve(home);
+        assertThat(match.knownBuild()).isTrue();
+        assertThat(match.installedBuildId()).isEqualTo(26385295L);
+        assertThat(match.layouts()).isEqualTo(PlayerRecordLayouts.LayoutSet.current());
+    }
+
+    @Test
     void resolvesKnownBuild(@TempDir Path home) throws Exception {
         writeManifest(home, "\"AppState\"\n{\n\t\"buildid\"\t\t\"26227640\"\n}");
 

@@ -11,18 +11,24 @@ import java.util.Optional;
 /** Exact identity of the supported FM27 executable image. */
 public final class NativeModuleProfile {
     public static final String FM27_SHA256 = "bc940e472418fc5c214208d7cf30fecf600f689b6f9d71c11ba19a2df0fe057f";
+    public static final String FM27_2701_SHA256 = "f79b0a3413dd0e3f461b0afbc3ff397003f4a26d7525a30717428de6a8b91196";
+    private static final long FM27_2701_BYTES = 398_661_632L;
     private static final long FM27_BYTES = 433_986_560L;
 
     private NativeModuleProfile() { }
 
     public static boolean supported(String hash) {
-        return FM27_SHA256.equals(hash);
+        return FM27_SHA256.equals(hash) || FM27_2701_SHA256.equals(hash);
+    }
+
+    static void require2701(String hash) {
+        if (!FM27_2701_SHA256.equals(hash)) throw new IllegalArgumentException("Unsupported FM27 module hash");
     }
 
     /** Bounded streaming hash; a changed size is rejected before returning a profile. */
     public static Optional<String> identify(Path path) throws IOException {
         long size = Files.size(path);
-        if (size != FM27_BYTES) return Optional.empty();
+        if (size != FM27_BYTES && size != FM27_2701_BYTES) return Optional.empty();
         try {
             MessageDigest hash = MessageDigest.getInstance("SHA-256");
             long total = 0;
@@ -36,7 +42,8 @@ public final class NativeModuleProfile {
             }
             if (total != size) return Optional.empty();
             String digest = HexFormat.of().formatHex(hash.digest());
-            return size == FM27_BYTES && FM27_SHA256.equals(digest)
+            return (size == FM27_BYTES && FM27_SHA256.equals(digest)
+                    || size == FM27_2701_BYTES && FM27_2701_SHA256.equals(digest))
                     ? Optional.of(digest) : Optional.empty();
         } catch (NoSuchAlgorithmException impossible) {
             throw new IllegalStateException(impossible);

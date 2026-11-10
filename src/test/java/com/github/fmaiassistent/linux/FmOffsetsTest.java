@@ -38,11 +38,19 @@ class FmOffsetsTest {
     @Test
     void fm27RootsMatchTheCapturedNativeRegistryAndAccessors() {
         var profile=FmOffsets.requireProfile(2486695);
-        assertThat(FmOffsets.DEFAULT_BUILD).isEqualTo(2486695);
+        assertThat(FmOffsets.DEFAULT_BUILD).isEqualTo(2494687);
         assertThat(profile.offsetTableRva()).isEqualTo(0x57035e8L);
         assertThat(profile.currentDateRva()).hasValue(0x56ad378L);
         assertThat(profile.currentHumanManagerRva()).hasValue(0x56f32c8L);
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> FmOffsets.requireProfile(0x123456)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void novemberUpdateUsesIndependentlyCapturedRoots() {
+        var profile = FmOffsets.requireProfile(2494687);
+        assertThat(profile.offsetTableRva()).isEqualTo(0x5820628L);
+        assertThat(profile.currentDateRva()).hasValue(0x57ca3b8L);
+        assertThat(profile.currentHumanManagerRva()).hasValue(0x5810308L);
     }
 
     @Test

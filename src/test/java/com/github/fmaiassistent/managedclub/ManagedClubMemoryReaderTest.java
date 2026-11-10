@@ -46,6 +46,15 @@ class ManagedClubMemoryReaderTest {
     }
 
     @Test
+    void rejectsLegacyAndShiftedManagerRootsForTheUpdatedCapture() {
+        FakeMemory memory = validMemory();
+        assertThatThrownBy(() -> new ManagedClubMemoryReader().read(memory, 2486695, PLUGIN))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("human manager pointer");
+        assertThatThrownBy(() -> new ManagedClubMemoryReader().read(memory, 2494687, PLUGIN + 8))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("human manager pointer");
+    }
+
+    @Test
     void reportsMissingRelationshipPointerClearly() {
         FakeMemory memory = validMemory();
         memory.remove(EMPLOYMENT + 0x10, Long.BYTES);

@@ -26,6 +26,7 @@ public class ClubExporter {
 
     private static final List<Integer> CLUB_FINANCE_MARKERS = List.of(0x07F8, 0x0CC8);
 
+    private String nativeProfile = com.github.fmaiassistent.memory.NativeModuleProfile.FM27_SHA256;
     private ClubRecordLayout recordLayout = ClubRecordLayout.current();
 
     public ClubExporter() {
@@ -54,14 +55,15 @@ public class ClubExporter {
                         .filter(r->r.contains(base,1)&&!r.path().isBlank()).map(r->Path.of(r.path())).findFirst().orElse(null):Path.of(override);
                 identityProfile=module==null?null:com.github.fmaiassistent.memory.NativeModuleProfile.identify(module).orElse(null);
                 if(identityProfile!=null) {
+                    nativeProfile=identityProfile;
                     recordLayout=ClubRecordLayout.current();
-                    identities=new ClubIdentitySnapshot(reader,base,ClubIdentityLayout.current(),
-                            com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.current(),
-                            com.github.fmaiassistent.memory.ClubFinancialLoanLayout.current(),
-                            com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.current(),
-                            com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.current(),
+                    identities=new ClubIdentitySnapshot(reader,base,ClubIdentityLayout.forModule(nativeProfile),
+                            com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.forModule(nativeProfile),
+                            com.github.fmaiassistent.memory.ClubFinancialLoanLayout.forModule(nativeProfile),
+                            com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.forModule(nativeProfile),
+                            com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.forModule(nativeProfile),
                             com.github.fmaiassistent.memory.CompetitionNameLayout.current(),
-                            com.github.fmaiassistent.memory.ClubFinancialHistoryLayout.current());
+                            com.github.fmaiassistent.memory.ClubFinancialHistoryLayout.forModule(nativeProfile));
                 }
             }
             FmOffsets.Bounds bounds = FmOffsets.tableBounds(reader, build, gamePluginBase, "TeamOffset");
@@ -189,7 +191,7 @@ public class ClubExporter {
     }
 
     Finance readFinance(ProcessMemoryReader reader, long club, long verifiedModuleBase) throws IOException {
-        return readFinance(reader, club, verifiedModuleBase, com.github.fmaiassistent.memory.ClubFinanceLayout.current());
+        return readFinance(reader, club, verifiedModuleBase, com.github.fmaiassistent.memory.ClubFinanceLayout.forModule(nativeProfile));
     }
 
     Finance readFinance(ProcessMemoryReader reader, long club, long verifiedModuleBase,
@@ -226,7 +228,7 @@ public class ClubExporter {
     }
 
     private Facilities readFacilities(ProcessMemoryReader reader,long club,long base)throws IOException {
-        var finance=com.github.fmaiassistent.memory.ClubFinanceLayout.current();
+        var finance=com.github.fmaiassistent.memory.ClubFinanceLayout.forModule(nativeProfile);
         PlayerSnapshotValidator.validateClubFinanceLayout(recordLayout,finance);
         long data=reader.readU64(club+recordLayout.clubFacilitiesBlockRel());
         int training=0,youth=0,coaching=0,recruitment=0,corporate=0;

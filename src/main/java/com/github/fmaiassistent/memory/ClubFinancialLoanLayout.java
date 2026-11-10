@@ -16,6 +16,14 @@ public record ClubFinancialLoanLayout(int clubDataRel, int vectorRel, int header
         int unassignedRel, long clockRva, int clockBytes) {
     public static final String MODULE_SHA256="bc940e472418fc5c214208d7cf30fecf600f689b6f9d71c11ba19a2df0fe057f";
 
+    /** Exact-image profile for FM27 27.0.1+2494687. */
+    public static ClubFinancialLoanLayout forModule(String hash) {
+        if (NativeModuleProfile.FM27_SHA256.equals(hash)) return current();
+        NativeModuleProfile.require2701(hash);
+        return new ClubFinancialLoanLayout(0x100,0x50,24,8,28,512,0,4,8,12,16,20,24,25,26,27,0x57CA3B8L,4);
+
+    }
+
     public static ClubFinancialLoanLayout current() {
         return new ClubFinancialLoanLayout(0x100,0x50,24,8,28,512,0,4,8,12,16,20,24,25,26,27,0x56AD378L,4);
     }
@@ -57,7 +65,7 @@ public record ClubFinancialLoanLayout(int clubDataRel, int vectorRel, int header
 
     public static Optional<Profile> values(String hex,Integer clock,String sourceSha256) {
         var layout=current();
-        if((!MODULE_SHA256.equals(sourceSha256))||hex==null||clock==null
+        if((!NativeModuleProfile.supported(sourceSha256))||hex==null||clock==null
                 ||hex.length()>layout.maximumRecords*layout.recordBytes*2||hex.length()%(layout.recordBytes*2)!=0)
             return Optional.empty();
         try{return Optional.of(layout.decode(HexFormat.of().parseHex(hex),clock));}

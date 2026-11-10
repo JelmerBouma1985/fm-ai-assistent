@@ -11,6 +11,14 @@ public record ClubFinancialHistoryLayout(ClubFinancialLedgerLayout ledger,int su
         int headerBytes,int countRel,int pointersRel,int pointerBytes,int cursorRel,int capacity,
         int summaryBytes,int baseBytes,int balanceRel,int remainingRel,int wagesRel,int scoutingRel) {
 
+    /** Exact-image profile for FM27 27.0.1+2494687. */
+    public static ClubFinancialHistoryLayout forModule(String hash) {
+        if (NativeModuleProfile.FM27_SHA256.equals(hash)) return current();
+        NativeModuleProfile.require2701(hash);
+        return new ClubFinancialHistoryLayout(
+            ClubFinancialLedgerLayout.forModule(hash),0x38,0x228,0x1F0,0,8,8,0x1E8,60,48,228,0,8,16,136);
+    }
+
     public static ClubFinancialHistoryLayout current(){return new ClubFinancialHistoryLayout(
             ClubFinancialLedgerLayout.current(),0x38,0x228,0x1F0,0,8,8,0x1E8,60,48,228,0,8,16,136);}
     public int maximumPayloadBytes(){return 1+16+capacity*(1+summaryBytes)+1+16+capacity*(1+baseBytes);}
@@ -54,7 +62,7 @@ public record ClubFinancialHistoryLayout(ClubFinancialLedgerLayout ledger,int su
     }
     public static Optional<Profile> values(String hex,Integer clock,String sha) {
         var l=current();
-        if((!ClubFinancialLedgerLayout.MODULE_SHA256.equals(sha))||hex==null||clock==null
+        if((!NativeModuleProfile.supported(sha))||hex==null||clock==null
                 ||hex.length()<36||hex.length()>2*l.maximumPayloadBytes()||hex.length()%2!=0)return Optional.empty();
         try{return Optional.of(l.decode(HexFormat.of().parseHex(hex),clock));}catch(IllegalArgumentException invalid){return Optional.empty();}
     }

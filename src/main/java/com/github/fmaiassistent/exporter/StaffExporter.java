@@ -78,7 +78,9 @@ public class StaffExporter {
         boolean basic = false;
         if (contract.isPresent() && windowsModuleBase != null) {
             long vtableRva = reader.readU64(contract.get()) - windowsModuleBase;
-            basic = vtableRva == ContractRecordLayout.current().basic().vtable();
+            basic = vtableRva == ContractRecordLayout.current().basic().vtable()
+                    || vtableRva == ContractRecordLayout.forModule(
+                            com.github.fmaiassistent.memory.NativeModuleProfile.FM27_2701_SHA256).basic().vtable();
         }
         row.put("contract_end_date", basic ? "" : contract.map(value -> date(reader, value + recordLayout.contractDateRel())).orElse(""));
         row.put("home_reputation", reader.readU16(staffBase + recordLayout.homeReputationRel()));
