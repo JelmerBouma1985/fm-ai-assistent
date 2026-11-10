@@ -6,10 +6,7 @@
 
 ### Features
 - Works with Steam build 26385295 (2026-11-10) of FM27
-
-## 2.0.1
+- Works with FM27 on game pass (thx to @canilbey)
 
 ### Bug fixes
-- Extracting data from RAM works with the newest update
-- Coefficients and finances work on Linux
-
+- Works with very large databases (thx to @canilbey)
