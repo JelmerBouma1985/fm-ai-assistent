@@ -446,8 +446,13 @@ class OpenRouterConversationServiceTest {
                 0, "No tactic", null, null, List.of(), List.of()));
         var snapshots = mock(com.github.fmaiassistent.snapshot.SnapshotStatusService.class);
         when(snapshots.reference()).thenReturn(java.util.Map.of());
+        var clubs = mock(com.github.fmaiassistent.service.ClubDatabaseService.class);
+        var testClub = mock(com.github.fmaiassistent.domain.entity.ClubEntity.class);
+        when(testClub.getName()).thenReturn("Test FC");
+        when(testClub.getReputation()).thenReturn(5_000);
+        when(clubs.findAllClubs()).thenReturn(java.util.List.of(testClub));
         var decisions = new FmDecisionTools(players,
-                mock(com.github.fmaiassistent.service.ClubDatabaseService.class), managed, tactics,
+                clubs, managed, tactics,
                 mock(com.github.fmaiassistent.decision.RoleFitService.class),
                 mock(com.github.fmaiassistent.decision.LineupOptimizerService.class),
                 mock(com.github.fmaiassistent.recruitment.RecruitmentCaseService.class), snapshots);

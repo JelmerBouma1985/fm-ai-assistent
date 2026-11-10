@@ -5,6 +5,8 @@ import com.github.fmaiassistent.domain.entity.PlayerEntity;
 import com.github.fmaiassistent.domain.entity.StaffEntity;
 import com.github.fmaiassistent.exporter.ClubExporter;
 import com.github.fmaiassistent.exporter.PlayerExporter;
+import com.github.fmaiassistent.managedclub.ManagedClubContext;
+import com.github.fmaiassistent.managedclub.ManagedClubContextService;
 import com.github.fmaiassistent.recruitment.RecruitmentCaseService;
 import com.github.fmaiassistent.service.ClubDatabaseService;
 import com.github.fmaiassistent.service.PlayerDatabaseService;
@@ -44,7 +46,7 @@ class FmAiAssistentToolsTest {
                         120, 150, 1_000_000L, 18)).toList());
         when(staff.findStaff(any())).thenReturn(IntStream.range(0, 30)
                 .mapToObj(i -> staff("Coach " + i, 2000L + i, Map.of())).toList());
-        FmAiAssistentTools tools = new FmAiAssistentTools(players, clubs, staff,
+        FmAiAssistentTools tools = new FmAiAssistentTools(players, clubs, mock(ManagedClubContextService.class), staff,
                 mock(PlayerMapper.class), mock(JdbcTemplate.class), mock(ShortlistFileService.class),
                 mock(RecruitmentCaseService.class), snapshots);
         var callbacks = MethodToolCallbackProvider.builder().toolObjects(tools).build().getToolCallbacks();
@@ -84,6 +86,7 @@ class FmAiAssistentToolsTest {
         FmAiAssistentTools tools = new FmAiAssistentTools(
                 players,
                 clubs,
+                mock(ManagedClubContextService.class),
                 mock(StaffDatabaseService.class),
                 mock(PlayerMapper.class),
                 mock(JdbcTemplate.class),
@@ -120,7 +123,7 @@ class FmAiAssistentToolsTest {
         when(staff.findStaff(any())).thenReturn(List.of(average, excellent));
         when(snapshots.reference()).thenReturn(Map.of("snapshot_id", "test"));
         FmAiAssistentTools tools = new FmAiAssistentTools(
-                mock(PlayerDatabaseService.class), mock(ClubDatabaseService.class), staff,
+                mock(PlayerDatabaseService.class), mock(ClubDatabaseService.class), mock(ManagedClubContextService.class), staff,
                 mock(PlayerMapper.class), mock(JdbcTemplate.class), mock(ShortlistFileService.class),
                 mock(RecruitmentCaseService.class), snapshots);
 
@@ -141,14 +144,61 @@ class FmAiAssistentToolsTest {
                 .containsKey("attributes");
     }
 
+    @Test
+    void clubContextResolvesManagedClubByRamAddressAndLinksSquadBySourceAddress() {
+        PlayerDatabaseService players = mock(PlayerDatabaseService.class);
+        ClubDatabaseService clubs = mock(ClubDatabaseService.class);
+        ManagedClubContextService managed = mock(ManagedClubContextService.class);
+        SnapshotStatusService snapshots = mock(SnapshotStatusService.class);
+        ClubEntity men = club("R. Madrid", 9_100, 1_068_000_000L, "male", 111L);
+        ClubEntity women = club("R. Madrid (W)", 7_900, 66_250L, "female", 222L);
+        PlayerEntity womensPlayer = player("Womens Player", 2002000001L, "R. Madrid", 22, 150, 170, 1_000_000L, 18);
+        womensPlayer.setClubEntity(women);
+        womensPlayer.setPlayingClubEntity(women);
+        PlayerEntity mensPlayer = player("Mens Player", 2002000002L, "R. Madrid", 24, 160, 180, 5_000_000L, 18);
+        mensPlayer.setClubEntity(men);
+        mensPlayer.setPlayingClubEntity(men);
+        when(players.findAllPlayerEntities()).thenReturn(List.of(womensPlayer, mensPlayer));
+        when(clubs.findAllClubs()).thenReturn(List.of(men, women));
+        when(clubs.findBySourceAddress(222L)).thenReturn(java.util.Optional.of(women));
+        when(managed.current()).thenReturn(new ManagedClubContext(
+                1, ManagedClubContext.State.AVAILABLE, "Manager", 1L, "R. Madrid",
+                "Spanish Women's First Division", "Spain", "female", 7_900,
+                175_000L, 66_250L, 58_000L, 222L, "test"));
+        when(snapshots.reference()).thenReturn(Map.of("snapshot_id", "test"));
+
+        FmAiAssistentTools tools = new FmAiAssistentTools(
+                players, clubs, managed, mock(StaffDatabaseService.class),
+                mock(PlayerMapper.class), mock(JdbcTemplate.class), mock(ShortlistFileService.class),
+                mock(RecruitmentCaseService.class), snapshots);
+
+        Map<String, Object> result = tools.getClubContext("R. Madrid", 10);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> club = (Map<String, Object>) result.get("club");
+        assertThat(club)
+                .containsEntry("NAME", "R. Madrid (W)")
+                .containsEntry("TRANSFER_BUDGET", 66_250L);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> summary = (Map<String, Object>) result.get("squad_summary");
+        // The men's player shares the stored name "R. Madrid" but is linked to
+        // the men's club record, so only the women's player is counted.
+        assertThat(summary).containsEntry("player_count", 1);
+    }
+
     private static ClubEntity club(String name, int reputation, long transferBudget) {
+        return club(name, reputation, transferBudget, "male", null);
+    }
+
+    private static ClubEntity club(String name, int reputation, long transferBudget, String gender, Long sourceAddress) {
         Map<String, Object> row = new HashMap<>();
         ClubExporter.FIELD_NAMES.forEach(field -> row.put(field, null));
         row.put("name", name);
-        row.put("gender", "male");
+        row.put("gender", gender);
         row.put("reputation", reputation);
         row.put("transferBudget", transferBudget);
         row.put("payrollBudget", 1_000_000L);
+        row.put("sourceAddress", sourceAddress);
         return ClubEntity.fromExportRow(row);
     }
 
