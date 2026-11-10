@@ -39,7 +39,9 @@ public final class ContractExporter {
     private final Map<Long,byte[]> competitionIdentityGuards = new HashMap<>();
 
     public ContractExporter(ProcessMemoryReader reader, long base, ContractRecordLayout layout) {
-        this(reader, base, layout, NativeModuleProfile.FM27_SHA256);
+        this(reader, base, layout, NativeModuleProfile.supportedProfiles().stream()
+                .filter(candidate -> layout.equals(ContractRecordLayout.forModule(candidate)))
+                .findFirst().orElse(NativeModuleProfile.FM27_SHA256));
     }
 
     ContractExporter(ProcessMemoryReader reader, long base, ContractRecordLayout layout, String profile) {

@@ -35,7 +35,8 @@ public final class PlayerRecordLayouts {
 
     private static final Map<Long, LayoutSet> KNOWN_BUILDS = Map.of(
             26227640L, LayoutSet.current(),
-            26340721L, LayoutSet.current());
+            26340721L, LayoutSet.current(),
+            26385295L, LayoutSet.current());
 
     private PlayerRecordLayouts() {
     }

@@ -14,11 +14,47 @@ import java.util.concurrent.ConcurrentHashMap;
 /** Exact identity of the supported FM27 executable image. */
 public final class NativeModuleProfile {
     public static final String FM27_SHA256 = "bc940e472418fc5c214208d7cf30fecf600f689b6f9d71c11ba19a2df0fe057f";
+    public static final String FM27_2701_SHA256 = "f79b0a3413dd0e3f461b0afbc3ff397003f4a26d7525a30717428de6a8b91196";
     public static final String UPDATED_SHA256 = "252ff8fb5b7a4a5a5464db6ba632e309eef9b6e65ffa992ae20575a189e66c6a";
     /** Xbox / PC Game Pass image (Microsoft Store package of Football Manager 27). */
     public static final String GAME_PASS_SHA256 = "c0a4466f8183a999917de285d47ec19f12b746e29417e402ef55ff927b927df5";
     private static final Map<String, Long> MODULE_BYTES = Map.of(
-            FM27_SHA256, 433_986_560L, UPDATED_SHA256, 404_308_480L, GAME_PASS_SHA256, 391_445_504L);
+            FM27_SHA256, 433_986_560L, UPDATED_SHA256, 404_308_480L, GAME_PASS_SHA256, 391_445_504L,
+            FM27_2701_SHA256, 398_661_632L);
+
+    /** Exact roots from the captured FM27 27.0.1+2494687 Steam image (build 26385295). */
+    private static final Map<Integer, Integer> FM27_2701_RVAS = Map.ofEntries(
+            Map.entry(0x57036D0, 0x5820710),
+            Map.entry(0x4CF6078, 0x4DFA1E8),
+            Map.entry(0x4CF07F8, 0x4DF4968),
+            Map.entry(0x4CF0CC8, 0x4DF4E38),
+            Map.entry(0x57036E8, 0x5820728),
+            Map.entry(0x4CDFAD8, 0x4DE3B78),
+            Map.entry(0x56AD378, 0x57CA3B8),
+            Map.entry(0x57036E0, 0x5820720),
+            Map.entry(0x4CDA1F8, 0x4DDE298),
+            Map.entry(0x4F65538, 0x507E7D8),
+            Map.entry(0x4CE1108, 0x4DE51A8),
+            Map.entry(0x4DC2288, 0x4EC6D88),
+            Map.entry(0x56C212A, 0x57DF16A),
+            Map.entry(0x5703768, 0x58207A8),
+            Map.entry(0x4B00AE8, 0x4C04B08),
+            Map.entry(0x4DC91F8, 0x4ECDCF8),
+            Map.entry(0x4F53F28, 0x506C938),
+            Map.entry(0x4B01058, 0x4C05078),
+            Map.entry(0x5703730, 0x5820770),
+            Map.entry(0x4CEC0B8, 0x4DF0228),
+            Map.entry(0x5703738, 0x5820778),
+            Map.entry(0x56F2EF0, 0x580FF30),
+            Map.entry(0x4C8C898, 0x4D908D8),
+            Map.entry(0x4F392E8, 0x5051CD8),
+            Map.entry(0x4E195B8, 0x4F26178),
+            Map.entry(0x4CB2718, 0x4DB6758),
+            Map.entry(0x4D8BE78, 0x4E908B8),
+            Map.entry(0x4F75F38, 0x50901E8),
+            Map.entry(0x4CC08D8, 0x4DC4938),
+            Map.entry(0x57035E8, 0x5820628),
+            Map.entry(0x56F32C8, 0x5810308));
 
     /**
      * The Game Pass image is packed differently, so its roots are not a constant shift of the
@@ -72,12 +108,13 @@ public final class NativeModuleProfile {
 
     /** Every verified image, for persisted-row queries and layout checks that accept any of them. */
     public static List<String> supportedProfiles() {
-        return List.of(FM27_SHA256, UPDATED_SHA256, GAME_PASS_SHA256);
+        return List.of(FM27_SHA256, UPDATED_SHA256, GAME_PASS_SHA256, FM27_2701_SHA256);
     }
 
     /** Whether a legacy root has a verified location in the given image. */
     public static boolean mapsRva(String profile, int legacyRva) {
         if (!supported(profile)) return false;
+        if (FM27_2701_SHA256.equals(profile)) return FM27_2701_RVAS.containsKey(legacyRva);
         return !GAME_PASS_SHA256.equals(profile) || GAME_PASS_RVAS.containsKey(legacyRva);
     }
 
@@ -86,6 +123,12 @@ public final class NativeModuleProfile {
      * scalar payloads are shared by all images. */
     public static int rva(String profile, int legacyRva) {
         if (!supported(profile)) throw new IllegalArgumentException("Unsupported FM27 module profile");
+        if (FM27_2701_SHA256.equals(profile)) {
+            Integer mapped = FM27_2701_RVAS.get(legacyRva);
+            if (mapped == null) throw new IllegalArgumentException("FM27 root 0x" + Integer.toHexString(legacyRva)
+                    + " is not verified for the 27.0.1 image");
+            return mapped;
+        }
         if (GAME_PASS_SHA256.equals(profile)) {
             Integer mapped = GAME_PASS_RVAS.get(legacyRva);
             if (mapped == null) {

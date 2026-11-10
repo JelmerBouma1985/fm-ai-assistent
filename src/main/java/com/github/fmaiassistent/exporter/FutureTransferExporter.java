@@ -30,7 +30,9 @@ final class FutureTransferExporter {
     private final long byteBudget;
 
     FutureTransferExporter(ProcessMemoryReader reader,long base,FutureTransferLayout layout) {
-        this(reader,base,layout,com.github.fmaiassistent.memory.NativeModuleProfile.FM27_SHA256);
+        this(reader,base,layout,com.github.fmaiassistent.memory.NativeModuleProfile.supportedProfiles().stream()
+                .filter(candidate -> layout.equals(FutureTransferLayout.forModule(candidate)))
+                .findFirst().orElse(com.github.fmaiassistent.memory.NativeModuleProfile.FM27_SHA256));
     }
 
     FutureTransferExporter(ProcessMemoryReader reader,long base,FutureTransferLayout layout,String profile) {

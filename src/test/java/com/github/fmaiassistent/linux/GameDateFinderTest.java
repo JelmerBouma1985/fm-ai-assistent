@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GameDateFinderTest {
     private static final long GAME_PLUGIN_BASE = 0x1000_0000L;
-    private static final long CURRENT_DATE_RVA = 0x56af378L;
+    private static final long CURRENT_DATE_RVA = 0x57ca3b8L;
 
     @Test
     void readsCapturedFm27ClockAndRejectsUnknownBuild() {

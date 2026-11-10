@@ -29,8 +29,8 @@ class FmOffsetsTest {
         assertThat(FmOffsets.knownTableRva(gamePass, FmOffsets.DEFAULT_BUILD)).isEqualTo(0x5683bd8L);
         assertThat(FmOffsets.currentDateRva(updated, FmOffsets.DEFAULT_BUILD)).isEqualTo(0x56af378L);
         // An unidentified image keeps the build-keyed roots.
-        assertThat(FmOffsets.currentDateRva(null, FmOffsets.DEFAULT_BUILD)).isEqualTo(0x56af378L);
-        assertThat(FmOffsets.currentHumanManagerRva(null, FmOffsets.DEFAULT_BUILD)).hasValue(0x56f52c8L);
+        assertThat(FmOffsets.currentDateRva(null, FmOffsets.DEFAULT_BUILD)).isEqualTo(0x57ca3b8L);
+        assertThat(FmOffsets.currentHumanManagerRva(null, FmOffsets.DEFAULT_BUILD)).hasValue(0x5810308L);
         assertThat(FmOffsets.knownTableRva(null, 0x25f1a7)).isEqualTo(0x57035e8L);
         assertThat(FmOffsets.currentDateRva(null, FmOffsets.DEFAULT_BUILD + 1)).isNull();
     }
@@ -128,14 +128,18 @@ class FmOffsetsTest {
     @Test
     void fm27RootsMatchTheCapturedNativeRegistryAndAccessors() {
         var profile=FmOffsets.requireProfile(2486695);
-        assertThat(FmOffsets.DEFAULT_BUILD).isEqualTo(2493426);
+        assertThat(FmOffsets.DEFAULT_BUILD).isEqualTo(2494687);
         assertThat(profile.offsetTableRva()).isEqualTo(0x57035e8L);
         assertThat(profile.currentDateRva()).hasValue(0x56ad378L);
         assertThat(profile.currentHumanManagerRva()).hasValue(0x56f32c8L);
-        var updated = FmOffsets.requireProfile(FmOffsets.DEFAULT_BUILD);
+        var updated = FmOffsets.requireProfile(2493426);
         assertThat(updated.offsetTableRva()).isEqualTo(0x57055e8L);
         assertThat(updated.currentDateRva()).hasValue(0x56af378L);
         assertThat(updated.currentHumanManagerRva()).hasValue(0x56f52c8L);
+        var latest = FmOffsets.requireProfile(FmOffsets.DEFAULT_BUILD);
+        assertThat(latest.offsetTableRva()).isEqualTo(0x5820628L);
+        assertThat(latest.currentDateRva()).hasValue(0x57ca3b8L);
+        assertThat(latest.currentHumanManagerRva()).hasValue(0x5810308L);
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> FmOffsets.requireProfile(0x123456)).isInstanceOf(IllegalArgumentException.class);
     }
 
