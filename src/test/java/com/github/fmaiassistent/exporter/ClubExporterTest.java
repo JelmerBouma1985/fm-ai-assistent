@@ -22,6 +22,13 @@ class ClubExporterTest {
     private static final long EXTRA = 0x3000_0000L;
 
     @Test
+    void typedCoefficientAndFinanceCaptureSupportsWindowsAndLinux() {
+        assertThat(ClubExporter.supportsTypedNativeCapture(ProcessMemoryReader.Platform.WINDOWS)).isTrue();
+        assertThat(ClubExporter.supportsTypedNativeCapture(ProcessMemoryReader.Platform.LINUX)).isTrue();
+        assertThat(ClubExporter.supportsTypedNativeCapture(ProcessMemoryReader.Platform.UNKNOWN)).isFalse();
+    }
+
+    @Test
     void readsFm27FacilityRatingsFromTheClubSubstructures() throws Exception {
         FakeMemory memory = new FakeMemory();
         memory.putLong(CLUB + 0x100, FACILITIES);

@@ -13,8 +13,12 @@ public record ClubFinancialCompetitionLayout(ClubFinancialLedgerLayout ledger,lo
         int competitionUidRel,int vectorCount,int headerBytes,int beginRel,int endRel,int capacityRel,
         int entryBytes,int competitionRel,int amountRel,int suffixRel,int suffixBytes,int maximumEntries) {
 
-    public static ClubFinancialCompetitionLayout current(){return new ClubFinancialCompetitionLayout(
-            ClubFinancialLedgerLayout.current(),0x57036E8L,0x80,0x4CDFAD8L,16,8,12,2,24,0,8,16,16,0,8,12,4,512);}
+    public static ClubFinancialCompetitionLayout current() {
+        return forModule(NativeModuleProfile.FM27_SHA256);
+    }
+
+    public static ClubFinancialCompetitionLayout forModule(String profile) {return new ClubFinancialCompetitionLayout(
+            ClubFinancialLedgerLayout.forModule(profile),NativeModuleProfile.rva(profile, 0x57036E8),0x80,NativeModuleProfile.rva(profile, 0x4CDFAD8),16,8,12,2,24,0,8,16,16,0,8,12,4,512);}
     public int maximumPayloadBytes(){return ledger.blockCount()*vectorCount*(4+maximumEntries*12);}
 
     public Profile decode(byte[] raw,int clock) {
@@ -39,17 +43,18 @@ public record ClubFinancialCompetitionLayout(ClubFinancialLedgerLayout ledger,lo
         return new Profile(date,periods,HexFormat.of().formatHex(raw));
     }
     public static Optional<Profile> values(String hex,Integer clock,String sourceSha256) {
-        var l=current();
-        if((!ClubFinancialLedgerLayout.MODULE_SHA256.equals(sourceSha256))||hex==null||clock==null
+        if (!NativeModuleProfile.supported(sourceSha256)) return Optional.empty();
+        var l=forModule(sourceSha256);
+        if(hex==null||clock==null
                 ||hex.length()>l.maximumPayloadBytes()*2||hex.length()%2!=0)return Optional.empty();
         try{return Optional.of(l.decode(HexFormat.of().parseHex(hex),clock));}catch(IllegalArgumentException invalid){return Optional.empty();}
     }
     /** Durable collections must reconcile with the inline ledger captured in the same snapshot. */
     public static Optional<Profile> values(String hex,Integer clock,String sourceSha256,String ledgerHex) {
         var profile=values(hex,clock,sourceSha256);if(profile.isEmpty()||ledgerHex==null
-                ||ledgerHex.length()!=current().ledger().payloadBytes()*2)return Optional.empty();
+                ||ledgerHex.length()!=forModule(sourceSha256).ledger().payloadBytes()*2)return Optional.empty();
         try {
-            var l=current().ledger();var raw=ByteBuffer.wrap(HexFormat.of().parseHex(ledgerHex)).order(ByteOrder.LITTLE_ENDIAN);
+            var l=forModule(sourceSha256).ledger();var raw=ByteBuffer.wrap(HexFormat.of().parseHex(ledgerHex)).order(ByteOrder.LITTLE_ENDIAN);
             for(var period:profile.orElseThrow().periods())for(int k=0;k<2;k++) {
                 var members=k==0?period.tvRevenue():period.prizeMoney();int sum=0;for(var member:members)sum+=member.amount();
                 var category=k==0?ClubFinancialLedgerLayout.Category.TV_REVENUE:ClubFinancialLedgerLayout.Category.PRIZE_MONEY;

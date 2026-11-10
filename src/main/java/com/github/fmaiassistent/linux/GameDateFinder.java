@@ -22,13 +22,12 @@ public class GameDateFinder {
             long expectedPlayerCount,
             int build,
             Long gamePluginBase) {
-        Long dateRva = FmOffsets.currentDateRva(build);
-        if (dateRva == null) {
-            return Optional.empty();
-        }
-
         try {
             long base = gamePluginBase == null ? FmOffsets.findGamePluginBase(reader) : gamePluginBase;
+            Long dateRva = FmOffsets.currentDateRva(FmOffsets.moduleProfile(reader, base), build);
+            if (dateRva == null) {
+                return Optional.empty();
+            }
             int day = reader.readU16(base + dateRva) & CURRENT_DATE_DAY_MASK;
             int year = reader.readU16(base + dateRva + Short.BYTES);
             return year >= 2024 && validDayYear(day, year)

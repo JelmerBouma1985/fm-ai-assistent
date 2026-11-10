@@ -2,6 +2,8 @@ package com.github.fmaiassistent.mcp;
 
 import com.github.fmaiassistent.service.ClubDatabaseService;
 import com.github.fmaiassistent.domain.entity.ClubEntity;
+import com.github.fmaiassistent.managedclub.ManagedClubContext;
+import com.github.fmaiassistent.managedclub.ManagedClubContextService;
 import com.github.fmaiassistent.service.PlayerDatabaseService;
 import com.github.fmaiassistent.domain.entity.PlayerEntity;
 import com.github.fmaiassistent.domain.entity.RecruitmentCaseEntity;
@@ -52,6 +54,7 @@ public class FmAiAssistentTools {
 
     private final PlayerDatabaseService players;
     private final ClubDatabaseService clubs;
+    private final ManagedClubContextService managedClubs;
     private final StaffDatabaseService staff;
     private final PlayerMapper playerMapper;
     private final JdbcTemplate jdbc;
@@ -62,6 +65,7 @@ public class FmAiAssistentTools {
     public FmAiAssistentTools(
             PlayerDatabaseService players,
             ClubDatabaseService clubs,
+            ManagedClubContextService managedClubs,
             StaffDatabaseService staff,
             PlayerMapper playerMapper,
             JdbcTemplate jdbc,
@@ -70,6 +74,7 @@ public class FmAiAssistentTools {
             SnapshotStatusService snapshots) {
         this.players = players;
         this.clubs = clubs;
+        this.managedClubs = managedClubs;
         this.staff = staff;
         this.playerMapper = playerMapper;
         this.jdbc = jdbc;
@@ -123,7 +128,7 @@ public class FmAiAssistentTools {
             @ToolParam(description = "Club name, for example Feyenoord") String clubName,
             @ToolParam(required = false, description = "Maximum squad players to return") Integer squadLimit) {
         ClubEntity club = requireClub(clubName);
-        List<PlayerEntity> squad = squadPlayers(club.getName()).stream()
+        List<PlayerEntity> squad = squadPlayers(club).stream()
                 .sorted(Comparator
                         .comparing((PlayerEntity player) -> value(player.getCa())).reversed()
                         .thenComparing(PlayerEntity::getName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
@@ -449,7 +454,7 @@ public class FmAiAssistentTools {
 
         List<PlayerEntity> allPlayers = allPlayers();
         Map<String, ClubEntity> clubsByName = clubsByName(allClubs());
-        List<PlayerEntity> squad = currentSquad(allPlayers, club.getName());
+        List<PlayerEntity> squad = currentSquad(allPlayers, club);
         List<PlayerEntity> positionSquad = positionSpec == null
                 ? squad
                 : squad.stream().filter(player -> positionScore(player, positionSpec) >= positionMinimum).toList();
@@ -472,7 +477,7 @@ public class FmAiAssistentTools {
         int excludedByWillingness = 0;
         int excludedByPrice = 0;
         for (PlayerEntity player : allPlayers) {
-            if (belongsToClub(player, club.getName())
+            if (belongsToClub(player, club)
                     || !sameGender(player.getGender(), club.getGender())
                     || !inRange(asInteger(player.getAge()), null, maxAge)
                     || !inRange(player.getCa(), minCurrentAbility, null)
@@ -601,6 +606,17 @@ public class FmAiAssistentTools {
     }
 
     private ClubEntity requireClub(String clubName) {
+        // The managed club is resolved by its RAM source address, not by name:
+        // women's teams share a name with the men's club (e.g. "R. Madrid" vs
+        // "R. Madrid (W)") and name + max reputation would pick the men's record.
+        ManagedClubContext context = managedClubs == null ? null : managedClubs.current();
+        if (context != null && context.available() && context.clubAddress() != null
+                && (blank(clubName) || equalsIgnoreCase(clubName, context.clubName()))) {
+            Optional<ClubEntity> byAddress = clubs.findBySourceAddress(context.clubAddress());
+            if (byAddress.isPresent()) {
+                return byAddress.get();
+            }
+        }
         return allClubs().stream()
                 .filter(club -> equalsIgnoreCase(club.getName(), clubName))
                 .max(Comparator.comparingInt(club -> value(club.getReputation())))
@@ -610,9 +626,9 @@ public class FmAiAssistentTools {
                 .orElseThrow(() -> new IllegalArgumentException("club not found: " + clubName));
     }
 
-    private List<PlayerEntity> squadPlayers(String clubName) {
+    private List<PlayerEntity> squadPlayers(ClubEntity club) {
         return allPlayers().stream()
-                .filter(player -> equalsIgnoreCase(player.getClub(), clubName) || equalsIgnoreCase(player.getPlayingClub(), clubName))
+                .filter(player -> belongsToClub(player, club))
                 .toList();
     }
 
@@ -628,15 +644,47 @@ public class FmAiAssistentTools {
         return out;
     }
 
-    private static List<PlayerEntity> currentSquad(List<PlayerEntity> players, String clubName) {
+    private static List<PlayerEntity> currentSquad(List<PlayerEntity> players, ClubEntity club) {
         return players.stream()
-                .filter(player -> equalsIgnoreCase(player.getPlayingClub(), clubName)
-                        || (blank(player.getPlayingClub()) && equalsIgnoreCase(player.getClub(), clubName)))
+                .filter(player -> playingClubMatches(player, club)
+                        || (blank(player.getPlayingClub()) && player.getPlayingClubEntity() == null
+                                && owningClubMatches(player, club)))
                 .toList();
     }
 
-    private static boolean belongsToClub(PlayerEntity player, String clubName) {
-        return equalsIgnoreCase(player.getClub(), clubName) || equalsIgnoreCase(player.getPlayingClub(), clubName);
+    private static boolean belongsToClub(PlayerEntity player, ClubEntity club) {
+        return owningClubMatches(player, club) || playingClubMatches(player, club);
+    }
+
+    // Prefer the RAM-linked club association when present; fall back to the
+    // stored name only when it is absent (women's players share the men's
+    // club base name, e.g. "R. Madrid" vs "R. Madrid (W)").
+    private static boolean playingClubMatches(PlayerEntity player, ClubEntity club) {
+        if (player.getPlayingClubEntity() != null) {
+            return linkedTo(player.getPlayingClubEntity(), club);
+        }
+        return clubNameMatches(player.getPlayingClub(), club);
+    }
+
+    private static boolean owningClubMatches(PlayerEntity player, ClubEntity club) {
+        if (player.getClubEntity() != null) {
+            return linkedTo(player.getClubEntity(), club);
+        }
+        return clubNameMatches(player.getClub(), club);
+    }
+
+    private static boolean clubNameMatches(String playerClub, ClubEntity club) {
+        return !blank(playerClub) && equalsIgnoreCase(playerClub, club.getName());
+    }
+
+    private static boolean linkedTo(ClubEntity playerClub, ClubEntity club) {
+        if (playerClub == null) {
+            return false;
+        }
+        if (playerClub.getSourceAddress() != null && club.getSourceAddress() != null) {
+            return playerClub.getSourceAddress().equals(club.getSourceAddress());
+        }
+        return club.getId() != null && Objects.equals(playerClub.getId(), club.getId());
     }
 
     private static boolean sameGender(String playerGender, String clubGender) {

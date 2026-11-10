@@ -33,6 +33,7 @@ import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
+import com.vaadin.flow.component.contextmenu.ContextMenu;
 import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.formlayout.FormLayout;
@@ -117,6 +118,7 @@ public class MainView extends VerticalLayout {
     private final AppSettingsService settings;
     private final SnapshotStatusService snapshots;
     private final ContractRepository contracts;
+    private final UpdatePanel updatesDialog;
 
     private final Dialog loadingDialog = new Dialog();
     private final ProgressBar spinner = new ProgressBar();
@@ -174,7 +176,8 @@ public class MainView extends VerticalLayout {
             ManagedClubContextService managedClubContexts,
             ShortlistFileService shortlistFiles,
             RecruitmentCaseService recruitment,
-            ContractRepository contracts) {
+            ContractRepository contracts,
+            com.github.fmaiassistent.update.UpdateCoordinator updates) {
         this.refreshes = refreshes;
         this.players = players;
         this.staff = staff;
@@ -185,6 +188,7 @@ public class MainView extends VerticalLayout {
         this.settings = settings;
         this.snapshots = snapshots;
         this.contracts = contracts;
+        this.updatesDialog = new UpdatePanel(updates);
         this.aiAssistant = new AiAssistantView(
                 codexConversations, antigravityConversations, copilotConversations,
                 openRouterSession.conversations(),
@@ -233,7 +237,10 @@ public class MainView extends VerticalLayout {
         loadButton.addClickListener(event -> loadAllData());
         freshnessBadge.addClickListener(event -> refreshFreshnessBadge(true));
         freshnessBadge.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
-        settingsButton.addClickListener(event -> openSettingsDialog());
+        ContextMenu settingsMenu = new ContextMenu(settingsButton);
+        settingsMenu.setOpenOnClick(true);
+        settingsMenu.addItem("Settings", event -> openSettingsDialog());
+        settingsMenu.addItem("Updates", event -> updatesDialog.open());
         filterButton.addClickListener(event -> openFilterDialog());
         loadButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         loadButton.addClassName("load-button");
@@ -244,8 +251,8 @@ public class MainView extends VerticalLayout {
         filterButton.addClassName("filter-button");
         settingsButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
         settingsButton.addClassName("icon-button");
-        settingsButton.setTooltipText("Settings");
-        settingsButton.getElement().setAttribute("aria-label", "Settings");
+        settingsButton.setTooltipText("Settings and updates");
+        settingsButton.getElement().setAttribute("aria-label", "Settings and updates");
         status.addClassName("app-status");
 
         Div brandIcon = new Div(new Span("FM"), new Span("27"));
@@ -428,7 +435,7 @@ public class MainView extends VerticalLayout {
                 })
                 .whenComplete((result, ex) -> ui.access(() -> {
                     loadingDialog.close();
-                    ui.setPollInterval(BADGE_POLL_INTERVAL_MS);
+                    ui.setPollInterval(1000);
                     refreshFreshnessBadge(false);
                     loadButton.setEnabled(true);
                     loadButton.setText("Load data");
@@ -532,7 +539,7 @@ public class MainView extends VerticalLayout {
         super.onAttach(event);
         getUI().ifPresent(ui -> {
             ui.getElement().setAttribute("theme", "dark");
-            ui.setPollInterval(BADGE_POLL_INTERVAL_MS);
+            ui.setPollInterval(1000);
             if (pollRegistration == null) {
                 pollRegistration = ui.addPollListener(this::onPoll);
             }
@@ -551,6 +558,7 @@ public class MainView extends VerticalLayout {
     }
 
     private void onPoll(PollEvent event) {
+        updatesDialog.refresh();
         if (loadingDialog.isOpened()) {
             updateLoadingPhase();
             return;

@@ -10,6 +10,10 @@ public record ClubFinanceLayout(long baseVtableRva, long fullVtableRva,
 
     /** The owner pointer was removed; -1 requires a guarded CLUB -> finance relationship instead. */
     public static ClubFinanceLayout current() {
-        return new ClubFinanceLayout(0x4CF07F8,0x4CF0CC8,0x38,0x8B0,-1,0x814,-1001);
+        return forModule(NativeModuleProfile.FM27_SHA256);
+    }
+
+    public static ClubFinanceLayout forModule(String profile) {
+        return new ClubFinanceLayout(NativeModuleProfile.rva(profile, 0x4CF07F8),NativeModuleProfile.rva(profile, 0x4CF0CC8),0x38,0x8B0,-1,0x814,-1001);
     }
 }

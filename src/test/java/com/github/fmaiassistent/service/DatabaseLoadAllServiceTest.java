@@ -33,6 +33,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class DatabaseLoadAllServiceTest {
+    @Test void warnsThatUefaCoefficientsAreUnavailableOnlyForImagesWithoutTheirRoot() {
+        org.assertj.core.api.Assertions.assertThat(DatabaseLoadAllService.unavailableFeatureWarning(
+                com.github.fmaiassistent.memory.NativeModuleProfile.GAME_PASS_SHA256)).hasValueSatisfying(
+                warning -> org.assertj.core.api.Assertions.assertThat(warning).contains("UEFA"));
+        org.assertj.core.api.Assertions.assertThat(DatabaseLoadAllService.unavailableFeatureWarning(
+                com.github.fmaiassistent.memory.NativeModuleProfile.UPDATED_SHA256)).isEmpty();
+        org.assertj.core.api.Assertions.assertThat(DatabaseLoadAllService.unavailableFeatureWarning(null)).isEmpty();
+    }
+
     @Test void completesClubCompetitionReferencesBeforePersistenceWithoutReplacingRicherCompetitionRows()throws Exception {
         var fixture=new Fixture();
         when(fixture.people.exportAllPeople(123,1530,null)).thenReturn(peopleResult(1,1));

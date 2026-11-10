@@ -1,21 +1,12 @@
 # Release Notes
 
-## 2.0.0
-
-WARNING! This version is not compatible with FM26, use version 1.3.0 of this app.
-
-### Major
-- Works with FM27
-- FM27-inspired UI
+## 2.0.2
 
 ### Features
-- View more player and staff contract details, including bonuses and clauses.
-- See agreed playing time, loan terms and future contracts.
-- Identify competition and individual award bonuses by name.
-- Browse more detailed staff coaching and management attributes.
-- Explore club income, spending, taxes, loans and financial history.
-- See prize money and TV income by competition.
+- Works with Steam build 26385295 (2026-11-10) of FM27
+- Works with FM27 on game pass (thx to @canilbey)
+- App checks for updates and the updates can be downloaded and installed directly
 
 ### Bug fixes
-- Fix SteamManifest reading for Windows OS
-
+- Works with very large databases (thx to @canilbey)
+- AI agents get the right context when managing women clubs (thx to @hostlund)

@@ -20,4 +20,8 @@ src/main/frontend/index.html
 /website/node_modules/
 /website/dist/
 /website/.astro/
-/docs/
+/docs/*
+!/docs/desktop-auto-updater.md
+!/docs/updater-release-gate.json
+!/docs/updater-test-report.md
+/scripts/updater/__pycache__/

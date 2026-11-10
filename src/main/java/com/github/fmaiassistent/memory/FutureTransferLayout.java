@@ -7,7 +7,11 @@ public record FutureTransferLayout(int personIndices, int managerRoot, long mana
                                    int date, int dateKind, int status, int exchangeVector, int exchangeStride) {
 
     public static FutureTransferLayout current() {
-        return new FutureTransferLayout(0x98,0x56F2EF0,0x4C8C898,8,0x4F392E8,0x4E195B8,
+        return forModule(NativeModuleProfile.FM27_SHA256);
+    }
+
+    public static FutureTransferLayout forModule(String profile) {
+        return new FutureTransferLayout(0x98,NativeModuleProfile.rva(profile, 0x56F2EF0),NativeModuleProfile.rva(profile, 0x4C8C898),8,NativeModuleProfile.rva(profile, 0x4F392E8),NativeModuleProfile.rva(profile, 0x4E195B8),
                 0x90,0x38,0x40,0x5C,0x7C,0x86,0x8D,0x90,0x18);
     }
 }

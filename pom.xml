@@ -62,6 +62,11 @@
 
     <dependencies>
         <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-compress</artifactId>
+            <version>1.28.0</version>
+        </dependency>
+        <dependency>
             <groupId>org.junit.platform</groupId>
             <artifactId>junit-platform-launcher</artifactId>
             <scope>test</scope>
@@ -406,6 +411,8 @@
                                         <argument>-Dfile.encoding=UTF-8</argument>
                                         <argument>--java-options</argument>
                                         <argument>-Dvaadin.productionMode=true</argument>
+                                        <argument>--java-options</argument>
+                                        <argument>-Dfmai.desktop.image=true</argument>
                                     </arguments>
                                 </configuration>
                             </execution>
@@ -419,6 +426,7 @@
                                     <mainClass>com.github.fmaiassistent.desktop.DesktopImageFinalizer</mainClass>
                                     <arguments>
                                         <argument>${desktop.output.directory}</argument>
+                                        <argument>${parsedVersion.majorVersion}.${parsedVersion.minorVersion}.${parsedVersion.incrementalVersion}</argument>
                                     </arguments>
                                     <classpathScope>runtime</classpathScope>
                                 </configuration>

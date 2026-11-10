@@ -22,14 +22,27 @@ final class FutureTransferExporter {
     private final long base;
     private final FutureTransferLayout layout;
     private final ContractExporter contracts;
+    private final ContractRecordLayout contractLayout;
     private long manager;
     private byte[] rootBytes,managerType,header,table;
     private long tableAddress;
     private long bytesRead;
+    private final long byteBudget;
 
     FutureTransferExporter(ProcessMemoryReader reader,long base,FutureTransferLayout layout) {
-        this.reader=reader;this.base=base;this.layout=layout;
-        this.contracts=new ContractExporter(reader,base,ContractRecordLayout.current());
+        this(reader,base,layout,com.github.fmaiassistent.memory.NativeModuleProfile.supportedProfiles().stream()
+                .filter(candidate -> layout.equals(FutureTransferLayout.forModule(candidate)))
+                .findFirst().orElse(com.github.fmaiassistent.memory.NativeModuleProfile.FM27_SHA256));
+    }
+
+    FutureTransferExporter(ProcessMemoryReader reader,long base,FutureTransferLayout layout,String profile) {
+        this(reader,base,layout,profile,CaptureBudget.FLOOR_BYTES);
+    }
+
+    FutureTransferExporter(ProcessMemoryReader reader,long base,FutureTransferLayout layout,String profile,long byteBudget) {
+        this.reader=reader;this.base=base;this.layout=layout;this.byteBudget=byteBudget;
+        this.contractLayout=ContractRecordLayout.forModule(profile);
+        this.contracts=new ContractExporter(reader,base,contractLayout,profile);
     }
 
     Result read(long person,long uid) throws IOException {
@@ -60,7 +73,7 @@ final class FutureTransferExporter {
                 var employment=contracts.readFutureEmployment(person,uid,index);
                 if(employment.isEmpty()){complete=false;unchanged(offer,core);continue;}
                 var snapshot=employment.orElseThrow();
-                var cl=ContractRecordLayout.current();
+                var cl=contractLayout;
                 byte[] contractCore=java.util.HexFormat.of().parseHex(snapshot.contract().coreHex());
                 long team=buffer(contractCore).getLong(cl.links().team());
                 if(team!=buffer(core).getLong(layout.buyerTeam()))throw new IOException("Future buyer/contract TEAM anchor failed");
@@ -135,7 +148,7 @@ final class FutureTransferExporter {
     }
     private byte[] bytes(long address,int length)throws IOException {
         PlayerSnapshotValidator.validateContractPointer(address,length);
-        if((bytesRead+=length)>64L*1024*1024)throw new IOException("Future transfer capture byte budget exceeded");
+        if((bytesRead+=length)>byteBudget)throw new IOException("Future transfer capture byte budget exceeded");
         byte[] data=reader.readBytes(address,length);if(data.length!=length)throw new IOException("Short future transfer read");return data;
     }
     private void unchanged(long address,byte[] old)throws IOException {

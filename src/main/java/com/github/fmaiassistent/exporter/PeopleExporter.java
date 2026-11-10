@@ -7,11 +7,14 @@ import com.github.fmaiassistent.memory.PersonIdentityLayout;
 import com.github.fmaiassistent.memory.ProcessMemoryReader;
 import com.github.fmaiassistent.memory.ProcessReaders;
 import com.github.fmaiassistent.memory.StaffRecordLayout;
+import com.github.fmaiassistent.memory.ContractRecordLayout;
+import com.github.fmaiassistent.memory.NativeModuleProfile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -127,7 +130,8 @@ public class PeopleExporter {
             LocalDate gameDate = new GameDateFinder()
                     .find(coordinator, 0, build, gamePluginBase)
                     .orElse(null);
-            ScanResult scan = scanPointerTable(pid, pointerTable, mode, workers, gameDate);
+            StaffNativeLayout staffNative = mode.includesStaff() ? staffNativeLayout(coordinator, gamePluginBase) : null;
+            ScanResult scan = scanPointerTable(pid, pointerTable, mode, workers, gameDate, staffNative);
             List<Map<String, Object>> contractOwners = new ArrayList<>(scan.playerRows().size() + scan.staffRows().size());
             contractOwners.addAll(scan.playerRows());
             contractOwners.addAll(scan.staffRows());
@@ -182,6 +186,25 @@ public class PeopleExporter {
             ExportMode mode,
             int workers,
             LocalDate gameDate) throws IOException {
+        return scanPointerTable(pid, pointerTable, mode, workers, gameDate, null);
+    }
+
+    private record StaffNativeLayout(Long moduleBase, ContractRecordLayout contracts) { }
+
+    private static StaffNativeLayout staffNativeLayout(ProcessMemoryReader reader, Long suppliedBase) throws IOException {
+        if (reader.platform() != ProcessMemoryReader.Platform.WINDOWS) return new StaffNativeLayout(null, ContractRecordLayout.current());
+        long base = suppliedBase == null ? FmOffsets.findGamePluginBase(reader) : suppliedBase;
+        String override = System.getProperty(ContractExporter.MODULE_PROPERTY);
+        Path module = override == null || override.isBlank() ? reader.maps().stream()
+                .filter(region -> region.contains(base, 1) && !region.path().isBlank())
+                .map(region -> Path.of(region.path())).findFirst().orElse(null) : Path.of(override);
+        ContractRecordLayout contracts = module == null ? null
+                : NativeModuleProfile.identify(module).map(ContractRecordLayout::forModule).orElse(null);
+        return new StaffNativeLayout(base, contracts);
+    }
+
+    private ScanResult scanPointerTable(int pid, byte[] pointerTable, ExportMode mode, int workers,
+                                       LocalDate gameDate, StaffNativeLayout staffNative) throws IOException {
         if (pointerTable.length % Long.BYTES != 0) {
             throw new IOException("People pointer table size is not aligned to 64-bit slots");
         }
@@ -191,14 +214,15 @@ public class PeopleExporter {
         ExecutorService executor = Executors.newFixedThreadPool(
                 actualWorkers, Thread.ofPlatform().name("fm-people-reader-", 0).factory());
         List<Future<WorkerResult>> futures = new ArrayList<>(actualWorkers);
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(SCAN_TIMEOUT_SECONDS);
+        java.time.Duration timeout = CaptureBudget.scaledTimeout(java.time.Duration.ofSeconds(SCAN_TIMEOUT_SECONDS), slotCount);
+        long deadline = System.nanoTime() + timeout.toNanos();
         try {
             for (int worker = 0; worker < actualWorkers; worker++) {
-                futures.add(executor.submit(() -> scanWorker(pid, pointerTable, mode, nextIndex, gameDate)));
+                futures.add(executor.submit(() -> scanWorker(pid, pointerTable, mode, nextIndex, gameDate, staffNative)));
             }
             List<WorkerResult> results = new ArrayList<>(actualWorkers);
             for (Future<WorkerResult> future : futures) {
-                results.add(await(future, deadline));
+                results.add(await(future, deadline, timeout));
             }
             return merge(results);
         } catch (IOException | RuntimeException exception) {
@@ -215,16 +239,19 @@ public class PeopleExporter {
             byte[] pointerTable,
             ExportMode mode,
             AtomicInteger nextIndex,
-            LocalDate gameDate) throws Exception {
+            LocalDate gameDate,
+            StaffNativeLayout staffNative) throws Exception {
         long started = System.nanoTime();
         List<Map<String, Object>> players = new ArrayList<>();
         List<Map<String, Object>> staff = new ArrayList<>();
         MutableDiagnostics diagnostics = new MutableDiagnostics();
         try (ProcessMemoryReader reader = readers.open(pid)) {
             PersonMemoryClassifier classifier = new PersonMemoryClassifier(reader, subtypeLayout);
-            Long staffModuleBase = mode.includesStaff() && reader.platform() == ProcessMemoryReader.Platform.WINDOWS
-                    ? FmOffsets.findGamePluginBase(reader) : null;
-            StaffExporter staffDecoder = new StaffExporter(staffRecordLayout, staffModuleBase);
+            Long staffModuleBase = staffNative != null ? staffNative.moduleBase()
+                    : mode.includesStaff() && reader.platform() == ProcessMemoryReader.Platform.WINDOWS
+                        ? FmOffsets.findGamePluginBase(reader) : null;
+            StaffExporter staffDecoder = new StaffExporter(staffRecordLayout, staffModuleBase,
+                    staffNative == null ? ContractRecordLayout.current() : staffNative.contracts());
             PlayerExporter playerDecoder = new PlayerExporter(recordLayout);
             processChunks(pointerTable.length / Long.BYTES, nextIndex, index -> {
                 long person = pointerAt(pointerTable, index);
@@ -387,7 +414,7 @@ public class PeopleExporter {
                 | (pointerTable[offset + 7] & 0xffL) << 56;
     }
 
-    private static WorkerResult await(Future<WorkerResult> future, long deadline) throws IOException {
+    private static WorkerResult await(Future<WorkerResult> future, long deadline, java.time.Duration timeout) throws IOException {
         try {
             long remaining = deadline - System.nanoTime();
             if (remaining <= 0) {
@@ -400,7 +427,7 @@ public class PeopleExporter {
         } catch (CancellationException exception) {
             throw new IOException("FM27 people extraction was cancelled", exception);
         } catch (TimeoutException exception) {
-            throw new IOException("FM27 people extraction exceeded " + SCAN_TIMEOUT_SECONDS + " seconds", exception);
+            throw new IOException("FM27 people extraction exceeded " + timeout.toSeconds() + " seconds", exception);
         } catch (ExecutionException exception) {
             Throwable cause = exception.getCause();
             if (cause instanceof InterruptedException interrupted) {

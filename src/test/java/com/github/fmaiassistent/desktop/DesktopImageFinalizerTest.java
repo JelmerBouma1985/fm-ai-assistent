@@ -15,6 +15,20 @@ class DesktopImageFinalizerTest {
     Path temporaryDirectory;
 
     @Test
+    @org.junit.jupiter.api.condition.EnabledOnOs(org.junit.jupiter.api.condition.OS.LINUX)
+    void materializesJlinkLegalNoticeLinksButRejectsEscapes() throws Exception {
+        Path image = Files.createDirectory(temporaryDirectory.resolve("image"));
+        Path target = Files.writeString(image.resolve("notice"), "license");
+        Path link = Files.createSymbolicLink(image.resolve("linked-notice"), target.getFileName());
+        DesktopImageFinalizer.materializeInternalFileLinks(image);
+        assertThat(Files.isSymbolicLink(link)).isFalse();
+        assertThat(Files.readString(link)).isEqualTo("license");
+        Path outside = Files.writeString(temporaryDirectory.resolve("outside"), "outside");
+        Files.createSymbolicLink(image.resolve("escape"), outside);
+        org.junit.jupiter.api.Assertions.assertThrows(java.io.IOException.class, () -> DesktopImageFinalizer.materializeInternalFileLinks(image));
+    }
+
+    @Test
     void makesGeneratedFilesWritableForMavenClean() throws Exception {
         Path launcher = Files.writeString(temporaryDirectory.resolve("launcher.exe"), "test");
         DosFileAttributeView dosAttributes = Files.getFileAttributeView(

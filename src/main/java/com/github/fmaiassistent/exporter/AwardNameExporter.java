@@ -16,6 +16,7 @@ public final class AwardNameExporter {
     private final ProcessMemoryReader reader;
     private final long base;
     private final AwardNameLayout layout;
+    private final String profile;
     private final List<Guard> guards=new ArrayList<>();
     private final Map<Long,NativeAwardNameSnapshot> names=new LinkedHashMap<>();
     private final Map<Long,Long> addresses=new HashMap<>();
@@ -23,13 +24,17 @@ public final class AwardNameExporter {
     private record Guard(long address,byte[] bytes) { }
 
     public AwardNameExporter(ProcessMemoryReader reader,long base,AwardNameLayout layout)throws IOException {
+        this(reader,base,layout,NativeModuleProfile.FM27_SHA256);
+    }
+    private AwardNameExporter(ProcessMemoryReader reader,long base,AwardNameLayout layout,String profile)throws IOException {
         PlayerSnapshotValidator.validateAwardNameLayout(layout);this.reader=reader;this.base=base;this.layout=layout;
+        this.profile=profile;
     }
     static void capture(ProcessMemoryReader reader,Long suppliedBase,List<Map<String,Object>> rows)throws IOException {
         if(reader.platform()!=ProcessMemoryReader.Platform.WINDOWS)return;
         var profile=ContractExporter.capturedProfile(rows);if(profile.isEmpty())return;
         long base=suppliedBase==null?com.github.fmaiassistent.linux.FmOffsets.findGamePluginBase(reader):suppliedBase;
-        new AwardNameExporter(reader,base,AwardNameLayout.current()).captureRows(rows);
+        new AwardNameExporter(reader,base,AwardNameLayout.forModule(profile.orElseThrow()),profile.orElseThrow()).captureRows(rows);
     }
     public void captureRows(List<Map<String,Object>> rows)throws IOException {
         guards.clear();names.clear();addresses.clear();begin=0;count=0;readBytes=0;
@@ -60,7 +65,7 @@ public final class AwardNameExporter {
                 rows.get(i).put("_award_names",staged.get(i));
         }finally{guards.clear();names.clear();addresses.clear();}
     }
-    private String moduleProfile(){return NativeModuleProfile.FM27_SHA256;}
+    private String moduleProfile(){return profile;}
 
     private NativeAwardNameSnapshot readName(long uid,long address)throws IOException {
         if(uid<=0||uid>0xffffffffL)throw new IOException("Invalid AWARD UID");

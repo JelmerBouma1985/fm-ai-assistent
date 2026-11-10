@@ -13,8 +13,12 @@ public record ClubFinancialLedgerLayout(int financeRel, long baseVtableRva, long
     public static final String MODULE_SHA256="bc940e472418fc5c214208d7cf30fecf600f689b6f9d71c11ba19a2df0fe057f";
 
     public static ClubFinancialLedgerLayout current() {
-        return new ClubFinancialLedgerLayout(0x150,0x4CF07F8L,0x4CF0CC8L,-1,0x8B0,0x248,0x118,5,
-                0x30,0xE4,0x114,4,57,4,0x56AD378L,4);
+        return forModule(NativeModuleProfile.FM27_SHA256);
+    }
+
+    public static ClubFinancialLedgerLayout forModule(String profile) {
+        return new ClubFinancialLedgerLayout(0x150,NativeModuleProfile.rva(profile, 0x4CF07F8),NativeModuleProfile.rva(profile, 0x4CF0CC8),-1,0x8B0,0x248,0x118,5,
+                0x30,0xE4,0x114,4,57,4,NativeModuleProfile.rva(profile, 0x56AD378),4);
     }
     public int payloadBytes(){return blockCount*(recordBytes+tailBytes);}
     public int blockWindowBytes(){return blockCount*blockStride;}
@@ -34,8 +38,9 @@ public record ClubFinancialLedgerLayout(int financeRel, long baseVtableRva, long
         return new Profile(date,records,HexFormat.of().formatHex(raw));
     }
     public static Optional<Profile> values(String hex,Integer clock,String sourceSha256) {
-        var l=current();
-        if((!MODULE_SHA256.equals(sourceSha256))||hex==null||clock==null||hex.length()!=l.payloadBytes()*2)return Optional.empty();
+        if (!NativeModuleProfile.supported(sourceSha256)) return Optional.empty();
+        var l=forModule(sourceSha256);
+        if(hex==null||clock==null||hex.length()!=l.payloadBytes()*2)return Optional.empty();
         try{return Optional.of(l.decode(HexFormat.of().parseHex(hex),clock));}
         catch(IllegalArgumentException|IndexOutOfBoundsException invalid){return Optional.empty();}
     }

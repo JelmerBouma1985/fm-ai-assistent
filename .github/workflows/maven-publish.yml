@@ -117,6 +117,15 @@ jobs:
         shell: bash
         run: echo "release_commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
+  validate-updater:
+    name: Validate packaged updater on Windows and Linux
+    needs: prepare-release
+    permissions:
+      contents: read
+    uses: ./.github/workflows/updater-tests.yml
+    with:
+      ref: ${{ needs.prepare-release.outputs.release_commit }}
+
   build-jar:
     name: Build JAR
     runs-on: ubuntu-latest
@@ -338,9 +347,9 @@ jobs:
 
           mkdir -p release
 
-          tar \
-            -czf release/fm-ai-assistent-desktop-linux-x64.tar.gz \
-            -C target/dist .
+          python3 scripts/updater/updater_tools.py create \
+            --version '${{ needs.prepare-release.outputs.release_version }}' --game FM27 \
+            --platform linux-x64 --app-image 'target/dist/FM AI Assistent' --output-directory release
 
           ls -lah release
 
@@ -348,7 +357,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: desktop-linux
-          path: release/*
+          path: release/fm-ai-assistent-desktop-*
           if-no-files-found: error
 
 
@@ -394,9 +403,10 @@ jobs:
 
           New-Item -ItemType Directory -Force -Path release | Out-Null
 
-          Compress-Archive `
-              -Path "target/dist/FM AI Assistent" `
-              -DestinationPath release/fm-ai-assistent-desktop-windows-x64.zip
+          python scripts/updater/updater_tools.py create `
+              --version '${{ needs.prepare-release.outputs.release_version }}' --game FM27 `
+              --platform windows-x64 --app-image 'target/dist/FM AI Assistent' --output-directory release
+          if ($LASTEXITCODE -ne 0) { throw 'Desktop archive validation failed' }
 
           Get-ChildItem release
 
@@ -404,7 +414,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: desktop-windows
-          path: release/*
+          path: release/fm-ai-assistent-desktop-*
           if-no-files-found: error
 
 
@@ -419,6 +429,7 @@ jobs:
       - build-native-windows
       - build-desktop-linux
       - build-desktop-windows
+      - validate-updater
 
     steps:
       - name: Checkout release commit
@@ -464,9 +475,10 @@ jobs:
           echo "Using release notes:"
           cat RELEASE_NOTES.md
 
-      - name: Download all build artifacts
+      - name: Download release build artifacts
         uses: actions/download-artifact@v4
         with:
+          pattern: '@(jar|native-linux|native-windows|desktop-linux|desktop-windows)'
           path: release-artifacts
 
       - name: Show downloaded artifacts
@@ -491,6 +503,11 @@ jobs:
           echo
           echo "Final GitHub Release artifacts:"
           ls -lah release
+
+      - name: Generate and validate complete desktop update manifest
+        env:
+          RELEASE_VERSION: ${{ needs.prepare-release.outputs.release_version }}
+        run: python3 scripts/updater/updater_tools.py aggregate --version "$RELEASE_VERSION" --directory release
 
       - name: Publish GitHub Release
         env:

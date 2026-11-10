@@ -27,7 +27,7 @@ class FixtureExporterFm27LiveTest {
             expected=JsonMapper.builder().build().readTree(bytes);
         }
         int pid=expected.get("pid").asInt();long base=Long.decode(expected.get("moduleBase").asString());
-        assertThat(expected.get("moduleSha256").asString()).isEqualTo(NativeModuleProfile.FM27_SHA256);
+        assertThat(expected.get("moduleSha256").asString()).isEqualTo(System.getProperty("fm27.live.profile",NativeModuleProfile.FM27_SHA256));
         try(var memory=ProcessReaders.open(pid)) { assertThat(FmOffsets.findGamePluginBase(memory)).isEqualTo(base); }
         var actual=new FixtureExporter(new ManagedClubMemoryReader()).exportManagedClubFixtures(pid,FmOffsets.DEFAULT_BUILD,base);
         assertThat(actual.gameDate()).isEqualTo("2026-08-03");
