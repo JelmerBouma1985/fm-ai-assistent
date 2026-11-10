@@ -24,19 +24,23 @@ public record ContractRecordLayout(Links links, Full full, Loan loan, List<Vecto
 
     /** FM27 27.0.0+2486695; typed live census in fm27/contracts_inventory.json. */
     public static ContractRecordLayout current() {
+        return forModule(NativeModuleProfile.FM27_SHA256);
+    }
+
+    public static ContractRecordLayout forModule(String profile) {
         return new ContractRecordLayout(
                 new Links(0xA8, 0xB0, 8, 12, 8, 0x10, 0x54, 0x80,
-                        0x5703768, 0x57036E8, 8, 16, 4),
-                new Full(0xC8, 0x4B00AE8, 0x68, 0x80, 0x98, 8, 32, 16),
-                new Loan(0xF8, 0x4DC91F8, 0x68, 0xA0, 0xA8, 0xB0, 0xB4,
+                        NativeModuleProfile.rva(profile, 0x5703768), NativeModuleProfile.rva(profile, 0x57036E8), 8, 16, 4),
+                new Full(0xC8, NativeModuleProfile.rva(profile, 0x4B00AE8), 0x68, 0x80, 0x98, 8, 32, 16),
+                new Loan(0xF8, NativeModuleProfile.rva(profile, 0x4DC91F8), 0x68, 0xA0, 0xA8, 0xB0, 0xB4,
                         0xEF, 0xF0, 0x90, 0x94, 0x98, 0x9C, 200, 0x70, 0x88, 32, 16),
                 List.of(new Vector("SHARED_00", 0, 12), new Vector("SHARED_18", 0x18, 8),
                         new Vector("SHARED_30", 0x30, 8), new Vector("SHARED_48", 0x48, 8),
                         new Vector("SHARED_60", 0x60, 8), new Vector("SHARED_78", 0x78, 16),
                         new Vector("SHARED_90", 0x90, 32), new Vector("SHARED_A8", 0xA8, 16)),
                 new TermFields(0, 4, 6), new TermFields(0, 4, 8),
-                new Plain(0x68, 0x4F53F28, "B_CLUB"), new Plain(0x28, 0x4B01058, "BASIC"),
-                new Award(0x57036D0, 0, 0x4CF6078),
-                new TeamOwner(0x2F, 0x30, 0x57036E0, 0x5703730, 0x4CDA1F8, 0x4CEC0B8));
+                new Plain(0x68, NativeModuleProfile.rva(profile, 0x4F53F28), "B_CLUB"), new Plain(0x28, NativeModuleProfile.rva(profile, 0x4B01058), "BASIC"),
+                new Award(NativeModuleProfile.rva(profile, 0x57036D0), 0, NativeModuleProfile.rva(profile, 0x4CF6078)),
+                new TeamOwner(0x2F, 0x30, NativeModuleProfile.rva(profile, 0x57036E0), NativeModuleProfile.rva(profile, 0x5703730), NativeModuleProfile.rva(profile, 0x4CDA1F8), NativeModuleProfile.rva(profile, 0x4CEC0B8)));
     }
 }

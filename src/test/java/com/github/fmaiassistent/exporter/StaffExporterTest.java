@@ -94,6 +94,34 @@ class StaffExporterTest {
         var memory=validStaffMemory();memory.put(CONTRACT,core);memory.putLong(CONTRACT+0x10,TEAM);
         var row=new StaffExporter(StaffRecordLayout.current(),sample.get("base").asLong()).decodeRow(memory,7,PERSON,0x100);
         assertThat(row.get("contract_end_date")).isEqualTo("");
+        assertThat(memory.readAddresses).doesNotContain(CONTRACT + 0x48, CONTRACT + 0x4a);
+    }
+
+    @Test
+    void updatedBasicContractSkipsAdjacentPlausibleDateWhileFullContractRetainsItsDate() throws Exception {
+        long moduleBase = 0x1000_0000L;
+        var contracts = com.github.fmaiassistent.memory.ContractRecordLayout.forModule(
+                com.github.fmaiassistent.memory.NativeModuleProfile.UPDATED_SHA256);
+        var memory = validStaffMemory();
+        memory.putLong(CONTRACT, moduleBase + contracts.basic().vtable());
+        var decoder = new StaffExporter(StaffRecordLayout.current(), moduleBase, contracts);
+
+        var basic = decoder.decodeRow(memory, 7, PERSON, 0x100);
+
+        assertThat(basic.get("contract_end_date")).isEqualTo("");
+        assertThat(memory.readAddresses).doesNotContain(CONTRACT + 0x48, CONTRACT + 0x4a);
+        memory.putLong(CONTRACT, moduleBase + contracts.full().vtable());
+        var full = decoder.decodeRow(memory, 7, PERSON, 0x100);
+        assertThat(full.get("contract_end_date")).isEqualTo("2034-07-19");
+    }
+
+    @Test
+    void unidentifiedWindowsImageDoesNotReadAnUnverifiedContractEndDate() throws Exception {
+        var memory = validStaffMemory();
+        var row = new StaffExporter(StaffRecordLayout.current(), 0x1000_0000L, null)
+                .decodeRow(memory, 7, PERSON, 0x100);
+        assertThat(row.get("contract_end_date")).isEqualTo("");
+        assertThat(memory.readAddresses).doesNotContain(CONTRACT + 0x48, CONTRACT + 0x4a);
     }
 
 @Test

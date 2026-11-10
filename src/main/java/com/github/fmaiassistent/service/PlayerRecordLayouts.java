@@ -33,7 +33,10 @@ public final class PlayerRecordLayouts {
         }
     }
 
-    private static final Map<Long, LayoutSet> KNOWN_BUILDS = Map.of(26227640L, LayoutSet.current());
+    private static final Map<Long, LayoutSet> KNOWN_BUILDS = Map.of(
+            26227640L, LayoutSet.current(),
+            26340721L, LayoutSet.current(),
+            26385295L, LayoutSet.current());
 
     private PlayerRecordLayouts() {
     }
@@ -47,6 +50,23 @@ public final class PlayerRecordLayouts {
      * to the last known layouts with {@code installedBuildId} {@code -1}.
      */
     public static LayoutMatch resolve(Path home) {
+        return resolve(home, null);
+    }
+
+    /**
+     * Like {@link #resolve(Path)}, but a running image with a verified SHA-256 is known even
+     * without a Steam manifest (Game Pass installs have none). Every verified image shares
+     * the current record layouts.
+     */
+    public static LayoutMatch resolve(Path home, String moduleProfile) {
+        LayoutMatch steam = resolveSteam(home);
+        if (!steam.knownBuild() && com.github.fmaiassistent.memory.NativeModuleProfile.supported(moduleProfile)) {
+            return new LayoutMatch(LayoutSet.current(), true, steam.installedBuildId());
+        }
+        return steam;
+    }
+
+    private static LayoutMatch resolveSteam(Path home) {
         OptionalLong installed = SteamLibraries.installedBuildId(home, SteamLibraries.FM27_APP_ID);
         if (installed.isPresent()) {
             LayoutSet known = KNOWN_BUILDS.get(installed.getAsLong());

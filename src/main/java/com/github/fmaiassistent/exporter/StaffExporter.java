@@ -20,9 +20,10 @@ public class StaffExporter {
 
     private StaffRecordLayout recordLayout = StaffRecordLayout.current();
     private final Long windowsModuleBase;
+    private final ContractRecordLayout contractLayout;
 
     public StaffExporter() {
-        this.windowsModuleBase = null;
+        this(StaffRecordLayout.current(), null);
     }
 
     public StaffExporter(StaffRecordLayout recordLayout) {
@@ -30,8 +31,13 @@ public class StaffExporter {
     }
 
     StaffExporter(StaffRecordLayout recordLayout, Long windowsModuleBase) {
+        this(recordLayout, windowsModuleBase, ContractRecordLayout.current());
+    }
+
+    StaffExporter(StaffRecordLayout recordLayout, Long windowsModuleBase, ContractRecordLayout contractLayout) {
         this.recordLayout = recordLayout;
         this.windowsModuleBase = windowsModuleBase;
+        this.contractLayout = contractLayout;
     }
 
     /**
@@ -75,10 +81,11 @@ public class StaffExporter {
         row.put("age_as_of", "");
         row.put("salary_weekly_raw", contract.map(value -> readU32(reader, value + recordLayout.contractSalaryWeeklyRel(), 0)).orElse(0L));
         // BASIC has no+0x48: its Ceda property returns a shared placeholder without reading this object.
-        boolean basic = false;
-        if (contract.isPresent() && windowsModuleBase != null) {
+        // An unidentified native image cannot establish whether +0x48 belongs to this allocation.
+        boolean basic = windowsModuleBase != null && contractLayout == null;
+        if (contract.isPresent() && windowsModuleBase != null && contractLayout != null) {
             long vtableRva = reader.readU64(contract.get()) - windowsModuleBase;
-            basic = vtableRva == ContractRecordLayout.current().basic().vtable();
+            basic = vtableRva == contractLayout.basic().vtable();
         }
         row.put("contract_end_date", basic ? "" : contract.map(value -> date(reader, value + recordLayout.contractDateRel())).orElse(""));
         row.put("home_reputation", reader.readU16(staffBase + recordLayout.homeReputationRel()));

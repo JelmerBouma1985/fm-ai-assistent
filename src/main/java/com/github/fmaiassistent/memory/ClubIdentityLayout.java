@@ -7,6 +7,10 @@ public record ClubIdentityLayout(int registryRva, int registryHeader, int index,
 
     /** FM27 registry and independently read native RTTI identities. */
     public static ClubIdentityLayout current() {
-        return new ClubIdentityLayout(0x57036E0,0x80,8,12,16,0x4CDA1F8,0x4F65538,0x2F,0x4CE1108,0x4DC2288);
+        return forModule(NativeModuleProfile.FM27_SHA256);
+    }
+
+    public static ClubIdentityLayout forModule(String profile) {
+        return new ClubIdentityLayout(NativeModuleProfile.rva(profile, 0x57036E0),0x80,8,12,16,NativeModuleProfile.rva(profile, 0x4CDA1F8),NativeModuleProfile.rva(profile, 0x4F65538),0x2F,NativeModuleProfile.rva(profile, 0x4CE1108),NativeModuleProfile.rva(profile, 0x4DC2288));
     }
 }

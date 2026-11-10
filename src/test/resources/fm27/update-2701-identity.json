@@ -1,0 +1,241 @@
+{
+  "nativeVersion" : "27.0.1+2494687",
+  "steamBuild" : 26385295,
+  "moduleSha256" : "f79b0a3413dd0e3f461b0afbc3ff397003f4a26d7525a30717428de6a8b91196",
+  "moduleBytes" : 398661632,
+  "capturedAt" : "2026-11-10",
+  "pid" : 17056,
+  "moduleBase" : 140723301580800,
+  "vtables" : [ {
+    "locatorRva" : 79711504,
+    "rttiName" : ".?AVFULL_CONTRACT@db@@",
+    "rva" : "0x4c04b08",
+    "legacyRva" : "0x4b00ae8",
+    "locatorHex" : "010000000000000000000000c0897905284dc004104dc004",
+    "constructionDisplacement" : 0,
+    "displacement" : 0
+  }, {
+    "locatorRva" : 79712544,
+    "rttiName" : ".?AVBASIC_CONTRACT@db@@",
+    "rva" : "0x4c05078",
+    "legacyRva" : "0x4b01058",
+    "locatorHex" : "010000000000000000000000208a7905e04dc0042051c004",
+    "constructionDisplacement" : 0,
+    "displacement" : 0
+  }, {
+    "locatorRva" : 81334528,
+    "rttiName" : ".?AVTRANSFER_MANAGER@@",
+    "rva" : "0x4d908d8",
+    "legacyRva" : "0x4c8c898",
+    "locatorHex" : "010000001800000000000000a07a7b052810d9040011d904",
+    "constructionDisplacement" : 0,
+    "displacement" : 24
+  }, {
+    "locatorRva" : 81492688,
+    "rttiName" : ".?AVNON_PLAYING_DATA@db@@",
+    "rva" : "0x4db6758",
+    "legacyRva" : "0x4cb2718",
+    "locatorHex" : "01000000000000000000000000ec7b05e87adb04d07adb04",
+    "constructionDisplacement" : 0,
+    "displacement" : 0
+  }, {
+    "locatorRva" : 81547792,
+    "rttiName" : ".?AVHUMAN_NON_PLAYER@db@@",
+    "rva" : "0x4dc4938",
+    "legacyRva" : "0x4cc08d8",
+    "locatorHex" : "01000000400400000400000000737a05b851dc041052dc04",
+    "constructionDisplacement" : 4,
+    "displacement" : 1088
+  }, {
+    "locatorRva" : 81650816,
+    "rttiName" : ".?AVCLUB@db@@",
+    "rva" : "0x4dde298",
+    "legacyRva" : "0x4cda1f8",
+    "locatorHex" : "01000000000000000000000050f37b0598e4dd0480e4dd04",
+    "constructionDisplacement" : 0,
+    "displacement" : 0
+  }, {
+    "locatorRva" : 81673648,
+    "rttiName" : ".?AVCOMP@db@@",
+    "rva" : "0x4de3b78",
+    "legacyRva" : "0x4cdfad8",
+    "locatorHex" : "01000000000000000000000020ed7b05c83dde04b03dde04",
+    "constructionDisplacement" : 0,
+    "displacement" : 0
+  }, {
+    "locatorRva" : 81679392,
+    "rttiName" : ".?AVTEAM@db@@",
+    "rva" : "0x4de51a8",
+    "legacyRva" : "0x4ce1108",
+    "locatorHex" : "010000000000000000000000a0fa7b051056de042054de04",
+    "constructionDisplacement" : 0,
+    "displacement" : 0
+  }, {
+    "locatorRva" : 81724400,
+    "rttiName" : ".?AVNATIONAL_TEAM_CONTAINER@db@@",
+    "rva" : "0x4df0228",
+    "legacyRva" : "0x4cec0b8",
+    "locatorHex" : "01000000000000000000000070f37b050804df04f003df04",
+    "constructionDisplacement" : 0,
+    "displacement" : 0
+  }, {
+    "locatorRva" : 81744832,
+    "rttiName" : ".?AVCLUB_FINANCE_BASE@db@@",
+    "rva" : "0x4df4968",
+    "legacyRva" : "0x4cf07f8",
+    "locatorHex" : "010000000000000000000000907c7c05c8f7dd04c053df04",
+    "constructionDisplacement" : 0,
+    "displacement" : 0
+  }, {
+    "locatorRva" : 81744864,
+    "rttiName" : ".?AVCLUB_FINANCE@db@@",
+    "rva" : "0x4df4e38",
+    "legacyRva" : "0x4cf0cc8",
+    "locatorHex" : "010000000000000000000000c07c7c05f853df04e053df04",
+    "constructionDisplacement" : 0,
+    "displacement" : 0
+  }, {
+    "locatorRva" : 81765072,
+    "rttiName" : ".?AVAWARD@db@@",
+    "rva" : "0x4dfa1e8",
+    "legacyRva" : "0x4cf6078",
+    "locatorHex" : "010000000000000000000000b0ec7b05e8a2df04d0a2df04",
+    "constructionDisplacement" : 0,
+    "displacement" : 0
+  }, {
+    "locatorRva" : 82382912,
+    "rttiName" : ".?AVACTUAL_NON_PLAYER@db@@",
+    "rva" : "0x4e908b8",
+    "legacyRva" : "0x4d8be78",
+    "locatorHex" : "010000000001000004000000a0317c050853dc044010e904",
+    "constructionDisplacement" : 4,
+    "displacement" : 256
+  }, {
+    "locatorRva" : 82603696,
+    "rttiName" : ".?AVNATIONAL_TEAM@db@@",
+    "rva" : "0x4ec6d88",
+    "legacyRva" : "0x4dc2288",
+    "locatorHex" : "010000000000000000000000502d7e05c86eec04b06eec04",
+    "constructionDisplacement" : 0,
+    "displacement" : 0
+  }, {
+    "locatorRva" : 82632448,
+    "rttiName" : ".?AVLOAN_CONTRACT@db@@",
+    "rva" : "0x4ecdcf8",
+    "legacyRva" : "0x4dc91f8",
+    "locatorHex" : "010000000000000000000000e01c7e0518dfec0400dfec04",
+    "constructionDisplacement" : 0,
+    "displacement" : 0
+  }, {
+    "locatorRva" : 82994528,
+    "rttiName" : ".?AVLOAN_OFFER@@",
+    "rva" : "0x4f26178",
+    "legacyRva" : "0x4e195b8",
+    "locatorHex" : "01000000000000000000000010957b057865f2046065f204",
+    "constructionDisplacement" : 0,
+    "displacement" : 0
+  }, {
+    "locatorRva" : 84222144,
+    "rttiName" : ".?AVFULL_TRANSFER_OFFER@@",
+    "rva" : "0x5051cd8",
+    "legacyRva" : "0x4f392e8",
+    "locatorHex" : "010000000000000000000000a0a37f05d8200505c0200505",
+    "constructionDisplacement" : 0,
+    "displacement" : 0
+  }, {
+    "locatorRva" : 84331328,
+    "rttiName" : ".?AVB_CLUB_CONTRACT@db@@",
+    "rva" : "0x506c938",
+    "legacyRva" : "0x4f53f28",
+    "locatorHex" : "010000000000000000000000605c7d0558cb060540cb0605",
+    "constructionDisplacement" : 0,
+    "displacement" : 0
+  }, {
+    "locatorRva" : 84404624,
+    "rttiName" : ".?AVLEAGUE_BODY_CLUB@db@@",
+    "rva" : "0x507e7d8",
+    "legacyRva" : "0x4f65538",
+    "locatorHex" : "01000000000000000000000050ee7b05a8e9070590e90705",
+    "constructionDisplacement" : 0,
+    "displacement" : 0
+  }, {
+    "locatorRva" : 84478448,
+    "rttiName" : ".?AVACTUAL_PLAYER_AND_NON_PLAYER@db@@",
+    "rva" : "0x50901e8",
+    "legacyRva" : "0x4f75f38",
+    "locatorHex" : "01000000800300000400000010eb7f0548090905f0090905",
+    "constructionDisplacement" : 4,
+    "displacement" : 896
+  } ],
+  "offsetTableRva" : 92407336,
+  "dateRva" : 92054456,
+  "dateRawHex" : "d71aea07",
+  "managerRva" : 92341000,
+  "export" : {
+    "profile" : "f79b0a3413dd0e3f461b0afbc3ff397003f4a26d7525a30717428de6a8b91196",
+    "players" : 35490,
+    "staff" : 23556,
+    "contracts" : 50948,
+    "futureContracts" : 34,
+    "nativeClubs" : 23998,
+    "clubViews" : 24955,
+    "coefficients" : 812,
+    "ledgers" : 370,
+    "loans" : 406,
+    "selectedClubRows" : [ {
+      "sourceAddress" : 3236114500064,
+      "uniqueId" : 1013,
+      "_competition_address" : 3236124402176,
+      "name" : "Feyenoord",
+      "gender" : "male",
+      "competition" : "Eredivisie",
+      "reputation" : 7250,
+      "nation" : "Netherlands",
+      "balance" : 25063222,
+      "transferBudget" : 8590319,
+      "payrollBudget" : 395038,
+      "currentWagesIncludingBonuses" : 395038,
+      "trainingFacilities" : 17,
+      "youthFacilities" : 17,
+      "youthCoaching" : 17,
+      "youthRecruitment" : 17,
+      "corporateFacilities" : 5
+    }, {
+      "sourceAddress" : 3236114500064,
+      "uniqueId" : 1013,
+      "_competition_address" : 3236125756064,
+      "name" : "Feyenoord",
+      "gender" : "male",
+      "competition" : "U21 Premier Division",
+      "reputation" : 2900,
+      "nation" : "Netherlands",
+      "balance" : 25063222,
+      "transferBudget" : 8590319,
+      "payrollBudget" : 395038,
+      "currentWagesIncludingBonuses" : 395038,
+      "trainingFacilities" : 17,
+      "youthFacilities" : 17,
+      "youthCoaching" : 17,
+      "youthRecruitment" : 17,
+      "corporateFacilities" : 5
+    }, {
+      "sourceAddress" : 3236114500064,
+      "uniqueId" : 1013,
+      "_competition_address" : 3236125756496,
+      "name" : "Feyenoord",
+      "gender" : "male",
+      "competition" : "Dutch Under 19 Eredivisie",
+      "reputation" : 1812,
+      "nation" : "Netherlands",
+      "balance" : 25063222,
+      "transferBudget" : 8590319,
+      "payrollBudget" : 395038,
+      "currentWagesIncludingBonuses" : 395038,
+      "trainingFacilities" : 17,
+      "youthFacilities" : 17,
+      "youthCoaching" : 17,
+      "youthRecruitment" : 17,
+      "corporateFacilities" : 5
+    } ]
+  }
+}

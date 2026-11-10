@@ -16,6 +16,7 @@ import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class ClubDatabaseService {
@@ -102,6 +103,11 @@ public class ClubDatabaseService {
     }
 
     @Transactional(readOnly = true)
+    public Optional<ClubEntity> findBySourceAddress(Long sourceAddress) {
+        return clubs.findFirstBySourceAddressOrderByReputationDesc(sourceAddress);
+    }
+
+    @Transactional(readOnly = true)
     public List<ClubEntity> findClubEntities(ClubFilterCriteria filter) {
         ClubFilterCriteria safeFilter = filter == null ? ClubFilterCriteria.empty() : filter;
         return clubs.findAll(CatalogSpecifications.clubs(safeFilter));
@@ -127,7 +133,7 @@ public class ClubDatabaseService {
 
     @Transactional(readOnly = true)
     public Page<CoefficientClub> findCoefficientClubs(String name,Pageable pageable) {
-        var hashes=List.of(com.github.fmaiassistent.memory.NativeModuleProfile.FM27_SHA256);
+        var hashes=com.github.fmaiassistent.memory.NativeModuleProfile.supportedProfiles();
         var page=name==null||name.isBlank()?nativeClubs.findByUefaCoefficientHexIsNotNullAndModuleSha256In(hashes,pageable)
                 :nativeClubs.findByUefaCoefficientHexIsNotNullAndModuleSha256InAndNameContainingIgnoreCase(hashes,name.trim(),pageable);
         return page.map(ClubDatabaseService::coefficientClub);
@@ -140,7 +146,7 @@ public class ClubDatabaseService {
 
     @Transactional(readOnly = true)
     public long countCoefficientClubs(String name) {
-        var hashes=List.of(com.github.fmaiassistent.memory.NativeModuleProfile.FM27_SHA256);
+        var hashes=com.github.fmaiassistent.memory.NativeModuleProfile.supportedProfiles();
         return name==null||name.isBlank()?nativeClubs.countByUefaCoefficientHexIsNotNullAndModuleSha256In(hashes)
                 :nativeClubs.countByUefaCoefficientHexIsNotNullAndModuleSha256InAndNameContainingIgnoreCase(hashes,name.trim());
     }

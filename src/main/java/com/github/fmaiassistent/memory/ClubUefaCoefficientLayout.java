@@ -17,9 +17,18 @@ public record ClubUefaCoefficientLayout(int clubDataRel, int coefficientRel, int
     public static final String MODULE_SHA256 = "bc940e472418fc5c214208d7cf30fecf600f689b6f9d71c11ba19a2df0fe057f";
 
     public static ClubUefaCoefficientLayout current() {
+        return forModule(NativeModuleProfile.FM27_SHA256);
+    }
+
+    public static ClubUefaCoefficientLayout forModule(String profile) {
         return new ClubUefaCoefficientLayout(0x100,0x48,0xD8,0xB9,0x108,8,
                 0x4C,0,4,10,4,0x2C,0x30,0x34,0x38,0x3C,0x40,0x44,
-                0x56C212A,2,0x671,100,1000,1000);
+                NativeModuleProfile.rva(profile, 0x56C212A),2,0x671,100,1000,1000);
+    }
+
+    /** Empty for images where the rule-version root is not verified (Game Pass). */
+    public static Optional<ClubUefaCoefficientLayout> forModuleIfMapped(String profile) {
+        return NativeModuleProfile.mapsRva(profile, 0x56C212A) ? Optional.of(forModule(profile)) : Optional.empty();
     }
 
     public int pointsScale(int ruleVersion) {
@@ -49,9 +58,9 @@ public record ClubUefaCoefficientLayout(int clubDataRel, int coefficientRel, int
 
     /** Old rows, unsupported images or malformed payloads remain unavailable. */
     public static Optional<Values> values(String hex, Integer ruleVersion, String sourceSha256) {
-        if (!MODULE_SHA256.equals(sourceSha256) || hex == null || ruleVersion == null || hex.length() != 152)
+        if (!NativeModuleProfile.supported(sourceSha256) || hex == null || ruleVersion == null || hex.length() != 152)
             return Optional.empty();
-        try { return Optional.of(current().decode(HexFormat.of().parseHex(hex), ruleVersion)); }
+        try { return Optional.of(forModule(sourceSha256).decode(HexFormat.of().parseHex(hex), ruleVersion)); }
         catch (IllegalArgumentException | IndexOutOfBoundsException invalid) { return Optional.empty(); }
     }
 

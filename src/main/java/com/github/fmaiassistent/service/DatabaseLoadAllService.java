@@ -88,8 +88,9 @@ public class DatabaseLoadAllService {
         try {
             int resolvedPid = pid == null ? detectFmPid() : pid;
             warningPrefix.set(null);
+            RunningImage image = runningImage(resolvedPid, build, gamePluginBase);
             PlayerRecordLayouts.LayoutMatch layoutMatch =
-                    PlayerRecordLayouts.resolve(java.nio.file.Path.of(System.getProperty("user.home")));
+                    PlayerRecordLayouts.resolve(java.nio.file.Path.of(System.getProperty("user.home")), image.profile());
             peopleExporter.setRecordLayout(layoutMatch.layouts().players());
             peopleExporter.setStaffRecordLayout(layoutMatch.layouts().staff());
             clubs.setRecordLayout(layoutMatch.layouts().clubs());
@@ -102,8 +103,13 @@ public class DatabaseLoadAllService {
                         + "continuing with the last known record layouts", installed);
                 warningPrefix.set("Unknown FM27 build " + installed + " - using last known memory layout");
             }
+            unavailableFeatureWarning(image.profile()).ifPresent(warning -> {
+                log.warn("{}", warning);
+                warningPrefix.updateAndGet(previous -> previous == null ? warning : previous + " | " + warning);
+            });
             reportPhase("Reading FM27 memory");
-            RamSnapshot ram = readRamInParallel(resolvedPid, build, gamePluginBase);
+            RamSnapshot ram = readRamInParallel(resolvedPid, build, gamePluginBase,
+                    com.github.fmaiassistent.exporter.CaptureBudget.scaledTimeout(RAM_READ_TIMEOUT, image.peopleSlots()));
             if (ram.peopleSlots() <= 0) {
                 throw new IOException("FM27 people registry is empty; wait until the save has finished loading");
             }
@@ -272,9 +278,9 @@ public class DatabaseLoadAllService {
                 .orElseThrow(() -> new IllegalStateException("fm.exe process not found"));
     }
 
-    private RamSnapshot readRamInParallel(int pid, int build, Long gamePluginBase) throws IOException {
+    private RamSnapshot readRamInParallel(int pid, int build, Long gamePluginBase, Duration timeout) throws IOException {
         long started = System.nanoTime();
-        long deadline = System.nanoTime() + RAM_READ_TIMEOUT.toNanos();
+        long deadline = System.nanoTime() + timeout.toNanos();
         String gameDateBefore = liveGameDate(pid, build, gamePluginBase);
         ExecutorService executor = Executors.newFixedThreadPool(
                 4, Thread.ofPlatform().name("fm-ram-loader-", 0).factory());
@@ -289,14 +295,14 @@ public class DatabaseLoadAllService {
         List<Future<?>> futures = List.of(peopleFuture, clubFuture, competitionFuture, fixtureFuture);
         try {
             reportPhase("Reading players and staff");
-            PeopleExporter.ExportResult people = await(peopleFuture, "people", deadline);
+            PeopleExporter.ExportResult people = await(peopleFuture, "people", deadline, timeout);
             reportPhase("Reading clubs");
-            ClubExporter.ExportResult clubs = await(clubFuture, "clubs", deadline);
+            ClubExporter.ExportResult clubs = await(clubFuture, "clubs", deadline, timeout);
             reportPhase("Reading competitions");
-            CompetitionExporter.ExportResult competitions = await(competitionFuture, "competitions", deadline);
+            CompetitionExporter.ExportResult competitions = await(competitionFuture, "competitions", deadline, timeout);
             competitions=CompetitionExporter.withClubReferences(competitions,clubs);
             reportPhase("Reading fixtures");
-            FixtureExporter.ExportResult fixtures = await(fixtureFuture, "fixtures", deadline);
+            FixtureExporter.ExportResult fixtures = await(fixtureFuture, "fixtures", deadline, timeout);
             RamSnapshot snapshot = new RamSnapshot(
                     people.players(),
                     people.staff(),
@@ -344,7 +350,7 @@ public class DatabaseLoadAllService {
         }
     }
 
-    private static <T> T await(Future<T> future, String dataType, long deadline) throws IOException {
+    private static <T> T await(Future<T> future, String dataType, long deadline, Duration timeout) throws IOException {
         try {
             long remaining = deadline - System.nanoTime();
             if (remaining <= 0) {
@@ -366,7 +372,36 @@ public class DatabaseLoadAllService {
         } catch (TimeoutException exception) {
             future.cancel(true);
             throw new IOException("Timed out while reading FM27 " + dataType + " data after "
-                    + RAM_READ_TIMEOUT.toSeconds() + " seconds", exception);
+                    + timeout.toSeconds() + " seconds", exception);
+        }
+    }
+
+    /** Data a verified image cannot provide yet, so an empty list is not mistaken for "none". */
+    static java.util.Optional<String> unavailableFeatureWarning(String moduleProfile) {
+        if (!com.github.fmaiassistent.memory.NativeModuleProfile.supported(moduleProfile)
+                || com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.forModuleIfMapped(moduleProfile).isPresent()) {
+            return java.util.Optional.empty();
+        }
+        return java.util.Optional.of("UEFA club coefficients are not yet verified for this FM27 build and stay unavailable");
+    }
+
+    /** Exact image identity and people-registry size; both are optional hints for the load. */
+    private record RunningImage(String profile, long peopleSlots) { }
+
+    private static RunningImage runningImage(int pid, int build, Long gamePluginBase) {
+        try (var reader = ProcessReaders.open(pid)) {
+            long base = gamePluginBase == null ? FmOffsets.findGamePluginBase(reader) : gamePluginBase;
+            String profile = FmOffsets.moduleProfile(reader, base);
+            long slots;
+            try {
+                slots = FmOffsets.peopleBounds(reader, build, base).count();
+            } catch (IOException | RuntimeException unavailable) {
+                slots = 0;
+            }
+            return new RunningImage(profile, slots);
+        } catch (IOException | RuntimeException exception) {
+            log.debug("Could not identify the FM27 game_plugin.dll image: {}", exception.getMessage());
+            return new RunningImage(null, 0);
         }
     }
 
