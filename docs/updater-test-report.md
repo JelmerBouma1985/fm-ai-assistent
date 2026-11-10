@@ -2,8 +2,10 @@
 
 Host: native Windows, GraalVM CE/OpenJDK 25.0.2, PowerShell. No Linux machine
 was used during this implementation. No release, tag, push or publishing
-workflow was performed. Both release-gate flags remain false pending owner
-review and the missing platform/manual checks.
+workflow was performed. At that time both manual release-gate flags remained
+false pending owner review and the missing platform/manual checks. Those flags
+have since been replaced by automated packaged checks in Maven Publish; this
+historical report does not claim that the new CI checks have already passed.
 
 ## Executed on Windows
 
@@ -100,6 +102,7 @@ the disposable Temp sandboxes. Full stable build logs are in
   Windows packaged installation tests exercise the updater transaction path.
 - GitHub Actions changes were inspected locally; no workflow was dispatched.
 
-Release remains gated until the owner reviews these results and completes the
-Linux and remaining manual release checks. Neither cross-platform unit tests
-nor Windows packaging are evidence that a Linux desktop was upgraded.
+Maven Publish now requires current packaged success and checksum-failure checks
+on both platforms. Neither cross-platform unit tests nor Windows packaging
+alone are evidence that a Linux desktop was upgraded. The manual checks above
+remain useful release-review evidence.

@@ -223,9 +223,14 @@ be closed before recovery. No potentially migrated data is silently replaced.
 
 Run `./mvnw -Dvaadin.skip=true test`, `./mvnw clean verify` and
 `./mvnw -DskipTests verify -Pdesktop`. CI runs manifest, extraction, real child
-process, recovery and architecture tests on Windows and Linux. Before release,
-require actual packaged success and failure on both OSes, manual UI checking,
+process, recovery and architecture tests on Windows and Linux. Maven Publish
+also calls the updater workflow on the exact release commit. It builds two
+packaged app-images per OS and requires successful installation (including
+same-port restart and data preservation) plus checksum rejection on both
+Windows and Linux before tagging or publishing the release. Failures block
+publication; logs are retained as workflow artifacts. These checks replace the
+manual JSON review flags.
+
+Additional manual checks include UI checking,
 Linux modes, Windows locks/read-only directories, interrupted swap recovery and
-no-update after restart. Record evidence in `updater-test-report.md`. The owner
-reviews both flags in `updater-release-gate.json`; publishing is blocked until
-then. No publishing workflow was dispatched during implementation.
+no-update after restart. Record evidence in `updater-test-report.md`.

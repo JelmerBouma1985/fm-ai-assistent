@@ -1,6 +1,12 @@
 name: Desktop updater tests
 on:
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit to validate before publishing
+        required: true
+        type: string
   pull_request:
     paths:
       - 'src/**/update/**'
@@ -12,12 +18,16 @@ permissions:
   contents: read
 jobs:
   transactions:
+    timeout-minutes: 30
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -34,14 +44,18 @@ jobs:
           name: updater-tests-${{ matrix.os }}
           path: target/surefire-reports/
   packaged-smoke:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name != 'pull_request'
     needs: transactions
+    timeout-minutes: 60
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -50,9 +64,23 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install Linux desktop test dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb xauth
+      - name: Resolve canonical temporary directory
+        id: paths
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP']).resolve(strict=True)
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write(f'root={root.as_posix()}\n')
+          PY
       - name: Build two actual app-images without publishing
         shell: bash
-        run: python scripts/updater/updater_tools.py build --output-directory '${{ runner.temp }}/updater-builds'
+        run: python scripts/updater/updater_tools.py build --output-directory '${{ steps.paths.outputs.root }}/updater-builds'
       - name: Packaged success and checksum rejection
         shell: bash
         run: |
@@ -62,9 +90,9 @@ jobs:
             failure=()
             if [ "$scenario" = checksum ]; then failure=(--failure checksum); fi
             "${prefix[@]}" python scripts/updater/updater_tools.py test \
-              --old-image '${{ runner.temp }}/updater-builds/old/target/dist/FM AI Assistent' \
-              --new-image '${{ runner.temp }}/updater-builds/new/target/dist/FM AI Assistent' \
-              --sandbox "${{ runner.temp }}/updater-$scenario" --automated --wait "${failure[@]}"
+              --old-image '${{ steps.paths.outputs.root }}/updater-builds/old/target/dist/FM AI Assistent' \
+              --new-image '${{ steps.paths.outputs.root }}/updater-builds/new/target/dist/FM AI Assistent' \
+              --sandbox "${{ steps.paths.outputs.root }}/updater-$scenario" --automated --wait "${failure[@]}"
           done
       - uses: actions/upload-artifact@v4
         if: always()
@@ -75,4 +103,5 @@ jobs:
             ${{ runner.temp }}/updater-*/original-app.log
             ${{ runner.temp }}/updater-*/profile/.fm-ai-assistent/updater/*/*.log
             ${{ runner.temp }}/updater-*/profile/.fm-ai-assistent/updater/*/*.properties
+            ${{ runner.temp }}/updater-*/profile/.fm-ai-assistent/updater/*/error.txt
           include-hidden-files: true

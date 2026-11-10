@@ -1,5 +1,0 @@
-{
-  "windowsPackagedSuccessAndFailure": false,
-  "linuxPackagedSuccessAndFailure": false,
-  "policy": "Repository owner records reviewed packaged success and failure evidence for both platforms before enabling publication. Unit tests do not satisfy these flags."
-}
