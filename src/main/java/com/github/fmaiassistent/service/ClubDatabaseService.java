@@ -127,8 +127,7 @@ public class ClubDatabaseService {
 
     @Transactional(readOnly = true)
     public Page<CoefficientClub> findCoefficientClubs(String name,Pageable pageable) {
-        var hashes=List.of(com.github.fmaiassistent.memory.NativeModuleProfile.FM27_SHA256,
-                com.github.fmaiassistent.memory.NativeModuleProfile.UPDATED_SHA256);
+        var hashes=com.github.fmaiassistent.memory.NativeModuleProfile.supportedProfiles();
         var page=name==null||name.isBlank()?nativeClubs.findByUefaCoefficientHexIsNotNullAndModuleSha256In(hashes,pageable)
                 :nativeClubs.findByUefaCoefficientHexIsNotNullAndModuleSha256InAndNameContainingIgnoreCase(hashes,name.trim(),pageable);
         return page.map(ClubDatabaseService::coefficientClub);
@@ -141,8 +140,7 @@ public class ClubDatabaseService {
 
     @Transactional(readOnly = true)
     public long countCoefficientClubs(String name) {
-        var hashes=List.of(com.github.fmaiassistent.memory.NativeModuleProfile.FM27_SHA256,
-                com.github.fmaiassistent.memory.NativeModuleProfile.UPDATED_SHA256);
+        var hashes=com.github.fmaiassistent.memory.NativeModuleProfile.supportedProfiles();
         return name==null||name.isBlank()?nativeClubs.countByUefaCoefficientHexIsNotNullAndModuleSha256In(hashes)
                 :nativeClubs.countByUefaCoefficientHexIsNotNullAndModuleSha256InAndNameContainingIgnoreCase(hashes,name.trim());
     }

@@ -26,6 +26,11 @@ public record ClubUefaCoefficientLayout(int clubDataRel, int coefficientRel, int
                 NativeModuleProfile.rva(profile, 0x56C212A),2,0x671,100,1000,1000);
     }
 
+    /** Empty for images where the rule-version root is not verified (Game Pass). */
+    public static Optional<ClubUefaCoefficientLayout> forModuleIfMapped(String profile) {
+        return NativeModuleProfile.mapsRva(profile, 0x56C212A) ? Optional.of(forModule(profile)) : Optional.empty();
+    }
+
     public int pointsScale(int ruleVersion) {
         // FM27 retains the pre-0x654 four-point scale as well as its new 0x672 scale.
         if (ruleThreshold == 0x671 && ruleVersion < 0x654) return 4;

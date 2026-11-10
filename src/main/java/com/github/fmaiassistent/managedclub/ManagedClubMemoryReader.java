@@ -22,11 +22,11 @@ public class ManagedClubMemoryReader {
     }
 
     public ManagedClubIdentity read(ProcessMemoryReader reader, int build, Long gamePluginBase) throws IOException {
-        long managerRva = FmOffsets.currentHumanManagerRva(build)
+        long pluginBase = gamePluginBase == null ? FmOffsets.findGamePluginBase(reader) : gamePluginBase;
+        long managerRva = FmOffsets.currentHumanManagerRva(FmOffsets.moduleProfile(reader, pluginBase), build)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "The current human-manager pointer is not known for FM build 0x"
                                 + Integer.toHexString(build)));
-        long pluginBase = gamePluginBase == null ? FmOffsets.findGamePluginBase(reader) : gamePluginBase;
         long manager = requiredPointer(reader, pluginBase + managerRva, "human manager");
         String managerName = FmMemoryStrings.playerName(reader, manager)
                 .filter(value -> !value.isBlank())

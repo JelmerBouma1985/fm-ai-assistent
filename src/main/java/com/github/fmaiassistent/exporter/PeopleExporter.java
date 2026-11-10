@@ -214,14 +214,15 @@ public class PeopleExporter {
         ExecutorService executor = Executors.newFixedThreadPool(
                 actualWorkers, Thread.ofPlatform().name("fm-people-reader-", 0).factory());
         List<Future<WorkerResult>> futures = new ArrayList<>(actualWorkers);
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(SCAN_TIMEOUT_SECONDS);
+        java.time.Duration timeout = CaptureBudget.scaledTimeout(java.time.Duration.ofSeconds(SCAN_TIMEOUT_SECONDS), slotCount);
+        long deadline = System.nanoTime() + timeout.toNanos();
         try {
             for (int worker = 0; worker < actualWorkers; worker++) {
                 futures.add(executor.submit(() -> scanWorker(pid, pointerTable, mode, nextIndex, gameDate, staffNative)));
             }
             List<WorkerResult> results = new ArrayList<>(actualWorkers);
             for (Future<WorkerResult> future : futures) {
-                results.add(await(future, deadline));
+                results.add(await(future, deadline, timeout));
             }
             return merge(results);
         } catch (IOException | RuntimeException exception) {
@@ -413,7 +414,7 @@ public class PeopleExporter {
                 | (pointerTable[offset + 7] & 0xffL) << 56;
     }
 
-    private static WorkerResult await(Future<WorkerResult> future, long deadline) throws IOException {
+    private static WorkerResult await(Future<WorkerResult> future, long deadline, java.time.Duration timeout) throws IOException {
         try {
             long remaining = deadline - System.nanoTime();
             if (remaining <= 0) {
@@ -426,7 +427,7 @@ public class PeopleExporter {
         } catch (CancellationException exception) {
             throw new IOException("FM27 people extraction was cancelled", exception);
         } catch (TimeoutException exception) {
-            throw new IOException("FM27 people extraction exceeded " + SCAN_TIMEOUT_SECONDS + " seconds", exception);
+            throw new IOException("FM27 people extraction exceeded " + timeout.toSeconds() + " seconds", exception);
         } catch (ExecutionException exception) {
             Throwable cause = exception.getCause();
             if (cause instanceof InterruptedException interrupted) {

@@ -3,12 +3,14 @@ package com.github.fmaiassistent.linux;
 import com.github.fmaiassistent.memory.ProcessMemoryReader;
 import com.github.fmaiassistent.memory.MemoryRegion;
 import com.github.fmaiassistent.memory.FmBuildProfile;
+import com.github.fmaiassistent.memory.NativeModuleProfile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,6 +43,12 @@ public final class FmOffsets {
             0x25f1a7, 0x56f32c8L,
             0x260bf2, 0x56f52c8L
     );
+
+    // Legacy (27.0.0+2486695) roots; an identified image translates them with NativeModuleProfile.
+    private static final int LEGACY_TABLE_RVA = 0x57035e8;
+    private static final int LEGACY_CURRENT_DATE_RVA = 0x56ad378;
+    private static final int LEGACY_CURRENT_HUMAN_MANAGER_RVA = 0x56f32c8;
+    private static final String MODULE_PROPERTY = "fmaiassistent.contracts.module";
 
     private static final Map<String, Long> SLOTS = new LinkedHashMap<>();
     private static final Map<String, Long> DETECTED_TABLE_BASES = new ConcurrentHashMap<>();
@@ -101,12 +109,22 @@ public final class FmOffsets {
                 DETECTED_TABLE_BASES.put(cacheKey, candidate);
                 return candidate;
             }
-            log.info("FM offset lookup: known RVA for build 0x{} scored {} (minimum {}), falling back to scan",
+            log.info("FM offset lookup: known RVA for build 0x{} scored {} (minimum {})",
                     Integer.toHexString(build), score, MIN_VALID_TABLE_SCORE);
         } else {
-            log.info("FM offset lookup: build 0x{} has no known RVA entry, scanning game_plugin.dll",
-                    Integer.toHexString(build));
+            log.info("FM offset lookup: build 0x{} has no known RVA entry", Integer.toHexString(build));
         }
+
+        // The build number cannot tell a Game Pass image apart; its exact identity can.
+        Long imageRva = knownTableRva(moduleProfile(reader, gamePluginBase), build);
+        if (imageRva != null && !imageRva.equals(knownRva)) {
+            long candidate = gamePluginBase + imageRva;
+            if (tableScore(reader, candidate) >= MIN_VALID_TABLE_SCORE) {
+                DETECTED_TABLE_BASES.put(cacheKey, candidate);
+                return candidate;
+            }
+        }
+        log.info("FM offset lookup: no verified registry root scored, scanning game_plugin.dll");
 
         long detected = scanOffsetTableBase(reader, gamePluginBase);
         DETECTED_TABLE_BASES.put(cacheKey, detected);
@@ -287,6 +305,42 @@ public final class FmOffsets {
 
     static Long currentDateRva(int build) {
         return BUILD_TO_CURRENT_DATE_RVA.get(build);
+    }
+
+    /**
+     * Exact image identity, or null when the mapped game_plugin.dll is not a verified image.
+     * The Steam build number cannot tell a Game Pass image apart, so roots prefer this.
+     */
+    public static String moduleProfile(ProcessMemoryReader reader, long gamePluginBase) {
+        try {
+            String override = System.getProperty(MODULE_PROPERTY);
+            Path module = override != null && !override.isBlank() ? Path.of(override) : reader.maps().stream()
+                    .filter(region -> region.contains(gamePluginBase, 1) && !region.path().isBlank())
+                    .map(region -> Path.of(region.path()))
+                    .findFirst().orElse(null);
+            return module == null ? null : NativeModuleProfile.identify(module).orElse(null);
+        } catch (IOException | RuntimeException unavailable) {
+            return null;
+        }
+    }
+
+    public static Long knownTableRva(String profile, int build) {
+        return profileRva(profile, LEGACY_TABLE_RVA).orElseGet(() -> BUILD_TO_TABLE_RVA.get(build));
+    }
+
+    public static Long currentDateRva(String profile, int build) {
+        return profileRva(profile, LEGACY_CURRENT_DATE_RVA).orElseGet(() -> currentDateRva(build));
+    }
+
+    public static OptionalLong currentHumanManagerRva(String profile, int build) {
+        return profileRva(profile, LEGACY_CURRENT_HUMAN_MANAGER_RVA)
+                .map(OptionalLong::of).orElseGet(() -> currentHumanManagerRva(build));
+    }
+
+    private static java.util.Optional<Long> profileRva(String profile, int legacyRva) {
+        return NativeModuleProfile.mapsRva(profile, legacyRva)
+                ? java.util.Optional.of((long) NativeModuleProfile.rva(profile, legacyRva))
+                : java.util.Optional.empty();
     }
 
     public static OptionalLong currentHumanManagerRva(int build) {

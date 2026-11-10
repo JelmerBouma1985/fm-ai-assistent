@@ -21,6 +21,21 @@ import static org.mockito.Mockito.when;
 
 class FmOffsetsTest {
     @Test
+    void identifiedModuleImageChoosesItsOwnRootsOverTheBuildGuess() {
+        String gamePass = com.github.fmaiassistent.memory.NativeModuleProfile.GAME_PASS_SHA256;
+        String updated = com.github.fmaiassistent.memory.NativeModuleProfile.UPDATED_SHA256;
+        assertThat(FmOffsets.currentDateRva(gamePass, FmOffsets.DEFAULT_BUILD)).isEqualTo(0x56257c8L);
+        assertThat(FmOffsets.currentHumanManagerRva(gamePass, FmOffsets.DEFAULT_BUILD)).hasValue(0x5672618L);
+        assertThat(FmOffsets.knownTableRva(gamePass, FmOffsets.DEFAULT_BUILD)).isEqualTo(0x5683bd8L);
+        assertThat(FmOffsets.currentDateRva(updated, FmOffsets.DEFAULT_BUILD)).isEqualTo(0x56af378L);
+        // An unidentified image keeps the build-keyed roots.
+        assertThat(FmOffsets.currentDateRva(null, FmOffsets.DEFAULT_BUILD)).isEqualTo(0x56af378L);
+        assertThat(FmOffsets.currentHumanManagerRva(null, FmOffsets.DEFAULT_BUILD)).hasValue(0x56f52c8L);
+        assertThat(FmOffsets.knownTableRva(null, 0x25f1a7)).isEqualTo(0x57035e8L);
+        assertThat(FmOffsets.currentDateRva(null, FmOffsets.DEFAULT_BUILD + 1)).isNull();
+    }
+
+    @Test
     void scansOversizedWritableMappingsInBoundedChunksBeforeExecutableMappings() throws Exception {
         long base = 0x1000_0000L;
         var code = region(base, base + 0x1000, "r-x");

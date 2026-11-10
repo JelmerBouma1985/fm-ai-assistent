@@ -29,12 +29,12 @@ public final class ContractExporter {
     public static final String MODULE_SHA256 = "bc940e472418fc5c214208d7cf30fecf600f689b6f9d71c11ba19a2df0fe057f";
     public static final String MODULE_PROPERTY = "fmaiassistent.contracts.module";
     private static final int MAX_ROWS = 2048;
-    private static final long MAX_CAPTURE_BYTES = 64L * 1024 * 1024;
     private final ProcessMemoryReader reader;
     private final long base;
     private final ContractRecordLayout layout;
     private final String profile;
     private long capturedBytes;
+    private long captureBudget = CaptureBudget.FLOOR_BYTES;
     private final Map<Integer,RegistrySnapshot> registries = new HashMap<>();
     private final Map<Long,byte[]> competitionIdentityGuards = new HashMap<>();
 
@@ -91,7 +91,7 @@ public final class ContractExporter {
     private String moduleProfile() { return profile; }
 
     public List<ContractSnapshot> read(long person, long expectedUid) throws IOException {
-        registries.clear(); competitionIdentityGuards.clear(); capturedBytes=0;
+        registries.clear(); competitionIdentityGuards.clear(); capturedBytes=0; captureBudget=CaptureBudget.FLOOR_BYTES;
         try {
             var result=readPerson(person,expectedUid);
             verifyRegistries();
@@ -113,7 +113,7 @@ public final class ContractExporter {
         PlayerSnapshotValidator.validateContractLayout(layout);
         PlayerSnapshotValidator.validateFutureEmploymentLayout(future);
         if (offerIndex < 0) throw new IOException("Negative future employment offer index");
-        registries.clear(); competitionIdentityGuards.clear(); capturedBytes = 0;
+        registries.clear(); competitionIdentityGuards.clear(); capturedBytes = 0; captureBudget = CaptureBudget.FLOOR_BYTES;
         try {
             byte[] identity = bytes(person, 16);
             if (Integer.toUnsignedLong(buffer(identity).getInt(layout.links().uid())) != uid || uid == 0)
@@ -190,9 +190,10 @@ public final class ContractExporter {
     /** Stages the whole capture until all registry metadata has passed its final reread. */
     void captureRows(List<Map<String,Object>> rows) throws IOException {
         registries.clear(); competitionIdentityGuards.clear(); capturedBytes=0;
+        captureBudget=CaptureBudget.forOwners(rows.size());
         try {
             List<List<ContractSnapshot>> staged=new ArrayList<>(rows.size());
-            var futureExporter=new FutureTransferExporter(reader,base,com.github.fmaiassistent.memory.FutureTransferLayout.forModule(profile),profile);
+            var futureExporter=new FutureTransferExporter(reader,base,com.github.fmaiassistent.memory.FutureTransferLayout.forModule(profile),profile,captureBudget);
             var stagedFuture=new ArrayList<FutureTransferExporter.Result>(rows.size());
             for(var row:rows) {
                 if(Thread.currentThread().isInterrupted())throw new IOException("Contract capture interrupted");
@@ -470,7 +471,7 @@ public final class ContractExporter {
     private byte[] bytes(long address, int size) throws IOException {
         PlayerSnapshotValidator.validateContractPointer(address, size);
         capturedBytes += size;
-        if (capturedBytes > MAX_CAPTURE_BYTES) throw new IOException("Contract snapshot byte budget exceeded");
+        if (capturedBytes > captureBudget) throw new IOException("Contract snapshot byte budget exceeded");
         byte[] result = reader.readBytes(address, size);
         if (result.length != size) throw new IOException("Short contract read");
         return result;

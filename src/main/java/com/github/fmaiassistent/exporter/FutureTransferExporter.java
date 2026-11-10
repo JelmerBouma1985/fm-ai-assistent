@@ -27,13 +27,18 @@ final class FutureTransferExporter {
     private byte[] rootBytes,managerType,header,table;
     private long tableAddress;
     private long bytesRead;
+    private final long byteBudget;
 
     FutureTransferExporter(ProcessMemoryReader reader,long base,FutureTransferLayout layout) {
         this(reader,base,layout,com.github.fmaiassistent.memory.NativeModuleProfile.FM27_SHA256);
     }
 
     FutureTransferExporter(ProcessMemoryReader reader,long base,FutureTransferLayout layout,String profile) {
-        this.reader=reader;this.base=base;this.layout=layout;
+        this(reader,base,layout,profile,CaptureBudget.FLOOR_BYTES);
+    }
+
+    FutureTransferExporter(ProcessMemoryReader reader,long base,FutureTransferLayout layout,String profile,long byteBudget) {
+        this.reader=reader;this.base=base;this.layout=layout;this.byteBudget=byteBudget;
         this.contractLayout=ContractRecordLayout.forModule(profile);
         this.contracts=new ContractExporter(reader,base,contractLayout,profile);
     }
@@ -141,7 +146,7 @@ final class FutureTransferExporter {
     }
     private byte[] bytes(long address,int length)throws IOException {
         PlayerSnapshotValidator.validateContractPointer(address,length);
-        if((bytesRead+=length)>64L*1024*1024)throw new IOException("Future transfer capture byte budget exceeded");
+        if((bytesRead+=length)>byteBudget)throw new IOException("Future transfer capture byte budget exceeded");
         byte[] data=reader.readBytes(address,length);if(data.length!=length)throw new IOException("Short future transfer read");return data;
     }
     private void unchanged(long address,byte[] old)throws IOException {

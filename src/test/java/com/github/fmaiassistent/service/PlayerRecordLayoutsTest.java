@@ -26,6 +26,17 @@ class PlayerRecordLayoutsTest {
     }
 
     @Test
+    void verifiedGamePassImageIsKnownWithoutASteamManifest(@TempDir Path home) {
+        var match = PlayerRecordLayouts.resolve(home,
+                com.github.fmaiassistent.memory.NativeModuleProfile.GAME_PASS_SHA256);
+        assertThat(match.knownBuild()).isTrue();
+        assertThat(match.installedBuildId()).isEqualTo(-1);
+        assertThat(match.layouts().players()).isEqualTo(PlayerRecordLayout.current());
+        assertThat(PlayerRecordLayouts.resolve(home, "not-a-verified-image").knownBuild()).isFalse();
+        assertThat(PlayerRecordLayouts.resolve(home, null).knownBuild()).isFalse();
+    }
+
+    @Test
     void resolvesKnownBuild(@TempDir Path home) throws Exception {
         writeManifest(home, "\"AppState\"\n{\n\t\"buildid\"\t\t\"26227640\"\n}");
 

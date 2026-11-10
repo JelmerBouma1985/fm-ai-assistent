@@ -59,7 +59,7 @@ public class ClubExporter {
                     recordLayout=ClubRecordLayout.current();
                     financeLayout=com.github.fmaiassistent.memory.ClubFinanceLayout.forModule(identityProfile);
                     identities=new ClubIdentitySnapshot(reader,base,ClubIdentityLayout.forModule(identityProfile),
-                            com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.forModule(identityProfile),
+                            com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.forModuleIfMapped(identityProfile).orElse(null),
                             com.github.fmaiassistent.memory.ClubFinancialLoanLayout.forModule(identityProfile),
                             com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.forModule(identityProfile),
                             com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.forModule(identityProfile),
