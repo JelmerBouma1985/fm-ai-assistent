@@ -19,6 +19,8 @@ public final class AvailablePortInitializer implements ApplicationContextInitial
             return;
         }
         var environment = context.getEnvironment();
+        // An updater restart must bind the previous instance's port or fail startup.
+        if (environment.containsProperty("app.updates.transaction")) return;
         int startingPort = environment.getProperty("server.port", Integer.class, 8080);
         if (startingPort == 0) {
             return; // Preserve Spring Boot's random-port setting.

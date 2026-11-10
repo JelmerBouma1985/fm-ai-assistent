@@ -1,5 +1,11 @@
 # FM AI Assistent
 
+Desktop app-images include an opt-in updater for compatible Windows/Linux x64
+releases. Existing users must manually install the first updater-enabled build
+once. See [desktop updates, offline packaged tests and recovery](docs/desktop-auto-updater.md).
+Disable checks with `--app.updates.enabled=false`. Platform release validation
+is tracked in [the updater test report](docs/updater-test-report.md).
+
 FM AI Assistent is a local companion app for **Football Manager 2027** on Windows 11 and Linux.
 
 Visit [fmaiassistant.com](https://fmaiassistant.com/) for the product overview, feature guides and installation walkthrough.

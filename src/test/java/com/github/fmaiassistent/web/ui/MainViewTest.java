@@ -363,7 +363,7 @@ class MainViewTest {
                 codex, antigravity, copilot, openRouter, tactics, managedClub,
                 mock(com.github.fmaiassistent.shortlist.ShortlistFileService.class),
                 mock(com.github.fmaiassistent.recruitment.RecruitmentCaseService.class),
-                contracts);
+                contracts, mock(com.github.fmaiassistent.update.UpdateCoordinator.class));
     }
 
     @SuppressWarnings("unchecked")
