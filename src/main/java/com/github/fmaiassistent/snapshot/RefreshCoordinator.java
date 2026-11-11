@@ -116,12 +116,14 @@ public class RefreshCoordinator {
             Instant started) {
         loader.setPhaseListener(phase::set);
         try {
+            log.info("Starting FM27 snapshot refresh (pid={}, build={})", request.pid(), request.build());
             DatabaseLoadAllService.LoadAllResult result = loader.loadAll(
                     request.pid(), request.build(), request.gamePluginBase());
             status.set(new Status(State.SUCCEEDED, request, started, Instant.now(), null));
             refreshSuccesses.increment();
             refresh.complete(result);
         } catch (Throwable failure) {
+            log.error("FM27 snapshot refresh failed", failure);
             String message = failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage();
             status.set(new Status(State.FAILED, request, started, Instant.now(), message));
             refreshFailures.increment();
