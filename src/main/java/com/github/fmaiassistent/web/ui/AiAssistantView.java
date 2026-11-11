@@ -218,7 +218,7 @@ final class AiAssistantView extends Div {
     }
 
     private void refreshContextButton() {
-        boolean clubAvailable = managedClubContexts.current().available();
+        boolean clubAvailable = managedClubContexts.current().adviceAvailable();
         boolean tacticAvailable = tacticContexts.current().active();
         int available = (clubAvailable ? 1 : 0) + (tacticAvailable ? 1 : 0);
         int enabled = (clubAvailable && managedClubContexts.aiContextEnabled() ? 1 : 0)

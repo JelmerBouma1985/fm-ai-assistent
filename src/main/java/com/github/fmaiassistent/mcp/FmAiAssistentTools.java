@@ -610,6 +610,13 @@ public class FmAiAssistentTools {
         // women's teams share a name with the men's club (e.g. "R. Madrid" vs
         // "R. Madrid (W)") and name + max reputation would pick the men's record.
         ManagedClubContext context = managedClubs == null ? null : managedClubs.current();
+        if (blank(clubName) && context != null && context.state() == ManagedClubContext.State.NATIONAL_TEAM) {
+            throw new IllegalArgumentException("The manager manages " + context.nationalTeam().name()
+                    + " and has no managed club. Use fm27_get_national_team_context for player selection and tactics.");
+        }
+        if (blank(clubName) && context != null && context.state() == ManagedClubContext.State.UNEMPLOYED) {
+            throw new IllegalArgumentException(context.message());
+        }
         if (context != null && context.available() && context.clubAddress() != null
                 && (blank(clubName) || equalsIgnoreCase(clubName, context.clubName()))) {
             Optional<ClubEntity> byAddress = clubs.findBySourceAddress(context.clubAddress());

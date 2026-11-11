@@ -20,6 +20,38 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 class SnapshotStatusServiceTest {
     @Test
+    void snapshotReferenceExposesManagedNationWithoutInventingAClub() {
+        LoadMetadataRepository metadata = mock(LoadMetadataRepository.class);
+        when(metadata.findAll()).thenReturn(List.of(new LoadMetadataEntity("snapshot_id", "national-save")));
+        ManagedClubContextService clubs = mock(ManagedClubContextService.class);
+        var nation = new com.github.fmaiassistent.managedclub.ManagedNationalTeam(1, 2, 3, 784, "Netherlands");
+        when(clubs.current()).thenReturn(new ManagedClubContext(1, ManagedClubContext.State.NATIONAL_TEAM,
+                "Manager", 42L, "", "", "", "", null, null, null, null, null, "National job", nation));
+        SnapshotStatusService service = new SnapshotStatusService(metadata, mock(DatabaseLoadAllService.class),
+                mock(RefreshCoordinator.class), clubs, mock(TacticContextService.class));
+        assertThat(service.reference()).containsEntry("managed_club", null)
+                .containsEntry("managed_club_state", "national_team")
+                .containsEntry("managed_nation", "Netherlands")
+                .containsEntry("managed_nation_unique_id", 784L)
+                .containsEntry("national_team_advice_available", true);
+    }
+
+    @Test
+    void snapshotReferenceExposesUnemploymentWithoutSuggestingARefresh() {
+        LoadMetadataRepository metadata = mock(LoadMetadataRepository.class);
+        when(metadata.findAll()).thenReturn(List.of(new LoadMetadataEntity("snapshot_id", "snapshot-1")));
+        ManagedClubContextService clubs = mock(ManagedClubContextService.class);
+        when(clubs.current()).thenReturn(ManagedClubContext.unemployed(1, "Manager", 42L));
+        SnapshotStatusService service = new SnapshotStatusService(metadata, mock(DatabaseLoadAllService.class),
+                mock(RefreshCoordinator.class), clubs, mock(TacticContextService.class));
+
+        assertThat(service.reference()).containsEntry("state", "loaded")
+                .containsEntry("managed_club_state", "unemployed")
+                .containsEntry("managed_club", null)
+                .containsEntry("refresh_recommended", false);
+    }
+
+    @Test
     void exposesStableSnapshotIdentityWithoutAProcessProbe() {
         LoadMetadataRepository metadata = mock(LoadMetadataRepository.class);
         DatabaseLoadAllService loader = mock(DatabaseLoadAllService.class);

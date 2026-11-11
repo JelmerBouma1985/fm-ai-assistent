@@ -57,10 +57,14 @@ public class ManagedClubContextService implements AiPromptContextContributor {
     /** Detects a managed club without publishing it to application state. */
     public ManagedClubContext detect(int pid, int build, Long gamePluginBase) throws IOException {
         ManagedClubIdentity identity = memoryReader.read(pid, build, gamePluginBase);
-        ClubEntity club = clubs.findFirstBySourceAddressOrderByReputationDesc(identity.clubAddress()).orElse(null);
+        if (identity.unemployed()) {
+            return ManagedClubContext.unemployed(versions.incrementAndGet(), identity.managerName(), identity.managerUniqueId());
+        }
+        ClubEntity club = identity.clubAddress() == 0 ? null
+                : clubs.findFirstBySourceAddressOrderByReputationDesc(identity.clubAddress()).orElse(null);
         return new ManagedClubContext(
                 versions.incrementAndGet(),
-                ManagedClubContext.State.AVAILABLE,
+                identity.clubAddress() == 0 ? ManagedClubContext.State.NATIONAL_TEAM : ManagedClubContext.State.AVAILABLE,
                 identity.managerName(),
                 identity.managerUniqueId(),
                 identity.clubName(),
@@ -71,8 +75,11 @@ public class ManagedClubContextService implements AiPromptContextContributor {
                 club == null ? null : club.getBalance(),
                 club == null ? null : club.getTransferBudget(),
                 club == null ? null : club.getPayrollBudget(),
-                identity.clubAddress(),
-                "Detected from the loaded FM27 save");
+                identity.clubAddress() == 0 ? null : identity.clubAddress(),
+                identity.clubAddress() == 0 ? "Managing national team " + identity.nationalTeam().name()
+                        + "; no managed club. Club transfers and club fixtures are unavailable."
+                        : "Detected from the loaded FM27 save",
+                identity.nationalTeam());
     }
 
     public ManagedClubContext publish(ManagedClubContext context) {
@@ -112,7 +119,7 @@ public class ManagedClubContextService implements AiPromptContextContributor {
             return "";
         }
         ManagedClubContext context = current.get();
-        if (!context.available()) {
+        if (!context.adviceAvailable() && context.state() != ManagedClubContext.State.UNEMPLOYED) {
             return "";
         }
         Long previousVersion = deliveredVersions.getIfPresent(conversationKey);
@@ -120,7 +127,31 @@ public class ManagedClubContextService implements AiPromptContextContributor {
         if (previousVersion != null && previousVersion == context.version()) {
             return "";
         }
-        return """
+        if (context.state() == ManagedClubContext.State.UNEMPLOYED) {
+            return """
+                    <fm27_managed_club_context>
+                    Human manager: %s
+                    Human manager FM Unique ID: %s
+                    Employment status: unemployed
+                    Managed club: none
+                    Managed-club squad, transfers, lineup and fixtures are unavailable. Do not infer a club or ask to reload data to fix unemployment.
+                    General searches and analysis of explicitly named clubs remain available.
+                    </fm27_managed_club_context>
+                    """.formatted(context.managerName(), unknown(context.managerUniqueId()));
+        }
+        String nationalContext = context.nationalTeamAvailable() ? """
+                <fm27_national_team_context>
+                Managed national team: %s
+                Nation FM Unique ID: %s
+                Use fm27_get_national_team_context for player selection and tactic fit. fm27_analyze_squad and fm27_optimize_lineup accept this nation name.
+                Candidates match loaded primary nationality only; international eligibility, secondary nationality, cap ties, age-group and team gender eligibility are unverified. Confirm these before recommending callups.
+                International duty is not an exclusion for national-team selection. Club transfers and budgets do not apply to a national job.
+                </fm27_national_team_context>
+                """.formatted(context.nationalTeam().name(), context.nationalTeam().nationUniqueId()) : "";
+        if (!context.available()) {
+            return "Human manager: " + context.managerName() + "\nManaged club: none\n" + nationalContext;
+        }
+        return nationalContext + """
                 <fm27_managed_club_context>
                 Human manager: %s
                 Human manager FM Unique ID: %s

@@ -160,7 +160,7 @@ class McpProtocolCompatibilityTest {
                     .findFirst()
                     .orElse(tools.body());
             JsonNode listedTools = mapper.readTree(data).path("result").path("tools");
-            assertEquals(22, listedTools.size());
+            assertEquals(23, listedTools.size());
             if ("2025-11-25".equals(protocol)) {
                 JsonNode beforeCatalog = listedTools.deepCopy();
                 beforeCatalog.valueStream().forEach(tool -> {
@@ -189,6 +189,7 @@ class McpProtocolCompatibilityTest {
                     "fm27_get_data_status",
                     "fm27_refresh_data",
                     "fm27_analyze_squad",
+                    "fm27_get_national_team_context",
                     "fm27_optimize_lineup",
                     "fm27_recruit_for_tactic_slot",
                     "fm27_compare_players",
