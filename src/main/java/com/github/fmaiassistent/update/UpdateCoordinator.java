@@ -124,9 +124,15 @@ public class UpdateCoordinator {
                 while (!Files.exists(transaction.resolve("helper-started")) && helper.isAlive() && System.nanoTime() < deadline) Thread.sleep(100);
                 if (!helper.isAlive() || !Files.exists(transaction.resolve("helper-started"))) throw new IOException("Independent updater could not start; current app remains open");
                 publish(INSTALLING, "Closing application for installation", release, 0, 0);
-                Thread.ofPlatform().name("desktop-update-shutdown").start(() -> shutdown.accept(transaction));
+                startShutdown(shutdown, transaction);
             } catch (Exception e) { error(e); }
         });
+    }
+    static void startShutdown(Consumer<Path> shutdown, Path transaction) {
+        // The updater worker is a daemon. Keep shutdown alive after Spring and
+        // AWT stop, until the database-close acknowledgement has been written.
+        Thread.ofPlatform().daemon(false).name("desktop-update-shutdown")
+                .start(() -> shutdown.accept(transaction));
     }
     private static void recordProcess(Properties tx, String key, ProcessHandle process) {
         tx.setProperty(key + "Pid", Long.toString(process.pid()));

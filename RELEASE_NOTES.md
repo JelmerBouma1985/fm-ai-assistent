@@ -7,3 +7,4 @@
 
 ### Bug fixes
 - Fix loading data when unemployed or managing a national team
+- Fix auto updater for Linux get stuck

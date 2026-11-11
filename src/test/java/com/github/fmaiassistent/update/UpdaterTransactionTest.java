@@ -49,6 +49,18 @@ class UpdaterTransactionTest {
     }
     void save() throws IOException { ImageFiles.store(tx.resolve("transaction.properties"), p); }
     InstallationTransaction transaction() throws IOException { return new InstallationTransaction(tx, home, 100); }
+    @Test void shutdownAcknowledgementSurvivesLastApplicationThreadExiting() throws Exception {
+        Process child = fixture("shutdown");
+        try {
+            assertTrue(child.waitFor(10, java.util.concurrent.TimeUnit.SECONDS), "Shutdown process did not finish");
+            assertEquals(0, child.exitValue());
+            assertTrue(Files.isRegularFile(tx.resolve("clean-shutdown")),
+                    "JVM exited before the database shutdown acknowledgement was written");
+        } finally {
+            child.destroyForcibly();
+            child.waitFor();
+        }
+    }
     @Test void occupiedOriginalPortStopsUpdateBeforeReplacingImage() throws Exception {
         try (var occupied = new java.net.ServerSocket(0)) {
             p.setProperty("serverPort", Integer.toString(occupied.getLocalPort()));
