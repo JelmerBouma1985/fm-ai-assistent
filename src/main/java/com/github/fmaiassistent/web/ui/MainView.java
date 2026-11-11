@@ -423,9 +423,11 @@ public class MainView extends VerticalLayout {
                         Throwable cause = ex instanceof CompletionException && ex.getCause() != null
                                 ? ex.getCause()
                                 : ex;
-
+                        String message = cause.getMessage() == null
+                                ? cause.getClass().getSimpleName() : cause.getMessage();
+                        status.setText("Load failed: " + message);
                         Notification.show(
-                                "Load failed: " + cause.getMessage(),
+                                "Load failed: " + message,
                                 8000,
                                 Notification.Position.TOP_CENTER
                         );

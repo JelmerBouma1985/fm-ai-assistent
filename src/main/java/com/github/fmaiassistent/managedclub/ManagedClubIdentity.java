@@ -6,7 +6,17 @@ public record ManagedClubIdentity(
         String managerName,
         long teamAddress,
         long clubAddress,
-        String clubName) {
+        String clubName,
+        ManagedNationalTeam nationalTeam) {
+
+    public ManagedClubIdentity(long managerAddress, Long managerUniqueId, String managerName,
+                               long teamAddress, long clubAddress, String clubName) {
+        this(managerAddress, managerUniqueId, managerName, teamAddress, clubAddress, clubName, null);
+    }
+
+    public boolean unemployed() {
+        return teamAddress == 0 && clubAddress == 0 && nationalTeam == null;
+    }
 
     public ManagedClubIdentity(
             long managerAddress,

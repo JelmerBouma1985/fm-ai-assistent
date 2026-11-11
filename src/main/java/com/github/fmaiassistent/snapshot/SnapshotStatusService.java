@@ -95,6 +95,15 @@ public class SnapshotStatusService {
         out.put("freshness", stale == null ? "unverified" : stale ? "stale" : "verified_current");
         out.put("stale_reasons", matches ? checked.reasons() : List.of());
         out.put("refresh_recommended", !values.containsKey("snapshot_id") || Boolean.TRUE.equals(stale));
+        ManagedClubContext club = managedClubs.current();
+        if (club != null) {
+            out.put("managed_club_state", club.state().name().toLowerCase(java.util.Locale.ROOT));
+            out.put("managed_club", club.available() ? club.clubName() : null);
+            out.put("managed_club_message", club.message());
+            out.put("managed_nation", club.nationalTeamAvailable() ? club.nationalTeam().name() : null);
+            out.put("managed_nation_unique_id", club.nationalTeamAvailable() ? club.nationalTeam().nationUniqueId() : null);
+            out.put("national_team_advice_available", club.nationalTeamAvailable());
+        }
         out.put("refresh_policy", "Reuse the loaded snapshot. Refresh only when no snapshot is loaded or stale=true. "
                 + "Unverified freshness alone is not a reason to reload. If the user already loaded data, use that snapshot. "
                 + "For known in-game changes since loading (including same-day changes or switching saves), use force=true. "

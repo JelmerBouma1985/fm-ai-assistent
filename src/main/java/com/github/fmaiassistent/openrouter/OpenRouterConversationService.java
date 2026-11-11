@@ -87,7 +87,9 @@ public final class OpenRouterConversationService implements AutoCloseable {
                 + "When a read-only tool reports a validation error, explain it and ask for missing information "
                 + "or correct the arguments; do not repeat an unchanged failing call. "
                 + "If FM data has not been loaded, ask the user to open their save and select Load data. "
-                + "If data is loaded but the managed club is unavailable, ask for the club name."));
+                + "If the manager is unemployed, managed-club squad, transfers, lineup and fixtures are unavailable; "
+                + "do not ask to reload or infer a club. Explicitly named clubs can still be analyzed. "
+                + "If managed-club detection failed, ask for the club name."));
         conversations.put(c.id, c);
         return c.id;
     }

@@ -65,6 +65,113 @@ class ManagedClubMemoryReaderTest {
                 .hasMessage("FM did not expose a valid manager team pointer");
     }
 
+    @Test
+    void readableNullEmploymentMeansUnemployed() throws Exception {
+        FakeMemory memory = validMemory();
+        memory.putLong(MANAGER + 0xA8, 0);
+
+        ManagedClubIdentity identity = new ManagedClubMemoryReader().read(memory, FmOffsets.DEFAULT_BUILD, PLUGIN);
+
+        assertThat(identity.unemployed()).isTrue();
+        assertThat(identity.managerUniqueId()).isEqualTo(4242L);
+        assertThat(identity.managerName()).isEqualTo("Jelmer Bouma");
+        assertThat(identity.clubAddress()).isZero();
+        assertThat(identity.teamAddress()).isZero();
+    }
+
+    @Test
+    void unreadableOrMalformedEmploymentIsNotUnemployment() {
+        FakeMemory memory = validMemory();
+        memory.remove(MANAGER + 0xA8, Long.BYTES);
+        assertThatThrownBy(() -> new ManagedClubMemoryReader().read(memory, FmOffsets.DEFAULT_BUILD, PLUGIN))
+                .isInstanceOf(IOException.class);
+        memory.putLong(MANAGER + 0xA8, -1);
+        assertThatThrownBy(() -> new ManagedClubMemoryReader().read(memory, FmOffsets.DEFAULT_BUILD, PLUGIN))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("employment pointer");
+    }
+
+    @Test
+    void discoversNetherlandsFromAdditionalEmploymentWithoutAClub() throws Exception {
+        FakeMemory memory = nationalMemory(false);
+        var identity = new ManagedClubMemoryReader().read(memory, FmOffsets.DEFAULT_BUILD, PLUGIN,
+                com.github.fmaiassistent.memory.NativeModuleProfile.FM27_2701_SHA256);
+        assertThat(identity.unemployed()).isFalse();
+        assertThat(identity.clubAddress()).isZero();
+        assertThat(identity.nationalTeam().name()).isEqualTo("Netherlands");
+        assertThat(identity.nationalTeam().nationUniqueId()).isEqualTo(784);
+    }
+
+    @Test
+    void preservesClubAndNationForDualRoleManager() throws Exception {
+        var identity = new ManagedClubMemoryReader().read(nationalMemory(true), FmOffsets.DEFAULT_BUILD, PLUGIN,
+                com.github.fmaiassistent.memory.NativeModuleProfile.FM27_2701_SHA256);
+        assertThat(identity.clubName()).isEqualTo("sc Heerenveen");
+        assertThat(identity.nationalTeam().name()).isEqualTo("Netherlands");
+    }
+
+    @Test
+    void recognizesNationalEmploymentInThePrimarySlotToo() throws Exception {
+        FakeMemory memory = nationalMemory(false);
+        memory.putLong(MANAGER + 0xA8, 0x3100_0000L);
+        memory.putLong(MANAGER + 0xB0, 0);
+        var identity = new ManagedClubMemoryReader().read(memory, FmOffsets.DEFAULT_BUILD, PLUGIN,
+                com.github.fmaiassistent.memory.NativeModuleProfile.FM27_2701_SHA256);
+        assertThat(identity.clubAddress()).isZero();
+        assertThat(identity.nationalTeam().name()).isEqualTo("Netherlands");
+    }
+
+    @Test
+    void rejectsShiftedNationLayoutOnTheSameFixture() throws Exception {
+        FakeMemory memory = nationalMemory(false);
+        var reader = new ManagedClubMemoryReader();
+        var profile = com.github.fmaiassistent.memory.NativeModuleProfile.FM27_2701_SHA256;
+        var layout = com.github.fmaiassistent.memory.NationalTeamLayout.current();
+        assertThat(reader.readNationalTeam(memory, PLUGIN, profile, MANAGER, 0, layout).name())
+                .isEqualTo("Netherlands");
+        var shifted = new com.github.fmaiassistent.memory.NationalTeamLayout(
+                layout.nationRel() + 8, layout.nameRel(), layout.alternateNameRel(), layout.bytes() + 8);
+        assertThatThrownBy(() -> reader.readNationalTeam(memory, PLUGIN, profile, MANAGER, 0, shifted))
+                .isInstanceOf(IOException.class).hasMessageContaining("range anchor");
+    }
+
+    @Test
+    void rejectsIncorrectNationalContractOwnerAndNationIdentity() {
+        FakeMemory memory = nationalMemory(false);
+        var profile = com.github.fmaiassistent.memory.NativeModuleProfile.FM27_2701_SHA256;
+        memory.putLong(0x3100_0000L + 8, MANAGER + 8);
+        assertThatThrownBy(() -> new ManagedClubMemoryReader().read(memory, FmOffsets.DEFAULT_BUILD, PLUGIN, profile))
+                .isInstanceOf(IOException.class).hasMessageContaining("owner/type anchor");
+        memory.putLong(0x3100_0000L + 8, MANAGER);
+        memory.putInt(0x5200_0000L + 12, 999);
+        assertThatThrownBy(() -> new ManagedClubMemoryReader().read(memory, FmOffsets.DEFAULT_BUILD, PLUGIN, profile))
+                .isInstanceOf(IOException.class).hasMessageContaining("nation identity anchor");
+    }
+
+    private static FakeMemory nationalMemory(boolean hasClub) {
+        FakeMemory memory = validMemory();
+        String profile = com.github.fmaiassistent.memory.NativeModuleProfile.FM27_2701_SHA256;
+        var contracts = com.github.fmaiassistent.memory.ContractRecordLayout.forModule(profile);
+        if (!hasClub) memory.putLong(MANAGER + 0xA8, 0);
+        long slots = 0x3200_0000L, contract = 0x3100_0000L, team = 0x4100_0000L;
+        long container = 0x5100_0000L, nation = 0x5200_0000L;
+        memory.putLong(MANAGER + 0xB0, slots);
+        memory.put(slots, new byte[32]);
+        // Live Netherlands contract occupies additional slot 2, not the club's primary slot.
+        memory.putLong(slots + 16, contract);
+        memory.putLong(contract, PLUGIN + contracts.full().vtable());
+        memory.putLong(contract + 8, MANAGER);
+        memory.putLong(contract + 0x10, team);
+        memory.putLong(team, PLUGIN + com.github.fmaiassistent.memory.ClubIdentityLayout.forModule(profile).nationalTeamVtable());
+        memory.put(team + 0x2F, new byte[] {1});
+        memory.putLong(team + 0x30, container);
+        memory.putLong(container, PLUGIN + contracts.teamOwner().nationalContainerVtable());
+        memory.putInt(container + 12, 784);
+        memory.putLong(container + 0x170, nation);
+        memory.putInt(nation + 12, 784);
+        memory.putFmStringReference(nation + 0x18, 0x7100_0000L, "Netherlands");
+        return memory;
+    }
+
     private static FakeMemory validMemory() {
         long managerRva = FmOffsets.currentHumanManagerRva(FmOffsets.DEFAULT_BUILD).orElseThrow();
         FakeMemory memory = new FakeMemory();
@@ -72,7 +179,9 @@ class ManagedClubMemoryReaderTest {
         memory.putInt(MANAGER + 0x0C, 4242);
         memory.putFmStringReference(MANAGER + 0x40, 0x6000_0000L, "Jelmer Bouma");
         memory.putLong(MANAGER + 0xA8, EMPLOYMENT);
+        memory.putLong(MANAGER + 0xB0, 0);
         memory.putLong(EMPLOYMENT + 0x10, TEAM);
+        memory.put(TEAM + 0x2F, new byte[] {0});
         memory.putLong(TEAM + 0x30, CLUB);
         memory.putFmStringReference(CLUB + 0xC8, 0x7000_0000L, "sc Heerenveen");
         return memory;

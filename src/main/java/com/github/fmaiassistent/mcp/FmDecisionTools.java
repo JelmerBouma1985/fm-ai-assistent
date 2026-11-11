@@ -89,16 +89,33 @@ public class FmDecisionTools {
                 new LineupOptimizerService(roleFits), recruitmentCases, snapshots);
     }
 
-    @Tool(name = "fm27_optimize_lineup", description = "Build the globally best unique XI for every slot of the loaded two-phase FM27 tactic. One player can fill only one slot; unfilled slots and disruptive alternatives are explicit.")
+    @Tool(name = "fm27_optimize_lineup", description = "Build the globally best unique XI for every slot of the loaded two-phase FM27 tactic. Defaults to the managed club, or the managed nation's primary-nationality candidate pool for nation-only managers. Supply the managed nation name for a dual-role manager. National eligibility is unverified. One player can fill only one slot.")
     @Transactional(readOnly = true)
     public Map<String, Object> optimizeLineup(
-            @ToolParam(required = false, description = "Club name. Defaults to the club managed by the human manager.") String managingClub,
+            @ToolParam(required = false, description = "Club or managed nation name. Defaults to the managed club, or the nation for a nation-only manager.") String managingClub,
             @ToolParam(required = false, description = "Minimum positional ability in every present tactic phase, 1-20. Defaults to 15.") Integer minimumPositionScore,
             @ToolParam(required = false, description = "Include injured players in automatic selection. Defaults to false; explicit locks are still honored with a warning.") Boolean includeInjured,
             @ToolParam(required = false, description = "Include players away on international duty in automatic selection. Defaults to false; explicit locks are still honored with a warning.") Boolean includeOnDuty,
             @ToolParam(required = false, description = "Player UNIQUE_ID values to exclude from selection.") List<Long> unavailablePlayerUniqueIds,
             @ToolParam(required = false, description = "Assignments that must be used, each containing tacticSlot and playerUniqueId.") List<LineupOptimizerService.LockedAssignment> lockedAssignments,
             @ToolParam(required = false, description = "Alternatives per tactic slot. Defaults to 3, maximum 10.") Integer alternativeLimit) {
+        if (nationalSelectionRequested(managingClub)) {
+            ManagedClubContext context = managedClubs.current();
+            TacticContext tactic = requireTactic();
+            Map<String, Object> snapshot = snapshots.reference();
+            // Being on international duty is expected for a national selection, not an exclusion.
+            var constraints = lineupConstraints(minimumPositionScore, includeInjured, true,
+                    unavailablePlayerUniqueIds, lockedAssignments, alternativeLimit, snapshot, tactic);
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("snapshot", snapshot);
+            out.put("national_team", context.nationalTeam().name());
+            out.put("tactic", tactic.title());
+            out.put("tactic_fingerprint", tactic.fingerprint());
+            out.put("constraints", constraintsMap(constraints));
+            out.putAll(lineupMap(lineups.optimize(nationalCandidates(context, null), tactic.definition(), constraints)));
+            out.put("limitations", NATIONAL_SELECTION_LIMITATIONS);
+            return out;
+        }
         String clubName = resolveManagingClub(managingClub);
         ClubEntity club = requireClub(clubName);
         List<PlayerEntity> squad = currentSquad(players.findAllPlayerEntities(), club);
@@ -346,12 +363,15 @@ public class FmDecisionTools {
                 template.warnings());
     }
 
-    @Tool(name = "fm27_analyze_squad", description = "Analyze squad depth, both phases of the loaded FM27 tactic, contracts, age, injuries, loans and future transfers. Use this to decide which positions need recruitment before searching for players.")
+    @Tool(name = "fm27_analyze_squad", description = "Analyze club squad depth, tactic fit and recruitment needs, or the managed nation's primary-nationality candidate pool. Defaults to the club when both jobs exist; supply the managed nation name for national selection. International eligibility is unverified.")
     @Transactional(readOnly = true)
     public Map<String, Object> analyzeSquad(
-            @ToolParam(required = false, description = "Club name. Defaults to the club managed by the human manager.") String managingClub,
+            @ToolParam(required = false, description = "Club or managed nation name. Defaults to the managed club, or the nation for a nation-only manager.") String managingClub,
             @ToolParam(required = false, description = "Minimum positional ability for a viable option, 1-20. Defaults to 15.") Integer minimumPositionScore,
             @ToolParam(required = false, description = "Contract-risk horizon in months. Defaults to 12.") Integer contractHorizonMonths) {
+        if (nationalSelectionRequested(managingClub)) {
+            return getNationalTeamContext(null, minimumPositionScore, 50);
+        }
         String clubName = resolveManagingClub(managingClub);
         ClubEntity club = requireClub(clubName);
         int minimum = clamp(minimumPositionScore == null ? 15 : minimumPositionScore, 1, 20);
@@ -1029,6 +1049,7 @@ public class FmDecisionTools {
         out.put("name", player.getName());
         out.put("age", parsedAge(player));
         out.put("nationality", player.getNationality());
+        out.put("gender", player.getGender());
         out.put("club", player.getClub());
         out.put("playing_club", player.getPlayingClub());
         out.put("position_text", PositionTextFormatter.format(player));
@@ -1278,9 +1299,76 @@ public class FmDecisionTools {
                 .mapToInt(column -> number(player, column)).max().orElse(0);
     }
 
+    private static final List<String> NATIONAL_SELECTION_LIMITATIONS = List.of(
+            "Candidates match primary nationality only, not a verified current national squad or national pool.",
+            "Secondary nationality, international eligibility, cap ties, retirement, team gender and age-group eligibility are not loaded. Verify eligibility in FM before callups.",
+            "Gender is not inferred from the manager. Supply gender to filter the candidate pool when known.",
+            "Condition, morale, match sharpness, suspensions and match performance are not loaded. International duty is not excluded for national selection.");
+
+    @Tool(name = "fm27_get_national_team_context", description = "Get the detected managed nation, a ranked primary-nationality candidate pool, position depth and both-phase tactic fit with a suggested XI when a tactic is loaded. Works for national-only and dual-role managers. Candidates are not verified eligible callups or the current national squad. Club finances and transfers do not apply.")
+    @Transactional(readOnly = true)
+    public Map<String, Object> getNationalTeamContext(
+            @ToolParam(required = false, description = "Candidate gender: male or female. Omit for both; the national team's gender is unverified.") String gender,
+            @ToolParam(required = false, description = "Minimum viable positional ability, 1-20. Defaults to 15.") Integer minimumPositionScore,
+            @ToolParam(required = false, description = "Maximum ranked candidates to return, 1-200. Defaults to 50. Depth and XI use the full matching pool.") Integer limit) {
+        ManagedClubContext context = managedClubs.current();
+        if (context == null || !context.nationalTeamAvailable()) {
+            throw new IllegalArgumentException("No managed national team is detected. Load FM27 data with a national-team job active.");
+        }
+        if (!blank(gender) && !"male".equalsIgnoreCase(gender.trim()) && !"female".equalsIgnoreCase(gender.trim())) {
+            throw new IllegalArgumentException("gender must be male or female");
+        }
+        int minimum = clamp(minimumPositionScore == null ? 15 : minimumPositionScore, 1, 20);
+        List<PlayerEntity> candidates = nationalCandidates(context, gender);
+        TacticContext tactic = tactics.current();
+        Map<String, Object> snapshot = snapshots.reference();
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("snapshot", snapshot);
+        out.put("national_team", context.nationalTeam().name());
+        out.put("nation_unique_id", context.nationalTeam().nationUniqueId());
+        out.put("candidate_basis", "primary_nationality");
+        out.put("eligibility_verified", false);
+        out.put("gender_filter", blank(gender) ? null : gender.trim().toLowerCase(Locale.ROOT));
+        out.put("candidate_count", candidates.size());
+        out.put("candidates", candidates.stream().limit(clamp(limit == null ? 50 : limit, 1, 200))
+                .map(this::compactPlayer).toList());
+        out.put("position_depth", positionDepth(candidates, minimum));
+        out.put("tactic", tactic.active() ? tactic.title() : null);
+        out.put("tactic_slots", tactic.definition() == null ? List.of() : tacticSlots(candidates, tactic.definition(), minimum));
+        out.put("optimized_lineup", tactic.definition() == null ? null
+                : lineupMap(lineups.optimize(candidates, tactic.definition(), lineupConstraints(
+                        minimum, false, true, List.of(), List.of(), 3, snapshot, tactic))));
+        out.put("injuries", candidates.stream().filter(player -> Boolean.TRUE.equals(player.getInjured()))
+                .map(this::compactPlayer).toList());
+        out.put("limitations", NATIONAL_SELECTION_LIMITATIONS);
+        return out;
+    }
+
+    private boolean nationalSelectionRequested(String requested) {
+        ManagedClubContext context = managedClubs.current();
+        return context != null && context.nationalTeamAvailable()
+                && (blank(requested) ? !context.available() : equalsText(requested, context.nationalTeam().name()));
+    }
+
+    private List<PlayerEntity> nationalCandidates(ManagedClubContext context, String gender) {
+        return players.findAllPlayerEntities().stream()
+                .filter(player -> equalsText(player.getNationality(), context.nationalTeam().name()))
+                .filter(player -> blank(gender) || equalsText(player.getGender(), gender.trim()))
+                .sorted(Comparator.comparingInt((PlayerEntity player) -> value(player.getCa())).reversed()
+                        .thenComparing(PlayerEntity::getName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+                .toList();
+    }
+
     private String resolveManagingClub(String requested) {
         if (!blank(requested)) return requested.trim();
         ManagedClubContext context = managedClubs.current();
+        if (context.state() == ManagedClubContext.State.NATIONAL_TEAM) {
+            throw new IllegalArgumentException("The manager manages " + context.nationalTeam().name()
+                    + " and has no managed club. Club transfers and budgets are unavailable; use national-team selection tools.");
+        }
+        if (context.state() == ManagedClubContext.State.UNEMPLOYED) {
+            throw new IllegalArgumentException(context.message());
+        }
         if (!context.available() || blank(context.clubName())) {
             throw new IllegalArgumentException("managingClub is required because the current managed club is unavailable");
         }

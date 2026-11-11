@@ -63,6 +63,9 @@ public class FixtureExporter {
             Long gamePluginBase,
             ManagedClubIdentity managed,
             LocalDate gameDate) throws IOException {
+        if (managed.clubAddress() == 0) {
+            return new ExportResult(List.of(), gameDate == null ? "" : gameDate.toString());
+        }
         Map<Long, TeamInfo> teams = readTeams(reader, build, gamePluginBase);
         TeamInfo managedTeam = teams.get(managed.teamAddress());
         if (managedTeam == null) {

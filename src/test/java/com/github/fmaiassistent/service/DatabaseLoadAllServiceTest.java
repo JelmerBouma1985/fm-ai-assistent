@@ -33,6 +33,27 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class DatabaseLoadAllServiceTest {
+    @Test
+    void unemployedSaveLoadsWorldDataAndPublishesNoManagedClub() throws Exception {
+        Fixture fixture = new Fixture();
+        when(fixture.people.exportAllPeople(123, 1530, null)).thenReturn(peopleResult(2, 1));
+        when(fixture.clubs.exportAllClubs(123, 1530, null))
+                .thenReturn(new ClubExporter.ExportResult(Collections.nCopies(3, Map.of())));
+        when(fixture.competitions.exportAllCompetitions(123, 1530, null))
+                .thenReturn(new CompetitionExporter.ExportResult(Collections.nCopies(4, Map.of())));
+        ManagedClubContext unemployed = ManagedClubContext.unemployed(8, "Manager", 42L);
+        when(fixture.managedClubs.detect(123, 1530, null)).thenReturn(unemployed);
+
+        var result = fixture.service.loadAll(123, 1530, null);
+
+        assertThat(result.players()).isEqualTo(2);
+        assertThat(result.clubs()).isEqualTo(3);
+        verify(fixture.writer).saveFixtures(
+                new com.github.fmaiassistent.exporter.FixtureExporter.ExportResult(List.of(), "2033-06-10"), Map.of());
+        verify(fixture.managedClubs).publish(unemployed);
+        verify(fixture.metadata).saveAll(anyList());
+    }
+
     @Test void warnsThatUefaCoefficientsAreUnavailableOnlyForImagesWithoutTheirRoot() {
         org.assertj.core.api.Assertions.assertThat(DatabaseLoadAllService.unavailableFeatureWarning(
                 com.github.fmaiassistent.memory.NativeModuleProfile.GAME_PASS_SHA256)).hasValueSatisfying(

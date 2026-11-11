@@ -33,6 +33,28 @@ import static org.mockito.Mockito.when;
 
 class FmAiAssistentToolsTest {
     @Test
+    void unemployedManagerCannotAccidentallySelectAClubButCanInspectANamedClub() {
+        ManagedClubContextService managed = mock(ManagedClubContextService.class);
+        when(managed.current()).thenReturn(ManagedClubContext.unemployed(1, "Manager", 42L));
+        ClubDatabaseService clubs = mock(ClubDatabaseService.class);
+        when(clubs.findAllClubs()).thenReturn(List.of(club("Test FC", 5000, 100000L, "male", 111L)));
+        FmAiAssistentTools tools = new FmAiAssistentTools(
+                mock(PlayerDatabaseService.class), clubs, managed, mock(StaffDatabaseService.class),
+                mock(PlayerMapper.class), mock(JdbcTemplate.class), mock(ShortlistFileService.class),
+                mock(RecruitmentCaseService.class), mock(SnapshotStatusService.class));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> tools.getClubContext(null, 10))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("unemployed");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> tools.getClubContext("  ", 10))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("unemployed");
+        assertThat(tools.getClubContext("Test FC", 10)).containsKey("club");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> tools.transferShortlist(
+                null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("unemployed");
+    }
+
+    @Test
     void searchesDefaultToTwentyAndAllowLargerPages() {
         PlayerDatabaseService players = mock(PlayerDatabaseService.class);
         ClubDatabaseService clubs = mock(ClubDatabaseService.class);

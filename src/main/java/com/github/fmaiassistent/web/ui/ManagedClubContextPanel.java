@@ -45,15 +45,24 @@ final class ManagedClubContextPanel extends Div {
             heading.setText("Managed club · " + context.clubName());
             List<String> values = new ArrayList<>();
             values.add("Manager " + context.managerName());
+            if (context.nationalTeamAvailable()) values.add("National team " + context.nationalTeam().name());
             addIfPresent(values, context.competition());
             addIfPresent(values, context.nation());
             details.setText(String.join(" · ", values));
             setTitle("Detected from FM27 RAM at the most recent data load");
             return;
         }
+        if (context.nationalTeamAvailable()) {
+            heading.setText("National team: " + context.nationalTeam().name());
+            details.setText("Manager " + context.managerName() + "; player selection and tactical advice available");
+            setTitle(context.message());
+            return;
+        }
         addClassName("is-unavailable");
         if (context.state() == ManagedClubContext.State.NOT_LOADED) {
             heading.setText("Managed club · waiting for FM27 data");
+        } else if (context.state() == ManagedClubContext.State.UNEMPLOYED) {
+            heading.setText("Manager is unemployed");
         } else {
             heading.setText("Managed club · unavailable");
         }

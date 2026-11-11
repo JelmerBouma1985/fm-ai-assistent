@@ -50,6 +50,12 @@ public class FmFixtureTools {
             @ToolParam(required = false, description = "Include fixtures before the loaded game date. Defaults to false.") Boolean includePast,
             @ToolParam(required = false, description = "Maximum fixtures to return. Defaults to 20, maximum 100.") Integer limit) {
         Map<String, Object> snapshot = snapshots.reference();
+        if ("national_team".equals(snapshot.get("managed_club_state"))) {
+            throw new IllegalStateException("The manager has a national-team job and no club. National-team fixtures are not loaded by this club-fixture tool.");
+        }
+        if ("unemployed".equals(snapshot.get("managed_club_state"))) {
+            throw new IllegalStateException("The human manager is unemployed and has no managed club. Managed-club fixtures and opposition analysis are unavailable.");
+        }
         LocalDate gameDate = date(snapshot.get("game_date"));
         int safeLimit = Math.max(1, Math.min(MAX_LIMIT, limit == null ? DEFAULT_LIMIT : limit));
         List<FixtureEntity> selected = fixtures.findAllByOrderByKickoffDateAscKickoffTimeAsc().stream()
@@ -70,6 +76,12 @@ public class FmFixtureTools {
     @Transactional(readOnly = true)
     public Map<String, Object> analyzeNextOpposition() {
         Map<String, Object> snapshot = snapshots.reference();
+        if ("national_team".equals(snapshot.get("managed_club_state"))) {
+            throw new IllegalStateException("The manager has a national-team job and no club. National-team fixtures are not loaded by this club-fixture tool.");
+        }
+        if ("unemployed".equals(snapshot.get("managed_club_state"))) {
+            throw new IllegalStateException("The human manager is unemployed and has no managed club. Managed-club fixtures and opposition analysis are unavailable.");
+        }
         LocalDate gameDate = date(snapshot.get("game_date"));
         FixtureEntity next = fixtures.findAllByOrderByKickoffDateAscKickoffTimeAsc().stream()
                 .filter(fixture -> gameDate == null || isOnOrAfter(fixture, gameDate))

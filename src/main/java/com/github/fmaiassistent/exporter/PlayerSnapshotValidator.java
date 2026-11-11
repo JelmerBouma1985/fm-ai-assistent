@@ -18,6 +18,15 @@ public final class PlayerSnapshotValidator {
     private PlayerSnapshotValidator() {
     }
 
+    public static void validateNationalTeamLayout(com.github.fmaiassistent.memory.NationalTeamLayout layout)
+            throws IOException {
+        if (!com.github.fmaiassistent.memory.NationalTeamLayout.current().equals(layout)
+                || layout.nationRel() < 16 || layout.nationRel() + Long.BYTES > layout.bytes()
+                || layout.bytes() > 512 || layout.nameRel() < 16 || layout.alternateNameRel() > 64) {
+            throw new IOException("National-team nation/name layout range anchor failed");
+        }
+    }
+
     /** A layout is verified when it equals the exact layout of any supported image; images
      * that lack a verified root for that layout cannot vouch for it. */
     private static boolean verifiedLayout(Object layout, java.util.function.Function<String, ?> forModule) {

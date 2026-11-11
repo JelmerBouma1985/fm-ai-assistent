@@ -30,6 +30,76 @@ import static org.mockito.Mockito.when;
 
 class FmDecisionToolsTest {
     @Test
+    void nationalSelectionUsesNationalityRatherThanClubAndKeepsInternationalDutyPlayers() {
+        PlayerDatabaseService players = mock(PlayerDatabaseService.class);
+        ClubDatabaseService clubs = mock(ClubDatabaseService.class);
+        ManagedClubContextService managed = mock(ManagedClubContextService.class);
+        var nation = new com.github.fmaiassistent.managedclub.ManagedNationalTeam(1, 2, 3, 784, "Netherlands");
+        when(managed.current()).thenReturn(new ManagedClubContext(1, ManagedClubContext.State.NATIONAL_TEAM,
+                "Manager", 42L, "", "", "", "", null, null, null, null, null, "National job", nation));
+        when(players.findAllPlayerEntities()).thenReturn(List.of(
+                nationalPlayer("Dutch on duty", 1001L, "Netherlands", "male", 170, true, false),
+                nationalPlayer("Dutch injured", 1002L, "Netherlands", "male", 180, false, true),
+                nationalPlayer("French star", 1003L, "France", "male", 200, false, false),
+                nationalPlayer("Dutch woman", 1004L, "Netherlands", "female", 160, false, false)));
+        TacticContextService tactics = mock(TacticContextService.class);
+        var phase = new TacticDefinition.PhaseRole("DC", "No role", "Defend");
+        var definition = new TacticDefinition("National tactic", "Custom", "Positive",
+                List.of(new TacticDefinition.TacticSlot(1, phase, phase)));
+        when(tactics.current()).thenReturn(new TacticContext(1, "National tactic", "test", "markdown",
+                List.of(), List.of(), definition));
+        SnapshotStatusService snapshots = mock(SnapshotStatusService.class);
+        when(snapshots.reference()).thenReturn(Map.of("snapshot_id", "nation-1"));
+        FmDecisionTools tools = new FmDecisionTools(players, clubs, managed, tactics,
+                new RoleFitService(mock(org.springframework.jdbc.core.JdbcTemplate.class)),
+                mock(RecruitmentCaseService.class), snapshots);
+
+        var context = tools.getNationalTeamContext("male", 15, 1);
+        assertThat(context).containsEntry("national_team", "Netherlands")
+                .containsEntry("candidate_count", 2).containsEntry("eligibility_verified", false)
+                .containsEntry("candidate_basis", "primary_nationality");
+        assertThat((List<?>) context.get("candidates")).hasSize(1);
+        assertThat(context.toString()).doesNotContain("French star", "Dutch woman", "transfer_budget");
+        assertThat(context.get("optimized_lineup").toString()).contains("Dutch on duty");
+        assertThat(tools.analyzeSquad(null, 15, null)).containsEntry("national_team", "Netherlands");
+        assertThat(tools.optimizeLineup(null, 15, false, false, null, null, 1).toString())
+                .contains("Dutch on duty").doesNotContain("French star");
+        org.mockito.Mockito.verifyNoInteractions(clubs);
+        assertThatThrownBy(() -> tools.getNationalTeamContext("invalid", null, null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("gender");
+    }
+
+    private static PlayerEntity nationalPlayer(String name, long uid, String nation, String gender,
+            int ca, boolean onDuty, boolean injured) {
+        Map<String, Object> row = new HashMap<>();
+        row.put("unique_id", uid);
+        row.put("name", name);
+        row.put("gender", gender);
+        row.put("nationality", nation);
+        row.put("club", "Foreign club");
+        row.put("ca", ca);
+        row.put("pa", ca);
+        row.put("DefenderCentral", 18);
+        row.put("on_duty", onDuty);
+        row.put("injured", injured);
+        return PlayerEntity.fromExportRow(row);
+    }
+
+    @Test
+    void unemployedManagerCannotDefaultToAManagedSquadOrLineup() {
+        ManagedClubContextService managed = mock(ManagedClubContextService.class);
+        when(managed.current()).thenReturn(ManagedClubContext.unemployed(1, "Manager", 42L));
+        FmDecisionTools tools = new FmDecisionTools(mock(PlayerDatabaseService.class), mock(ClubDatabaseService.class),
+                managed, mock(TacticContextService.class), mock(RoleFitService.class),
+                mock(RecruitmentCaseService.class), mock(SnapshotStatusService.class));
+
+        assertThatThrownBy(() -> tools.analyzeSquad(null, null, null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("unemployed");
+        assertThatThrownBy(() -> tools.optimizeLineup(null, null, null, null, null, null, null))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("unemployed");
+    }
+
+    @Test
     void replacementSearchRequiresAnExplicitPositionOrTacticSlot() {
         FmDecisionTools tools = new FmDecisionTools(
                 mock(PlayerDatabaseService.class),

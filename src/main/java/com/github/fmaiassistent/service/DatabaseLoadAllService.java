@@ -271,11 +271,14 @@ public class DatabaseLoadAllService {
         }
     }
 
-    public int detectFmPid() throws IOException {        return ProcessReaders.findProcesses("fm.exe").stream()
+    public int detectFmPid() throws IOException {
+        return ProcessReaders.findProcesses("fm.exe").stream()
                 .max(Comparator.comparingInt(DatabaseLoadAllService::processScore))
                 .filter(process -> processScore(process) > 0)
                 .map(ProcessInfo::pid)
-                .orElseThrow(() -> new IllegalStateException("fm.exe process not found"));
+                .orElseThrow(() -> new IllegalStateException(
+                        "Football Manager 2027 (fm.exe) was not found. Start FM27 and load your save "
+                                + "on this computer, then select Load data again."));
     }
 
     private RamSnapshot readRamInParallel(int pid, int build, Long gamePluginBase, Duration timeout) throws IOException {
