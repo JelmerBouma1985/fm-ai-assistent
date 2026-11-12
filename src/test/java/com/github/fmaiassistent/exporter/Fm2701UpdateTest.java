@@ -1,7 +1,8 @@
 package com.github.fmaiassistent.exporter;
 
 import com.github.fmaiassistent.memory.*;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
@@ -13,17 +14,16 @@ import java.util.*;
 import static org.assertj.core.api.Assertions.*;
 
 class Fm2701UpdateTest {
-    private static final String HASH = NativeModuleProfile.FM27_2701_SHA256;
-
-    @Test
-    void replaysAllFourContractTypesAndFutureEmploymentFromTheUpdatedProcess() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {NativeModuleProfile.FM27_2701_SHA256, NativeModuleProfile.STEAM_26577676_SHA256})
+    void replaysAllFourContractTypesAndFutureEmploymentFromTheUpdatedProcess(String hash) throws Exception {
         var mapper = JsonMapper.builder().build();
         try (var in = Files.newInputStream(Path.of("src/test/resources/fm27/contracts-2701-captured.json"))) {
             byte[] bytes = in.readNBytes(262145);
             assertThat(bytes.length).isLessThanOrEqualTo(262144);
             var kinds = new HashSet<String>();
             for (var fixture : mapper.readTree(bytes)) {
-                var layout = ContractRecordLayout.forModule(HASH);
+                var layout = ContractRecordLayout.forModule(hash);
                 var exporter = Fm27CapturedContractsTest.exporter(fixture, layout);
                 long person = fixture.path("person").asLong(), uid = fixture.path("uid").asLong();
                 String kind = fixture.path("kind").asString();
@@ -31,7 +31,7 @@ class Fm2701UpdateTest {
                 if (kind.equals("FUTURE")) {
                     var future = exporter.readFutureEmployment(person, uid, fixture.path("offer").asInt()).orElseThrow();
                     assertThat(mapper.writeValueAsString(future)).isEqualTo(fixture.path("future").toString());
-                    for (var drift : shifted(FutureEmploymentLayout.forModule(HASH))) {
+                    for (var drift : shifted(FutureEmploymentLayout.forModule(hash))) {
                         assertThatThrownBy(() -> exporter.readFutureEmployment(person, uid,
                                 fixture.path("offer").asInt(), (FutureEmploymentLayout) drift))
                                 .isInstanceOf(IOException.class).hasMessageContaining("layout anchor");
@@ -55,15 +55,16 @@ class Fm2701UpdateTest {
         }
     }
 
-    @Test
-    void eachUpdatedLayoutRejectsDriftAndUnknownImages() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {NativeModuleProfile.FM27_2701_SHA256, NativeModuleProfile.STEAM_26577676_SHA256})
+    void eachUpdatedLayoutRejectsDriftAndUnknownImages(String hash) throws Exception {
         var layouts = List.of(
-                AwardNameLayout.forModule(HASH), ClubFinanceLayout.forModule(HASH),
-                ClubFinancialCompetitionLayout.forModule(HASH), ClubFinancialLedgerLayout.forModule(HASH),
-                ClubFinancialLoanLayout.forModule(HASH), ClubIdentityLayout.forModule(HASH),
-                ClubUefaCoefficientLayout.forModule(HASH), ContractRecordLayout.forModule(HASH),
-                FutureEmploymentLayout.forModule(HASH), FutureTransferLayout.forModule(HASH),
-                NonPlayingProfileLayout.forModule(HASH), ClubFinancialHistoryLayout.forModule(HASH));
+                AwardNameLayout.forModule(hash), ClubFinanceLayout.forModule(hash),
+                ClubFinancialCompetitionLayout.forModule(hash), ClubFinancialLedgerLayout.forModule(hash),
+                ClubFinancialLoanLayout.forModule(hash), ClubIdentityLayout.forModule(hash),
+                ClubUefaCoefficientLayout.forModule(hash), ContractRecordLayout.forModule(hash),
+                FutureEmploymentLayout.forModule(hash), FutureTransferLayout.forModule(hash),
+                NonPlayingProfileLayout.forModule(hash), ClubFinancialHistoryLayout.forModule(hash));
         for (var layout : layouts) {
             validate(layout);
             for (var drift : shifted(layout)) {
@@ -74,7 +75,7 @@ class Fm2701UpdateTest {
             assertThatThrownBy(() -> factory.invoke(null, "unverified-image"))
                     .hasCauseInstanceOf(IllegalArgumentException.class);
         }
-        assertThat(NativeModuleProfile.supported(HASH)).isTrue();
+        assertThat(NativeModuleProfile.supported(hash)).isTrue();
         assertThat(NativeModuleProfile.supported(NativeModuleProfile.FM27_SHA256)).isTrue();
         assertThat(NativeModuleProfile.supported("unverified-image")).isFalse();
     }

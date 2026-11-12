@@ -15,12 +15,14 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class NativeModuleProfile {
     public static final String FM27_SHA256 = "bc940e472418fc5c214208d7cf30fecf600f689b6f9d71c11ba19a2df0fe057f";
     public static final String FM27_2701_SHA256 = "f79b0a3413dd0e3f461b0afbc3ff397003f4a26d7525a30717428de6a8b91196";
+    /** Steam build 26577676; RTTI roots retain the 27.0.1 addresses. */
+    public static final String STEAM_26577676_SHA256 = "8c6971ce0b1c8afe6529ea3f46205a5175aea988a97d7421a980da42e23fe340";
     public static final String UPDATED_SHA256 = "252ff8fb5b7a4a5a5464db6ba632e309eef9b6e65ffa992ae20575a189e66c6a";
     /** Xbox / PC Game Pass image (Microsoft Store package of Football Manager 27). */
     public static final String GAME_PASS_SHA256 = "c0a4466f8183a999917de285d47ec19f12b746e29417e402ef55ff927b927df5";
     private static final Map<String, Long> MODULE_BYTES = Map.of(
             FM27_SHA256, 433_986_560L, UPDATED_SHA256, 404_308_480L, GAME_PASS_SHA256, 391_445_504L,
-            FM27_2701_SHA256, 398_661_632L);
+            FM27_2701_SHA256, 398_661_632L, STEAM_26577676_SHA256, 408_383_448L);
 
     /** Exact roots from the captured FM27 27.0.1+2494687 Steam image (build 26385295). */
     private static final Map<Integer, Integer> FM27_2701_RVAS = Map.ofEntries(
@@ -108,13 +110,14 @@ public final class NativeModuleProfile {
 
     /** Every verified image, for persisted-row queries and layout checks that accept any of them. */
     public static List<String> supportedProfiles() {
-        return List.of(FM27_SHA256, UPDATED_SHA256, GAME_PASS_SHA256, FM27_2701_SHA256);
+        return List.of(FM27_SHA256, UPDATED_SHA256, GAME_PASS_SHA256, FM27_2701_SHA256,
+                STEAM_26577676_SHA256);
     }
 
     /** Whether a legacy root has a verified location in the given image. */
     public static boolean mapsRva(String profile, int legacyRva) {
         if (!supported(profile)) return false;
-        if (FM27_2701_SHA256.equals(profile)) return FM27_2701_RVAS.containsKey(legacyRva);
+        if (uses2701Roots(profile)) return FM27_2701_RVAS.containsKey(legacyRva);
         return !GAME_PASS_SHA256.equals(profile) || GAME_PASS_RVAS.containsKey(legacyRva);
     }
 
@@ -123,7 +126,7 @@ public final class NativeModuleProfile {
      * scalar payloads are shared by all images. */
     public static int rva(String profile, int legacyRva) {
         if (!supported(profile)) throw new IllegalArgumentException("Unsupported FM27 module profile");
-        if (FM27_2701_SHA256.equals(profile)) {
+        if (uses2701Roots(profile)) {
             Integer mapped = FM27_2701_RVAS.get(legacyRva);
             if (mapped == null) throw new IllegalArgumentException("FM27 root 0x" + Integer.toHexString(legacyRva)
                     + " is not verified for the 27.0.1 image");
@@ -138,6 +141,10 @@ public final class NativeModuleProfile {
             return mapped;
         }
         return UPDATED_SHA256.equals(profile) ? Math.addExact(legacyRva, 0x2000) : legacyRva;
+    }
+
+    private static boolean uses2701Roots(String profile) {
+        return FM27_2701_SHA256.equals(profile) || STEAM_26577676_SHA256.equals(profile);
     }
 
     /** Bounded streaming hash; a changed size is rejected before returning a profile. */
