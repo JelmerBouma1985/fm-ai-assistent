@@ -229,6 +229,25 @@ class MainViewTest {
     }
 
     @Test
+    void coefficientWarningDoesNotChangeFreshnessAndClearsAfterRecovery() throws Exception {
+        MainView view = view();
+        var apply = MainView.class.getDeclaredMethod("applyFreshness", java.util.Map.class, boolean.class);
+        apply.setAccessible(true);
+        apply.invoke(view, java.util.Map.of("state", "loaded", "stale", false,
+                "uefa_coefficients_failure", "UEFA coefficient read failed"), false);
+        com.vaadin.flow.component.html.Span warning = field(view, "coefficientWarning");
+        com.vaadin.flow.component.button.Button freshness = field(view, "freshnessBadge");
+        assertTrue(warning.isVisible());
+        assertEquals("Failed to load club coefficients", warning.getText());
+        assertEquals("UEFA coefficient read failed", warning.getElement().getAttribute("title"));
+        assertEquals(freshness.getParent(), warning.getParent());
+        assertEquals("Data current", freshness.getText());
+        apply.invoke(view, java.util.Map.of("state", "loaded", "stale", false,
+                "uefa_coefficients_failure", ""), false);
+        assertFalse(warning.isVisible());
+    }
+
+    @Test
     void freshnessBadgeMapping() {
         assertEquals(MainView.FreshnessBadge.EMPTY,
                 MainView.badgeFor(java.util.Map.of("state", "not_loaded")));

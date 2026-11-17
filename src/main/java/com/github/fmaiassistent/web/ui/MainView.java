@@ -126,6 +126,7 @@ public class MainView extends VerticalLayout {
     private final Button loadButton = new Button("Load data", VaadinIcon.DATABASE.create());
     private final Button freshnessBadge = new Button("Freshness unknown");
     private final Span managedClubWarning = new Span("Failed to load managed club");
+    private final Span coefficientWarning = new Span("Failed to load club coefficients");
     private final Button settingsButton = new Button(VaadinIcon.COG.create());
     private final Button filterButton = new Button("Filter", VaadinIcon.FILTER.create());
     private final Span status = new Span();
@@ -252,6 +253,9 @@ public class MainView extends VerticalLayout {
         managedClubWarning.addClassNames("freshness-badge", "is-stale");
         managedClubWarning.getElement().setAttribute("role", "status");
         managedClubWarning.setVisible(false);
+        coefficientWarning.addClassNames("freshness-badge", "is-stale");
+        coefficientWarning.getElement().setAttribute("role", "status");
+        coefficientWarning.setVisible(false);
         filterButton.addClassName("filter-button");
         settingsButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
         settingsButton.addClassName("icon-button");
@@ -272,7 +276,7 @@ public class MainView extends VerticalLayout {
         brand.setSpacing(false);
         brand.addClassName("brand");
 
-        HorizontalLayout actions = new HorizontalLayout(freshnessBadge, managedClubWarning, loadButton, settingsButton);
+        HorizontalLayout actions = new HorizontalLayout(freshnessBadge, managedClubWarning, coefficientWarning, loadButton, settingsButton);
         actions.setAlignItems(Alignment.CENTER);
         actions.setSpacing(false);
         actions.addClassName("app-actions");
@@ -469,6 +473,9 @@ public class MainView extends VerticalLayout {
     }
 
     private void applyFreshness(Map<String, Object> snapshot, boolean manual) {
+        String coefficientFailure = Objects.toString(snapshot.get("uefa_coefficients_failure"), "");
+        coefficientWarning.setVisible("loaded".equals(snapshot.get("state")) && !coefficientFailure.isBlank());
+        coefficientWarning.getElement().setAttribute("title", coefficientFailure);
         managedClubWarning.setVisible("loaded".equals(snapshot.get("state"))
                 && "unavailable".equals(snapshot.get("managed_club_state")));
         managedClubWarning.getElement().setAttribute("title",

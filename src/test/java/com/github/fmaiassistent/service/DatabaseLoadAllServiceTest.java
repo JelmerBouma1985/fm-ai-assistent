@@ -34,6 +34,27 @@ import static org.mockito.Mockito.when;
 
 class DatabaseLoadAllServiceTest {
     @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"", "UEFA coefficient read failed"})
+    void coefficientWarningsAreSavedAlongsideSuccessfulWorldData(String failure) throws Exception {
+        var fixture = new Fixture();
+        when(fixture.people.exportAllPeople(123, 1530, null)).thenReturn(peopleResult(2, 1));
+        when(fixture.clubs.exportAllClubs(123, 1530, null)).thenReturn(new ClubExporter.ExportResult(
+                Collections.nCopies(3, Map.of()), List.of(), null, null, failure.isEmpty() ? null : failure));
+        when(fixture.competitions.exportAllCompetitions(123, 1530, null))
+                .thenReturn(new CompetitionExporter.ExportResult(Collections.nCopies(4, Map.of())));
+        var result = fixture.service.loadAll(123, 1530, null);
+        assertThat(result.players()).isEqualTo(2);
+        assertThat(result.staff()).isEqualTo(1);
+        assertThat(result.clubs()).isEqualTo(3);
+        verify(fixture.writer).savePlayers(any(), any());
+        verify(fixture.writer).saveStaff(any(), any());
+        var saved = org.mockito.ArgumentCaptor.forClass(Iterable.class);
+        verify(fixture.metadata).saveAll(saved.capture());
+        assertThat((Iterable<LoadMetadataEntity>) saved.getValue())
+                .anyMatch(row -> row.getKey().equals("uefa_coefficients_failure") && row.getValue().equals(failure));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
     void managedClubFailuresDoNotAbortWorldDataAndPublishUnavailableOnlyAfterCommit(boolean fixtureFailure) throws Exception {
         Fixture fixture = new Fixture();

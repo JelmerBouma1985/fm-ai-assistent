@@ -205,6 +205,8 @@ public class DatabaseLoadAllService {
                     new LoadMetadataEntity("clubs_count", String.valueOf(clubCount)),
                     new LoadMetadataEntity("native_club_records_count",String.valueOf(ram.clubs().nativeRecords().size())),
                     new LoadMetadataEntity("native_club_identity_profile",ram.clubs().identityProfile()==null?"UNSUPPORTED_OR_UNAVAILABLE":ram.clubs().identityProfile()),
+                    new LoadMetadataEntity("uefa_coefficients_failure", ram.clubs().coefficientFailure()==null ? ""
+                            : ram.clubs().coefficientFailure().substring(0, Math.min(768, ram.clubs().coefficientFailure().length()))),
                     new LoadMetadataEntity("competitions_count", String.valueOf(competitionCount)),
                     new LoadMetadataEntity("competitions_reference_only_count",String.valueOf(ram.competitions().rows().stream()
                             .filter(row->Boolean.TRUE.equals(row.get("_reference_only"))).count())),
