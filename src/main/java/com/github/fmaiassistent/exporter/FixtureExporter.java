@@ -131,15 +131,16 @@ public class FixtureExporter {
             Map<Long, TeamInfo> teams,
             LocalDate earliest,
             LocalDate latest,
-            Map<FixtureKey, Map<String, Object>> fixtures) {
+            Map<FixtureKey, Map<String, Object>> fixtures) throws IOException {
         long cursor = region.start();
         while (cursor < region.end()) {
+            if (Thread.currentThread().isInterrupted()) throw new IOException("Fixture extraction interrupted");
             int length = (int) Math.min(SCAN_CHUNK_BYTES, region.end() - cursor);
             byte[] bytes;
             try {
                 bytes = reader.readBytes(cursor, length);
             } catch (IOException | RuntimeException exception) {
-                return;
+                throw new IOException("Could not read fixture memory region", exception);
             }
             ByteBuffer buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
             int aligned = (int) ((Long.BYTES - (cursor & (Long.BYTES - 1))) & (Long.BYTES - 1));
@@ -247,7 +248,12 @@ public class FixtureExporter {
             long awayClubAddress) {
     }
 
-    public record ExportResult(List<Map<String, Object>> rows, String gameDate, String managedClubFailure) {
+    public record ExportResult(List<Map<String, Object>> rows, String gameDate, String managedClubFailure,
+                               String fixtureFailure) {
+        public ExportResult(List<Map<String, Object>> rows, String gameDate, String managedClubFailure) {
+            this(rows, gameDate, managedClubFailure, managedClubFailure == null ? null
+                    : "Managed-club detection failed: " + managedClubFailure);
+        }
         public ExportResult(List<Map<String, Object>> rows, String gameDate) {
             this(rows, gameDate, null);
         }

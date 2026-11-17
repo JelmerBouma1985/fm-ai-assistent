@@ -20,6 +20,20 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 class SnapshotStatusServiceTest {
     @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"", "Fixture read failed"})
+    void snapshotReferenceExposesPersistedFixtureWarning(String failure) {
+        var metadata = mock(LoadMetadataRepository.class);
+        when(metadata.findAll()).thenReturn(List.of(new LoadMetadataEntity("snapshot_id", "snapshot-1"),
+                new LoadMetadataEntity("fixtures_failure", failure)));
+        var clubs = mock(ManagedClubContextService.class);
+        when(clubs.current()).thenReturn(ManagedClubContext.notLoaded(0));
+        var service = new SnapshotStatusService(metadata, mock(DatabaseLoadAllService.class),
+                mock(RefreshCoordinator.class), clubs, mock(TacticContextService.class));
+        assertThat(service.reference()).containsEntry("state", "loaded")
+                .containsEntry("fixtures_failure", failure).containsEntry("refresh_recommended", false);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(strings = {"", "UEFA coefficient read failed"})
     void snapshotReferenceExposesPersistedCoefficientWarning(String failure) {
         var metadata = mock(LoadMetadataRepository.class);

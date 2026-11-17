@@ -34,6 +34,36 @@ import static org.mockito.Mockito.when;
 
 class DatabaseLoadAllServiceTest {
     @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void fixtureFailureLoadsWorldDataAndKeepsManagedClubDetection(boolean ioFailure) throws Exception {
+        var fixture = new Fixture();
+        when(fixture.people.exportAllPeople(123, 1530, null)).thenReturn(peopleResult(2, 1));
+        when(fixture.clubs.exportAllClubs(123, 1530, null))
+                .thenReturn(new ClubExporter.ExportResult(Collections.nCopies(3, Map.of())));
+        when(fixture.competitions.exportAllCompetitions(123, 1530, null))
+                .thenReturn(new CompetitionExporter.ExportResult(Collections.nCopies(4, Map.of())));
+        Exception failure = ioFailure ? new IOException("Fixture read failed") : new IllegalStateException("Fixture read failed");
+        when(fixture.fixtures.exportManagedClubFixtures(123, 1530, null)).thenThrow(failure);
+
+        var result = fixture.service.loadAll(123, 1530, null);
+
+        assertThat(result.players()).isEqualTo(2);
+        assertThat(result.staff()).isEqualTo(1);
+        assertThat(result.clubs()).isEqualTo(3);
+        assertThat(result.competitions()).isEqualTo(4);
+        verify(fixture.writer).savePlayers(any(), any());
+        verify(fixture.writer).saveStaff(any(), any());
+        verify(fixture.writer).saveFixtures(new com.github.fmaiassistent.exporter.FixtureExporter.ExportResult(
+                List.of(), "2033-06-10", null, "Fixture read failed"), Map.of());
+        verify(fixture.managedClubs).detect(123, 1530, null);
+        verify(fixture.managedClubs, never()).unavailable(any());
+        var saved = org.mockito.ArgumentCaptor.forClass(Iterable.class);
+        verify(fixture.metadata).saveAll(saved.capture());
+        assertThat((Iterable<LoadMetadataEntity>) saved.getValue())
+                .anyMatch(row -> row.getKey().equals("fixtures_failure") && row.getValue().equals("Fixture read failed"));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(strings = {"", "UEFA coefficient read failed"})
     void coefficientWarningsAreSavedAlongsideSuccessfulWorldData(String failure) throws Exception {
         var fixture = new Fixture();

@@ -211,6 +211,8 @@ public class DatabaseLoadAllService {
                     new LoadMetadataEntity("competitions_reference_only_count",String.valueOf(ram.competitions().rows().stream()
                             .filter(row->Boolean.TRUE.equals(row.get("_reference_only"))).count())),
                     new LoadMetadataEntity("fixtures_count", String.valueOf(ram.fixtures().rows().size())),
+                    new LoadMetadataEntity("fixtures_failure", ram.fixtures().fixtureFailure()==null ? ""
+                            : ram.fixtures().fixtureFailure().substring(0, Math.min(768, ram.fixtures().fixtureFailure().length()))),
                     new LoadMetadataEntity("quality_players_missing_age",
                             String.valueOf(countMissing(ram.players().rows(), "age"))),
                     new LoadMetadataEntity("quality_players_missing_asking_price",
@@ -312,7 +314,16 @@ public class DatabaseLoadAllService {
             CompetitionExporter.ExportResult competitions = await(competitionFuture, "competitions", deadline, timeout);
             competitions=CompetitionExporter.withClubReferences(competitions,clubs);
             reportPhase("Reading fixtures");
-            FixtureExporter.ExportResult fixtures = await(fixtureFuture, "fixtures", deadline, timeout);
+            FixtureExporter.ExportResult fixtures;
+            try {
+                fixtures = await(fixtureFuture, "fixtures", deadline, timeout);
+            } catch (IOException | RuntimeException failure) {
+                if (Thread.currentThread().isInterrupted()) throw failure;
+                String reason = failure.getMessage();
+                if (reason == null || reason.isBlank()) reason = "Fixture extraction failed";
+                log.warn("FM27 world data loaded, but fixture extraction failed: {}", reason);
+                fixtures = new FixtureExporter.ExportResult(List.of(), people.players().gameDate(), null, reason);
+            }
             RamSnapshot snapshot = new RamSnapshot(
                     people.players(),
                     people.staff(),
