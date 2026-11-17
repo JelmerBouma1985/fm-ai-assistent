@@ -28,6 +28,9 @@ final class ClubIdentitySnapshot {
     private final List<NativeClubSnapshot> records;
     private final Map<Long,NativeClubSnapshot> byAddress;
     private final Map<Long,byte[]> coefficientFrames = new LinkedHashMap<>();
+    private final Map<Long,byte[]> contextFrames = new LinkedHashMap<>();
+    private final ProcessMemoryReader coefficientReader;
+    private String coefficientFailure;
     private long competitionBegin=-1,competitionCount;
     private final Map<Long,Long> competitionUids=new HashMap<>(),competitionAddresses=new HashMap<>();
     private final CompetitionNameLayout nameLayout;
@@ -64,20 +67,29 @@ final class ClubIdentitySnapshot {
                          ClubFinancialCompetitionLayout competitions,CompetitionNameLayout names,
                          ClubFinancialHistoryLayout history)throws IOException {
         this.reader=new BudgetReader(source);this.base=base;this.layout=layout;
+        this.coefficientReader=new BudgetReader(source);
         PlayerSnapshotValidator.validateClubIdentityLayout(layout);
         if(history!=null){PlayerSnapshotValidator.validateClubFinancialHistoryLayout(history);
             if(!history.ledger().equals(ledger))throw new IOException("Financial history requires matching ledger layout anchor");}
         this.nameLayout=names;
         if(names!=null){PlayerSnapshotValidator.validateCompetitionNameLayout(names);
             if(competitions==null)throw new IOException("Competition name requires COMP identity layout anchor");}
-        if(uefa!=null)PlayerSnapshotValidator.validateClubUefaLayout(uefa);
+        if (uefa == null) coefficientFailure = "UEFA club coefficients are not verified for this FM27 module";
+        else {
+            try { PlayerSnapshotValidator.validateClubUefaLayout(uefa); }
+            catch (IOException | RuntimeException failure) { disableCoefficients(failure); uefa = null; }
+        }
         if(loans!=null)PlayerSnapshotValidator.validateClubFinancialLoanLayout(loans);
         if(ledger!=null)PlayerSnapshotValidator.validateClubFinancialLedgerLayout(ledger);
         if(competitions!=null){PlayerSnapshotValidator.validateClubFinancialCompetitionLayout(competitions);
             if(!competitions.ledger().equals(ledger))throw new IOException("Financial competition requires matching ledger layout anchor");}
         Integer loanClock=loans==null?null:buffer(frame(base+loans.clockRva(),loans.clockBytes())).getInt();
         Integer ledgerClock=ledger==null?null:buffer(frame(base+ledger.clockRva(),ledger.clockBytes())).getInt();
-        int rule=uefa==null?0:Short.toUnsignedInt(buffer(frame(base+uefa.ruleVersionRva(),uefa.ruleVersionBytes())).getShort());
+        int rule = 0;
+        if (uefa != null) {
+            try { rule = Short.toUnsignedInt(buffer(coefficientFrame(base+uefa.ruleVersionRva(),uefa.ruleVersionBytes())).getShort()); }
+            catch (IOException | RuntimeException failure) { disableCoefficients(failure); uefa = null; }
+        }
         rootBytes=reader.readBytes(base+layout.registryRva(),8);descriptor=buffer(rootBytes).getLong();
         headerPointer=reader.readBytes(descriptor+layout.registryHeader(),8);header=buffer(headerPointer).getLong();
         bounds=reader.readBytes(header,24);begin=buffer(bounds).getLong();long end=buffer(bounds).getLong(8),cap=buffer(bounds).getLong(16);
@@ -93,7 +105,10 @@ final class ClubIdentitySnapshot {
             long uid=PlayerSnapshotValidator.validateClubIdentity(i,prefix,base,layout);
             String kind=buffer(prefix).getLong()==base+layout.clubVtable()?"CLUB":"LEAGUE_BODY_CLUB";
             String coefficientHex=null;
-            if(uefa!=null&&kind.equals("CLUB"))coefficientHex=coefficient(address,rule,uefa);
+            if(uefa!=null&&kind.equals("CLUB")) {
+                try { coefficientHex=coefficient(address,rule,uefa); }
+                catch (IOException | RuntimeException failure) { disableCoefficients(failure); uefa = null; }
+            }
             String loanHex=loans!=null&&kind.equals("CLUB")?financialLoans(address,loanClock,loans):null;
             String ledgerHex=ledger!=null&&kind.equals("CLUB")?financialLedger(address,ledgerClock,ledger):null;
             String competitionHex=competitions!=null&&ledgerHex!=null?financialCompetitions(address,ledgerHex,ledgerClock,competitions):null;
@@ -112,7 +127,19 @@ final class ClubIdentitySnapshot {
         if(value==null)throw new PlayerSnapshotValidator.ClubIdentityChangedException("TEAM owner is outside the captured CLUB registry");
         return value;
     }
-    List<NativeClubSnapshot> records(){return List.copyOf(records);}
+    List<NativeClubSnapshot> records(){
+        if (coefficientFailure == null) return List.copyOf(records);
+        return records.stream().map(r -> new NativeClubSnapshot(r.uniqueId(), r.recordIndex(), r.kind(), r.name(),
+                r.sourceAddress(), r.prefixHex(), null, null, r.financialLoansHex(), r.financialLoanClock(),
+                r.financialLedgerHex(), r.financialLedgerClock(), r.financialCompetitionsHex(), r.financialHistoryHex())).toList();
+    }
+    String coefficientFailure(){return coefficientFailure;}
+    private void disableCoefficients(Exception failure) {
+        String reason = failure.getMessage();
+        coefficientFailure = reason == null || reason.isBlank() ? "UEFA coefficient extraction failed" : reason;
+        coefficientFailure = coefficientFailure.substring(0, Math.min(768, coefficientFailure.length()));
+        coefficientFrames.clear();
+    }
     List<NativeCompetitionNameSnapshot> competitionNames(){return nameLayout==null?null:List.copyOf(competitionNames.values());}
     long base(){return base;}
     ClubIdentityLayout layout(){return layout;}
@@ -122,7 +149,13 @@ final class ClubIdentitySnapshot {
         if(pointers.length>0&&!Arrays.equals(pointers,readSpan(begin,pointers.length)))
             throw new PlayerSnapshotValidator.ClubIdentityChangedException("CLUB registry slots changed during capture");
         for(var record:records)unchanged(record.sourceAddress(),HexFormat.of().parseHex(record.prefixHex()));
-        for(var entry:coefficientFrames.entrySet())unchanged(entry.getKey(),entry.getValue());
+        for(var entry:contextFrames.entrySet())unchanged(entry.getKey(),entry.getValue());
+        try {
+            for(var entry:coefficientFrames.entrySet()) {
+                if (!Arrays.equals(entry.getValue(), coefficientReader.readBytes(entry.getKey(),entry.getValue().length)))
+                    throw new IOException("UEFA coefficients changed during capture");
+            }
+        } catch (IOException | RuntimeException failure) { disableCoefficients(failure); }
         if(pointers.length>0&&!Arrays.equals(pointers,readSpan(begin,pointers.length)))
             throw new PlayerSnapshotValidator.ClubIdentityChangedException("CLUB registry slots changed during verification");
         unchanged(base+layout.registryRva(),rootBytes);unchanged(descriptor+layout.registryHeader(),headerPointer);unchanged(header,bounds);
@@ -138,27 +171,33 @@ final class ClubIdentitySnapshot {
             throw new PlayerSnapshotValidator.ClubIdentityChangedException("CLUB identity changed during capture");
     }
     private byte[] frame(long address,int length)throws IOException {
-        byte[] value=reader.readBytes(address,length);byte[] prior=coefficientFrames.putIfAbsent(address,value);
+        return retainFrame(reader, contextFrames, address, length);
+    }
+    private byte[] coefficientFrame(long address,int length)throws IOException {
+        return retainFrame(coefficientReader, coefficientFrames, address, length);
+    }
+    private static byte[] retainFrame(ProcessMemoryReader source, Map<Long,byte[]> frames, long address,int length)throws IOException {
+        byte[] value=source.readBytes(address,length);byte[] prior=frames.putIfAbsent(address,value);
         // A ledger block and its vector header share a start address. Compare their overlap,
         // retaining the larger window so verification still covers every previously captured byte.
         if(prior!=null) {
             int common=Math.min(prior.length,value.length);
             if(!Arrays.equals(prior,0,common,value,0,common))throw new IOException("CLUB context changed during capture");
-            if(value.length>prior.length)coefficientFrames.put(address,value);
+            if(value.length>prior.length)frames.put(address,value);
         }
         return value;
     }
     private String coefficient(long club,int rule,ClubUefaCoefficientLayout uefa)throws IOException {
-        long data=buffer(frame(club+uefa.clubDataRel(),8)).getLong();
-        long nation=buffer(frame(club+uefa.nationRel(),8)).getLong();
-        int selector=Byte.toUnsignedInt(frame(club+uefa.selectorRel(),1)[0]);
+        long data=buffer(coefficientFrame(club+uefa.clubDataRel(),8)).getLong();
+        long nation=buffer(coefficientFrame(club+uefa.nationRel(),8)).getLong();
+        int selector=Byte.toUnsignedInt(coefficientFrame(club+uefa.selectorRel(),1)[0]);
         if(selector>1)throw new IOException("UEFA coefficient selector anchor failed");
-        long context=nation==0?0:buffer(frame(nation+uefa.nationContextRel()+(long)selector*uefa.contextStride(),8)).getLong();
+        long context=nation==0?0:buffer(coefficientFrame(nation+uefa.nationContextRel()+(long)selector*uefa.contextStride(),8)).getLong();
         if(data==0)return null;
-        long pointer=buffer(frame(data+uefa.coefficientRel(),8)).getLong();
+        long pointer=buffer(coefficientFrame(data+uefa.coefficientRel(),8)).getLong();
         if(pointer==0)return null;
         if(context==0)throw new IOException("Existing UEFA coefficient failed native availability guard");
-        byte[] raw=frame(pointer,uefa.objectBytes());
+        byte[] raw=coefficientFrame(pointer,uefa.objectBytes());
         PlayerSnapshotValidator.validateClubUefaCoefficient(raw,rule,uefa);
         return HexFormat.of().formatHex(raw);
     }

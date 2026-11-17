@@ -21,6 +21,75 @@ class ClubExporterTest {
     private static final long FACILITIES = 0x2000_0000L;
     private static final long EXTRA = 0x3000_0000L;
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"valid", "read", "validation", "runtime", "rule", "reread"})
+    void coefficientFailuresKeepNativeClubsAndFinancialLoans(String failure) throws Exception {
+        var memory = coefficientMemory();
+        var uefa = com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.current();
+        long secondCoefficient = 0x71001000L;
+        ProcessMemoryReader source = memory;
+        if (failure.equals("read")) memory.bytes.remove(secondCoefficient);
+        if (failure.equals("validation")) memory.putU8(secondCoefficient, 11);
+        if (failure.equals("rule")) memory.bytes.remove(0x180000000L + uefa.ruleVersionRva());
+        if (failure.equals("runtime")) {
+            source = org.mockito.Mockito.spy(memory);
+            org.mockito.Mockito.doThrow(new IllegalStateException("coefficient read failed"))
+                    .when(source).readBytes(secondCoefficient, uefa.objectBytes());
+        }
+        var capture = new ClubIdentitySnapshot(source, 0x180000000L,
+                com.github.fmaiassistent.memory.ClubIdentityLayout.current(), uefa,
+                com.github.fmaiassistent.memory.ClubFinancialLoanLayout.current());
+        if (failure.equals("reread")) memory.putU8(secondCoefficient, 1);
+        capture.verify();
+        assertThat(capture.records()).hasSize(2).allSatisfy(record -> {
+            assertThat(record.financialLoansHex()).isEqualTo("");
+            assertThat(record.financialLoanClock()).isEqualTo((2026 << 16) | 187);
+            assertThat(record.kind()).isEqualTo("CLUB");
+            if (failure.equals("valid")) assertThat(record.uefaCoefficientHex()).isNotNull();
+            else {
+                assertThat(record.uefaCoefficientHex()).isNull();
+                assertThat(record.uefaRuleVersion()).isNull();
+            }
+        });
+        if (failure.equals("valid")) assertThat(capture.coefficientFailure()).isNull();
+        else assertThat(capture.coefficientFailure()).isNotBlank();
+    }
+
+    @Test
+    void coefficientFallbackStillRejectsFinancialContextDrift() throws Exception {
+        var memory = coefficientMemory();
+        memory.bytes.remove(0x71001000L);
+        var capture = new ClubIdentitySnapshot(memory, 0x180000000L,
+                com.github.fmaiassistent.memory.ClubIdentityLayout.current(),
+                com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.current(),
+                com.github.fmaiassistent.memory.ClubFinancialLoanLayout.current());
+        memory.putLong(FACILITIES + 0x50, 0x72000000L);
+        assertThatThrownBy(capture::verify).isInstanceOf(IOException.class);
+    }
+
+    private static FakeMemory coefficientMemory() {
+        var memory = new FakeMemory();
+        var identity = com.github.fmaiassistent.memory.ClubIdentityLayout.current();
+        var uefa = com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.current();
+        long base = 0x180000000L, descriptor = 0x60000000L, header = 0x60001000L, pointers = 0x60002000L;
+        memory.putLong(base + identity.registryRva(), descriptor);
+        memory.putLong(descriptor + identity.registryHeader(), header);
+        memory.putLong(header, pointers); memory.putLong(header + 8, pointers + 16); memory.putLong(header + 16, pointers + 16);
+        memory.putU16(base + uefa.ruleVersionRva(), 1684);
+        memory.putI32(base + com.github.fmaiassistent.memory.ClubFinancialLoanLayout.current().clockRva(), (2026 << 16) | 187);
+        for (int i = 0; i < 2; i++) {
+            long club = CLUB + i * 0x1000L, data = FACILITIES + i * 0x1000L, nation = EXTRA + i * 0x1000L;
+            long coefficient = 0x71000000L + i * 0x1000L;
+            memory.put(club, new byte[0x200]); memory.put(data, new byte[0x100]); memory.put(nation, new byte[0x120]);
+            memory.putLong(pointers + i * 8L, club); memory.putLong(club, base + identity.clubVtable());
+            memory.putI32(club + 8, i); memory.putI32(club + 12, i + 100);
+            memory.putLong(club + uefa.clubDataRel(), data); memory.putLong(club + uefa.nationRel(), nation);
+            memory.putLong(nation + uefa.nationContextRel(), 0x70000000L);
+            memory.putLong(data + uefa.coefficientRel(), coefficient); memory.put(coefficient, new byte[uefa.objectBytes()]);
+        }
+        return memory;
+    }
+
     @Test
     void typedCoefficientAndFinanceCaptureSupportsWindowsAndLinux() {
         assertThat(ClubExporter.supportsTypedNativeCapture(ProcessMemoryReader.Platform.WINDOWS)).isTrue();

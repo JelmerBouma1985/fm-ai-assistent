@@ -102,7 +102,8 @@ public class ClubExporter {
                     throw new PlayerSnapshotValidator.ClubIdentityChangedException("TEAM registry changed during club capture");
             }
             return new ExportResult(rows,identities==null?List.of():identities.records(),identities==null?null:identityProfile,
-                    identities==null?null:identities.competitionNames());
+                    identities==null?null:identities.competitionNames(),
+                    identities==null?"UEFA club coefficients are unavailable for this FM27 module":identities.coefficientFailure());
         }
     }
 
@@ -357,8 +358,13 @@ public class ClubExporter {
     }
 
     public record ExportResult(List<Map<String, Object>> rows,List<NativeClubSnapshot> nativeRecords,String identityProfile,
-                               List<com.github.fmaiassistent.domain.NativeCompetitionNameSnapshot> competitionNames) {
+                               List<com.github.fmaiassistent.domain.NativeCompetitionNameSnapshot> competitionNames,
+                               String coefficientFailure) {
         public ExportResult {rows=List.copyOf(rows);nativeRecords=List.copyOf(nativeRecords);competitionNames=competitionNames==null?null:List.copyOf(competitionNames);}
+        public ExportResult(List<Map<String,Object>> rows,List<NativeClubSnapshot> nativeRecords,String identityProfile,
+                            List<com.github.fmaiassistent.domain.NativeCompetitionNameSnapshot> competitionNames){
+            this(rows,nativeRecords,identityProfile,competitionNames,null);
+        }
         /** Null references mean legacy/unavailable capture, distinct from an observed empty set. */
         public ExportResult(List<Map<String,Object>> rows,List<NativeClubSnapshot> nativeRecords,String identityProfile){this(rows,nativeRecords,identityProfile,null);}
         public ExportResult(List<Map<String,Object>> rows){this(rows,List.of(),null);}

@@ -152,7 +152,12 @@ public class DatabaseLoadAllService {
             reportPhase("Detecting managed club");
             ManagedClubContext detectedManagedClub;
             try {
-                detectedManagedClub = managedClubContexts.detect(resolvedPid, build, gamePluginBase);
+                if (ram.fixtures().managedClubFailure() != null) {
+                    detectedManagedClub = managedClubContexts.unavailable(ram.fixtures().managedClubFailure());
+                    log.warn("FM27 data loaded, but managed-club detection failed: {}", ram.fixtures().managedClubFailure());
+                } else {
+                    detectedManagedClub = managedClubContexts.detect(resolvedPid, build, gamePluginBase);
+                }
             } catch (IOException | RuntimeException exception) {
                 String message = exception.getMessage() == null || exception.getMessage().isBlank()
                         ? "The managed club could not be detected from FM27 RAM"
@@ -200,10 +205,14 @@ public class DatabaseLoadAllService {
                     new LoadMetadataEntity("clubs_count", String.valueOf(clubCount)),
                     new LoadMetadataEntity("native_club_records_count",String.valueOf(ram.clubs().nativeRecords().size())),
                     new LoadMetadataEntity("native_club_identity_profile",ram.clubs().identityProfile()==null?"UNSUPPORTED_OR_UNAVAILABLE":ram.clubs().identityProfile()),
+                    new LoadMetadataEntity("uefa_coefficients_failure", ram.clubs().coefficientFailure()==null ? ""
+                            : ram.clubs().coefficientFailure().substring(0, Math.min(768, ram.clubs().coefficientFailure().length()))),
                     new LoadMetadataEntity("competitions_count", String.valueOf(competitionCount)),
                     new LoadMetadataEntity("competitions_reference_only_count",String.valueOf(ram.competitions().rows().stream()
                             .filter(row->Boolean.TRUE.equals(row.get("_reference_only"))).count())),
                     new LoadMetadataEntity("fixtures_count", String.valueOf(ram.fixtures().rows().size())),
+                    new LoadMetadataEntity("fixtures_failure", ram.fixtures().fixtureFailure()==null ? ""
+                            : ram.fixtures().fixtureFailure().substring(0, Math.min(768, ram.fixtures().fixtureFailure().length()))),
                     new LoadMetadataEntity("quality_players_missing_age",
                             String.valueOf(countMissing(ram.players().rows(), "age"))),
                     new LoadMetadataEntity("quality_players_missing_asking_price",
@@ -305,7 +314,16 @@ public class DatabaseLoadAllService {
             CompetitionExporter.ExportResult competitions = await(competitionFuture, "competitions", deadline, timeout);
             competitions=CompetitionExporter.withClubReferences(competitions,clubs);
             reportPhase("Reading fixtures");
-            FixtureExporter.ExportResult fixtures = await(fixtureFuture, "fixtures", deadline, timeout);
+            FixtureExporter.ExportResult fixtures;
+            try {
+                fixtures = await(fixtureFuture, "fixtures", deadline, timeout);
+            } catch (IOException | RuntimeException failure) {
+                if (Thread.currentThread().isInterrupted()) throw failure;
+                String reason = failure.getMessage();
+                if (reason == null || reason.isBlank()) reason = "Fixture extraction failed";
+                log.warn("FM27 world data loaded, but fixture extraction failed: {}", reason);
+                fixtures = new FixtureExporter.ExportResult(List.of(), people.players().gameDate(), null, reason);
+            }
             RamSnapshot snapshot = new RamSnapshot(
                     people.players(),
                     people.staff(),

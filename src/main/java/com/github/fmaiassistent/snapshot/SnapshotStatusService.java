@@ -95,6 +95,8 @@ public class SnapshotStatusService {
         out.put("freshness", stale == null ? "unverified" : stale ? "stale" : "verified_current");
         out.put("stale_reasons", matches ? checked.reasons() : List.of());
         out.put("refresh_recommended", !values.containsKey("snapshot_id") || Boolean.TRUE.equals(stale));
+        out.put("uefa_coefficients_failure", values.get("uefa_coefficients_failure"));
+        out.put("fixtures_failure", values.get("fixtures_failure"));
         ManagedClubContext club = managedClubs.current();
         if (club != null) {
             out.put("managed_club_state", club.state().name().toLowerCase(java.util.Locale.ROOT));
