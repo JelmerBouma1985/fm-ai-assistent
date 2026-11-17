@@ -24,6 +24,24 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class AiAssistantViewTest {
+    @Test
+    void failedManagedClubIsVisibleInContextPanelAndCannotBeIncluded() throws Exception {
+        var contexts = mock(ManagedClubContextService.class);
+        when(contexts.current()).thenReturn(ManagedClubContext.unavailable(1, "Manager unreadable"));
+        var panel = new ManagedClubContextPanel(contexts, () -> { });
+        com.vaadin.flow.component.html.Span heading = field(panel, "heading");
+        com.vaadin.flow.component.html.Span details = field(panel, "details");
+        com.vaadin.flow.component.checkbox.Checkbox include = field(panel, "includeInAi");
+        assertEquals("Failed to load managed club", heading.getText());
+        assertEquals("Manager unreadable", details.getText());
+        assertFalse(include.isEnabled());
+
+        when(contexts.current()).thenReturn(ManagedClubContext.unemployed(2, "Manager", 42L));
+        panel.refresh();
+        assertTrue(include.isEnabled());
+        assertEquals("Manager is unemployed", heading.getText());
+    }
+
 
     @Test
     void unavailableAgentsAreLabelledDisabledAndSkipped() throws Exception {

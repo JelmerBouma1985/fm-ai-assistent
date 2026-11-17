@@ -209,6 +209,26 @@ class MainViewTest {
     }
 
     @Test
+    void managedClubWarningAppearsBesideCurrentFreshnessAndClearsAfterRecovery() throws Exception {
+        MainView view = view();
+        var apply = MainView.class.getDeclaredMethod("applyFreshness", java.util.Map.class, boolean.class);
+        apply.setAccessible(true);
+        apply.invoke(view, java.util.Map.of("state", "loaded", "stale", false,
+                "managed_club_state", "unavailable", "managed_club_message", "Manager unreadable"), false);
+        com.vaadin.flow.component.html.Span warning = field(view, "managedClubWarning");
+        com.vaadin.flow.component.button.Button freshness = field(view, "freshnessBadge");
+        assertTrue(warning.isVisible());
+        assertEquals("Failed to load managed club", warning.getText());
+        assertEquals("Manager unreadable", warning.getElement().getAttribute("title"));
+        assertEquals(freshness.getParent(), warning.getParent());
+        assertEquals("Data current", freshness.getText());
+
+        apply.invoke(view, java.util.Map.of("state", "loaded", "stale", false,
+                "managed_club_state", "available"), false);
+        assertFalse(warning.isVisible());
+    }
+
+    @Test
     void freshnessBadgeMapping() {
         assertEquals(MainView.FreshnessBadge.EMPTY,
                 MainView.badgeFor(java.util.Map.of("state", "not_loaded")));

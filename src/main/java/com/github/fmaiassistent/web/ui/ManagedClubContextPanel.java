@@ -40,6 +40,7 @@ final class ManagedClubContextPanel extends Div {
 
     void refresh() {
         ManagedClubContext context = contexts.current();
+        includeInAi.setEnabled(context.adviceAvailable() || context.state() == ManagedClubContext.State.UNEMPLOYED);
         removeClassName("is-unavailable");
         if (context.available()) {
             heading.setText("Managed club · " + context.clubName());
@@ -64,7 +65,7 @@ final class ManagedClubContextPanel extends Div {
         } else if (context.state() == ManagedClubContext.State.UNEMPLOYED) {
             heading.setText("Manager is unemployed");
         } else {
-            heading.setText("Managed club · unavailable");
+            heading.setText("Failed to load managed club");
         }
         details.setText(context.message());
         setTitle(context.message());

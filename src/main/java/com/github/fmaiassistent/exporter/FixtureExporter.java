@@ -51,10 +51,21 @@ public class FixtureExporter {
 
     public ExportResult exportManagedClubFixtures(int pid, int build, Long gamePluginBase) throws IOException {
         try (ProcessMemoryReader reader = ProcessReaders.open(pid)) {
-            ManagedClubIdentity managed = managedClubReader.read(reader, build, gamePluginBase);
-            LocalDate gameDate = new GameDateFinder().find(reader, 0, build, gamePluginBase).orElse(null);
-            return export(reader, build, gamePluginBase, managed, gameDate);
+            return exportManagedClubFixtures(reader, build, gamePluginBase);
         }
+    }
+
+    ExportResult exportManagedClubFixtures(ProcessMemoryReader reader, int build, Long gamePluginBase) throws IOException {
+        LocalDate gameDate = new GameDateFinder().find(reader, 0, build, gamePluginBase).orElse(null);
+        ManagedClubIdentity managed;
+        try {
+            managed = managedClubReader.read(reader, build, gamePluginBase);
+        } catch (IOException | RuntimeException failure) {
+            String message = failure.getMessage();
+            return new ExportResult(List.of(), gameDate == null ? "" : gameDate.toString(),
+                    message == null || message.isBlank() ? "The current human manager could not be read" : message);
+        }
+        return export(reader, build, gamePluginBase, managed, gameDate);
     }
 
     ExportResult export(
@@ -236,6 +247,9 @@ public class FixtureExporter {
             long awayClubAddress) {
     }
 
-    public record ExportResult(List<Map<String, Object>> rows, String gameDate) {
+    public record ExportResult(List<Map<String, Object>> rows, String gameDate, String managedClubFailure) {
+        public ExportResult(List<Map<String, Object>> rows, String gameDate) {
+            this(rows, gameDate, null);
+        }
     }
 }

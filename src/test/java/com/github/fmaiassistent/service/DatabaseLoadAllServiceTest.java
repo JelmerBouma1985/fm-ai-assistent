@@ -33,6 +33,43 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class DatabaseLoadAllServiceTest {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void managedClubFailuresDoNotAbortWorldDataAndPublishUnavailableOnlyAfterCommit(boolean fixtureFailure) throws Exception {
+        Fixture fixture = new Fixture();
+        when(fixture.people.exportAllPeople(123, 1530, null)).thenReturn(peopleResult(2, 1));
+        when(fixture.clubs.exportAllClubs(123, 1530, null))
+                .thenReturn(new ClubExporter.ExportResult(Collections.nCopies(3, Map.of())));
+        when(fixture.competitions.exportAllCompetitions(123, 1530, null))
+                .thenReturn(new CompetitionExporter.ExportResult(Collections.nCopies(4, Map.of())));
+        var unavailable = ManagedClubContext.unavailable(9, "Manager unreadable");
+        when(fixture.managedClubs.unavailable("Manager unreadable")).thenReturn(unavailable);
+        if (fixtureFailure) {
+            when(fixture.fixtures.exportManagedClubFixtures(123, 1530, null)).thenReturn(
+                    new com.github.fmaiassistent.exporter.FixtureExporter.ExportResult(List.of(), "2033-06-10", "Manager unreadable"));
+        } else {
+            when(fixture.managedClubs.detect(123, 1530, null)).thenThrow(new IOException("Manager unreadable"));
+        }
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            var result = fixture.service.loadAll(123, 1530, null);
+            assertThat(result.players()).isEqualTo(2);
+            assertThat(result.staff()).isEqualTo(1);
+            assertThat(result.clubs()).isEqualTo(3);
+            assertThat(result.competitions()).isEqualTo(4);
+            verify(fixture.writer).savePlayers(any(), any());
+            verify(fixture.writer).saveStaff(any(), any());
+            verify(fixture.metadata).saveAll(anyList());
+            verify(fixture.managedClubs, never()).publish(any());
+            if (fixtureFailure) verify(fixture.managedClubs, never()).detect(123, 1530, null);
+            TransactionSynchronizationManager.getSynchronizations().forEach(s -> s.afterCommit());
+            verify(fixture.managedClubs).publish(unavailable);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
     @Test
     void unemployedSaveLoadsWorldDataAndPublishesNoManagedClub() throws Exception {
         Fixture fixture = new Fixture();

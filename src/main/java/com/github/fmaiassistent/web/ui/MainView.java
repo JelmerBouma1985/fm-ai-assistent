@@ -125,6 +125,7 @@ public class MainView extends VerticalLayout {
     private final Span loadingPhase = new Span("Reading Football Manager memory");
     private final Button loadButton = new Button("Load data", VaadinIcon.DATABASE.create());
     private final Button freshnessBadge = new Button("Freshness unknown");
+    private final Span managedClubWarning = new Span("Failed to load managed club");
     private final Button settingsButton = new Button(VaadinIcon.COG.create());
     private final Button filterButton = new Button("Filter", VaadinIcon.FILTER.create());
     private final Span status = new Span();
@@ -248,6 +249,9 @@ public class MainView extends VerticalLayout {
         freshnessBadge.getElement().setAttribute("title", "Check whether the loaded FM27 data is current");
         freshnessBadge.getElement().setAttribute("aria-label", "Check data freshness");
         setBadge(FreshnessBadge.UNKNOWN);
+        managedClubWarning.addClassNames("freshness-badge", "is-stale");
+        managedClubWarning.getElement().setAttribute("role", "status");
+        managedClubWarning.setVisible(false);
         filterButton.addClassName("filter-button");
         settingsButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
         settingsButton.addClassName("icon-button");
@@ -268,7 +272,7 @@ public class MainView extends VerticalLayout {
         brand.setSpacing(false);
         brand.addClassName("brand");
 
-        HorizontalLayout actions = new HorizontalLayout(freshnessBadge, loadButton, settingsButton);
+        HorizontalLayout actions = new HorizontalLayout(freshnessBadge, managedClubWarning, loadButton, settingsButton);
         actions.setAlignItems(Alignment.CENTER);
         actions.setSpacing(false);
         actions.addClassName("app-actions");
@@ -465,6 +469,10 @@ public class MainView extends VerticalLayout {
     }
 
     private void applyFreshness(Map<String, Object> snapshot, boolean manual) {
+        managedClubWarning.setVisible("loaded".equals(snapshot.get("state"))
+                && "unavailable".equals(snapshot.get("managed_club_state")));
+        managedClubWarning.getElement().setAttribute("title",
+                Objects.toString(snapshot.get("managed_club_message"), "Managed-club extraction failed"));
         FreshnessBadge badge = badgeFor(snapshot);
         setBadge(badge);
         Boolean stale = (Boolean) snapshot.get("stale");

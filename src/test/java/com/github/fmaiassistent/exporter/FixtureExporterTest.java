@@ -7,6 +7,21 @@ import java.time.LocalTime;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class FixtureExporterTest {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void managerReadFailureReturnsEmptyFixturesWithWarning(boolean ioFailure) throws Exception {
+        var memory = org.mockito.Mockito.mock(com.github.fmaiassistent.memory.ProcessMemoryReader.class);
+        var managerReader = org.mockito.Mockito.mock(com.github.fmaiassistent.managedclub.ManagedClubMemoryReader.class);
+        Exception failure = ioFailure ? new java.io.IOException("Manager unreadable")
+                : new IllegalStateException("Manager unreadable");
+        org.mockito.Mockito.when(managerReader.read(memory, 0, null)).thenThrow(failure);
+
+        var result = new FixtureExporter(managerReader).exportManagedClubFixtures(memory, 0, null);
+
+        assertEquals(java.util.List.of(), result.rows());
+        assertEquals("Manager unreadable", result.managedClubFailure());
+    }
+
     @Test
     void nationalOnlyManagerSkipsClubFixtureScan() throws Exception {
         var memory = org.mockito.Mockito.mock(com.github.fmaiassistent.memory.ProcessMemoryReader.class);

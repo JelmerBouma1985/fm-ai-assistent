@@ -109,4 +109,21 @@ class ManagedClubContextServiceTest {
         assertThat(context.message()).isEqualTo("No active human manager was found");
         assertThat(service.enrich("codex:one", "hello")).isEqualTo("hello");
     }
+
+    @Test
+    void failedReloadClearsPreviousClubFromExistingAndNewConversationContext() throws Exception {
+        var memory = mock(ManagedClubMemoryReader.class);
+        when(memory.read(42, com.github.fmaiassistent.linux.FmOffsets.DEFAULT_BUILD, null))
+                .thenReturn(new ManagedClubIdentity(0x1000, 4242L, "Manager", 0x2000, 0x3000, "Old club"));
+        var service = new ManagedClubContextService(memory, mock(ClubRepository.class));
+        service.refresh(42, com.github.fmaiassistent.linux.FmOffsets.DEFAULT_BUILD, null);
+        assertThat(service.enrich("existing", "hello")).contains("Old club");
+
+        service.markUnavailable("Manager unreadable");
+
+        assertThat(service.current().clubName()).isEmpty();
+        assertThat(service.currentCareerKey()).isNull();
+        assertThat(service.enrich("existing", "follow up")).isEqualTo("follow up");
+        assertThat(service.enrich("new", "hello")).isEqualTo("hello");
+    }
 }

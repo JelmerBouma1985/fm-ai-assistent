@@ -152,7 +152,12 @@ public class DatabaseLoadAllService {
             reportPhase("Detecting managed club");
             ManagedClubContext detectedManagedClub;
             try {
-                detectedManagedClub = managedClubContexts.detect(resolvedPid, build, gamePluginBase);
+                if (ram.fixtures().managedClubFailure() != null) {
+                    detectedManagedClub = managedClubContexts.unavailable(ram.fixtures().managedClubFailure());
+                    log.warn("FM27 data loaded, but managed-club detection failed: {}", ram.fixtures().managedClubFailure());
+                } else {
+                    detectedManagedClub = managedClubContexts.detect(resolvedPid, build, gamePluginBase);
+                }
             } catch (IOException | RuntimeException exception) {
                 String message = exception.getMessage() == null || exception.getMessage().isBlank()
                         ? "The managed club could not be detected from FM27 RAM"
