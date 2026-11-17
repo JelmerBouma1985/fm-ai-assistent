@@ -37,7 +37,8 @@ public final class PlayerRecordLayouts {
             26227640L, LayoutSet.current(),
             26340721L, LayoutSet.current(),
             26385295L, LayoutSet.current(),
-            26577676L, LayoutSet.current());
+            26577676L, LayoutSet.current(),
+            26620374L, LayoutSet.current());
 
     private PlayerRecordLayouts() {
     }

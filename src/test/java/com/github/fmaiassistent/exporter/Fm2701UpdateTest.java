@@ -15,10 +15,13 @@ import static org.assertj.core.api.Assertions.*;
 
 class Fm2701UpdateTest {
     @ParameterizedTest
-    @ValueSource(strings = {NativeModuleProfile.FM27_2701_SHA256, NativeModuleProfile.STEAM_26577676_SHA256})
+    @ValueSource(strings = {NativeModuleProfile.FM27_2701_SHA256, NativeModuleProfile.STEAM_26577676_SHA256,
+            NativeModuleProfile.STEAM_26620374_SHA256})
     void replaysAllFourContractTypesAndFutureEmploymentFromTheUpdatedProcess(String hash) throws Exception {
         var mapper = JsonMapper.builder().build();
-        try (var in = Files.newInputStream(Path.of("src/test/resources/fm27/contracts-2701-captured.json"))) {
+        String fixtureFile = NativeModuleProfile.STEAM_26620374_SHA256.equals(hash)
+                ? "contracts-26620374-captured.json" : "contracts-2701-captured.json";
+        try (var in = Files.newInputStream(Path.of("src/test/resources/fm27", fixtureFile))) {
             byte[] bytes = in.readNBytes(262145);
             assertThat(bytes.length).isLessThanOrEqualTo(262144);
             var kinds = new HashSet<String>();
@@ -56,7 +59,8 @@ class Fm2701UpdateTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {NativeModuleProfile.FM27_2701_SHA256, NativeModuleProfile.STEAM_26577676_SHA256})
+    @ValueSource(strings = {NativeModuleProfile.FM27_2701_SHA256, NativeModuleProfile.STEAM_26577676_SHA256,
+            NativeModuleProfile.STEAM_26620374_SHA256})
     void eachUpdatedLayoutRejectsDriftAndUnknownImages(String hash) throws Exception {
         var layouts = List.of(
                 AwardNameLayout.forModule(hash), ClubFinanceLayout.forModule(hash),

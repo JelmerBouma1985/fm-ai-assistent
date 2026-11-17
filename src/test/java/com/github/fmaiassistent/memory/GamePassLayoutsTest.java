@@ -25,7 +25,8 @@ class GamePassLayoutsTest {
         assertThat(NativeModuleProfile.supported(GAME_PASS)).isTrue();
         assertThat(NativeModuleProfile.supportedProfiles())
                 .containsExactlyInAnyOrder(NativeModuleProfile.FM27_SHA256, NativeModuleProfile.UPDATED_SHA256,
-                        GAME_PASS, NativeModuleProfile.FM27_2701_SHA256, NativeModuleProfile.STEAM_26577676_SHA256);
+                        GAME_PASS, NativeModuleProfile.FM27_2701_SHA256, NativeModuleProfile.STEAM_26577676_SHA256,
+                        NativeModuleProfile.STEAM_26620374_SHA256);
     }
 
     @Test

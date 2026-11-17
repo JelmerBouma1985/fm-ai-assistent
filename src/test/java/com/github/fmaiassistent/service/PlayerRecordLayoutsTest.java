@@ -6,6 +6,8 @@ import com.github.fmaiassistent.memory.PlayerRecordLayout;
 import com.github.fmaiassistent.memory.StaffRecordLayout;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,12 +15,13 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class PlayerRecordLayoutsTest {
-    @Test
-    void resolvesLatestSteamBuild(@TempDir Path home) throws Exception {
-        writeManifest(home, "\"AppState\"\n{\n\t\"buildid\"\t\t\"26577676\"\n}");
+    @ParameterizedTest
+    @ValueSource(longs = {26577676L, 26620374L})
+    void resolvesLatestSteamBuild(long build, @TempDir Path home) throws Exception {
+        writeManifest(home, "\"AppState\"\n{\n\t\"buildid\"\t\t\"" + build + "\"\n}");
         var match = PlayerRecordLayouts.resolve(home);
         assertThat(match.knownBuild()).isTrue();
-        assertThat(match.installedBuildId()).isEqualTo(26577676L);
+        assertThat(match.installedBuildId()).isEqualTo(build);
         assertThat(match.layouts()).isEqualTo(PlayerRecordLayouts.LayoutSet.current());
     }
 
