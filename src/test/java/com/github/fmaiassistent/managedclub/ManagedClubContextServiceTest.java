@@ -12,6 +12,39 @@ import static org.mockito.Mockito.when;
 
 class ManagedClubContextServiceTest {
     @Test
+    void managerSwitchSendsFreshContextAndSurvivesRefreshWithoutPublishingEarly() throws Exception {
+        var memory = mock(ManagedClubMemoryReader.class);
+        var ties = new ManagedClubIdentity(1, 101L, "Ties Bouma", 11, 21, "SC Cambuur");
+        var jemme = new ManagedClubIdentity(2, 102L, "Jemme Bomma", 12, 22, "Helmond Sport");
+        var jelmer = new ManagedClubIdentity(3, 103L, "Jelmer Bouma", 13, 23, "Feyenoord");
+        when(memory.readAll(42, 1, null)).thenReturn(java.util.List.of(ties, jemme, jelmer));
+        var service = new ManagedClubContextService(memory, mock(ClubRepository.class));
+        var detected = service.detectManagers(42, 1, null);
+        assertThat(service.managers()).isEmpty();
+        service.publishManagers(detected);
+        assertThat(service.contextFor("same-chat")).contains("Ties Bouma", "SC Cambuur");
+
+        service.selectManager(103);
+        assertThat(service.contextFor("same-chat")).contains("Jelmer Bouma", "Feyenoord").doesNotContain("SC Cambuur");
+        assertThat(service.currentCareerKey()).isEqualTo("103:jelmer-bouma");
+        assertThat(service.contextFor("same-chat")).isEmpty();
+        service.selectManager(101);
+        assertThat(service.contextFor("same-chat")).contains("SC Cambuur");
+        service.selectManager(102);
+        var previous = service.selection();
+        service.publishManagers(service.detectManagers(42, 1, null));
+        assertThat(service.current().managerUniqueId()).isEqualTo(102);
+        service.restoreSelection(previous);
+        assertThat(service.managers()).hasSize(3);
+        assertThat(service.current().managerName()).isEqualTo("Jemme Bomma");
+
+        when(memory.readAll(42, 1, null)).thenReturn(java.util.List.of(ties));
+        service.publishManagers(service.detectManagers(42, 1, null));
+        assertThat(service.current().managerName()).isEqualTo("Ties Bouma");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.selectManager(103))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+    @Test
     void nationalJobIsAvailableForAdviceWithoutAClubOrTransferBudget() throws Exception {
         ManagedClubMemoryReader memory = mock(ManagedClubMemoryReader.class);
         ClubRepository clubs = mock(ClubRepository.class);

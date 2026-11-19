@@ -101,6 +101,8 @@ public class SnapshotStatusService {
         if (club != null) {
             out.put("managed_club_state", club.state().name().toLowerCase(java.util.Locale.ROOT));
             out.put("managed_club", club.available() ? club.clubName() : null);
+            out.put("managed_club_address", club.clubAddress());
+            if (club.careerKey() != null) out.put("career_key", club.careerKey());
             out.put("managed_club_message", club.message());
             out.put("managed_nation", club.nationalTeamAvailable() ? club.nationalTeam().name() : null);
             out.put("managed_nation_unique_id", club.nationalTeamAvailable() ? club.nationalTeam().nationUniqueId() : null);
@@ -142,6 +144,8 @@ public class SnapshotStatusService {
 
         ManagedClubContext club = managedClubs.current();
         out.put("managed_club", club.available() ? club.clubName() : null);
+        out.put("managed_club_address", club.clubAddress());
+        if (club.careerKey() != null) out.put("career_key", club.careerKey());
         out.put("managed_club_state", club.state().name().toLowerCase());
         TacticContext tactic = tactics.current();
         out.put("tactic", tactic.active() ? tactic.title() : null);

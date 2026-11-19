@@ -19,6 +19,19 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 class SnapshotStatusServiceTest {
+    @Test
+    void selectedManagersCareerAndClubReplaceTheOriginalSnapshotManager() {
+        var metadata = mock(LoadMetadataRepository.class);
+        when(metadata.findAll()).thenReturn(List.of(new LoadMetadataEntity("snapshot_id", "multi-manager"),
+                new LoadMetadataEntity("career_key", "1:ties-bouma")));
+        var clubs = mock(ManagedClubContextService.class);
+        when(clubs.current()).thenReturn(new ManagedClubContext(2, ManagedClubContext.State.AVAILABLE,
+                "Jelmer Bouma", 2L, "Feyenoord", "", "", "", null, null, null, null, 42L, "Loaded"));
+        var service = new SnapshotStatusService(metadata, mock(DatabaseLoadAllService.class),
+                mock(RefreshCoordinator.class), clubs, mock(TacticContextService.class));
+        assertThat(service.reference()).containsEntry("career_key", "2:jelmer-bouma")
+                .containsEntry("managed_club", "Feyenoord").containsEntry("managed_club_address", 42L);
+    }
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(strings = {"", "Fixture read failed"})
     void snapshotReferenceExposesPersistedFixtureWarning(String failure) {

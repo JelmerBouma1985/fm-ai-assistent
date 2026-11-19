@@ -118,6 +118,7 @@ public class MainView extends VerticalLayout {
     private final FixtureRepository fixtures;
     private final RecruitmentCaseService recruitment;
     private final AppSettingsService settings;
+    private final ManagedClubContextService managedClubContexts;
     private final DesktopMemorySettings memorySettings;
     private final SnapshotStatusService snapshots;
     private final ContractRepository contracts;
@@ -147,6 +148,9 @@ public class MainView extends VerticalLayout {
     private final Grid<ClubEntity> clubsGrid = new Grid<>();
     private final Grid<CompetitionEntity> competitionsGrid = new Grid<>();
     private final Grid<FixtureEntity> fixturesGrid = new Grid<>();
+    private final Select<com.github.fmaiassistent.managedclub.ManagedClubContext> fixturesManagerSelect = new Select<>();
+    private Long fixturesManagerId;
+    private boolean refreshingFixturesManagers;
     private final Grid<Map<String, Object>> recruitmentGrid = new Grid<>();
     private final AiAssistantView aiAssistant;
 
@@ -193,6 +197,7 @@ public class MainView extends VerticalLayout {
         this.fixtures = fixtures;
         this.recruitment = recruitment;
         this.settings = settings;
+        this.managedClubContexts = managedClubContexts;
         this.memorySettings = memorySettings;
         this.snapshots = snapshots;
         this.contracts = contracts;
@@ -223,6 +228,16 @@ public class MainView extends VerticalLayout {
         configureGrid(clubsGrid);
         configureGrid(competitionsGrid);
         configureGrid(fixturesGrid);
+        fixturesManagerSelect.setLabel("Manager");
+        fixturesManagerSelect.setWidth("min(440px, 100%)");
+        fixturesManagerSelect.setItemLabelGenerator(manager -> manager.managerName() + " - "
+                + (manager.available() ? manager.clubName() : manager.nationalTeamAvailable()
+                ? manager.nationalTeam().name() : "Unemployed"));
+        fixturesManagerSelect.addValueChangeListener(event -> {
+            if (refreshingFixturesManagers || event.getValue() == null) return;
+            fixturesManagerId = event.getValue().managerUniqueId();
+            updateFixtureRows();
+        });
         configureGrid(recruitmentGrid);
         configureLoadingDialog();
         playersGrid.addItemClickListener(event -> openPlayerDetailsDialog(event.getItem()));
@@ -754,17 +769,44 @@ public class MainView extends VerticalLayout {
             fixturesGrid.addColumn(FixtureEntity::getAwayClub)
                     .setKey("AWAY_CLUB").setHeader("Away club").setAutoWidth(true).setResizable(true).setSortable(true);
         }
+        refreshFixturesManagers();
+        updateFixtureRows();
+        setFilterActive(false);
+        content.removeAll();
+        content.setSizeFull();
+        VerticalLayout layout = new VerticalLayout(fixturesManagerSelect, fixturesGrid);
+        layout.setPadding(false);
+        layout.setSizeFull();
+        layout.expand(fixturesGrid);
+        content.add(layout);
+        content.addClassName("data-workspace");
+    }
+
+    private void refreshFixturesManagers() {
+        var managers = managedClubContexts.managers();
+        var selected = managers.stream().filter(manager -> Objects.equals(manager.managerUniqueId(), fixturesManagerId))
+                .findFirst().orElseGet(() -> managers.stream().filter(com.github.fmaiassistent.managedclub.ManagedClubContext::available)
+                        .findFirst().orElse(managers.isEmpty() ? null : managers.getFirst()));
+        refreshingFixturesManagers = true;
+        try {
+            fixturesManagerSelect.setItems(managers);
+            fixturesManagerSelect.setValue(selected);
+            fixturesManagerSelect.setEnabled(managers.size() > 1);
+            fixturesManagerId = selected == null ? null : selected.managerUniqueId();
+        } finally {
+            refreshingFixturesManagers = false;
+        }
+    }
+
+    private void updateFixtureRows() {
         LocalDate gameDate = snapshotGameDate();
+        var managed = fixturesManagerSelect.getValue();
         List<FixtureEntity> upcoming = fixtures.findAllByOrderByKickoffDateAscKickoffTimeAsc().stream()
+                .filter(fixture -> managed != null && fixture.isForManagedClub(managed.clubAddress(), managed.clubName()))
                 .filter(fixture -> isUpcoming(fixture, gameDate))
                 .toList();
         fixturesGrid.setItems(upcoming);
-        setFilterActive(false);
         status.setText("Upcoming fixtures " + upcoming.size());
-        content.removeAll();
-        content.setSizeFull();
-        content.add(fixturesGrid);
-        content.addClassName("data-workspace");
     }
 
     private LocalDate snapshotGameDate() {

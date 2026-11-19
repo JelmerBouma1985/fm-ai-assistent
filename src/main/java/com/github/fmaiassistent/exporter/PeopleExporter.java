@@ -281,6 +281,11 @@ public class PeopleExporter {
                         Map<String, Object> row = staffDecoder.decodeRow(
                                 reader, index, person, classification.dynamicOffset());
                         verifyPersonIdentity(reader, index, person, identity, row);
+                        if (classification.type() == PersonMemoryClassifier.PersonType.HUMAN_MANAGER
+                                && HumanManagerProfiles.isAccountProfile(reader, person,
+                                String.valueOf(row.get("name")), staffRecordLayout)) {
+                            return;
+                        }
                         if (validStaffRow(row)) {
                             staff.add(row);
                         } else {

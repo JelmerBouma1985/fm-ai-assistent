@@ -55,7 +55,7 @@ class DatabaseLoadAllServiceTest {
         verify(fixture.writer).saveStaff(any(), any());
         verify(fixture.writer).saveFixtures(new com.github.fmaiassistent.exporter.FixtureExporter.ExportResult(
                 List.of(), "2033-06-10", null, "Fixture read failed"), Map.of());
-        verify(fixture.managedClubs).detect(123, 1530, null);
+        verify(fixture.managedClubs).detectManagers(123, 1530, null);
         verify(fixture.managedClubs, never()).unavailable(any());
         var saved = org.mockito.ArgumentCaptor.forClass(Iterable.class);
         verify(fixture.metadata).saveAll(saved.capture());
@@ -99,7 +99,7 @@ class DatabaseLoadAllServiceTest {
             when(fixture.fixtures.exportManagedClubFixtures(123, 1530, null)).thenReturn(
                     new com.github.fmaiassistent.exporter.FixtureExporter.ExportResult(List.of(), "2033-06-10", "Manager unreadable"));
         } else {
-            when(fixture.managedClubs.detect(123, 1530, null)).thenThrow(new IOException("Manager unreadable"));
+            when(fixture.managedClubs.detectManagers(123, 1530, null)).thenThrow(new IOException("Manager unreadable"));
         }
 
         TransactionSynchronizationManager.initSynchronization();
@@ -112,10 +112,10 @@ class DatabaseLoadAllServiceTest {
             verify(fixture.writer).savePlayers(any(), any());
             verify(fixture.writer).saveStaff(any(), any());
             verify(fixture.metadata).saveAll(anyList());
-            verify(fixture.managedClubs, never()).publish(any());
-            if (fixtureFailure) verify(fixture.managedClubs, never()).detect(123, 1530, null);
+            verify(fixture.managedClubs, never()).publishManagers(any());
+            if (fixtureFailure) verify(fixture.managedClubs, never()).detectManagers(123, 1530, null);
             TransactionSynchronizationManager.getSynchronizations().forEach(s -> s.afterCommit());
-            verify(fixture.managedClubs).publish(unavailable);
+            verify(fixture.managedClubs).publishManagers(ManagedClubContextService.Selection.single(unavailable));
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
         }
@@ -130,7 +130,7 @@ class DatabaseLoadAllServiceTest {
         when(fixture.competitions.exportAllCompetitions(123, 1530, null))
                 .thenReturn(new CompetitionExporter.ExportResult(Collections.nCopies(4, Map.of())));
         ManagedClubContext unemployed = ManagedClubContext.unemployed(8, "Manager", 42L);
-        when(fixture.managedClubs.detect(123, 1530, null)).thenReturn(unemployed);
+        when(fixture.managedClubs.detectManagers(123, 1530, null)).thenReturn(ManagedClubContextService.Selection.single(unemployed));
 
         var result = fixture.service.loadAll(123, 1530, null);
 
@@ -138,7 +138,7 @@ class DatabaseLoadAllServiceTest {
         assertThat(result.clubs()).isEqualTo(3);
         verify(fixture.writer).saveFixtures(
                 new com.github.fmaiassistent.exporter.FixtureExporter.ExportResult(List.of(), "2033-06-10"), Map.of());
-        verify(fixture.managedClubs).publish(unemployed);
+        verify(fixture.managedClubs).publishManagers(ManagedClubContextService.Selection.single(unemployed));
         verify(fixture.metadata).saveAll(anyList());
     }
 
@@ -183,7 +183,7 @@ class DatabaseLoadAllServiceTest {
         }).isInstanceOf(IOException.class).hasMessageContaining("people registry");
         verify(fixture.database, never()).clearAllTables();
         verify(fixture.metadata, never()).saveAll(anyList());
-        verify(fixture.managedClubs).restore(fixture.previousContext);
+        verify(fixture.managedClubs).restoreSelection(fixture.previousSelection);
     }
 
     @Test
@@ -259,7 +259,7 @@ class DatabaseLoadAllServiceTest {
                 .isSameAs(failure);
 
         verify(fixture.database, never()).clearAllTables();
-        verify(fixture.managedClubs).restore(fixture.previousContext);
+        verify(fixture.managedClubs).restoreSelection(fixture.previousSelection);
     }
 
     @Test
@@ -275,7 +275,7 @@ class DatabaseLoadAllServiceTest {
                 .isSameAs(failure);
 
         verify(fixture.database, never()).clearAllTables();
-        verify(fixture.managedClubs).restore(fixture.previousContext);
+        verify(fixture.managedClubs).restoreSelection(fixture.previousSelection);
     }
 
     @Test
@@ -293,10 +293,10 @@ class DatabaseLoadAllServiceTest {
         try {
             fixture.service.loadAll(123, 1530, null);
 
-            verify(fixture.managedClubs, never()).publish(any());
+            verify(fixture.managedClubs, never()).publishManagers(any());
             TransactionSynchronizationManager.getSynchronizations()
                     .forEach(synchronization -> synchronization.afterCommit());
-            verify(fixture.managedClubs).publish(fixture.previousContext);
+            verify(fixture.managedClubs).publishManagers(fixture.previousSelection);
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
         }
@@ -332,12 +332,13 @@ class DatabaseLoadAllServiceTest {
         private final ManagedClubContextService managedClubs = mock(ManagedClubContextService.class);
         private final LoadMetadataRepository metadata = mock(LoadMetadataRepository.class);
         private final ManagedClubContext previousContext = ManagedClubContext.notLoaded(7);
+        private final ManagedClubContextService.Selection previousSelection = ManagedClubContextService.Selection.single(previousContext);
         private final DatabaseLoadAllService service;
 
         private Fixture() throws IOException {
-            when(managedClubs.current()).thenReturn(previousContext);
-            when(managedClubs.detect(123, 1530, null)).thenReturn(previousContext);
-            when(managedClubs.publish(any())).thenAnswer(invocation -> invocation.getArgument(0));
+            when(managedClubs.selection()).thenReturn(previousSelection);
+            when(managedClubs.detectManagers(123, 1530, null)).thenReturn(previousSelection);
+
             when(fixtures.exportManagedClubFixtures(123, 1530, null))
                     .thenReturn(new com.github.fmaiassistent.exporter.FixtureExporter.ExportResult(
                             List.of(), "2033-06-10"));

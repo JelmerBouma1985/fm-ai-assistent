@@ -530,6 +530,7 @@ vaadin-select:hover::part(input-field) {
 
 .managed-club-context-copy {
     display: flex;
+    flex: 1 1 auto;
     min-width: 0;
     flex-direction: column;
     gap: 1px;

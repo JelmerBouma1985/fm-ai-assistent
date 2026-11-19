@@ -98,6 +98,15 @@ The embedded chat supports locally installed **Codex**, **Antigravity** and **Gi
 5. Select **Context** to control what is included with your messages.
 6. Start a new chat and ask your question.
 
+For saves with multiple human managers, **Context > Human manager** lists each detected manager
+with their club or employment status. Select the manager whose context you want included in AI chats.
+The AI selection also controls the default club for AI squad advice, fixture queries and opposition analysis,
+and is retained when you reload the same save while the app is running. Switching managers sends
+fresh context with the next message, including in an existing chat. The **Fixtures** tab has its own
+**Manager** dropdown, independent of the AI selection. FM's account-only placeholder profiles are
+excluded from manager lists and staff; genuine unemployed managers remain available.
+Reload data after upgrading to refresh the manager and staff lists.
+
 Select **Commands** beside the chat input, or type `/`, to see question starters in any chat. Choose a command to fill the input, then edit and send it when ready. You can add requirements after a command, such as `/recruit left back under 25`; they are kept in the expanded question. Press Enter to accept a highlighted suggestion, use the arrow keys to move through suggestions, or press Escape to close them.
 
 | Command | Question starter |

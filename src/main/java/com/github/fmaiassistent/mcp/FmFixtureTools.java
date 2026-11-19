@@ -59,6 +59,7 @@ public class FmFixtureTools {
         LocalDate gameDate = date(snapshot.get("game_date"));
         int safeLimit = Math.max(1, Math.min(MAX_LIMIT, limit == null ? DEFAULT_LIMIT : limit));
         List<FixtureEntity> selected = fixtures.findAllByOrderByKickoffDateAscKickoffTimeAsc().stream()
+                .filter(fixture -> selectedClubFixture(fixture, snapshot))
                 .filter(fixture -> Boolean.TRUE.equals(includePast)
                         || gameDate == null
                         || isOnOrAfter(fixture, gameDate))
@@ -84,6 +85,7 @@ public class FmFixtureTools {
         }
         LocalDate gameDate = date(snapshot.get("game_date"));
         FixtureEntity next = fixtures.findAllByOrderByKickoffDateAscKickoffTimeAsc().stream()
+                .filter(fixture -> selectedClubFixture(fixture, snapshot))
                 .filter(fixture -> gameDate == null || isOnOrAfter(fixture, gameDate))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("No upcoming managed-club fixture is loaded"));
@@ -146,6 +148,12 @@ public class FmFixtureTools {
                 .mapToInt(attribute -> value(attribute.apply(player))))
                 .filter(value -> value > 0).average().orElse(0);
         return new Profile(name, round1(average), squad.size(), attributes.size());
+    }
+
+    private static boolean selectedClubFixture(FixtureEntity fixture, Map<String, Object> snapshot) {
+        Object address = snapshot.get("managed_club_address");
+        return fixture.isForManagedClub(address instanceof Number number ? number.longValue() : null,
+                Objects.toString(snapshot.get("managed_club"), ""));
     }
 
     private static Map<String, Object> fixtureMap(FixtureEntity fixture) {

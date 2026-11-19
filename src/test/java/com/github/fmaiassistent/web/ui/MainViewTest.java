@@ -34,6 +34,52 @@ import static org.mockito.Mockito.when;
 class MainViewTest {
 
     @Test
+    void fixturesManagerSelectionIsIndependentOfAiAndSurvivesTabChanges() throws Exception {
+        MainView view = view();
+        ManagedClubContextService contexts = field(view, "managedClubContexts");
+        var ties = manager(101, "Ties Bouma", "SC Cambuur");
+        var jemme = manager(102, "Jemme Bomma", "Helmond Sport");
+        var jelmer = manager(103, "Jelmer Bouma", "Feyenoord");
+        when(contexts.managers()).thenReturn(List.of(ties, jemme, jelmer));
+        when(contexts.current()).thenReturn(jelmer);
+        com.github.fmaiassistent.repository.FixtureRepository fixtures = field(view, "fixtures");
+        var cambuurMatch = new com.github.fmaiassistent.domain.entity.FixtureEntity("2035-01-01", "15:00", "League",
+                "SC Cambuur", "Opponent A", "Opponent A", "Stadium", true);
+        var helmondMatch = new com.github.fmaiassistent.domain.entity.FixtureEntity("2035-01-01", "15:00", "League",
+                "Opponent B", "Helmond Sport", "Opponent B", "Stadium", false);
+        when(fixtures.findAllByOrderByKickoffDateAscKickoffTimeAsc()).thenReturn(List.of(cambuurMatch, helmondMatch));
+        Tabs tabs = field(view, "tabs");
+        tabs.setSelectedTab(field(view, "fixturesTab"));
+        com.vaadin.flow.component.select.Select<ManagedClubContext> select = field(view, "fixturesManagerSelect");
+        Grid<com.github.fmaiassistent.domain.entity.FixtureEntity> grid = field(view, "fixturesGrid");
+        assertEquals(3, select.getListDataView().getItems().count());
+        assertEquals(ties, select.getValue());
+        assertEquals(List.of(cambuurMatch), grid.getListDataView().getItems().toList());
+
+        select.setValue(jemme);
+        assertEquals(List.of(helmondMatch), grid.getListDataView().getItems().toList());
+        assertSame(jelmer, contexts.current());
+        org.mockito.Mockito.verify(contexts, org.mockito.Mockito.never()).selectManager(org.mockito.ArgumentMatchers.anyLong());
+
+        when(contexts.current()).thenReturn(ties);
+        tabs.setSelectedTab(field(view, "playersTab"));
+        tabs.setSelectedTab(field(view, "fixturesTab"));
+        assertEquals(jemme, select.getValue());
+        assertEquals(List.of(helmondMatch), grid.getListDataView().getItems().toList());
+
+        when(contexts.managers()).thenReturn(List.of(ties, jelmer));
+        tabs.setSelectedTab(field(view, "playersTab"));
+        tabs.setSelectedTab(field(view, "fixturesTab"));
+        assertEquals(ties, select.getValue());
+        assertEquals(List.of(cambuurMatch), grid.getListDataView().getItems().toList());
+    }
+
+    private static ManagedClubContext manager(long id, String name, String club) {
+        return new ManagedClubContext(id, ManagedClubContext.State.AVAILABLE, name, id, club,
+                "", "", "", null, null, null, null, id, "Loaded");
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void settingsOffersFourMemoryPresetsAndSavesTheChoiceForRestart() throws Exception {
         var ui = new com.vaadin.flow.component.UI();

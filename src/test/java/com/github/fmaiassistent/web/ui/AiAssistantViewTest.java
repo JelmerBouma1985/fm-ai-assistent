@@ -25,6 +25,35 @@ import static org.mockito.Mockito.when;
 
 class AiAssistantViewTest {
     @Test
+    @SuppressWarnings("unchecked")
+    void managerDropdownSelectsTheRequestedHumanAndUpdatesTheClubDetails() throws Exception {
+        var contexts = mock(ManagedClubContextService.class);
+        var ties = manager(1, "Ties Bouma", "SC Cambuur");
+        var jelmer = manager(2, "Jelmer Bouma", "Feyenoord");
+        when(contexts.current()).thenReturn(ties);
+        when(contexts.managers()).thenReturn(List.of(ties, jelmer));
+        var changed = new java.util.concurrent.atomic.AtomicInteger();
+        var panel = new ManagedClubContextPanel(contexts, changed::incrementAndGet);
+        Select<ManagedClubContext> select = field(panel, "managerSelect");
+        assertEquals(List.of(ties, jelmer), select.getListDataView().getItems().toList());
+        assertEquals("Jelmer Bouma - Feyenoord", select.getItemLabelGenerator().apply(jelmer));
+        assertEquals(0, changed.get());
+        when(contexts.selectManager(2)).thenAnswer(invocation -> {
+            when(contexts.current()).thenReturn(jelmer);
+            return jelmer;
+        });
+        select.setValue(jelmer);
+        org.mockito.Mockito.verify(contexts).selectManager(2);
+        assertEquals(jelmer, select.getValue());
+        assertTrue(((com.vaadin.flow.component.html.Span) field(panel, "heading")).getText().contains("Feyenoord"));
+        assertEquals(1, changed.get());
+    }
+
+    private static ManagedClubContext manager(long id, String name, String club) {
+        return new ManagedClubContext(id, ManagedClubContext.State.AVAILABLE, name, id, club,
+                "", "", "", null, null, null, null, id, "Loaded");
+    }
+    @Test
     void failedManagedClubIsVisibleInContextPanelAndCannotBeIncluded() throws Exception {
         var contexts = mock(ManagedClubContextService.class);
         when(contexts.current()).thenReturn(ManagedClubContext.unavailable(1, "Manager unreadable"));

@@ -85,4 +85,13 @@ public class FixtureEntity {
     public ClubEntity getHomeClubEntity() { return homeClubEntity; }
     public ClubEntity getAwayClubEntity() { return awayClubEntity; }
     public ClubEntity getOpponentClubEntity() { return opponentClubEntity; }
+
+    public boolean isForManagedClub(Long clubAddress, String clubName) {
+        ClubEntity managedEntity = Boolean.TRUE.equals(home) ? homeClubEntity : awayClubEntity;
+        if (clubAddress != null && managedEntity != null && managedEntity.getSourceAddress() != null) {
+            return clubAddress.equals(managedEntity.getSourceAddress());
+        }
+        String managed = Boolean.TRUE.equals(home) ? homeClub : awayClub;
+        return clubName != null && !clubName.isBlank() && managed != null && managed.equalsIgnoreCase(clubName);
+    }
 }
