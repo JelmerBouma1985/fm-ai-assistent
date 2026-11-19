@@ -18,6 +18,8 @@ import com.github.fmaiassistent.tactic.TacticContextService;
 import com.github.fmaiassistent.snapshot.SnapshotStatusService;
 import com.github.fmaiassistent.snapshot.RefreshCoordinator;
 import com.github.fmaiassistent.domain.enums.MoneyCurrency;
+import com.github.fmaiassistent.domain.enums.DesktopMemoryPreset;
+import com.github.fmaiassistent.desktop.DesktopMemorySettings;
 import com.github.fmaiassistent.repository.*;
 import com.github.fmaiassistent.player.AttributeDefinitions;
 import com.github.fmaiassistent.player.FieldDef;
@@ -116,6 +118,7 @@ public class MainView extends VerticalLayout {
     private final FixtureRepository fixtures;
     private final RecruitmentCaseService recruitment;
     private final AppSettingsService settings;
+    private final DesktopMemorySettings memorySettings;
     private final SnapshotStatusService snapshots;
     private final ContractRepository contracts;
     private final UpdatePanel updatesDialog;
@@ -170,6 +173,7 @@ public class MainView extends VerticalLayout {
             CompetitionDatabaseService competitions,
             FixtureRepository fixtures,
             AppSettingsService settings,
+            DesktopMemorySettings memorySettings,
             SnapshotStatusService snapshots,
             CodexConversationService codexConversations,
             AntigravityConversationService antigravityConversations,
@@ -189,6 +193,7 @@ public class MainView extends VerticalLayout {
         this.fixtures = fixtures;
         this.recruitment = recruitment;
         this.settings = settings;
+        this.memorySettings = memorySettings;
         this.snapshots = snapshots;
         this.contracts = contracts;
         this.updatesDialog = new UpdatePanel(updates);
@@ -1477,6 +1482,10 @@ public class MainView extends VerticalLayout {
     }
 
     private void openSettingsDialog() {
+        settingsDialog().open();
+    }
+
+    Dialog settingsDialog() {
         Dialog dialog = new Dialog();
         dialog.setHeaderTitle("Settings");
         dialog.setWidth("420px");
@@ -1490,29 +1499,66 @@ public class MainView extends VerticalLayout {
         currencySelect.setItemLabelGenerator(MoneyCurrency::label);
         currencySelect.setValue(currency);
 
+        Select<DesktopMemoryPreset> memorySelect = new Select<>();
+        memorySelect.setLabel("Database size");
+        memorySelect.setItems(DesktopMemoryPreset.values());
+        memorySelect.setItemLabelGenerator(DesktopMemoryPreset::label);
+        memorySelect.setPlaceholder("Choose database size");
+        memorySelect.setWidthFull();
+        Span error = new Span();
+        error.getStyle().set("color", "var(--lumo-error-text-color)");
+        error.setVisible(false);
+        memorySelect.setEnabled(memorySettings.available());
+        memorySelect.setHelperText(memorySettings.available()
+                ? "Maximum app memory. Restart the desktop app after saving. Leave memory for Football Manager and your operating system."
+                : "Available in the packaged desktop app. For Java launches, set -Xmx at startup.");
+        DesktopMemoryPreset savedPreset = null;
+        try {
+            savedPreset = memorySettings.preset();
+            memorySelect.setValue(savedPreset);
+        } catch (IOException exception) {
+            memorySelect.setEnabled(false);
+            error.setText("Could not read the desktop memory setting. Check the app folder permissions.");
+            error.setVisible(true);
+        }
+        DesktopMemoryPreset initialPreset = savedPreset;
+        Span currentMemory = new Span(String.format(Locale.ROOT, "Current app limit: %.1f GB",
+                Runtime.getRuntime().maxMemory() / (1024.0 * 1024 * 1024)));
+
         Span file = new Span("Stored in " + settings.settingsPath());
         file.getStyle()
                 .set("font-size", "var(--lumo-font-size-xs)")
                 .set("color", "var(--lumo-secondary-text-color)")
                 .set("overflow-wrap", "anywhere");
 
-        VerticalLayout layout = new VerticalLayout(currencySelect, file);
+        VerticalLayout layout = new VerticalLayout(currencySelect, memorySelect, currentMemory, error, file);
         layout.setPadding(false);
         layout.setSpacing(true);
         layout.addClassName("settings-content");
         dialog.add(layout);
 
         Button save = new Button("Save", VaadinIcon.CHECK.create(), event -> {
-            currency = currencySelect.getValue() == null ? MoneyCurrency.POUND : currencySelect.getValue();
-            settings.saveCurrency(currency);
+            boolean memoryChanged = memorySelect.isEnabled() && memorySelect.getValue() != null
+                    && memorySelect.getValue() != initialPreset;
+            MoneyCurrency chosenCurrency = currencySelect.getValue() == null ? MoneyCurrency.POUND : currencySelect.getValue();
+            try {
+                if (memoryChanged) memorySettings.save(memorySelect.getValue());
+                settings.saveCurrency(chosenCurrency);
+            } catch (IOException | IllegalStateException exception) {
+                error.setText("Could not save settings. Check that the app folder is writable and try again.");
+                error.setVisible(true);
+                return;
+            }
+            currency = chosenCurrency;
             refreshSelectedTab();
-            Notification.show("Settings saved", 2500, Notification.Position.TOP_CENTER);
+            Notification.show(memoryChanged ? "Settings saved. Restart the desktop app to apply the memory limit."
+                    : "Settings saved", 5000, Notification.Position.TOP_CENTER);
             dialog.close();
         });
         save.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         Button cancel = new Button("Cancel", VaadinIcon.CLOSE_SMALL.create(), event -> dialog.close());
         dialog.getFooter().add(cancel, save);
-        dialog.open();
+        return dialog;
     }
 
     private void openPlayerFilterDialog() {

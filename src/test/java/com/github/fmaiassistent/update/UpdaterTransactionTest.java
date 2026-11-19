@@ -39,7 +39,7 @@ class UpdaterTransactionTest {
         Files.writeString(root.resolve("updater/helper.jar"), "fixture");
         Files.writeString(root.resolve("updater/runtime/bin/" + (os.equals("windows") ? "java.exe" : "java")), "fixture");
         Path cfg = root.resolve(os.equals("linux") ? "lib/app/FM AI Assistent.cfg" : "app/FM AI Assistent.cfg");
-        Files.createDirectories(cfg.getParent()); Files.writeString(cfg, "java-options=-Djpackage.app-version=" + version + "\napp.classpath=$APPDIR/fixture.jar\n");
+        Files.createDirectories(cfg.getParent()); Files.writeString(cfg, "[Application]\napp.classpath=$APPDIR/fixture.jar\n[JavaOptions]\njava-options=-Djpackage.app-version=" + version + "\njava-options=-Xmx6g\n");
         Files.writeString(cfg.getParent().resolve("fixture.jar"), "fixture");
         Path jvm = root.resolve(os.equals("linux") ? "lib/runtime/lib/server/libjvm.so" : "runtime/bin/server/jvm.dll");
         Files.createDirectories(jvm.getParent()); Files.writeString(jvm, "fixture");

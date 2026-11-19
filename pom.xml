@@ -410,6 +410,8 @@
                                         <argument>--java-options</argument>
                                         <argument>-Dfile.encoding=UTF-8</argument>
                                         <argument>--java-options</argument>
+                                        <argument>-Xmx6g</argument>
+                                        <argument>--java-options</argument>
                                         <argument>-Dvaadin.productionMode=true</argument>
                                         <argument>--java-options</argument>
                                         <argument>-Dfmai.desktop.image=true</argument>

@@ -38,6 +38,14 @@ Choose one of the release assets:
 
 Download the desktop application for your operating system, extract it when necessary, and run **FM AI Assistent**.
 
+In **Settings > Database size**, choose the maximum memory available to the desktop app:
+Small **4 GB**, Medium **7 GB** (default), Large **10 GB**, or Very large **13 GB**.
+Save, close the app, and launch it again to apply the change. Desktop updates retain the choice.
+These are starting points: carried-over saves and more loaded leagues may need a larger preset.
+Leave enough RAM for Football Manager and the operating system. The limit applies to the Java heap;
+the app also uses some memory outside it. The extracted app folder must be writable to save the setting.
+JAR launches keep using their startup `-Xmx` option.
+
 On Linux, make the downloaded launcher executable if required:
 
 ```bash

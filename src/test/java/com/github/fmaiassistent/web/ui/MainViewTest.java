@@ -34,6 +34,68 @@ import static org.mockito.Mockito.when;
 class MainViewTest {
 
     @Test
+    @SuppressWarnings("unchecked")
+    void settingsOffersFourMemoryPresetsAndSavesTheChoiceForRestart() throws Exception {
+        var ui = new com.vaadin.flow.component.UI();
+        com.vaadin.flow.component.UI.setCurrent(ui);
+        try {
+            MainView view = view();
+            var memory = MainViewTest.<com.github.fmaiassistent.desktop.DesktopMemorySettings>field(view, "memorySettings");
+            when(memory.available()).thenReturn(true);
+            when(memory.preset()).thenReturn(com.github.fmaiassistent.domain.enums.DesktopMemoryPreset.MEDIUM);
+            var dialog = view.settingsDialog();
+            var select = (com.vaadin.flow.component.select.Select<com.github.fmaiassistent.domain.enums.DesktopMemoryPreset>)
+                    descendants(dialog).filter(com.vaadin.flow.component.select.Select.class::isInstance)
+                            .map(com.vaadin.flow.component.select.Select.class::cast)
+                            .filter(component -> "Database size".equals(component.getLabel())).findFirst().orElseThrow();
+            assertEquals(4, select.getListDataView().getItems().count());
+            assertTrue(select.getHelperText().contains("Restart"));
+            assertEquals(com.github.fmaiassistent.domain.enums.DesktopMemoryPreset.MEDIUM, select.getValue());
+            select.setValue(com.github.fmaiassistent.domain.enums.DesktopMemoryPreset.LARGE);
+            dialog.open();
+            dialog.getFooter().getElement().getChildren().flatMap(element -> element.getComponent().stream())
+                    .filter(com.vaadin.flow.component.button.Button.class::isInstance)
+                    .map(com.vaadin.flow.component.button.Button.class::cast)
+                    .filter(button -> "Save".equals(button.getText())).findFirst().orElseThrow().click();
+            org.mockito.Mockito.verify(memory).save(com.github.fmaiassistent.domain.enums.DesktopMemoryPreset.LARGE);
+            assertFalse(dialog.isOpened());
+        } finally {
+            com.vaadin.flow.component.UI.setCurrent(null);
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void failedMemorySaveKeepsSettingsOpenWithAnError() throws Exception {
+        com.vaadin.flow.component.UI.setCurrent(new com.vaadin.flow.component.UI());
+        try {
+            MainView view = view();
+            var memory = MainViewTest.<com.github.fmaiassistent.desktop.DesktopMemorySettings>field(view, "memorySettings");
+            when(memory.available()).thenReturn(true);
+            when(memory.preset()).thenReturn(com.github.fmaiassistent.domain.enums.DesktopMemoryPreset.MEDIUM);
+            org.mockito.Mockito.doThrow(new java.io.IOException("read only")).when(memory)
+                    .save(com.github.fmaiassistent.domain.enums.DesktopMemoryPreset.LARGE);
+            var dialog = view.settingsDialog();
+            var select = (com.vaadin.flow.component.select.Select<com.github.fmaiassistent.domain.enums.DesktopMemoryPreset>)
+                    descendants(dialog).filter(com.vaadin.flow.component.select.Select.class::isInstance)
+                            .map(com.vaadin.flow.component.select.Select.class::cast)
+                            .filter(component -> "Database size".equals(component.getLabel())).findFirst().orElseThrow();
+            select.setValue(com.github.fmaiassistent.domain.enums.DesktopMemoryPreset.LARGE);
+            dialog.open();
+            dialog.getFooter().getElement().getChildren().flatMap(element -> element.getComponent().stream())
+                    .filter(com.vaadin.flow.component.button.Button.class::isInstance)
+                    .map(com.vaadin.flow.component.button.Button.class::cast)
+                    .filter(button -> "Save".equals(button.getText())).findFirst().orElseThrow().click();
+            assertTrue(dialog.isOpened());
+            assertTrue(textOf(dialog).contains("Could not save settings"));
+            org.mockito.Mockito.verify(MainViewTest.<AppSettingsService>field(view, "settings"), org.mockito.Mockito.never())
+                    .saveCurrency(org.mockito.ArgumentMatchers.any());
+        } finally {
+            com.vaadin.flow.component.UI.setCurrent(null);
+        }
+    }
+
+    @Test
     void roleMenusHaveBundledOptionsAndAttributePriorities() throws Exception {
         var factory = MainView.class.getDeclaredMethod("roleComboBox", String.class, String.class);
         factory.setAccessible(true);
@@ -419,7 +481,8 @@ class MainViewTest {
                 mock(PlayerDatabaseService.class), mock(StaffDatabaseService.class),
                 mock(ClubDatabaseService.class), mock(CompetitionDatabaseService.class),
                 mock(com.github.fmaiassistent.repository.FixtureRepository.class),
-                mock(AppSettingsService.class), mock(SnapshotStatusService.class),
+                mock(AppSettingsService.class), mock(com.github.fmaiassistent.desktop.DesktopMemorySettings.class),
+                mock(SnapshotStatusService.class),
                 codex, antigravity, copilot, openRouter, tactics, managedClub,
                 mock(com.github.fmaiassistent.shortlist.ShortlistFileService.class),
                 mock(com.github.fmaiassistent.recruitment.RecruitmentCaseService.class),
