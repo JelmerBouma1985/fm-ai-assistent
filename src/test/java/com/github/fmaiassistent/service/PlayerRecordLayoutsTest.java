@@ -46,10 +46,12 @@ class PlayerRecordLayoutsTest {
         assertThat(match.layouts().competitions()).isEqualTo(CompetitionRecordLayout.current());
     }
 
-    @Test
-    void verifiedGamePassImageIsKnownWithoutASteamManifest(@TempDir Path home) {
-        var match = PlayerRecordLayouts.resolve(home,
-                com.github.fmaiassistent.memory.NativeModuleProfile.GAME_PASS_SHA256);
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "c0a4466f8183a999917de285d47ec19f12b746e29417e402ef55ff927b927df5",
+            "e499d2bddbe90568eae0b86fa39f64ec0b13f96ae5ddd0c94ffb7fc0ba861920"})
+    void verifiedGamePassImageIsKnownWithoutASteamManifest(String image, @TempDir Path home) {
+        var match = PlayerRecordLayouts.resolve(home, image);
         assertThat(match.knownBuild()).isTrue();
         assertThat(match.installedBuildId()).isEqualTo(-1);
         assertThat(match.layouts().players()).isEqualTo(PlayerRecordLayout.current());
