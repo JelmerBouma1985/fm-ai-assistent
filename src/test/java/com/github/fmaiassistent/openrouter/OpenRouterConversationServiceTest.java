@@ -4,6 +4,9 @@ import com.github.fmaiassistent.ai.AiPromptContext;
 import com.github.fmaiassistent.mcp.FmAiAssistentTools;
 import com.github.fmaiassistent.mcp.FmDecisionTools;
 import com.github.fmaiassistent.mcp.FmSnapshotTools;
+import com.github.fmaiassistent.tools.*;
+import com.github.fmaiassistent.service.AppSettingsService;
+import org.springframework.ai.tool.annotation.Tool;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -70,7 +73,8 @@ class OpenRouterConversationServiceTest {
     private OpenRouterConversationService session() {
         return session("fm27_update_recruitment");
     }
-    private OpenRouterConversationService session(String toolName) {
+    private OpenRouterConversationService session(String toolName) { return session(toolName, false); }
+    private OpenRouterConversationService session(String toolName, boolean managed) {
         ToolCallback tool = new ToolCallback() {
             @Override public ToolDefinition getToolDefinition() {
                 return ToolDefinition.builder().name(toolName).description("Update recruitment")
@@ -87,8 +91,21 @@ class OpenRouterConversationServiceTest {
         };
         var client = new OpenRouterClient(json, HttpClient.newHttpClient(),
                 URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/chat"));
-        return new OpenRouterConversationService(json, client, () -> new ToolCallback[] {tool},
+        var provider = managed ? new ToolRegistry(new ToolCallback[] {tool}, new Object[] {new ManagedOwner()}, json,
+                new ToolPolicy(mock(AppSettingsService.class), json), available(), new ToolActivity())
+                : (org.springframework.ai.tool.ToolCallbackProvider) () -> new ToolCallback[] {tool};
+        return new OpenRouterConversationService(json, client, provider,
                 (id, text) -> "Enabled club context\n" + text, "Existing MCP instructions");
+    }
+    private ToolAvailability available() {
+        var availability = mock(ToolAvailability.class);
+        when(availability.unavailable(any())).thenReturn("");
+        return availability;
+    }
+    public static class ManagedOwner {
+        @Tool(name = "fm27_update_recruitment", description = "Update application evidence")
+        @ToolInfo(category = ToolInfo.Category.RECRUITMENT, effect = ToolInfo.Effect.APP_LOCAL_CHANGE, snapshot = false)
+        public void update() { }
     }
     @AfterEach void tearDown() { streamRelease.countDown(); service.close(); server.stop(0); }
 
@@ -129,7 +146,7 @@ class OpenRouterConversationServiceTest {
         assertEquals("openrouter/auto", requests.getFirst().path("model").asString());
         assertEquals(OpenRouterConversationService.Mode.FREE, service.get(service.newConversation()).mode());
     }
-    @Test void catalogOnlyOffersToolCapableModelsAndPaidSelectionNeedsConfirmation() throws Exception {
+    @Test void catalogIncludesTextModelsAndPaidSelectionNeedsConfirmation() throws Exception {
         catalogBody = """
                 {"data":[
                   {"id":"example/fast:free","name":"Fast Free","supported_parameters":["tools"],"pricing":{"prompt":"0","completion":"0","request":"0"}},
@@ -139,12 +156,12 @@ class OpenRouterConversationServiceTest {
                 ]}
                 """;
         var options = service.loadModels();
-        assertEquals(List.of("example/fast:free", "example/strong"), options.stream().map(OpenRouterConversationService.ModelOption::id).toList());
+        assertEquals(List.of("example/fast:free", "example/no-tools", "example/strong"), options.stream().map(OpenRouterConversationService.ModelOption::id).toList());
         assertTrue(options.getFirst().free());
         assertFalse(options.getLast().free());
         assertEquals(List.of("Bearer test-secret-key"), catalogKeys);
         String id = service.newConversation();
-        assertThrows(IllegalArgumentException.class, () -> service.selectModel(id, "example/no-tools", true));
+        assertFalse(options.stream().filter(model -> model.id().equals("example/no-tools")).findFirst().orElseThrow().toolsSupported());
         assertThrows(IllegalArgumentException.class, () -> service.selectModel(id, "example/strong", false));
         assertEquals(OpenRouterConversationService.Mode.FREE, service.get(id).mode());
         service.selectModel(id, "example/fast:free", false);
@@ -166,6 +183,55 @@ class OpenRouterConversationServiceTest {
         service.connect("another-key");
         assertThrows(IllegalArgumentException.class,
                 () -> service.selectModel(service.newConversation(), "example/strong", true));
+    }
+    @Test void conversationDenyFiltersActualRequestAndRejectsForgedCallWithoutExecution() throws Exception {
+        service.close(); service = session("fm27_update_recruitment", true); service.connect("test-secret-key");
+        String id = service.newConversation();
+        String other = service.newConversation();
+        service.setToolSelection(id, java.util.Map.of("fm27_update_recruitment", ToolPolicy.Access.DISABLED));
+        assertTrue(service.toolSelection(other).isEmpty());
+        replies.add(new Reply(200, tool("fm27_update_recruitment", "{\"id\":7}")));
+        service.send(id, "Private request"); awaitDone(id);
+        assertFalse(requests.getFirst().has("tools"));
+        assertEquals(0, writes.get());
+        assertTrue(service.get(id).items().stream().anyMatch(item -> item.text().contains("tool_disabled")));
+        var calls = service.toolRegistry().activity().history(java.util.Set.of(id), false);
+        assertEquals(1, calls.size()); assertEquals(ToolActivity.Status.DENIED, calls.getFirst().status());
+        assertNotNull(calls.getFirst().responseId()); assertNotNull(calls.getFirst().durationMillis());
+        assertTrue(service.toolRegistry().activity().history(java.util.Set.of(other), false).isEmpty());
+        assertFalse(json.writeValueAsString(calls).contains("test-secret-key"));
+        assertFalse(json.writeValueAsString(calls).contains("Private request"));
+    }
+    @Test void globalDisableAfterAdvertisedSchemaStopsActualStaleOpenRouterCall() throws Exception {
+        service.close(); service = session("fm27_update_recruitment", true); service.connect("test-secret-key");
+        String id = service.newConversation(); service.send(id, "Update");
+        long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (requests.isEmpty() && System.nanoTime() < until) Thread.sleep(10);
+        assertEquals(1, requests.size()); assertEquals(1, requests.getFirst().path("tools").size());
+        service.toolRegistry().setGlobal("fm27_update_recruitment", ToolPolicy.Access.DISABLED);
+        service.setToolSelection(id, java.util.Map.of("fm27_update_recruitment", ToolPolicy.Access.ALLOW));
+        replies.add(new Reply(200, tool("fm27_update_recruitment", "{\"id\":7}")));
+        awaitDone(id); assertEquals(0, writes.get());
+        assertTrue(service.get(id).items().stream().anyMatch(item -> item.text().contains("tool_disabled")));
+        service.toolRegistry().setGlobal("fm27_update_recruitment", ToolPolicy.Access.ALLOW);
+        String next = service.newConversation();
+        replies.add(new Reply(200, tool("fm27_update_recruitment", "{\"id\":7}")));
+        replies.add(new Reply(200, answer("Done")));
+        service.send(next, "Update"); awaitDone(next); assertEquals(1, writes.get());
+        assertEquals(ToolActivity.Status.SUCCEEDED, service.toolRegistry().activity().history(java.util.Set.of(next), false).getFirst().status());
+        service.disconnect();
+        assertTrue(service.toolRegistry().activity().history(java.util.Set.of(id, next), false).isEmpty());
+    }
+    @Test void modelWithoutToolsCanAnswerOrdinaryChatWithoutToolDefinitions() throws Exception {
+        catalogBody = """
+                {"data":[{"id":"example/plain","name":"Plain text","supported_parameters":["temperature"],
+                "pricing":{"prompt":"0","completion":"0","request":"0"}}]}
+                """;
+        service.loadModels(); String id = service.newConversation(); service.selectModel(id, "example/plain", true);
+        assertFalse(service.supportsTools(id));
+        replies.add(new Reply(200, answer("Hello"))); service.send(id, "Hello"); awaitDone(id);
+        assertFalse(requests.getFirst().has("tools")); assertEquals(0, writes.get());
+        assertTrue(service.get(id).items().stream().anyMatch(item -> item.text().equals("Hello")));
     }
     @Test void rejectsUnknownAndMalformedToolsBeforeWrites() throws Exception {
         for (String response : List.of(tool("shell", "{\"id\":7}"),

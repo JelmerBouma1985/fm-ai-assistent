@@ -10,6 +10,7 @@ import com.github.fmaiassistent.repository.FixtureRepository;
 import com.github.fmaiassistent.service.PlayerDatabaseService;
 import com.github.fmaiassistent.snapshot.SnapshotStatusService;
 import org.springframework.ai.tool.annotation.Tool;
+import com.github.fmaiassistent.tools.ToolInfo;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,6 +46,7 @@ public class FmFixtureTools {
         this.snapshots = snapshots;
     }
 
+    @ToolInfo(category = ToolInfo.Category.SQUAD, managedClub = true)
     @Tool(name = "fm27_get_managed_club_fixtures", description = "Get fixtures read from FM27 RAM for the human-managed club, ordered by kickoff. Defaults to upcoming fixtures from the loaded in-game date.")
     @Transactional(readOnly = true)
     public Map<String, Object> getManagedClubFixtures(
@@ -74,6 +76,7 @@ public class FmFixtureTools {
         return out;
     }
 
+    @ToolInfo(category = ToolInfo.Category.SQUAD, managedClub = true)
     @Tool(name = "fm27_analyze_next_opposition", description = "Analyze the next opponent from the managed club's RAM-loaded fixture list. Returns the opponent squad's strongest and weakest attribute groups, key players, availability and evidence for an AI agent to turn into a match plan.")
     @Transactional(readOnly = true)
     public Map<String, Object> analyzeNextOpposition() {

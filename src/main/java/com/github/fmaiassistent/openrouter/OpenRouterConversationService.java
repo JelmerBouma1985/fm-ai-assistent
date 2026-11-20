@@ -1,6 +1,8 @@
 package com.github.fmaiassistent.openrouter;
 
 import com.github.fmaiassistent.mcp.FmToolResultFormatter;
+import com.github.fmaiassistent.tools.ToolRegistry;
+import com.github.fmaiassistent.tools.ToolPolicy;
 
 import com.github.fmaiassistent.ai.AiPromptContext;
 import org.springframework.ai.tool.ToolCallback;
@@ -30,7 +32,8 @@ public final class OpenRouterConversationService implements AutoCloseable {
         @Override public String toString() { return label; }
     }
     public record Item(String role, String text, Instant time) { }
-    public record ModelOption(String id, String name, boolean free) {
+    public record ModelOption(String id, String name, boolean free, boolean toolsSupported) {
+        public ModelOption(String id, String name, boolean free) { this(id, name, free, true); }
         @Override public String toString() { return name + " (" + id + ") — " + (free ? "Free" : "may cost money"); }
     }
     public record Snapshot(String id, Mode mode, String requestedModel, String model, boolean running, List<Item> items) { }
@@ -43,6 +46,7 @@ public final class OpenRouterConversationService implements AutoCloseable {
     private final String instructions;
     private final Map<String, ToolCallback> tools = new LinkedHashMap<>();
     private final List<ObjectNode> definitions = new ArrayList<>();
+    private final ToolRegistry registry;
     private final Map<String, Conversation> conversations = new LinkedHashMap<>();
     private final Map<String, ModelOption> catalog = new LinkedHashMap<>();
     private final ScheduledExecutorService deadlines = Executors.newSingleThreadScheduledExecutor();
@@ -57,6 +61,7 @@ public final class OpenRouterConversationService implements AutoCloseable {
         this.client = client;
         this.context = context;
         this.instructions = instructions;
+        this.registry = provider instanceof ToolRegistry managed ? managed : null;
         for (ToolCallback tool : provider.getToolCallbacks()) {
             var definition = tool.getToolDefinition();
             tools.put(definition.name(), tool);
@@ -128,13 +133,12 @@ public final class OpenRouterConversationService implements AutoCloseable {
             boolean toolsSupported = false;
             for (JsonNode parameter : entry.path("supported_parameters"))
                 if ("tools".equals(parameter.asString())) toolsSupported = true;
-            if (!toolsSupported) continue;
             if (!supportsText(entry.path("architecture").path("input_modalities"))
                     || !supportsText(entry.path("architecture").path("output_modalities"))) continue;
             boolean free = id.endsWith(":free");
             if (free && !zeroPricing(entry.path("pricing"))) continue;
             String name = entry.path("name").asString(id);
-            found.put(id, new ModelOption(id, name.substring(0, Math.min(100, name.length())), free));
+            found.put(id, new ModelOption(id, name.substring(0, Math.min(100, name.length())), free, toolsSupported));
         }
         synchronized (this) {
             if (closed || key == null || credentialGeneration != generation)
@@ -161,7 +165,7 @@ public final class OpenRouterConversationService implements AutoCloseable {
         Conversation c = conversation(id);
         if (c.running) throw new IllegalStateException("Wait for the response before changing model.");
         ModelOption option = catalog.get(modelId);
-        if (option == null) throw new IllegalArgumentException("Choose a tool-capable model from the current OpenRouter catalog.");
+        if (option == null) throw new IllegalArgumentException("Choose a model from the current OpenRouter catalog.");
         if (!option.free() && !confirmed) throw new IllegalArgumentException("Confirm that this model may cost money.");
         c.mode = Mode.SPECIFIC;
         c.requestedModel = option.id();
@@ -180,6 +184,7 @@ public final class OpenRouterConversationService implements AutoCloseable {
         try { request(c); } catch (RuntimeException e) { c.history.removeLast(); throw e; }
         c.items.add(new Item("You", text, Instant.now()));
         c.running = true;
+        c.responseId = UUID.randomUUID().toString();
         c.cancelled = false;
         c.deadline = System.nanoTime() + TimeUnit.MINUTES.toNanos(5);
         publish(c);
@@ -209,7 +214,25 @@ public final class OpenRouterConversationService implements AutoCloseable {
             c.history.clear();
             c.items.clear();
         }
+        if (registry != null) registry.activity().clear(Set.copyOf(conversations.keySet()), false);
         conversations.clear();
+    }
+
+    public ToolRegistry toolRegistry() { return registry; }
+    public synchronized Set<String> conversationIds() { return Set.copyOf(conversations.keySet()); }
+    public synchronized Map<String, ToolPolicy.Access> toolSelection(String id) { return conversation(id).selection; }
+    public synchronized void setToolSelection(String id, Map<String, ToolPolicy.Access> selection) {
+        if (registry == null) throw new IllegalStateException("Tool management unavailable.");
+        selection.forEach(registry::validateAccess);
+        conversation(id).selection = Map.copyOf(selection);
+    }
+    public synchronized void updateToolSelection(String id, java.util.function.UnaryOperator<Map<String, ToolPolicy.Access>> update) {
+        setToolSelection(id, update.apply(new LinkedHashMap<>(conversation(id).selection)));
+    }
+    public synchronized boolean supportsTools(String id) {
+        var c = conversation(id);
+        var option = catalog.get(c.requestedModel);
+        return c.mode != Mode.SPECIFIC || option == null || option.toolsSupported();
     }
     @Override public synchronized void close() {
         disconnect();
@@ -262,8 +285,16 @@ public final class OpenRouterConversationService implements AutoCloseable {
                     }
                     String result;
                     String validationError = null;
-                    try { result = tools.get(call.name.toString()).call(call.arguments.toString()); }
+                    try {
+                        if (!supportsTools(c.id)) throw new ToolRegistry.Denied("unsupported_agent", "This model does not support tools.");
+                        result = registry == null ? tools.get(call.name.toString()).call(call.arguments.toString())
+                                : registry.invoke(call.name.toString(), call.arguments.toString(),
+                                        new ToolRegistry.Invocation(c.id, c.responseId, () -> c.selection));
+                    }
                     catch (Exception e) {
+                        if (e instanceof ToolRegistry.Denied denial)
+                            throw new OpenRouterClient.Failure(denial.getMessage()
+                                    + " Review Tools before retrying. No denied handler was run.");
                         synchronized (this) {
                             check(c);
                             validationError = validationError(e);
@@ -378,7 +409,11 @@ public final class OpenRouterConversationService implements AutoCloseable {
     private String request(Conversation c) {
         ObjectNode body = json.createObjectNode().put("model", c.mode == Mode.SPECIFIC ? c.requestedModel : c.mode.model).put("stream", true);
         body.set("messages", json.valueToTree(c.history));
-        body.set("tools", json.valueToTree(definitions));
+        if (supportsTools(c.id)) {
+            var enabled = definitions.stream().filter(entry -> registry == null
+                    || registry.advertised(entry.path("function").path("name").asString(), c.selection)).toList();
+            if (!enabled.isEmpty()) body.set("tools", json.valueToTree(enabled));
+        }
         // No fallback models, plugins, retries, or account privacy overrides.
         String value = json.writeValueAsString(body);
         if (bytes(value) > HISTORY_LIMIT) throw new OpenRouterClient.Failure("Request history exceeds 512 KiB. Ask a narrower question or start a new chat.");
@@ -456,6 +491,8 @@ public final class OpenRouterConversationService implements AutoCloseable {
         final String id = UUID.randomUUID().toString();
         final List<ObjectNode> history = new ArrayList<>();
         final List<Item> items = new ArrayList<>();
+        volatile Map<String, ToolPolicy.Access> selection = Map.of();
+        String responseId;
         Mode mode = Mode.FREE;
         String requestedModel;
         String model;

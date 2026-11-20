@@ -6,6 +6,10 @@ import com.github.fmaiassistent.mcp.FmFixtureTools;
 import com.github.fmaiassistent.mcp.FmSnapshotTools;
 import com.github.fmaiassistent.mcp.CompactFmToolCallback;
 import com.github.fmaiassistent.mcp.FmToolResultFormatter;
+import com.github.fmaiassistent.tools.ToolRegistry;
+import com.github.fmaiassistent.tools.ToolPolicy;
+import com.github.fmaiassistent.tools.ToolActivity;
+import com.github.fmaiassistent.tools.ToolAvailability;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.method.MethodToolCallbackProvider;
@@ -19,18 +23,19 @@ import java.util.Arrays;
 class FmAiAssistentMcpConfiguration {
 
     @Bean
-    ToolCallbackProvider fmAiAssistentToolCallbackProvider(
+    ToolRegistry fmAiAssistentToolCallbackProvider(
             FmAiAssistentTools tools,
             FmSnapshotTools snapshotTools,
             FmDecisionTools decisionTools,
             FmFixtureTools fixtureTools,
-            ObjectMapper json) {
+            ObjectMapper json, ToolPolicy policy, ToolAvailability availability, ToolActivity activity) {
         ToolCallback[] callbacks = MethodToolCallbackProvider.builder()
                 .toolObjects(tools, snapshotTools, decisionTools, fixtureTools)
                 .build().getToolCallbacks();
-        return ToolCallbackProvider.from(Arrays.stream(callbacks)
+        return new ToolRegistry(Arrays.stream(callbacks)
                 .map(callback -> FmToolResultFormatter.supports(callback.getToolDefinition().name())
                         ? new CompactFmToolCallback(callback, json) : callback)
-                .toArray(ToolCallback[]::new));
+                .toArray(ToolCallback[]::new), new Object[] { tools, snapshotTools, decisionTools, fixtureTools },
+                json, policy, availability, activity);
     }
 }
