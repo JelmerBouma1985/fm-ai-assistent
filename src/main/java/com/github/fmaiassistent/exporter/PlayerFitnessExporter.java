@@ -9,11 +9,12 @@ import java.util.Map;
 
 /** Enriches the same atomic player snapshot with FM's medical calculations. */
 final class PlayerFitnessExporter {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PlayerFitnessExporter.class);
     private PlayerFitnessExporter() { }
 
     static void capture(ProcessMemoryReader reader, Long moduleBase, List<Map<String, Object>> rows,
             LocalDate gameDate) throws IOException {
-        if (reader.platform() != ProcessMemoryReader.Platform.WINDOWS) return;
+        if (reader.platform() != ProcessMemoryReader.Platform.WINDOWS || rows.isEmpty()) return;
         long resolvedBase = moduleBase == null
                 ? com.github.fmaiassistent.linux.FmOffsets.findGamePluginBase(reader) : moduleBase;
         var identity = com.github.fmaiassistent.memory.PersonIdentityLayout.current();
@@ -27,8 +28,13 @@ final class PlayerFitnessExporter {
                 throw new PlayerSnapshotValidator.PersonIdentityChangedException("Player fitness identity changed before capture");
             identities.add(prefix);
         }
+        String profile = com.github.fmaiassistent.linux.FmOffsets.moduleProfile(reader, resolvedBase);
+        if (!com.github.fmaiassistent.memory.NativeModuleProfile.supportsFitness(profile)) {
+            log.warn("FM fitness calculations are unavailable: the loaded game image has no verified medical/training layout");
+            return;
+        }
         try (var cached = new com.github.fmaiassistent.memory.PagedSnapshotMemoryReader(reader, 8192)) {
-            captureRows(cached, resolvedBase, rows, gameDate);
+            captureRows(cached, resolvedBase, rows, gameDate, profile);
         }
         for (int i = 0; i < rows.size(); i++) {
             long person = Long.decode(String.valueOf(rows.get(i).get("record")));
@@ -42,12 +48,17 @@ final class PlayerFitnessExporter {
     }
 
     private static void captureRows(ProcessMemoryReader reader, long moduleBase,
-            List<Map<String, Object>> rows, LocalDate gameDate) throws IOException {
-        var matchLoads = new PlayerMatchLoadReader();
-        var trainingLoads = new PlayerTrainingLoadReader();
-        var injuryRisk = new PlayerInjuryRiskReader();
-        var trainingSelection = new PlayerTrainingSelectionReader();
-        var medicalStaff = new PlayerMedicalStaffReader();
+            List<Map<String, Object>> rows, LocalDate gameDate, String profile) throws IOException {
+        var categoriesLayout = com.github.fmaiassistent.memory.PlayerInjuryRiskLayout.TrainingCategories.forModule(profile);
+        var matchLoads = new PlayerMatchLoadReader(com.github.fmaiassistent.memory.PlayerMatchLoadLayout.forModule(profile));
+        var trainingLoads = new PlayerTrainingLoadReader(
+                com.github.fmaiassistent.memory.PlayerTrainingLoadLayout.forModule(profile), categoriesLayout);
+        var injuryRisk = new PlayerInjuryRiskReader(com.github.fmaiassistent.memory.PlayerInjuryRiskLayout.current(),
+                com.github.fmaiassistent.memory.PlayerInjuryRiskLayout.Calculation.forModule(profile), categoriesLayout,
+                com.github.fmaiassistent.memory.PlayerMedicalAssessmentLayout.forModule(profile));
+        var trainingSelection = new PlayerTrainingSelectionReader(
+                com.github.fmaiassistent.memory.PlayerTrainingSelectionLayout.forModule(profile), profile);
+        var medicalStaff = new PlayerMedicalStaffReader(com.github.fmaiassistent.memory.PlayerMedicalStaffLayout.forModule(profile));
         var displacements = new HashMap<Long, Integer>();
         for (var row : rows) {
             long person = Long.decode(String.valueOf(row.get("record")));

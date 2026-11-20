@@ -14,8 +14,16 @@ import java.util.Set;
 public final class PlayerTrainingLoadReader {
     private static final int MAX_ITEMS = 4096;
     private final PlayerTrainingLoadLayout layout;
+    private final com.github.fmaiassistent.memory.PlayerInjuryRiskLayout.TrainingCategories trainingCategories;
     public PlayerTrainingLoadReader() { this(PlayerTrainingLoadLayout.current()); }
-    PlayerTrainingLoadReader(PlayerTrainingLoadLayout layout) { this.layout = layout; }
+    PlayerTrainingLoadReader(PlayerTrainingLoadLayout layout) {
+        this(layout, com.github.fmaiassistent.memory.PlayerInjuryRiskLayout.TrainingCategories.current());
+    }
+    PlayerTrainingLoadReader(PlayerTrainingLoadLayout layout,
+            com.github.fmaiassistent.memory.PlayerInjuryRiskLayout.TrainingCategories categories) {
+        this.layout = layout;
+        this.trainingCategories = categories;
+    }
 
     public Result read(ProcessMemoryReader reader, long player, long moduleBase, LocalDate date) throws IOException {
         validateLayout(layout);
@@ -455,7 +463,7 @@ public final class PlayerTrainingLoadReader {
         var s = layout.schedule();
         for (int day = 0; day < 7; day++) for (int session = 0; session < 3; session++) {
             int code = r.readU16(schedule + day * (long) s.dayStride() + s.firstSession() + session * 2L);
-            if ((personalDays & (1 << day)) != 0 && PlayerInjuryRiskReader.isExcludedOnPersonalDay(r,module,code)) continue;
+            if ((personalDays & (1 << day)) != 0 && PlayerInjuryRiskReader.isExcludedOnPersonalDay(r,module,code,trainingCategories)) continue;
             long definition = sessionDefinition(r, definitions, code);
             if (definition == 0) continue;
             for (int i = 0; i < effects.length; i++) {

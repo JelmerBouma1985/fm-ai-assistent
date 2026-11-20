@@ -21,9 +21,13 @@ public record PlayerInjuryRiskLayout(
             int professionalism, int ambition, int goalkeeper, int categorySizesRva, int categorySizeStride,
             int firstMapRva, int goalkeeperMapRva, int outfieldMapRva, int personalDayExclusionsRva) {
         public static TrainingCategories current() {
+            return forModule(NativeModuleProfile.FM27_SHA256);
+        }
+
+        public static TrainingCategories forModule(String profile) {
             return new TrainingCategories(0x68, 0xFA, 0, 36, 0x90, 0x98, 24, 0xF6,
-                    8, 2, 8, 8, 0x54, 0x51, 0x150, 0x4EBD048, 19,
-                    0x4EBD42C, 0x4EBD1BC, 0x4EBD504, 0x4D34208);
+                    8, 2, 8, 8, 0x54, 0x51, 0x150, NativeModuleProfile.fitnessRva(profile, 0x4EBD048), 19,
+                    NativeModuleProfile.fitnessRva(profile, 0x4EBD42C), NativeModuleProfile.fitnessRva(profile, 0x4EBD1BC), NativeModuleProfile.fitnessRva(profile, 0x4EBD504), NativeModuleProfile.fitnessRva(profile, 0x4D34208));
         }
     }
 
@@ -32,7 +36,11 @@ public record PlayerInjuryRiskLayout(
             int personIndex, int previousBegin, int previousEnd, int previousPlayerIndex,
             int previousInjuryIndex, int injuryFactorMask, int recurringCount, int recoveryState) {
         public static Calculation current() {
-            return new Calculation(0x56FF311, 0x56F5D08, 0x5703710, 0x80, 0, 8,
+            return forModule(NativeModuleProfile.FM27_SHA256);
+        }
+
+        public static Calculation forModule(String profile) {
+            return new Calculation(NativeModuleProfile.fitnessRva(profile, 0x56FF311), NativeModuleProfile.fitnessRva(profile, 0x56F5D08), NativeModuleProfile.fitnessRva(profile, 0x5703710), 0x80, 0, 8,
                     0x1EE, 8, 4, 0x10, 0xB8, 0xC0, 4, 8, 0x66, 2, 0x30);
         }
     }

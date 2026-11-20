@@ -24,4 +24,18 @@ public record PlayerTrainingSelectionLayout(long positionRolesRva, long attribut
                 new CodeAnchor(0x15F3FD0,1104,"e6861add8e86df8d281ee9c7f84456bf84b387eeac04cad8f1d176d4b7b63877"),
                 new CodeAnchor(0x4FBC68C,99,"dcd419fd828e310ce7893f6847651a9303d2d99a4d81a0c9d00a92f9f02c0319")));
     }
+
+    public static PlayerTrainingSelectionLayout forModule(String profile) {
+        if (NativeModuleProfile.FM27_SHA256.equals(profile)) return current();
+        if (!NativeModuleProfile.STEAM_26620374_SHA256.equals(profile))
+            throw new IllegalArgumentException("Training role selection is not verified for this FM27 image");
+        return new PlayerTrainingSelectionLayout(NativeModuleProfile.fitnessRva(profile, 0x5708BB8),
+                NativeModuleProfile.fitnessRva(profile, 0x5708A48), NativeModuleProfile.fitnessRva(profile, 0x5708A50),
+                0x150, 0x148, 0x17, 0x264, 0x273, java.util.List.of(
+                new CodeAnchor(0x4978F60, 726, "37d1dec1c0d08a4348ddabbbe3861c4c37d33222c61386a06e534cb259487fdc"),
+                new CodeAnchor(0x4978A70, 1258, "59a75a68d255347f2338009683bd3a1be58ca09cfe9f2c9dec60462e52c51067"),
+                new CodeAnchor(0x3E6E400, 2465, "354b95c07043423964b8c0f3581e60b1f62ce608e535103d83727e9e0c207ee8"),
+                new CodeAnchor(0x166A060, 694, "bac20aa5d4e3568a899bdd6b2df4e823a96e7b4fee90a005e4c6b1a98c94af46"),
+                new CodeAnchor(0x16730D0, 1097, "7acfa659f2e63956f152d953e54cbd8beaa4bf7375d80b4c23c1a5e63775c855")));
+    }
 }

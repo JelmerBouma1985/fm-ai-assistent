@@ -38,8 +38,12 @@ public record PlayerTrainingLoadLayout(Globals globals, Player player, Manager m
                          long increasedRisk, long highRisk) {}
     public record RestCalendar(int records, int person, int startDay, int startYear, int endDay, int endYear) {}
     public static PlayerTrainingLoadLayout current() {
+        return forModule(NativeModuleProfile.FM27_SHA256);
+    }
+
+    public static PlayerTrainingLoadLayout forModule(String profile) {
         return new PlayerTrainingLoadLayout(
-                new Globals(0x56F23B0,0x56FF347,0xF47D90,0xF4A0F0,0x4D2A24C,0x4AFB6D8,0x4B01814),
+                new Globals(NativeModuleProfile.fitnessRva(profile, 0x56F23B0),NativeModuleProfile.fitnessRva(profile, 0x56FF347),NativeModuleProfile.fitnessRva(profile, 0xF47D90),NativeModuleProfile.fitnessRva(profile, 0xF4A0F0),NativeModuleProfile.fitnessRva(profile, 0x4D2A24C),NativeModuleProfile.fitnessRva(profile, 0x4AFB6D8),NativeModuleProfile.fitnessRva(profile, 0x4B01814)),
                 new Player(8,4,8,0x10,0x1EE,0x128,0x130,0x1A8,0x198,0x1A0,0x1C0,
                         0x1F3,0x1FD,0x25C,0x54,0x51),
                 new Manager(0x40,0x68,0x39,0x20,0x98,0xA0),
@@ -49,12 +53,12 @@ public record PlayerTrainingLoadLayout(Globals globals, Player player, Manager m
                 new Schedule(0x20,0x0C,0x0E,0x10,8,2,0x10,0x18,0),
                 new Session(0xFA,0xF0,0xF1,0xF2),
                 new Extra(0x18,8,0x0A,0x17,6,6,4),
-                new Focus(0xF0,0x80,0x4AFC130,0x4C8C3A4,0x4AFC130,0x4AFC134),
-                new Role(0x56F5DE0,0x20,0x78,8,0x1050,0x1038,0x1058,0x118,0x48,
-                        0xA0,0xD0,0x30,0x148,8,0x0A,0x4FBB698,0x4D2E314),
-                new PreferredPosition(0x108,2,3,0xFC,0xFE,0x4D36ACC,0x4FBB700),
+                new Focus(0xF0,0x80,NativeModuleProfile.fitnessRva(profile, 0x4AFC130),NativeModuleProfile.fitnessRva(profile, 0x4C8C3A4),NativeModuleProfile.fitnessRva(profile, 0x4AFC130),NativeModuleProfile.fitnessRva(profile, 0x4AFC134)),
+                new Role(NativeModuleProfile.fitnessRva(profile, 0x56F5DE0),0x20,0x78,8,0x1050,0x1038,0x1058,0x118,0x48,
+                        0xA0,0xD0,0x30,0x148,8,0x0A,NativeModuleProfile.fitnessRva(profile, 0x4FBB698),NativeModuleProfile.fitnessRva(profile, 0x4D2E314)),
+                new PreferredPosition(0x108,2,3,0xFC,0xFE,NativeModuleProfile.fitnessRva(profile, 0x4D36ACC),NativeModuleProfile.fitnessRva(profile, 0x4FBB700)),
                 new Tactic(0xE0,0xE8,0x105,0xBC,0xE8,0x438,0x48,0,0x40,
-                        8,0x18,0,8,0x4AFFF50,0x4AFEC20),
+                        8,0x18,0,8,NativeModuleProfile.fitnessRva(profile, 0x4AFFF50),NativeModuleProfile.fitnessRva(profile, 0x4AFEC20)),
                 new RestCalendar(0x18,0,8,0x0A,0x0C,0x0E));
     }
 }

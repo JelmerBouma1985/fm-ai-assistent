@@ -10,6 +10,23 @@ import java.util.*;
 import static org.assertj.core.api.Assertions.*;
 
 class PlayerTrainingSelectionReaderTest {
+    @Test void currentBuildUsesUpdatedPartnerPositionsWithoutTheLegacyLowFamiliarityPenalty() {
+        byte[] attrs = new byte[54]; Arrays.fill(attrs, (byte) 100);
+        byte[] importance = new byte[54]; Arrays.fill(importance, (byte) -1);
+        importance[0] = 0;
+        int[][] partners = {{6,2}, {10,13}, {13,6}, {16,3}, {17,7}, {27,10}, {33,9}};
+        for (var partner : partners) {
+            byte[] positions = new byte[15]; positions[0] = 12; positions[partner[1]] = 20;
+            assertThat(PlayerTrainingSelectionReader.ability(attrs,0,positions,100,0,
+                    1L << partner[0], 8, 0, importance,true)).as("role bit %s",partner[0]).isEqualTo(192);
+        }
+        byte[] positions = new byte[15]; positions[0] = 12; positions[10] = 14;
+        assertThat(PlayerTrainingSelectionReader.ability(attrs,0,positions,100,0,
+                1L << 40,8,0,importance,true)).isEqualTo(166);
+        assertThat(PlayerTrainingSelectionReader.ability(attrs,0,positions,100,0,
+                1L << 40,8,0,importance,false)).isEqualTo(112);
+    }
+
     @Test void replaysCapturedNativeRoleClassifiersAndPlayerAbility() throws Exception {
         var memory = captured();
         var result = new PlayerTrainingSelectionReader().read(memory, memory.player, memory.module, 128);

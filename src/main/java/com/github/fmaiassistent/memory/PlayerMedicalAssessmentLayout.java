@@ -19,12 +19,16 @@ public record PlayerMedicalAssessmentLayout(int medicalRel, int vectorBeginRel,
         int statusDurationRel, long statusCutoffFlagRva, long statusManagerRva,
         int statusCutoffDayRel, int statusCutoffYearRel) {
     public static PlayerMedicalAssessmentLayout current() {
+        return forModule(NativeModuleProfile.FM27_SHA256);
+    }
+
+    public static PlayerMedicalAssessmentLayout forModule(String profile) {
         return new PlayerMedicalAssessmentLayout(0xF8, 0, 8, 16, 8, 0x20,
                 0x22, 0x28, 0x2A, 0x2E, 0x33, 0x18F, 0x191, 0x278, 0x262,
-                0x20C, 0x208, 0x56F5D08L, 0x50, 0x5703710L, 0x5703DE0L,
+                0x20C, 0x208, NativeModuleProfile.fitnessRva(profile, 0x56F5D08), 0x50, NativeModuleProfile.fitnessRva(profile, 0x5703710), NativeModuleProfile.fitnessRva(profile, 0x5703DE0),
                 8, 0x80, 0x60, 0x68, 4, 6, 8, 0xA, 0xE, 0x64, 0x6C, 0x71,
-                0x258, 0x25C, 0x25A, 4, 0, 0, 0x10, 0x10, 0x5131588L,
+                0x258, 0x25C, 0x25A, 4, 0, 0, 0x10, 0x10, NativeModuleProfile.fitnessRva(profile, 0x5131588),
                 0x78, 0x80, 0x88, 24, 0xA0, 0x18, 5, 0x10, 0x12, 0x16,
-                0x56FF347L, 0x5709280L, 0x164, 0x166);
+                NativeModuleProfile.fitnessRva(profile, 0x56FF347), NativeModuleProfile.fitnessRva(profile, 0x5709280), 0x164, 0x166);
     }
 }

@@ -28,6 +28,40 @@ public final class NativeModuleProfile {
 
     /** Steam 26620374: live RTTI class/this-offset matches and validated registry/global roots. */
     private static final Map<Integer, Integer> STEAM_26620374_RVAS = Map.ofEntries(
+            Map.entry(0x3019A0, 0x31E3D0),
+            Map.entry(0x301BD0, 0x31E600),
+            Map.entry(0xF47D90, 0xFA51A0),
+            Map.entry(0xF4A0F0, 0xFA7500),
+            Map.entry(0x4AFB6D8, 0x4C58A68),
+            Map.entry(0x4AFC130, 0x4C594C0),
+            Map.entry(0x4AFC134, 0x4C594C4),
+            Map.entry(0x4AFEC20, 0x4C5BFD0),
+            Map.entry(0x4AFFF50, 0x4C5D3F0),
+            Map.entry(0x4B01814, 0x4C5ECD4),
+            Map.entry(0x4C8C3A4, 0x4DE7E80),
+            Map.entry(0x4D2A24C, 0x4E8C3DC),
+            Map.entry(0x4D2E314, 0x4E90488),
+            Map.entry(0x4D34208, 0x4E964A0),
+            Map.entry(0x4D36ACC, 0x4E90B7C),
+            Map.entry(0x4EBD048, 0x50322F8),
+            Map.entry(0x4EBD42C, 0x50326DC),
+            Map.entry(0x4EBD1BC, 0x503246C),
+            Map.entry(0x4EBD504, 0x50327B4),
+            Map.entry(0x4FBB698, 0x512AED8),
+            Map.entry(0x4FBB700, 0x512AF40),
+            Map.entry(0x4ED8A58, 0x504D8C8),
+            Map.entry(0x5131588, 0x52A3668),
+            Map.entry(0x56F23B0, 0x586BED0),
+            Map.entry(0x56F5D08, 0x586F848),
+            Map.entry(0x56F5DE0, 0x586F920),
+            Map.entry(0x56FF311, 0x5879199),
+            Map.entry(0x56FF347, 0x58791CF),
+            Map.entry(0x5703710, 0x587B7F8),
+            Map.entry(0x5703DE0, 0x587BEC8),
+            Map.entry(0x5708BB8, 0x5882A58),
+            Map.entry(0x5708A48, 0x58828E8),
+            Map.entry(0x5708A50, 0x58828F0),
+            Map.entry(0x5709280, 0x5883120),
             Map.entry(0x4B00AE8, 0x4C5DFA8),
             Map.entry(0x4B01058, 0x4C5E518),
             Map.entry(0x4C8C898, 0x4DFF338),
@@ -139,6 +173,16 @@ public final class NativeModuleProfile {
     private static final Map<Path, CachedIdentity> IDENTITIES = new ConcurrentHashMap<>();
 
     private NativeModuleProfile() { }
+
+    /** Medical/training arithmetic is verified only for these exact executable images. */
+    public static boolean supportsFitness(String profile) {
+        return FM27_SHA256.equals(profile) || STEAM_26620374_SHA256.equals(profile);
+    }
+
+    public static int fitnessRva(String profile, int legacyRva) {
+        if (!supportsFitness(profile)) throw new IllegalArgumentException("Fitness calculations are not verified for this FM27 module");
+        return rva(profile, legacyRva);
+    }
 
     public static boolean supported(String hash) {
         return MODULE_BYTES.containsKey(hash == null ? "" : hash);

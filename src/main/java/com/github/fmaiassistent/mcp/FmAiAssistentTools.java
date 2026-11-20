@@ -1157,6 +1157,7 @@ public class FmAiAssistentTools {
     private Map<String, Object> playerSummaryMap(PlayerEntity player) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.putAll(PlayerMapper.fitnessMap(player));
+        out.put("player_traits", player.getPlayerTraits());
         out.put("id", player.getId());
         out.put("unique_id", player.getUniqueId());
         out.put("name", player.getName());

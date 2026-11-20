@@ -65,7 +65,7 @@ class DesktopMemorySettingsTest {
 
     @Test
     void recognisesEquivalentUnitsAndKeepsCustomLimitsUntilUserChoosesAPreset() throws Exception {
-        assertThat(LauncherMemory.heapBytes("[JavaOptions]\njava-options=-Xmx6144m\n"))
+        assertThat(LauncherMemory.heapBytes("[JavaOptions]\njava-options=-Xmx7168m\n"))
                 .hasValue(DesktopMemoryPreset.MEDIUM.bytes());
         Path config = temporary.resolve("FM AI Assistent.cfg");
         Files.writeString(config, "[JavaOptions]\njava-options=-Xmx8g\n");

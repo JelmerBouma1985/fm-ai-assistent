@@ -22,6 +22,54 @@ class PlayerExporterTest {
     private static final long PERSON = 0x4000;
 
     @Test
+    void replaysCurrentSteamFitnessAndTraitsForPureAndHybridPlayers() throws Exception {
+        byte[] captured;
+        try (var input = getClass().getResourceAsStream("/fm27/player-fitness-26620374-captured.json")) {
+            assertThat(input).isNotNull();
+            captured = input.readNBytes(65_537);
+        }
+        assertThat(captured.length).isLessThanOrEqualTo(65_536);
+        var fixture = tools.jackson.databind.json.JsonMapper.builder().build().readTree(captured);
+        assertThat(fixture.get("moduleSha256").asString())
+                .isEqualTo(com.github.fmaiassistent.memory.NativeModuleProfile.STEAM_26620374_SHA256);
+        var types = new java.util.HashSet<String>();
+        var fitness = com.github.fmaiassistent.memory.PlayerFitnessLayout.current();
+        var traits = com.github.fmaiassistent.memory.PlayerTraitsLayout.current();
+        for (var sample : fixture.get("samples")) {
+            FakeMemory memory = minimalPlayerRow();
+            memory.windows = true;
+            int displacement = sample.get("dynamicOffset").asInt();
+            int relativeShift = PersonMemoryClassifier.PLAYER_DYNAMIC_OFFSET - displacement;
+            memory.put(0x7000, java.util.HexFormat.of().parseHex(sample.get("rttiHex").asString()));
+            byte[] prefix = java.util.HexFormat.of().parseHex(sample.get("prefixHex").asString());
+            memory.put(PERSON + Long.BYTES, java.util.Arrays.copyOfRange(prefix, Long.BYTES, prefix.length));
+            memory.fill(PERSON + relativeShift - 0x1A0, 0x1A0, 0);
+            var expected = sample.get("expected");
+            memory.putI16(PERSON + relativeShift + AttributeDefinitions.CURRENT_ABILITY_REL, expected.get("ca").asInt());
+            memory.putI16(PERSON + relativeShift + AttributeDefinitions.POTENTIAL_ABILITY_REL, expected.get("pa").asInt());
+            putPlausiblePlayerBlock(memory, relativeShift, true);
+            memory.putU8(PERSON + relativeShift - 0x5A, 182);
+            memory.put(PERSON + relativeShift + fitness.conditionRel(),
+                    java.util.HexFormat.of().parseHex(sample.get("fitnessHex").asString()));
+            memory.put(PERSON + traits.personRel(),
+                    java.util.HexFormat.of().parseHex(sample.get("traitsLittleEndianHex").asString()));
+
+            var row = new PlayerExporter().decodeRow(memory, sample.get("index").asInt(), PERSON, "", null);
+
+            assertThat(row).as("current RAM sample UID %s", expected.get("unique_id").asLong())
+                    .containsEntry("unique_id", expected.get("unique_id").asLong())
+                    .containsEntry("condition", expected.get("condition").asInt())
+                    .containsEntry("fatigue", expected.get("fatigue").asInt())
+                    .containsEntry("sharpness", expected.get("sharpness").asInt())
+                    .containsEntry("player_traits", expected.get("player_traits").asString())
+                    .containsEntry("player_traits_raw_hex", expected.get("player_traits_raw_hex").asString());
+            PlayerSnapshotValidator.validate(List.of(row), 1, "");
+            types.add(sample.get("type").asString());
+        }
+        assertThat(types).containsExactlyInAnyOrder("PLAYER", "PLAYER_STAFF");
+    }
+
+    @Test
     void decodesCapturedFitnessAndRejectsEachShiftedOffsetOnTheSameFixture() throws Exception {
         FakeMemory memory = minimalPlayerRow();
         memory.windows = true;

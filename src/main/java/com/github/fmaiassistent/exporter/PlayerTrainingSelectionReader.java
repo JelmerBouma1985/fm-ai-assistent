@@ -13,12 +13,22 @@ import java.util.Map;
 /** Pure reads plus the exact native best-role calculation; no target calls. */
 public final class PlayerTrainingSelectionReader {
     private static final long EXCLUDED = 0xFC0484B656F02100L;
-    private static final Map<Integer, byte[]> CLASSIFIERS = classifiers();
+    private static final Map<Integer, byte[]> LEGACY_CLASSIFIERS = classifiers("/fm27/player-training-role-classifiers.tsv", 50);
+    private static final Map<Integer, byte[]> UPDATED_CLASSIFIERS = classifiers("/fm27/player-training-role-classifiers-26620374.tsv", 39);
+    private final Map<Integer, byte[]> classifiers;
+    private final boolean updatedRoles;
     private final PlayerTrainingSelectionLayout layout;
     private Long verifiedBase;
 
     public PlayerTrainingSelectionReader() { this(PlayerTrainingSelectionLayout.current()); }
-    PlayerTrainingSelectionReader(PlayerTrainingSelectionLayout layout) { this.layout = layout; }
+    PlayerTrainingSelectionReader(PlayerTrainingSelectionLayout layout) {
+        this(layout, com.github.fmaiassistent.memory.NativeModuleProfile.FM27_SHA256);
+    }
+    PlayerTrainingSelectionReader(PlayerTrainingSelectionLayout layout, String profile) {
+        this.layout = layout;
+        this.updatedRoles = com.github.fmaiassistent.memory.NativeModuleProfile.STEAM_26620374_SHA256.equals(profile);
+        this.classifiers = updatedRoles ? UPDATED_CLASSIFIERS : LEGACY_CLASSIFIERS;
+    }
 
     public Result read(ProcessMemoryReader reader, long player, long module, int positionMask) throws IOException {
         return read(reader, player, module, positionMask, null);
@@ -29,7 +39,7 @@ public final class PlayerTrainingSelectionReader {
         PlayerSnapshotValidator.validatePlayerTrainingSelectionLayout(layout);
         verifyNative(reader, module);
         if (explicitRole != null && explicitRole != 0) {
-            if (Long.bitCount(explicitRole) != 1 || !CLASSIFIERS.containsKey(Long.numberOfTrailingZeros(explicitRole)))
+            if (Long.bitCount(explicitRole) != 1 || !classifiers.containsKey(Long.numberOfTrailingZeros(explicitRole)))
                 throw new IOException("Player explicit training role range anchor failed");
             return attributesForRole(reader, module, explicitRole);
         }
@@ -49,13 +59,13 @@ public final class PlayerTrainingSelectionReader {
         long[] allowed = new long[15];
         for (int i = 0; i < allowed.length; i++) allowed[i] = reader.readU64(module + layout.positionRolesRva() + i * 8L);
         long bestRole = 0; int best = 0;
-        for (var entry : CLASSIFIERS.entrySet()) {
+        for (var entry : classifiers.entrySet()) {
             long role = 1L << entry.getKey();
             if ((role & EXCLUDED) != 0) continue;
             for (int position = 0; position < 15; position++) {
                 if (position == 1 || (positionMask & (1 << position)) == 0 || (allowed[position] & role) == 0) continue;
                 int score = ability(attributes, layout.firstAttribute(), positionValues, ca, cached, role,
-                        1 << position, PlayerTrainingSelectionLayout.positionAttributeIndex(position), entry.getValue());
+                        1 << position, PlayerTrainingSelectionLayout.positionAttributeIndex(position), entry.getValue(), updatedRoles);
                 if (score > best) { best = score; bestRole = role; }
             }
         }
@@ -69,7 +79,7 @@ public final class PlayerTrainingSelectionReader {
             throw new IOException("Player training selection attribute list range anchor failed");
         var selected = new ArrayList<Integer>();
         if (bestRole != 0) {
-            byte[] classifier = CLASSIFIERS.get(Long.numberOfTrailingZeros(bestRole));
+            byte[] classifier = classifiers.get(Long.numberOfTrailingZeros(bestRole));
             for (byte value : reader.readBytes(begin, (int) (end - begin))) {
                 int id = Byte.toUnsignedInt(value);
                 if (id < 15 || id > 68) throw new IOException("Player training selection attribute ID range anchor failed");
@@ -82,6 +92,11 @@ public final class PlayerTrainingSelectionReader {
 
     static int ability(byte[] attributes, int first, byte[] positions, int ca, int cached, long role,
             int positionMask, int positionIndex, byte[] importance) {
+        return ability(attributes, first, positions, ca, cached, role, positionMask, positionIndex, importance, false);
+    }
+
+    static int ability(byte[] attributes, int first, byte[] positions, int ca, int cached, long role,
+            int positionMask, int positionIndex, byte[] importance, boolean updatedRoles) {
         float primary = 0, secondary = 0, inverted = 0;
         int primaries = 0, secondaries = 0, inversions = 0;
         for (int i = 0; i < 54; i++) {
@@ -103,18 +118,20 @@ public final class PlayerTrainingSelectionReader {
             float c = inverted > 0 ? inverted / inversions * 3f : 0;
             score = (int) (((c + (a + b)) / weights) * 2f);
             int partner = 0;
-            if (familiarity >= 12 && (role & 0x48000000000000L) != 0) {
+            if (updatedRoles && familiarity >= 12) {
+                partner = updatedPartner(positions, role, positionMask);
+            } else if (!updatedRoles && familiarity >= 12 && (role & 0x48000000000000L) != 0) {
                 partner = (positionMask & 0x111248) != 0 ? Byte.toUnsignedInt(positions[2])
                         : (positionMask & 0x208924) != 0 ? Byte.toUnsignedInt(positions[4])
                         : Math.max(Byte.toUnsignedInt(positions[2]), Byte.toUnsignedInt(positions[4]));
-            } else if (familiarity >= 12 && (role & (1L << 52)) != 0) partner = Byte.toUnsignedInt(positions[3]);
-            else if (familiarity >= 12 && (role & 0x2080008000000L) != 0) partner = Byte.toUnsignedInt(positions[10]);
-            else if (familiarity >= 12 && (role & (1L << 40)) != 0) {
+            } else if (!updatedRoles && familiarity >= 12 && (role & (1L << 52)) != 0) partner = Byte.toUnsignedInt(positions[3]);
+            else if (!updatedRoles && familiarity >= 12 && (role & 0x2080008000000L) != 0) partner = Byte.toUnsignedInt(positions[10]);
+            else if (!updatedRoles && familiarity >= 12 && (role & (1L << 40)) != 0) {
                 partner = Byte.toUnsignedInt(positions[10]);
                 if (partner <= 14) partner /= 2;
                 if (partner != 0) familiarity = (familiarity + partner) / 2;
                 partner = 0;
-            } else if (familiarity >= 12 && (role & (1L << 14)) != 0) partner = Byte.toUnsignedInt(positions[5]);
+            } else if (!updatedRoles && familiarity >= 12 && (role & (1L << 14)) != 0) partner = Byte.toUnsignedInt(positions[5]);
             if (partner > familiarity) familiarity = (partner + familiarity) / 2;
             int gap = 20 - familiarity;
             int penalty = familiarity <= 11 ? gap * 4 : familiarity <= 14 ? (int) (gap * 2.5f) : gap;
@@ -133,6 +150,25 @@ public final class PlayerTrainingSelectionReader {
         return adjusted < minimum ? (adjusted & 255) >>> 1 : adjusted & 255;
     }
 
+    /** Current native scorer4978A70: each role has its own partner-position familiarity. */
+    private static int updatedPartner(byte[] positions, long role, int mask) {
+        if ((role & 0x1C0L) != 0) {
+            return (mask & 0x111248) != 0 ? Byte.toUnsignedInt(positions[2])
+                    : (mask & 0x208924) != 0 ? Byte.toUnsignedInt(positions[4])
+                    : Math.max(Byte.toUnsignedInt(positions[2]), Byte.toUnsignedInt(positions[4]));
+        }
+        int left = -1, right = -1;
+        if ((role & ((1L << 10) | (1L << 19) | (1L << 36))) != 0) { left = 13; right = 14; }
+        else if ((role & ((1L << 13) | (1L << 29) | (1L << 39))) != 0) { left = 6; right = 8; }
+        else if ((role & ((1L << 33) | (1L << 45))) != 0) { left = 9; right = 11; }
+        if (left >= 0) return (mask & 0x111248) != 0 ? Byte.toUnsignedInt(positions[left])
+                : (mask & 0x208924) != 0 ? Byte.toUnsignedInt(positions[right]) : 0;
+        if ((role & (1L << 16)) != 0) return Byte.toUnsignedInt(positions[3]);
+        if ((role & ((1L << 17) | (1L << 31))) != 0) return Byte.toUnsignedInt(positions[7]);
+        if ((role & ((1L << 27) | (1L << 40) | (1L << 43))) != 0) return Byte.toUnsignedInt(positions[10]);
+        return 0;
+    }
+
     private void verifyNative(ProcessMemoryReader reader, long module) throws IOException {
         if (verifiedBase != null && verifiedBase == module) return;
         try {
@@ -145,8 +181,8 @@ public final class PlayerTrainingSelectionReader {
         verifiedBase = module;
     }
 
-    private static Map<Integer, byte[]> classifiers() {
-        try (var stream = PlayerTrainingSelectionReader.class.getResourceAsStream("/fm27/player-training-role-classifiers.tsv")) {
+    private static Map<Integer, byte[]> classifiers(String resource, int expectedCount) {
+        try (var stream = PlayerTrainingSelectionReader.class.getResourceAsStream(resource)) {
             if (stream == null) throw new IOException("Missing native training classifiers");
             byte[] bytes = stream.readNBytes(16_385);
             if (bytes.length > 16_384) throw new IOException("Native training classifier resource exceeds cap");
@@ -161,7 +197,7 @@ public final class PlayerTrainingSelectionReader {
                 for (byte category : categories) if (category != -1 && category != 0 && category != 1 && category != 2)
                     throw new IOException("Invalid native training attribute importance");
             }
-            if (result.size() != 50) throw new IOException("Incomplete native training classifiers");
+            if (result.size() != expectedCount) throw new IOException("Incomplete native training classifiers");
             return java.util.Collections.unmodifiableMap(result);
         } catch (IOException | RuntimeException error) { throw new ExceptionInInitializerError(error); }
     }

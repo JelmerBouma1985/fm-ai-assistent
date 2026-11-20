@@ -350,6 +350,7 @@ public class SnapshotDatabaseWriter {
             return missingValue(column);
         }
         String text = String.valueOf(value);
+        if ("player_traits".equals(column.exportName()) && text.isEmpty()) return "";
         if (text.isBlank()) {
             return missingValue(column);
         }

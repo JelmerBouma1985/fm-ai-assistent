@@ -22,17 +22,17 @@ public final class PlayerSnapshotValidator {
     }
     public static void validatePlayerMedicalStaffLayout(
             com.github.fmaiassistent.memory.PlayerMedicalStaffLayout layout) throws IOException {
-        if (!com.github.fmaiassistent.memory.PlayerMedicalStaffLayout.current().equals(layout))
+        if (!verifiedLayout(layout, com.github.fmaiassistent.memory.PlayerMedicalStaffLayout::forModule))
             throw new IOException("Player medical staff exact-build layout anchor failed");
     }
     public static void validatePlayerTrainingSelectionLayout(
             com.github.fmaiassistent.memory.PlayerTrainingSelectionLayout layout) throws IOException {
-        if (!com.github.fmaiassistent.memory.PlayerTrainingSelectionLayout.current().equals(layout))
+        if (!verifiedLayout(layout, com.github.fmaiassistent.memory.PlayerTrainingSelectionLayout::forModule))
             throw new IOException("Player training selection exact-build layout anchor failed");
     }
     public static void validatePlayerMedicalAssessmentLayout(
             com.github.fmaiassistent.memory.PlayerMedicalAssessmentLayout layout) throws IOException {
-        if (!com.github.fmaiassistent.memory.PlayerMedicalAssessmentLayout.current().equals(layout))
+        if (!verifiedLayout(layout, com.github.fmaiassistent.memory.PlayerMedicalAssessmentLayout::forModule))
             throw new IOException("Player medical assessment range anchor failed: exact-build layout changed");
     }
     public static void validatePlayerInjuryRiskLayout(
@@ -42,17 +42,17 @@ public final class PlayerSnapshotValidator {
     }
     public static void validatePlayerInjuryTrainingLayout(
             com.github.fmaiassistent.memory.PlayerInjuryRiskLayout.TrainingCategories layout) throws IOException {
-        if (!com.github.fmaiassistent.memory.PlayerInjuryRiskLayout.TrainingCategories.current().equals(layout))
+        if (!verifiedLayout(layout, com.github.fmaiassistent.memory.PlayerInjuryRiskLayout.TrainingCategories::forModule))
             throw new IOException("Player injury training range anchor failed: exact-build layout changed");
     }
     public static void validatePlayerInjuryCalculationLayout(
             com.github.fmaiassistent.memory.PlayerInjuryRiskLayout.Calculation layout) throws IOException {
-        if (!com.github.fmaiassistent.memory.PlayerInjuryRiskLayout.Calculation.current().equals(layout))
+        if (!verifiedLayout(layout, com.github.fmaiassistent.memory.PlayerInjuryRiskLayout.Calculation::forModule))
             throw new IOException("Player injury calculation range anchor failed: exact-build layout changed");
     }
     public static void validatePlayerTrainingLoadLayout(
             com.github.fmaiassistent.memory.PlayerTrainingLoadLayout layout) throws IOException {
-        if (!com.github.fmaiassistent.memory.PlayerTrainingLoadLayout.current().equals(layout))
+        if (!verifiedLayout(layout, com.github.fmaiassistent.memory.PlayerTrainingLoadLayout::forModule))
             throw new IOException("Player training load exact-build layout anchor failed");
     }
     private static final long MIN_PLAUSIBLE_CLUB_BUDGET = -1_000_000_000L;
@@ -474,7 +474,7 @@ public final class PlayerSnapshotValidator {
 
     public static void validatePlayerMatchLoadLayout(com.github.fmaiassistent.memory.PlayerMatchLoadLayout layout)
             throws IOException {
-        if (!com.github.fmaiassistent.memory.PlayerMatchLoadLayout.current().equals(layout))
+        if (!verifiedLayout(layout, com.github.fmaiassistent.memory.PlayerMatchLoadLayout::forModule))
             throw new IOException("Player match load exact-build range/displacement anchor failed");
     }
 

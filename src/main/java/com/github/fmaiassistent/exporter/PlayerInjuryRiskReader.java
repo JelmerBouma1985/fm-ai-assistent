@@ -10,14 +10,26 @@ import java.util.Objects;
 /** Passive translations of FM's medical calculations; never invokes target code. */
 public final class PlayerInjuryRiskReader {
     private final PlayerInjuryRiskLayout layout;
-    private final PlayerMedicalAssessmentReader medicalAssessment = new PlayerMedicalAssessmentReader();
+    private final PlayerMedicalAssessmentReader medicalAssessment;
+    private final PlayerInjuryRiskLayout.Calculation calculationLayout;
+    private final PlayerInjuryRiskLayout.TrainingCategories trainingLayout;
 
     public PlayerInjuryRiskReader() {
         this(PlayerInjuryRiskLayout.current());
     }
 
     public PlayerInjuryRiskReader(PlayerInjuryRiskLayout layout) {
+        this(layout, PlayerInjuryRiskLayout.Calculation.current(), PlayerInjuryRiskLayout.TrainingCategories.current(),
+                com.github.fmaiassistent.memory.PlayerMedicalAssessmentLayout.current());
+    }
+
+    PlayerInjuryRiskReader(PlayerInjuryRiskLayout layout, PlayerInjuryRiskLayout.Calculation calculation,
+            PlayerInjuryRiskLayout.TrainingCategories training,
+            com.github.fmaiassistent.memory.PlayerMedicalAssessmentLayout medical) {
         this.layout = Objects.requireNonNull(layout);
+        this.calculationLayout = Objects.requireNonNull(calculation);
+        this.trainingLayout = Objects.requireNonNull(training);
+        this.medicalAssessment = new PlayerMedicalAssessmentReader(medical);
     }
 
     /** Inputs to native 2DB26F0. An absent injury type is represented by zero. */
@@ -176,7 +188,7 @@ public final class PlayerInjuryRiskReader {
             PlayerTrainingLoadReader.RiskTrainingInputs training, int[] categories,
             Float teamRiskMultiplier) throws IOException {
         PlayerSnapshotValidator.validatePlayerInjuryRiskLayout(layout);
-        var calculation = PlayerInjuryRiskLayout.Calculation.current();
+        var calculation = calculationLayout;
         PlayerSnapshotValidator.validatePlayerInjuryCalculationLayout(calculation);
         validateRiskScalars(condition, sharpness, fatigue, matchLoadCategory);
         if ((r.readU8(player + calculation.flags()) & 2) != 0) return new Result(0, riskLabel(0));
@@ -189,7 +201,7 @@ public final class PlayerInjuryRiskReader {
             PlayerTrainingLoadReader.RiskTrainingInputs training, int[] categories,
             Boolean unavailable, Float teamRiskMultiplier) throws IOException {
         return readRisk(r, player, module, date, condition, sharpness, fatigue, matchLoadCategory,
-                training, categories, unavailable, teamRiskMultiplier, PlayerInjuryRiskLayout.Calculation.current());
+                training, categories, unavailable, teamRiskMultiplier, calculationLayout);
     }
 
     public Result readRisk(ProcessMemoryReader r, long player, long module, LocalDate date,
@@ -218,7 +230,7 @@ public final class PlayerInjuryRiskReader {
                     training.roleMedicalScore() / 85f, training.generalMedicalScore() / 85f,
                     base > 0 ? training.modifiedBaseline() / (float) base : 1f,
                     fatigue >= 800 ? 1.1f : fatigue >= 600 ? 1.05f : fatigue >= 400 ? 1.025f : 1f);
-            int goalkeeper = r.readU8(player + PlayerInjuryRiskLayout.TrainingCategories.current().goalkeeper());
+            int goalkeeper = r.readU8(player + trainingLayout.goalkeeper());
             if (goalkeeper > 20) throw new IOException("Player injury risk goalkeeper anchor failed");
             float[] factors = trainingFactors(categories, goalkeeper > 14);
             long manager = r.readU64(module + c.managerRva());
@@ -309,7 +321,7 @@ public final class PlayerInjuryRiskReader {
     public int[] readTrainingCategories(ProcessMemoryReader r, long player, long module,
             PlayerTrainingLoadReader.RiskTrainingInputs training, int role, int[] attributeIds) throws IOException {
         return readTrainingCategories(r, player, module, training, role, attributeIds,
-                PlayerInjuryRiskLayout.TrainingCategories.current());
+                trainingLayout);
     }
 
     public int[] readTrainingCategories(ProcessMemoryReader r, long player, long module,
@@ -403,7 +415,11 @@ public final class PlayerInjuryRiskReader {
     /** Native 16CE900 distinguishes sessions skipped on a personal rest day. */
     public static boolean isExcludedOnPersonalDay(ProcessMemoryReader r, long module, int sessionCode)
             throws IOException {
-        var l = PlayerInjuryRiskLayout.TrainingCategories.current();
+        return isExcludedOnPersonalDay(r, module, sessionCode, PlayerInjuryRiskLayout.TrainingCategories.current());
+    }
+
+    static boolean isExcludedOnPersonalDay(ProcessMemoryReader r, long module, int sessionCode,
+            PlayerInjuryRiskLayout.TrainingCategories l) throws IOException {
         PlayerSnapshotValidator.validatePlayerInjuryTrainingLayout(l);
         if (sessionCode < 0 || sessionCode > 0x142) return false;
         long table = module + l.personalDayExclusionsRva();

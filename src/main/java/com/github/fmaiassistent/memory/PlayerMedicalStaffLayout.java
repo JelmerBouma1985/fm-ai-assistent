@@ -7,7 +7,11 @@ public record PlayerMedicalStaffLayout(int currentTeam, int teamKind, int teamCl
         int primaryRole, int secondaryRole, int roleGetterSlot, long roleGetterRva, long zeroRoleGetterRva,
         int sportsScience, int currentAbility) {
     public static PlayerMedicalStaffLayout current() {
+        return forModule(NativeModuleProfile.FM27_SHA256);
+    }
+
+    public static PlayerMedicalStaffLayout forModule(String profile) {
         return new PlayerMedicalStaffLayout(0x130,0x2F,0x30,0x60,0,4,0x0C,
-                0xA8,0xB0,0x10,0x30,0x26,0xC2,0x68,0x3019A0,0x301BD0,0x3F,0xDA);
+                0xA8,0xB0,0x10,0x30,0x26,0xC2,0x68,NativeModuleProfile.fitnessRva(profile, 0x3019A0),NativeModuleProfile.fitnessRva(profile, 0x301BD0),0x3F,0xDA);
     }
 }
