@@ -16,10 +16,12 @@ import static org.assertj.core.api.Assertions.*;
 class Fm2701UpdateTest {
     @ParameterizedTest
     @ValueSource(strings = {NativeModuleProfile.FM27_2701_SHA256, NativeModuleProfile.STEAM_26577676_SHA256,
-            NativeModuleProfile.STEAM_26620374_SHA256})
+            NativeModuleProfile.STEAM_26620374_SHA256, NativeModuleProfile.GAME_PASS_2524_SHA256})
     void replaysAllFourContractTypesAndFutureEmploymentFromTheUpdatedProcess(String hash) throws Exception {
         var mapper = JsonMapper.builder().build();
-        String fixtureFile = NativeModuleProfile.STEAM_26620374_SHA256.equals(hash)
+        String fixtureFile = NativeModuleProfile.GAME_PASS_2524_SHA256.equals(hash)
+                ? "contracts-gamepass2524-captured.json"
+                : NativeModuleProfile.STEAM_26620374_SHA256.equals(hash)
                 ? "contracts-26620374-captured.json" : "contracts-2701-captured.json";
         try (var in = Files.newInputStream(Path.of("src/test/resources/fm27", fixtureFile))) {
             byte[] bytes = in.readNBytes(262145);
@@ -60,7 +62,7 @@ class Fm2701UpdateTest {
 
     @ParameterizedTest
     @ValueSource(strings = {NativeModuleProfile.FM27_2701_SHA256, NativeModuleProfile.STEAM_26577676_SHA256,
-            NativeModuleProfile.STEAM_26620374_SHA256})
+            NativeModuleProfile.STEAM_26620374_SHA256, NativeModuleProfile.GAME_PASS_2524_SHA256})
     void eachUpdatedLayoutRejectsDriftAndUnknownImages(String hash) throws Exception {
         var layouts = List.of(
                 AwardNameLayout.forModule(hash), ClubFinanceLayout.forModule(hash),

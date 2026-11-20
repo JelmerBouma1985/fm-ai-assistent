@@ -2,6 +2,7 @@ package com.github.fmaiassistent.service;
 
 import com.github.fmaiassistent.memory.ClubRecordLayout;
 import com.github.fmaiassistent.memory.CompetitionRecordLayout;
+import com.github.fmaiassistent.memory.NativeModuleProfile;
 import com.github.fmaiassistent.memory.PlayerRecordLayout;
 import com.github.fmaiassistent.memory.StaffRecordLayout;
 import org.junit.jupiter.api.Test;
@@ -46,10 +47,11 @@ class PlayerRecordLayoutsTest {
         assertThat(match.layouts().competitions()).isEqualTo(CompetitionRecordLayout.current());
     }
 
-    @Test
-    void verifiedGamePassImageIsKnownWithoutASteamManifest(@TempDir Path home) {
-        var match = PlayerRecordLayouts.resolve(home,
-                com.github.fmaiassistent.memory.NativeModuleProfile.GAME_PASS_SHA256);
+    @ParameterizedTest
+    @ValueSource(strings = {
+            NativeModuleProfile.GAME_PASS_SHA256, NativeModuleProfile.GAME_PASS_2524_SHA256})
+    void verifiedGamePassImageIsKnownWithoutASteamManifest(String image, @TempDir Path home) {
+        var match = PlayerRecordLayouts.resolve(home, image);
         assertThat(match.knownBuild()).isTrue();
         assertThat(match.installedBuildId()).isEqualTo(-1);
         assertThat(match.layouts().players()).isEqualTo(PlayerRecordLayout.current());

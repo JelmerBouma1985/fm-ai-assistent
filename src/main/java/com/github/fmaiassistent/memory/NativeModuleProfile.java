@@ -21,10 +21,12 @@ public final class NativeModuleProfile {
     public static final String UPDATED_SHA256 = "252ff8fb5b7a4a5a5464db6ba632e309eef9b6e65ffa992ae20575a189e66c6a";
     /** Xbox / PC Game Pass image (Microsoft Store package of Football Manager 27). */
     public static final String GAME_PASS_SHA256 = "c0a4466f8183a999917de285d47ec19f12b746e29417e402ef55ff927b927df5";
+    /** Game Pass 27.1.0 (package 0.9.2524.0). */
+    public static final String GAME_PASS_2524_SHA256 = "e499d2bddbe90568eae0b86fa39f64ec0b13f96ae5ddd0c94ffb7fc0ba861920";
     private static final Map<String, Long> MODULE_BYTES = Map.of(
             FM27_SHA256, 433_986_560L, UPDATED_SHA256, 404_308_480L, GAME_PASS_SHA256, 391_445_504L,
             FM27_2701_SHA256, 398_661_632L, STEAM_26577676_SHA256, 408_383_448L,
-            STEAM_26620374_SHA256, 410_993_112L);
+            STEAM_26620374_SHA256, 410_993_112L, GAME_PASS_2524_SHA256, 395_449_344L);
 
     /** Steam 26620374: live RTTI class/this-offset matches and validated registry/global roots. */
     private static final Map<Integer, Integer> STEAM_26620374_RVAS = Map.ofEntries(
@@ -167,6 +169,40 @@ public final class NativeModuleProfile {
             Map.entry(0x5703738, 0x5683D28),  // registry slot +0x150 (people)
             Map.entry(0x5703768, 0x5683D58)); // registry slot +0x180 (teams)
 
+    /** Game Pass 27.1.0: roots resolved by RTTI class name and this-offset, or by a unique live value. */
+    private static final Map<Integer, Integer> GAME_PASS_2524_RVAS = Map.ofEntries(
+            Map.entry(0x4B00AE8, 0x4897AA8),  // db::FULL_CONTRACT
+            Map.entry(0x4B01058, 0x4898018),  // db::BASIC_CONTRACT
+            Map.entry(0x4C8C898, 0x4A26E28),  // TRANSFER_MANAGER (+0x18 view)
+            Map.entry(0x4CB2718, 0x4A1E5A8),  // db::NON_PLAYING_DATA member
+            Map.entry(0x4CC08D8, 0x4A47238),  // db::HUMAN_NON_PLAYER (+0x440 PERSON view)
+            Map.entry(0x4CDA1F8, 0x4A5E628),  // db::CLUB
+            Map.entry(0x4CDFAD8, 0x4A62638),  // db::COMP
+            Map.entry(0x4CE1108, 0x4A63288),  // db::TEAM
+            Map.entry(0x4CEC0B8, 0x4A6C0C8),  // db::NATIONAL_TEAM_CONTAINER
+            Map.entry(0x4CF07F8, 0x4A702E8),  // db::CLUB_FINANCE_BASE
+            Map.entry(0x4CF0CC8, 0x4A707B8),  // db::CLUB_FINANCE
+            Map.entry(0x4CF6078, 0x4A75248),  // db::AWARD
+            Map.entry(0x4D8BE78, 0x4AF4318),  // db::ACTUAL_NON_PLAYER (+0x100 PERSON view)
+            Map.entry(0x4DC2288, 0x4B23B28),  // db::NATIONAL_TEAM
+            Map.entry(0x4DC91F8, 0x4B2A708),  // db::LOAN_CONTRACT
+            Map.entry(0x4E195B8, 0x4B68EB8),  // LOAN_OFFER
+            Map.entry(0x4F392E8, 0x4C6E928),  // FULL_TRANSFER_OFFER
+            Map.entry(0x4F53F28, 0x4C88668),  // db::B_CLUB_CONTRACT
+            Map.entry(0x4F65538, 0x4C40AE8),  // db::LEAGUE_BODY_CLUB
+            Map.entry(0x4F75F38, 0x4C9F1E8),  // db::ACTUAL_PLAYER_AND_NON_PLAYER (+0x380 PERSON view)
+            Map.entry(0x56AD378, 0x539DD10),  // current game date
+            Map.entry(0x56C212A, 0x53B2EEA),  // UEFA coefficient rule version
+            Map.entry(0x56F2EF0, 0x53EAD60),  // transfer-manager root
+            Map.entry(0x56F32C8, 0x53EB138),  // current human manager
+            Map.entry(0x57035E8, 0x53FACA0),  // database registry table
+            Map.entry(0x57036D0, 0x53FAD88),  // registry slot +0xE8
+            Map.entry(0x57036E0, 0x53FAD98),  // registry slot +0xF8 (clubs)
+            Map.entry(0x57036E8, 0x53FADA0),  // registry slot +0x100 (competitions)
+            Map.entry(0x5703730, 0x53FADE8),  // registry slot +0x148
+            Map.entry(0x5703738, 0x53FADF0),  // registry slot +0x150 (people)
+            Map.entry(0x5703768, 0x53FAE20)); // registry slot +0x180 (teams)
+
     /** Hashing a 400 MB image takes seconds; a module file is hashed once per size and timestamp.
      * A file replaced with identical size and a preserved timestamp keeps its earlier identity;
      * game updates rewrite the file, and record anchors still guard every read. */
@@ -191,19 +227,21 @@ public final class NativeModuleProfile {
     /** Every verified image, for persisted-row queries and layout checks that accept any of them. */
     public static List<String> supportedProfiles() {
         return List.of(FM27_SHA256, UPDATED_SHA256, GAME_PASS_SHA256, FM27_2701_SHA256,
-                STEAM_26577676_SHA256, STEAM_26620374_SHA256);
+                STEAM_26577676_SHA256, STEAM_26620374_SHA256, GAME_PASS_2524_SHA256);
     }
 
     /** Whether a legacy root has a verified location in the given image. */
     public static boolean mapsRva(String profile, int legacyRva) {
         if (!supported(profile)) return false;
         if (STEAM_26620374_SHA256.equals(profile)) return STEAM_26620374_RVAS.containsKey(legacyRva);
+        if (GAME_PASS_2524_SHA256.equals(profile)) return GAME_PASS_2524_RVAS.containsKey(legacyRva);
         if (uses2701Roots(profile)) return FM27_2701_RVAS.containsKey(legacyRva);
         return !GAME_PASS_SHA256.equals(profile) || GAME_PASS_RVAS.containsKey(legacyRva);
     }
 
     /** Verified absolute-image RVAs. The Steam update moved them by two pages in native build 2493426;
-     * the Game Pass image uses an explicit per-root table. Record-relative offsets and persisted
+     * images that are not a constant shift of a Steam image (both Game Pass images, Steam 27.0.1
+     * and 26620374) use explicit per-image root tables. Record-relative offsets and persisted
      * scalar payloads are shared by all images. */
     public static int rva(String profile, int legacyRva) {
         if (!supported(profile)) throw new IllegalArgumentException("Unsupported FM27 module profile");
@@ -211,6 +249,12 @@ public final class NativeModuleProfile {
             Integer mapped = STEAM_26620374_RVAS.get(legacyRva);
             if (mapped == null) throw new IllegalArgumentException("FM27 root 0x" + Integer.toHexString(legacyRva)
                     + " is not verified for Steam build 26620374");
+            return mapped;
+        }
+        if (GAME_PASS_2524_SHA256.equals(profile)) {
+            Integer mapped = GAME_PASS_2524_RVAS.get(legacyRva);
+            if (mapped == null) throw new IllegalArgumentException("FM27 root 0x" + Integer.toHexString(legacyRva)
+                    + " is not verified for the Game Pass 27.1.0 image");
             return mapped;
         }
         if (uses2701Roots(profile)) {
