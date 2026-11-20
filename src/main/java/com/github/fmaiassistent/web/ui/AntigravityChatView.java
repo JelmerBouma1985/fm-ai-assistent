@@ -32,6 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CompletionException;
 
 final class AntigravityChatView extends Div {
+    void toolsAction(Runnable action) { commands.setToolsAction(action); }
     private final AntigravityConversationService conversations;
     private final Div conversationList = new Div();
     private final MessageList messages = new MessageList();

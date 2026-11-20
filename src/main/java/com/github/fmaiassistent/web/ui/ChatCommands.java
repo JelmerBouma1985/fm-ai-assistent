@@ -30,7 +30,8 @@ final class ChatCommands {
             new Command("/staff", "Find or assess staff and coaching roles",
                     "Help me find or assess staff for my club, including coaching role strengths where relevant. If staff data is missing, tell me what to load.", "Requirements"),
             new Command("/club", "Inspect a club, budget and squad context",
-                    "Use the fm27_get_club_context tool now for the named club, or my detected managed club if I name none. Then summarize its profile, finances and returned squad context. Only if that tool reports that club or FM27 data is unavailable, tell me what to load.", "Club and requirements")
+                    "Use the fm27_get_club_context tool now for the named club, or my detected managed club if I name none. Then summarize its profile, finances and returned squad context. Only if that tool reports that club or FM27 data is unavailable, tell me what to load.", "Club and requirements"),
+            new Command("/tools", "Manage tools, permissions, presets and activity", "", "")
     );
 
     private ChatCommands() { }
@@ -40,7 +41,13 @@ final class ChatCommands {
             return List.of();
         }
         String token = text.split("\\s", 2)[0].toLowerCase(Locale.ROOT);
-        return ALL.stream().filter(command -> command.name().startsWith(token)).toList();
+        return ALL.stream().filter(command -> command.name().startsWith(token))
+                .filter(command -> !isToolsCommand(command.name()) || text.strip().equalsIgnoreCase(token))
+                .toList();
+    }
+
+    static boolean isToolsCommand(String text) {
+        return text != null && "/tools".equalsIgnoreCase(text.strip());
     }
 
     static Optional<String> expandKnown(String text) {
@@ -53,7 +60,8 @@ final class ChatCommands {
         }
         String name = text.substring(0, end);
         String trailing = text.substring(end);
-        return ALL.stream().filter(command -> command.name().equalsIgnoreCase(name))
+        return ALL.stream().filter(command -> !isToolsCommand(command.name()))
+                .filter(command -> command.name().equalsIgnoreCase(name))
                 .findFirst().map(command -> command.expand(trailing));
     }
 }

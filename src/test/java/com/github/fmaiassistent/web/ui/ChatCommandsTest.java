@@ -6,6 +6,7 @@ import com.github.fmaiassistent.codex.CodexAvailability;
 import com.github.fmaiassistent.codex.CodexConversationService;
 import com.github.fmaiassistent.copilot.CopilotAvailability;
 import com.github.fmaiassistent.copilot.CopilotConversationService;
+import com.github.fmaiassistent.openrouter.OpenRouterConversationService;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.textfield.TextArea;
@@ -17,13 +18,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 class ChatCommandsTest {
     @Test
     void matchesSlashPrefixesAndKeepsTrailingRequirements() {
-        assertEquals(7, ChatCommands.matches("/").size());
+        assertEquals(8, ChatCommands.matches("/").size());
         assertEquals("/recruit", ChatCommands.matches("/rec").getFirst().name());
         assertEquals("/recruit", ChatCommands.matches("/recruit left back under 25").getFirst().name());
         assertTrue(ChatCommands.matches("/unknown").isEmpty());
@@ -60,7 +60,7 @@ class ChatCommandsTest {
         picker.menuButton().click();
         Div suggestions = (Div) picker.inputGroup().getChildren().findFirst().orElseThrow();
         assertTrue(suggestions.isVisible());
-        assertEquals(7, suggestions.getChildren().count());
+        assertEquals(8, suggestions.getChildren().count());
         ((Button) suggestions.getChildren().findFirst().orElseThrow()).click();
         assertTrue(input.getValue().startsWith("Use the fm27_analyze_squad tool"));
         assertEquals(0, sends.get());
@@ -104,6 +104,58 @@ class ChatCommandsTest {
     }
 
     @Test
+    void toolsIsAnExactLocalCommandAndNeverAPrompt() {
+        TextArea input = new TextArea();
+        AtomicInteger sends = new AtomicInteger();
+        AtomicInteger opens = new AtomicInteger();
+        ChatCommandPicker picker = new ChatCommandPicker(input, sends::incrementAndGet);
+        picker.setToolsAction(opens::incrementAndGet);
+        for (String text : new String[]{"/tools", " /TOOLS ", "\t/tools\n"}) {
+            input.setValue(text);
+            assertTrue(picker.expandBeforeSend());
+            assertTrue(input.isEmpty());
+            assertTrue(ChatCommands.expandKnown(text).isEmpty());
+        }
+        assertEquals(3, opens.get());
+        for (String text : new String[]{"how do I use /tools?", "/tools settings", "/unknown", "/tools?"}) {
+            input.setValue(text);
+            assertFalse(picker.expandBeforeSend());
+            picker.onEnter(sends::incrementAndGet);
+            assertEquals(text, input.getValue());
+        }
+        assertEquals(3, opens.get());
+        assertEquals(4, sends.get());
+        assertTrue(ChatCommands.matches("/tools settings").isEmpty());
+        assertEquals("/tools", ChatCommands.matches("/to").getFirst().name());
+    }
+
+    @Test
+    void toolsMouseAndKeyboardSelectionOpenImmediatelyWithoutSending() throws Exception {
+        TextArea input = new TextArea();
+        AtomicInteger sends = new AtomicInteger();
+        AtomicInteger opens = new AtomicInteger();
+        ChatCommandPicker picker = new ChatCommandPicker(input, sends::incrementAndGet);
+        picker.setToolsAction(opens::incrementAndGet);
+        picker.menuButton().click();
+        Div suggestions = (Div) picker.inputGroup().getChildren().findFirst().orElseThrow();
+        ((Button) suggestions.getChildren().reduce((a, b) -> b).orElseThrow()).click();
+        assertTrue(input.isEmpty());
+        assertFalse(suggestions.isVisible());
+        picker.menuButton().click();
+        picker.move(-1);
+        picker.onEnter(sends::incrementAndGet);
+        assertTrue(input.isEmpty());
+        assertEquals(2, opens.get());
+        assertEquals(0, sends.get());
+        picker.menuButton().click();
+        var close = ChatCommandPicker.class.getDeclaredMethod("close");
+        close.setAccessible(true);
+        close.invoke(picker);
+        assertFalse(suggestions.isVisible());
+        assertEquals("false", picker.menuButton().getElement().getAttribute("aria-expanded"));
+    }
+
+    @Test
     void everyAgentViewHasTheSharedCommandPicker() throws Exception {
         CodexConversationService codex = mock(CodexConversationService.class);
         when(codex.availability()).thenReturn(new CodexAvailability(CodexAvailability.State.UNAVAILABLE, "offline"));
@@ -113,17 +165,32 @@ class ChatCommandsTest {
         CopilotConversationService copilot = mock(CopilotConversationService.class);
         when(copilot.availability()).thenReturn(
                 new CopilotAvailability(CopilotAvailability.State.UNAVAILABLE, "offline", null, 0));
+        OpenRouterConversationService openRouter = mock(OpenRouterConversationService.class);
+        AtomicInteger toolsOpened = new AtomicInteger();
 
         for (Object view : new Object[] {
-                new CodexChatView(codex), new AntigravityChatView(antigravity), new CopilotChatView(copilot)}) {
+                new CodexChatView(codex), new AntigravityChatView(antigravity), new CopilotChatView(copilot),
+                new OpenRouterChatView(openRouter)}) {
             Field field = view.getClass().getDeclaredField("commands");
             field.setAccessible(true);
             ChatCommandPicker picker = (ChatCommandPicker) field.get(view);
             picker.menuButton().click();
             Div suggestions = (Div) picker.inputGroup().getChildren().findFirst().orElseThrow();
-            assertEquals(7, suggestions.getChildren().count());
+            assertEquals(8, suggestions.getChildren().count());
             ((Button) suggestions.getChildren().findFirst().orElseThrow()).click();
             assertFalse(suggestions.isVisible());
+            var action = view.getClass().getDeclaredMethod("toolsAction", Runnable.class);
+            action.setAccessible(true);
+            action.invoke(view, (Runnable) toolsOpened::incrementAndGet);
+            Field inputField = view.getClass().getDeclaredField("input");
+            inputField.setAccessible(true);
+            TextArea input = (TextArea) inputField.get(view);
+            input.setValue(" /TOOLS ");
+            clearInvocations(codex, antigravity, copilot, openRouter);
+            picker.onEnter(() -> { throw new AssertionError("Tools must not send a message"); });
+            assertTrue(input.isEmpty());
+            verifyNoInteractions(codex, antigravity, copilot, openRouter);
         }
+        assertEquals(4, toolsOpened.get());
     }
 }

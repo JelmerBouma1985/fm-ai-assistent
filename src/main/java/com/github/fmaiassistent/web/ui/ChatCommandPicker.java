@@ -20,6 +20,7 @@ final class ChatCommandPicker {
     private List<ChatCommands.Command> visible = List.of();
     private int highlighted;
     private boolean menuOpen;
+    private Runnable toolsAction = () -> { };
 
     ChatCommandPicker(TextArea input, Runnable sendMessage) {
         this.input = input;
@@ -58,7 +59,15 @@ final class ChatCommandPicker {
         return menuButton;
     }
 
+    void setToolsAction(Runnable toolsAction) {
+        this.toolsAction = java.util.Objects.requireNonNull(toolsAction);
+    }
+
     boolean expandBeforeSend() {
+        if (ChatCommands.isToolsCommand(input.getValue())) {
+            openTools();
+            return true;
+        }
         return ChatCommands.expandKnown(input.getValue()).map(expanded -> {
             input.setValue(expanded);
             close();
@@ -68,7 +77,9 @@ final class ChatCommandPicker {
     }
 
     void onEnter(Runnable sendMessage) {
-        if (suggestions.isVisible() && !visible.isEmpty()) {
+        if (ChatCommands.isToolsCommand(input.getValue())) {
+            openTools();
+        } else if (suggestions.isVisible() && !visible.isEmpty()) {
             select(visible.get(highlighted));
         } else if (!expandBeforeSend()) {
             sendMessage.run();
@@ -83,6 +94,10 @@ final class ChatCommandPicker {
     }
 
     private void select(ChatCommands.Command command) {
+        if (ChatCommands.isToolsCommand(command.name())) {
+            openTools();
+            return;
+        }
         String current = input.getValue();
         String trailing = "";
         if (current != null && current.startsWith("/")) {
@@ -99,6 +114,12 @@ final class ChatCommandPicker {
         } else {
             input.focus();
         }
+    }
+
+    private void openTools() {
+        input.clear();
+        close();
+        toolsAction.run();
     }
 
     private void render(List<ChatCommands.Command> commands) {

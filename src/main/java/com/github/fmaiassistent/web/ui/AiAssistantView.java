@@ -41,6 +41,7 @@ final class AiAssistantView extends Div {
     private final Div chatHost = new Div();
     private final Select<Provider> provider = new Select<>();
     private final Button contextButton = new Button(VaadinIcon.BOOK.create());
+    private final Button toolsButton = new Button("Tools");
     private final Button shortlistsButton = new Button(VaadinIcon.LIST.create());
     private final Dialog contextDialog = new Dialog();
     private final Dialog shortlistsDialog = new Dialog();
@@ -53,6 +54,8 @@ final class AiAssistantView extends Div {
     private final CodexConversationService codexConversations;
     private final AntigravityConversationService antigravityConversations;
     private final CopilotConversationService copilotConversations;
+    private final OpenRouterConversationService openRouterConversations;
+    private Dialog toolsDialog;
     private CodexSubscription codexAvailabilitySubscription = () -> { };
     private AntigravitySubscription antigravityAvailabilitySubscription = () -> { };
     private CopilotSubscription copilotAvailabilitySubscription = () -> { };
@@ -71,10 +74,15 @@ final class AiAssistantView extends Div {
         this.codexConversations = codexConversations;
         this.antigravityConversations = antigravityConversations;
         this.copilotConversations = copilotConversations;
+        this.openRouterConversations = openRouterConversations;
         codexChat = new CodexChatView(codexConversations);
         antigravityChat = new AntigravityChatView(antigravityConversations);
         copilotChat = new CopilotChatView(copilotConversations);
         openRouterChat = new OpenRouterChatView(openRouterConversations);
+        codexChat.toolsAction(this::openTools);
+        antigravityChat.toolsAction(this::openTools);
+        copilotChat.toolsAction(this::openTools);
+        openRouterChat.toolsAction(this::openTools);
         managedClubContext = new ManagedClubContextPanel(managedClubContexts, this::refreshContextButton);
         tacticContext = new TacticContextPanel(tacticContexts, this::refreshContextButton);
 
@@ -100,6 +108,9 @@ final class AiAssistantView extends Div {
             refreshContextButton();
             contextDialog.open();
         });
+        toolsButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+        toolsButton.getElement().setAttribute("aria-label", "Manage tools and permissions");
+        toolsButton.addClickListener(ignored -> openTools());
 
         Div toolbarSpacer = new Div();
         toolbarSpacer.addClassName("ai-toolbar-spacer");
@@ -113,7 +124,7 @@ final class AiAssistantView extends Div {
         });
         HorizontalLayout toolbar = new HorizontalLayout(providerLabel, provider,
                 codexChat.modelControls(), copilotChat.modelControls(),
-                openRouterChat.toolbarControls(), toolbarSpacer, shortlistsButton, contextButton);
+                openRouterChat.toolbarControls(), toolbarSpacer, shortlistsButton, contextButton, toolsButton);
         toolbar.setAlignItems(HorizontalLayout.Alignment.CENTER);
         toolbar.expand(toolbarSpacer);
         toolbar.setWidthFull();
@@ -142,7 +153,23 @@ final class AiAssistantView extends Div {
     @Override
     protected void onDetach(DetachEvent event) {
         closeAvailabilitySubscriptions();
+        if (toolsDialog != null) toolsDialog.close();
         super.onDetach(event);
+    }
+
+    private void openTools() {
+        if (toolsDialog != null) toolsDialog.close();
+        var registry = openRouterConversations.toolRegistry();
+        if (registry == null) {
+            toolsDialog = new Dialog();
+            toolsDialog.setHeaderTitle("Tools");
+            toolsDialog.add(new Span("Tool management is unavailable for this application configuration."));
+            toolsDialog.getFooter().add(new Button("Close", event -> toolsDialog.close()));
+        } else {
+            toolsDialog = new ToolsDialog(registry, openRouterConversations,
+                    provider.getValue() == Provider.OPENROUTER ? openRouterChat.selectedConversationId() : null);
+        }
+        toolsDialog.open();
     }
 
     void refreshManagedClubContext() {
