@@ -23,6 +23,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class FmOffsetsTest {
+    @ParameterizedTest
+    @ValueSource(ints = {FmOffsets.DEFAULT_BUILD, 0x123456})
+    void gamePass2524UsesIdentifiedImageRootsEvenWithAConflictingBuildGuess(int build) {
+        String profile = com.github.fmaiassistent.memory.NativeModuleProfile.GAME_PASS_2524_SHA256;
+        assertThat(FmOffsets.currentDateRva(profile, build)).isEqualTo(0x539DD10L);
+        assertThat(FmOffsets.currentHumanManagerRva(profile, build)).hasValue(0x53EB138L);
+        assertThat(FmOffsets.knownTableRva(profile, build)).isEqualTo(0x53FACA0L);
+    }
+
     @Test
     void identifiedModuleImageChoosesItsOwnRootsOverTheBuildGuess() {
         String gamePass = com.github.fmaiassistent.memory.NativeModuleProfile.GAME_PASS_SHA256;

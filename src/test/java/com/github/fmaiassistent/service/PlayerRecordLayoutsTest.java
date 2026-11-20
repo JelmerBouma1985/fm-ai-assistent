@@ -60,6 +60,14 @@ class PlayerRecordLayoutsTest {
     }
 
     @Test
+    void verifiedGamePassImageIsKnownWithAnUnrelatedUnknownSteamBuild(@TempDir Path home) throws Exception {
+        writeManifest(home, "\"AppState\"\n{\n\t\"buildid\"\t\t\"99999999\"\n}");
+        var match = PlayerRecordLayouts.resolve(home, NativeModuleProfile.GAME_PASS_2524_SHA256);
+        assertThat(match.knownBuild()).isTrue();
+        assertThat(match.layouts()).isEqualTo(PlayerRecordLayouts.LayoutSet.current());
+    }
+
+    @Test
     void resolvesKnownBuild(@TempDir Path home) throws Exception {
         writeManifest(home, "\"AppState\"\n{\n\t\"buildid\"\t\t\"26227640\"\n}");
 

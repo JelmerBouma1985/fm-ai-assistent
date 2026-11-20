@@ -9,6 +9,33 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.*;
 
 class PlayerFitnessExporterTest {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            com.github.fmaiassistent.memory.NativeModuleProfile.GAME_PASS_SHA256,
+            com.github.fmaiassistent.memory.NativeModuleProfile.GAME_PASS_2524_SHA256})
+    void gamePassKeepsAlreadyDecodedScalarsAndTraitsWithoutReadingSteamCalculationRoots(String profile) throws Exception {
+        // This checks the unsupported-calculation boundary, not native Game Pass scalar offsets.
+        var reader = org.mockito.Mockito.mock(ProcessMemoryReader.class);
+        org.mockito.Mockito.when(reader.platform()).thenReturn(ProcessMemoryReader.Platform.WINDOWS);
+        byte[] identity = java.nio.ByteBuffer.allocate(16).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                .putLong(0x140000000L).putInt(1).putInt(2).array();
+        org.mockito.Mockito.when(reader.readBytes(0x10000L, 16)).thenReturn(identity);
+        var row = new java.util.HashMap<String, Object>(Map.of("record", "0x10000", "index", 1, "unique_id", 2L,
+                "condition", 8900, "sharpness", 7300, "fatigue", -48, "player_traits", "Runs With Ball Often"));
+        row.put("match_load", null);
+        row.put("training_load", null);
+        row.put("overall_risk", null);
+        var before = new java.util.HashMap<>(row);
+        try (var offsets = org.mockito.Mockito.mockStatic(com.github.fmaiassistent.linux.FmOffsets.class)) {
+            offsets.when(() -> com.github.fmaiassistent.linux.FmOffsets.moduleProfile(reader, 0x10000000L)).thenReturn(profile);
+            PlayerFitnessExporter.capture(reader, 0x10000000L, List.of(row), null);
+        }
+        assertThat(row).isEqualTo(before);
+        org.mockito.Mockito.verify(reader).platform();
+        org.mockito.Mockito.verify(reader).readBytes(0x10000L, 16);
+        org.mockito.Mockito.verifyNoMoreInteractions(reader);
+    }
+
     @Test void replaysCurrentBuildCalculatedFitnessFromPassiveRamCapture() throws Exception {
         var mapper = tools.jackson.databind.json.JsonMapper.builder().build();
         byte[] captured;

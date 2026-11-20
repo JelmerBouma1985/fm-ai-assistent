@@ -56,6 +56,16 @@ class GamePassLayoutsTest {
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("Game Pass 27.1.0 image");
     }
 
+    @ParameterizedTest
+    @MethodSource("gamePassProfiles")
+    void gamePassRecognitionDoesNotEnableUnverifiedSteamFitnessCalculations(String image) {
+        assertThat(NativeModuleProfile.supportsFitness(image)).isFalse();
+        assertThatThrownBy(() -> PlayerMatchLoadLayout.forModule(image))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("not verified");
+        assertThat(NativeModuleProfile.supportsFitness(NativeModuleProfile.FM27_SHA256)).isTrue();
+        assertThat(NativeModuleProfile.supportsFitness(NativeModuleProfile.STEAM_26620374_SHA256)).isTrue();
+    }
+
     private static final Map<Integer, Integer> GAME_PASS_EXPECTED = Map.ofEntries(
             Map.entry(0x4B00AE8, 0x4AC05F8),  // db::FULL_CONTRACT
             Map.entry(0x4B01058, 0x4AC0B68),  // db::BASIC_CONTRACT

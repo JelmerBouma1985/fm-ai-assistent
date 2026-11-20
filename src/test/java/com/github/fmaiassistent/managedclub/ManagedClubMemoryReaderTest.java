@@ -53,14 +53,20 @@ class ManagedClubMemoryReaderTest {
         }
     }
 
-    @Test
-    void findsEveryVerifiedHumanManagerAndRejectsAnAiPerson() throws Exception {
-        FakeMemory memory = multiManagerMemory();
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            com.github.fmaiassistent.memory.NativeModuleProfile.FM27_2701_SHA256,
+            com.github.fmaiassistent.memory.NativeModuleProfile.STEAM_26620374_SHA256,
+            com.github.fmaiassistent.memory.NativeModuleProfile.GAME_PASS_SHA256,
+            com.github.fmaiassistent.memory.NativeModuleProfile.GAME_PASS_2524_SHA256})
+    void findsEveryVerifiedHumanManagerAndRejectsAnAiPerson(String profile) throws Exception {
+        // Synthetic pointers prove profile routing, not native Game Pass memory offsets.
+        FakeMemory memory = multiManagerMemory(profile);
         try (var offsets = org.mockito.Mockito.mockStatic(FmOffsets.class, org.mockito.Mockito.CALLS_REAL_METHODS)) {
             offsets.when(() -> FmOffsets.peopleBounds(memory, FmOffsets.DEFAULT_BUILD, PLUGIN))
                     .thenReturn(new FmOffsets.Bounds(0x1100_0000L, 0x1100_0020L));
             var managers = new ManagedClubMemoryReader().readAll(memory, FmOffsets.DEFAULT_BUILD, PLUGIN,
-                    com.github.fmaiassistent.memory.NativeModuleProfile.FM27_2701_SHA256);
+                    profile);
             assertThat(managers).extracting(ManagedClubIdentity::managerName)
                     .containsExactly("Jelmer Bouma", "Jemme Bomma", "Ties Bouma");
             assertThat(managers).extracting(ManagedClubIdentity::clubName)
@@ -82,9 +88,15 @@ class ManagedClubMemoryReaderTest {
     }
 
     private static FakeMemory multiManagerMemory() {
+        return multiManagerMemory(com.github.fmaiassistent.memory.NativeModuleProfile.FM27_2701_SHA256);
+    }
+
+    private static FakeMemory multiManagerMemory(String profile) {
         FakeMemory memory = validMemory();
+        memory.putLong(PLUGIN + FmOffsets.currentHumanManagerRva(FmOffsets.DEFAULT_BUILD).orElseThrow(), 0);
+        memory.putLong(PLUGIN + FmOffsets.currentHumanManagerRva(profile, FmOffsets.DEFAULT_BUILD).orElseThrow(), MANAGER);
         long humanVtable = PLUGIN + com.github.fmaiassistent.memory.NonPlayingProfileLayout
-                .forModule(com.github.fmaiassistent.memory.NativeModuleProfile.FM27_2701_SHA256).humanPersonVtableRva();
+                .forModule(profile).humanPersonVtableRva();
         memory.putLong(MANAGER, humanVtable);
         memory.putInt(MANAGER + 8, 0);
         memory.putLong(0x1100_0000L, MANAGER);
