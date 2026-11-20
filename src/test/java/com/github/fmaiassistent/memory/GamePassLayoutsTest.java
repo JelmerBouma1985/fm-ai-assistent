@@ -8,6 +8,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import java.io.IOException;
 import java.lang.reflect.RecordComponent;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Stream;
@@ -85,7 +86,7 @@ class GamePassLayoutsTest {
             Map.entry(0x57036E8, 0x5683CD8),  // COMP registry slot
             Map.entry(0x5703730, 0x5683D20),  // national containers registry slot
             Map.entry(0x5703738, 0x5683D28),  // PEOPLE registry slot
-            Map.entry(0x5703768, 0x5683D58)); // TEAM registry slot;
+            Map.entry(0x5703768, 0x5683D58)); // TEAM registry slot
 
     private static final Map<Integer, Integer> GAME_PASS_2524_EXPECTED = Map.ofEntries(
             Map.entry(0x4B00AE8, 0x4897AA8),  // db::FULL_CONTRACT
@@ -118,7 +119,7 @@ class GamePassLayoutsTest {
             Map.entry(0x57036E8, 0x53FADA0),  // registry slot +0x100 (competitions)
             Map.entry(0x5703730, 0x53FADE8),  // registry slot +0x148
             Map.entry(0x5703738, 0x53FADF0),  // registry slot +0x150 (people)
-            Map.entry(0x5703768, 0x53FAE20)); // registry slot +0x180 (teams));
+            Map.entry(0x5703768, 0x53FAE20)); // registry slot +0x180 (teams)
 
     static Stream<Arguments> gamePassImages() {
         return Stream.of(Arguments.of(GAME_PASS, GAME_PASS_EXPECTED, null),
@@ -144,9 +145,9 @@ class GamePassLayoutsTest {
             }
         } else {
             // 27.1.0 reorders two class pairs; the order must match the other 27.1.0 image's, root for root.
-            var byRank = ordered.keySet().stream().sorted(java.util.Comparator.comparingInt(k -> expected.get(k))).toList();
+            var byRank = ordered.keySet().stream().sorted(Comparator.comparingInt(k -> expected.get(k))).toList();
             var referenceRank = ordered.keySet().stream()
-                    .sorted(java.util.Comparator.comparingInt(k -> NativeModuleProfile.rva(orderReference, k))).toList();
+                    .sorted(Comparator.comparingInt(k -> NativeModuleProfile.rva(orderReference, k))).toList();
             assertThat(byRank).isEqualTo(referenceRank);
         }
     }

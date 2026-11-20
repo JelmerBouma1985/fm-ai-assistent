@@ -68,7 +68,7 @@ class GamePass2524LiveTest {
         assertThat(people.staff().rows()).hasSize(105861);
         PlayerSnapshotValidator.validate(people.players().rows(), people.slotCount(), people.players().gameDate());
         PlayerSnapshotValidator.validateStaff(people.staff().rows(), people.staff().gameDate(), people.players().rows().size());
-        assertThat(people.diagnostics().invalidBlocks()).isEqualTo(2); // two players with current ability 0 (placeholder rows, uids 5634828 and 2000056475); player decoder rejects ca<=0
+        assertThat(people.diagnostics().invalidBlocks()).isEqualTo(2); // Two save-specific placeholder rows (uids 5634828, 2000056475) have CA 0 and fail the 1..200 CA anchor.
         assertThat(people.diagnostics().malformedPointers()).isZero();
         assertThat(people.diagnostics().unreadable()).isZero();
         assertThat(people.players().rows()).allSatisfy(row ->

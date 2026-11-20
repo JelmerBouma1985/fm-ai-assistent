@@ -2,6 +2,7 @@ package com.github.fmaiassistent.service;
 
 import com.github.fmaiassistent.memory.ClubRecordLayout;
 import com.github.fmaiassistent.memory.CompetitionRecordLayout;
+import com.github.fmaiassistent.memory.NativeModuleProfile;
 import com.github.fmaiassistent.memory.PlayerRecordLayout;
 import com.github.fmaiassistent.memory.StaffRecordLayout;
 import org.junit.jupiter.api.Test;
@@ -48,8 +49,7 @@ class PlayerRecordLayoutsTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
-            "c0a4466f8183a999917de285d47ec19f12b746e29417e402ef55ff927b927df5",
-            "e499d2bddbe90568eae0b86fa39f64ec0b13f96ae5ddd0c94ffb7fc0ba861920"})
+            NativeModuleProfile.GAME_PASS_SHA256, NativeModuleProfile.GAME_PASS_2524_SHA256})
     void verifiedGamePassImageIsKnownWithoutASteamManifest(String image, @TempDir Path home) {
         var match = PlayerRecordLayouts.resolve(home, image);
         assertThat(match.knownBuild()).isTrue();

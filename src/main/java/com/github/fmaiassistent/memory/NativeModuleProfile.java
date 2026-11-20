@@ -196,7 +196,8 @@ public final class NativeModuleProfile {
     }
 
     /** Verified absolute-image RVAs. The Steam update moved them by two pages in native build 2493426;
-     * the Game Pass image uses an explicit per-root table. Record-relative offsets and persisted
+     * images that are not a constant shift of a Steam image (both Game Pass images, Steam 27.0.1
+     * and 26620374) use explicit per-image root tables. Record-relative offsets and persisted
      * scalar payloads are shared by all images. */
     public static int rva(String profile, int legacyRva) {
         if (!supported(profile)) throw new IllegalArgumentException("Unsupported FM27 module profile");
