@@ -10,13 +10,23 @@ import java.util.Map;
 /** Enriches the same atomic player snapshot with FM's medical calculations. */
 final class PlayerFitnessExporter {
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(PlayerFitnessExporter.class);
+    private static final List<String> CALCULATED_FIELDS = List.of(
+            "match_load", "training_load", "injury_susceptibility", "overall_risk");
     private PlayerFitnessExporter() { }
 
     static void capture(ProcessMemoryReader reader, Long moduleBase, List<Map<String, Object>> rows,
             LocalDate gameDate) throws IOException {
         if (reader.platform() != ProcessMemoryReader.Platform.WINDOWS || rows.isEmpty()) return;
-        long resolvedBase = moduleBase == null
-                ? com.github.fmaiassistent.linux.FmOffsets.findGamePluginBase(reader) : moduleBase;
+        long resolvedBase;
+        try {
+            resolvedBase = moduleBase == null
+                    ? com.github.fmaiassistent.linux.FmOffsets.findGamePluginBase(reader) : moduleBase;
+        } catch (IOException | RuntimeException unavailable) {
+            if (Thread.currentThread().isInterrupted() || unavailable instanceof java.util.concurrent.CancellationException)
+                throw unavailable;
+            discardCalculatedFields(rows, unavailable);
+            return;
+        }
         var identity = com.github.fmaiassistent.memory.PersonIdentityLayout.current();
         var identities = new java.util.ArrayList<byte[]>(rows.size());
         for (var row : rows) {
@@ -28,14 +38,23 @@ final class PlayerFitnessExporter {
                 throw new PlayerSnapshotValidator.PersonIdentityChangedException("Player fitness identity changed before capture");
             identities.add(prefix);
         }
-        String profile = com.github.fmaiassistent.linux.FmOffsets.moduleProfile(reader, resolvedBase);
-        if (!com.github.fmaiassistent.memory.NativeModuleProfile.supportsFitness(profile)) {
-            log.warn("FM fitness calculations are unavailable: the loaded game image has no verified medical/training layout");
-            return;
+        try {
+            String profile = com.github.fmaiassistent.linux.FmOffsets.moduleProfile(reader, resolvedBase);
+            if (!com.github.fmaiassistent.memory.NativeModuleProfile.supportsFitness(profile)) {
+                log.warn("FM fitness calculations are unavailable: the loaded game image has no verified medical/training layout");
+                return;
+            }
+            try (var cached = new com.github.fmaiassistent.memory.PagedSnapshotMemoryReader(reader, 8192)) {
+                captureRows(cached, resolvedBase, rows, gameDate, profile);
+            }
+        } catch (PlayerSnapshotValidator.PersonIdentityChangedException changed) {
+            throw changed;
+        } catch (IOException | RuntimeException unavailable) {
+            if (Thread.currentThread().isInterrupted() || unavailable instanceof java.util.concurrent.CancellationException)
+                throw unavailable;
+            discardCalculatedFields(rows, unavailable);
         }
-        try (var cached = new com.github.fmaiassistent.memory.PagedSnapshotMemoryReader(reader, 8192)) {
-            captureRows(cached, resolvedBase, rows, gameDate, profile);
-        }
+        // Even after an optional calculation failure, reject a mixed or changed snapshot.
         for (int i = 0; i < rows.size(); i++) {
             long person = Long.decode(String.valueOf(rows.get(i).get("record")));
             if (!java.util.Arrays.equals(identities.get(i), reader.readBytes(person, identity.prefixBytes())))
@@ -45,6 +64,12 @@ final class PlayerFitnessExporter {
                 .find(reader, 0, com.github.fmaiassistent.linux.FmOffsets.DEFAULT_BUILD, resolvedBase)
                 .filter(gameDate::equals).isPresent())
             throw new PlayerSnapshotValidator.PersonIdentityChangedException("Game date changed during fitness capture");
+    }
+
+    private static void discardCalculatedFields(List<Map<String, Object>> rows, Exception failure) {
+        for (var row : rows) for (String field : CALCULATED_FIELDS) row.put(field, null);
+        log.warn("FM calculated fitness extraction failed ({}); calculated fields were left empty and data loading will continue",
+                failure.getClass().getSimpleName());
     }
 
     private static void captureRows(ProcessMemoryReader reader, long moduleBase,

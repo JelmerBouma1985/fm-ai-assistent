@@ -7,8 +7,84 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.*;
 
 class PlayerFitnessExporterTest {
+    enum FitnessFailure { IO, RUNTIME, PROFILE, IDENTITY_CHANGED, DATE_CHANGED, CANCELLED, INTERRUPTED, IDENTITY_EXCEPTION }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(FitnessFailure.class)
+    void calculationFailuresAreOptionalButSnapshotChangesAndCancellationStillAbort(FitnessFailure failure) throws Exception {
+        long base = 0x10000000L, person = 0x10000L;
+        var reader = mock(ProcessMemoryReader.class);
+        when(reader.platform()).thenReturn(ProcessMemoryReader.Platform.WINDOWS);
+        byte[] prefix = java.nio.ByteBuffer.allocate(16).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                .putLong(0x20000L).putInt(1).putInt(2).array();
+        byte[] changed = prefix.clone(); changed[12] = 9;
+        when(reader.readBytes(person, 16)).thenReturn(prefix, failure == FitnessFailure.IDENTITY_CHANGED ? changed : prefix);
+        var row = new java.util.HashMap<String, Object>(Map.of("record", "0x10000", "index", 1, "unique_id", 2L,
+                "condition", 8900, "sharpness", 7300, "fatigue", -48, "player_traits", "Runs With Ball Often"));
+        var other = new java.util.HashMap<String, Object>(row);
+        other.put("record", "0x11000"); other.put("index", 2); other.put("unique_id", 3L);
+        when(reader.readBytes(0x11000L, 16)).thenReturn(java.nio.ByteBuffer.allocate(16)
+                .order(java.nio.ByteOrder.LITTLE_ENDIAN).putLong(0x20000L).putInt(2).putInt(3).array());
+        for (var field : List.of("match_load", "training_load", "injury_susceptibility", "overall_risk")) other.put(field, "Old value");
+        var rows = List.<Map<String, Object>>of(row, other);
+        var date = java.time.LocalDate.of(2026, 7, 6);
+        Exception error = switch (failure) {
+            case RUNTIME, PROFILE -> new IllegalStateException("Calculation failed");
+            case CANCELLED -> new java.util.concurrent.CancellationException("Stopped");
+            case IDENTITY_EXCEPTION -> new PlayerSnapshotValidator.PersonIdentityChangedException("PERSON changed");
+            default -> new IOException("Calculation memory unavailable");
+        };
+        // Run the real capture path, failing after match_load was already written.
+        try (var offsets = mockStatic(com.github.fmaiassistent.linux.FmOffsets.class);
+             var cache = mockConstruction(com.github.fmaiassistent.memory.PagedSnapshotMemoryReader.class, (mock, context) -> {
+                 when(mock.readU64(person)).thenReturn(0x20000L);
+                 when(mock.readU64(0x20000L - 8)).thenReturn(0x30000L);
+                 when(mock.readI32(0x30000L + 4)).thenReturn(0x288);
+             });
+             var match = mockConstruction(PlayerMatchLoadReader.class, (mock, context) ->
+                     when(mock.read(any(), anyLong(), anyLong(), any())).thenReturn(new PlayerMatchLoadReader.Result(0, "Light", 0, 0, 0, 14)));
+             var training = mockConstruction(PlayerTrainingLoadReader.class, (mock, context) ->
+                     when(mock.read(any(), anyLong(), anyLong(), any())).thenAnswer(invocation -> {
+                         if (failure == FitnessFailure.INTERRUPTED) Thread.currentThread().interrupt();
+                         throw error;
+                     }));
+             var dates = mockConstruction(com.github.fmaiassistent.linux.GameDateFinder.class, (mock, context) ->
+                     when(mock.find(any(), anyLong(), anyInt(), any())).thenReturn(failure == FitnessFailure.DATE_CHANGED
+                             ? java.util.Optional.of(date.plusDays(1)) : java.util.Optional.of(date)))) {
+            if (failure == FitnessFailure.PROFILE) offsets.when(() -> com.github.fmaiassistent.linux.FmOffsets.moduleProfile(reader, base)).thenThrow(error);
+            else offsets.when(() -> com.github.fmaiassistent.linux.FmOffsets.moduleProfile(reader, base))
+                    .thenReturn(com.github.fmaiassistent.memory.NativeModuleProfile.STEAM_26620374_SHA256);
+            if (failure == FitnessFailure.CANCELLED || failure == FitnessFailure.INTERRUPTED || failure == FitnessFailure.IDENTITY_EXCEPTION) {
+                assertThatThrownBy(() -> PlayerFitnessExporter.capture(reader, base, rows, date)).isSameAs(error);
+            } else if (failure == FitnessFailure.IDENTITY_CHANGED || failure == FitnessFailure.DATE_CHANGED) {
+                assertThatThrownBy(() -> PlayerFitnessExporter.capture(reader, base, rows, date))
+                        .isInstanceOf(PlayerSnapshotValidator.PersonIdentityChangedException.class);
+            } else {
+                assertThatCode(() -> PlayerFitnessExporter.capture(reader, base, rows, date)).doesNotThrowAnyException();
+                for (var output : rows) for (var field : List.of("match_load", "training_load", "injury_susceptibility", "overall_risk"))
+                    assertThat(output).containsEntry(field, null);
+            }
+            for (var output : rows) assertThat(output).containsEntry("condition", 8900).containsEntry("sharpness", 7300)
+                    .containsEntry("fatigue", -48).containsEntry("player_traits", "Runs With Ball Often");
+        } finally { Thread.interrupted(); }
+    }
+
+    @Test void missingFitnessModuleLeavesCalculatedFieldsEmptyWithoutFailingLoading() throws Exception {
+        var reader = mock(ProcessMemoryReader.class);
+        when(reader.platform()).thenReturn(ProcessMemoryReader.Platform.WINDOWS);
+        var row = new java.util.HashMap<String, Object>(Map.of("condition", 9000, "match_load", "Old value"));
+        try (var offsets = mockStatic(com.github.fmaiassistent.linux.FmOffsets.class)) {
+            offsets.when(() -> com.github.fmaiassistent.linux.FmOffsets.findGamePluginBase(reader)).thenThrow(new IOException("No module"));
+            assertThatCode(() -> PlayerFitnessExporter.capture(reader, null, List.of(row), null)).doesNotThrowAnyException();
+        }
+        assertThat(row).containsEntry("condition", 9000).containsEntry("match_load", null).containsEntry("training_load", null)
+                .containsEntry("injury_susceptibility", null).containsEntry("overall_risk", null);
+    }
+
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(strings = {
             com.github.fmaiassistent.memory.NativeModuleProfile.GAME_PASS_SHA256,
