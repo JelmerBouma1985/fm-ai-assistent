@@ -24,7 +24,7 @@ import java.util.Optional;
 import java.time.LocalDate;
 import java.time.DateTimeException;
 
-/** Evidence-backed Windows capture; registry metadata is scoped to one verified snapshot, never across captures. */
+/** Verified game-image capture on Windows or Linux/Proton; registry metadata is scoped to one snapshot. */
 public final class ContractExporter {
     public static final String MODULE_SHA256 = "bc940e472418fc5c214208d7cf30fecf600f689b6f9d71c11ba19a2df0fe057f";
     public static final String MODULE_PROPERTY = "fmaiassistent.contracts.module";
@@ -54,7 +54,7 @@ public final class ContractExporter {
     /** Called once for player and staff rows before publication; unsupported profiles remain explicitly absent. */
     static void capture(ProcessMemoryReader reader, Long base, List<Map<String, Object>> rows) throws IOException {
         String status = "UNSUPPORTED_PLATFORM_OR_MODULE";
-        if (reader.platform() == ProcessMemoryReader.Platform.WINDOWS) {
+        if (reader.platform().supportsGameMemory()) {
             long moduleBase = base == null ? com.github.fmaiassistent.linux.FmOffsets.findGamePluginBase(reader) : base;
             String override = System.getProperty(MODULE_PROPERTY);
             Path module = override == null || override.isBlank() ? reader.maps().stream()
@@ -73,7 +73,7 @@ public final class ContractExporter {
         }
         for (var row : rows) {
             row.put("_contract_profile", status);
-            if(reader.platform()==ProcessMemoryReader.Platform.WINDOWS)row.put("_future_transfer_profile",status);
+            if(reader.platform().supportsGameMemory())row.put("_future_transfer_profile",status);
         }
     }
 

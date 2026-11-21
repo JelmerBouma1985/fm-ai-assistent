@@ -132,8 +132,7 @@ public class ClubExporter {
                                     com.github.fmaiassistent.memory.ClubFinancialHistoryLayout history) { }
 
     static boolean supportsTypedNativeCapture(ProcessMemoryReader.Platform platform) {
-        return platform == ProcessMemoryReader.Platform.WINDOWS
-                || platform == ProcessMemoryReader.Platform.LINUX;
+        return platform.supportsGameMemory();
     }
 
     private Map<String,Object> decodeNativeTeamClub(ProcessMemoryReader reader,long team,int index,ClubIdentitySnapshot identities)throws IOException {

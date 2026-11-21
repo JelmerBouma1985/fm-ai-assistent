@@ -16,7 +16,7 @@ final class PlayerFitnessExporter {
 
     static void capture(ProcessMemoryReader reader, Long moduleBase, List<Map<String, Object>> rows,
             LocalDate gameDate) throws IOException {
-        if (reader.platform() != ProcessMemoryReader.Platform.WINDOWS || rows.isEmpty()) return;
+        if (!reader.platform().supportsGameMemory() || rows.isEmpty()) return;
         long resolvedBase;
         try {
             resolvedBase = moduleBase == null
@@ -85,53 +85,86 @@ final class PlayerFitnessExporter {
                 com.github.fmaiassistent.memory.PlayerTrainingSelectionLayout.forModule(profile), profile);
         var medicalStaff = new PlayerMedicalStaffReader(com.github.fmaiassistent.memory.PlayerMedicalStaffLayout.forModule(profile));
         var displacements = new HashMap<Long, Integer>();
+        var failures = new HashMap<String, Integer>();
+        for (var row : rows) for (String field : CALCULATED_FIELDS) row.put(field, null);
         for (var row : rows) {
             long person = Long.decode(String.valueOf(row.get("record")));
-            long vtable = reader.readU64(person);
-            Integer displacement = displacements.get(vtable);
-            if (displacement == null) {
-                long metadata = reader.readU64(vtable - Long.BYTES);
-                displacement = reader.readI32(metadata + Integer.BYTES);
-                if (displacement != 0x288 && displacement != 0x380)
-                    throw new IOException("Player fitness PERSON subtype anchor failed");
-                displacements.put(vtable, displacement);
-            }
-            long player = person - displacement;
-            var load = matchLoads.read(reader, player, moduleBase, gameDate);
+            Long playerAddress = optionalCalculation("player context", failures, () -> {
+                long vtable = reader.readU64(person);
+                Integer displacement = displacements.get(vtable);
+                if (displacement == null) {
+                    long metadata = reader.readU64(vtable - Long.BYTES);
+                    displacement = reader.readI32(metadata + Integer.BYTES);
+                    if (displacement != 0x288 && displacement != 0x380)
+                        throw new IOException("Player fitness PERSON subtype anchor failed");
+                    displacements.put(vtable, displacement);
+                }
+                return person - displacement;
+            });
+            if (playerAddress == null) continue;
+            long player = playerAddress;
+            var load = optionalCalculation("match_load", failures,
+                    () -> matchLoads.read(reader, player, moduleBase, gameDate));
             row.put("match_load", load == null ? null : load.label());
-            var training = trainingLoads.read(reader, player, moduleBase, gameDate);
+            var training = optionalCalculation("training_load", failures,
+                    () -> trainingLoads.read(reader, player, moduleBase, gameDate));
             row.put("training_load", training == null ? null : training.label());
             if (gameDate == null || !(row.get("condition") instanceof Number condition)
                     || !(row.get("sharpness") instanceof Number sharpness)
                     || !(row.get("fatigue") instanceof Number fatigue)) continue;
-            var susceptibility = injuryRisk.readSusceptibility(reader, player, moduleBase, gameDate,
-                    condition.intValue(), fatigue.intValue(), null);
-            if (susceptibility.label() == null
-                    && "Physician context unavailable".equals(susceptibility.unresolvedReason())) {
-                var staff = medicalStaff.defaultStaff(reader, player, moduleBase, gameDate);
-                if (staff != null) susceptibility = injuryRisk.readSusceptibility(reader, player, moduleBase,
-                        gameDate, condition.intValue(), fatigue.intValue(), staff);
-            }
-            row.put("injury_susceptibility", susceptibility.label());
-            if (load == null) continue;
-            Float multiplier = trainingLoads.teamRiskMultiplier(reader, player, moduleBase);
-            var overall = injuryRisk.readRisk(reader, player, moduleBase, gameDate, condition.intValue(),
-                    sharpness.intValue(), fatigue.intValue(), load.category(), null, null, multiplier);
-            if (overall == null) {
-                var inputs = trainingLoads.riskInputs(reader, player, moduleBase, gameDate);
-                Integer role = inputs == null ? null : trainingLoads.trainingRole(reader, player, moduleBase);
-                int[] categories = null;
-                if (role != null) {
-                    int position = trainingLoads.preferredPositionMask(reader, player, moduleBase, gameDate);
-                    Long explicitRole = trainingLoads.preferredAttributeRoleOverride(reader, player, moduleBase, gameDate);
-                    var selected = trainingSelection.read(reader, player, moduleBase, position, explicitRole);
-                    categories = injuryRisk.readTrainingCategories(reader, player, moduleBase, inputs,
-                            role, selected.nativeAttributeIDs());
+            var susceptibilityLabel = optionalCalculation("injury_susceptibility", failures, () -> {
+                var susceptibility = injuryRisk.readSusceptibility(reader, player, moduleBase, gameDate,
+                        condition.intValue(), fatigue.intValue(), null);
+                if (susceptibility.label() == null
+                        && "Physician context unavailable".equals(susceptibility.unresolvedReason())) {
+                    var staff = medicalStaff.defaultStaff(reader, player, moduleBase, gameDate);
+                    if (staff != null) susceptibility = injuryRisk.readSusceptibility(reader, player, moduleBase,
+                            gameDate, condition.intValue(), fatigue.intValue(), staff);
                 }
-                overall = injuryRisk.readRisk(reader, player, moduleBase, gameDate, condition.intValue(),
-                        sharpness.intValue(), fatigue.intValue(), load.category(), inputs, categories, multiplier);
-            }
-            row.put("overall_risk", overall == null ? null : overall.label());
+                return susceptibility.label();
+            });
+            row.put("injury_susceptibility", susceptibilityLabel);
+            if (load == null) continue;
+            var overallLabel = optionalCalculation("overall_risk", failures, () -> {
+                Float multiplier = trainingLoads.teamRiskMultiplier(reader, player, moduleBase);
+                var overall = injuryRisk.readRisk(reader, player, moduleBase, gameDate, condition.intValue(),
+                        sharpness.intValue(), fatigue.intValue(), load.category(), null, null, multiplier);
+                if (overall == null) {
+                    var inputs = trainingLoads.riskInputs(reader, player, moduleBase, gameDate);
+                    Integer role = inputs == null ? null : trainingLoads.trainingRole(reader, player, moduleBase);
+                    int[] categories = null;
+                    if (role != null) {
+                        int position = trainingLoads.preferredPositionMask(reader, player, moduleBase, gameDate);
+                        Long explicitRole = trainingLoads.preferredAttributeRoleOverride(reader, player, moduleBase, gameDate);
+                        var selected = trainingSelection.read(reader, player, moduleBase, position, explicitRole);
+                        categories = injuryRisk.readTrainingCategories(reader, player, moduleBase, inputs,
+                                role, selected.nativeAttributeIDs());
+                    }
+                    overall = injuryRisk.readRisk(reader, player, moduleBase, gameDate, condition.intValue(),
+                            sharpness.intValue(), fatigue.intValue(), load.category(), inputs, categories, multiplier);
+                }
+                return overall == null ? null : overall.label();
+            });
+            row.put("overall_risk", overallLabel);
+        }
+        if (!failures.isEmpty()) log.warn("FM calculated fitness incomplete: {}; affected player fields are empty and data loading will continue", failures);
+    }
+
+    private static <T> T optionalCalculation(String field, Map<String, Integer> failures, Calculation<T> calculation)
+            throws IOException {
+        try {
+            return calculation.run();
+        } catch (PlayerSnapshotValidator.PersonIdentityChangedException changed) {
+            throw changed;
+        } catch (IOException | RuntimeException unavailable) {
+            if (Thread.currentThread().isInterrupted() || unavailable instanceof java.util.concurrent.CancellationException)
+                throw unavailable;
+            if (failures.merge(field, 1, Integer::sum) == 1)
+                log.warn("FM {} calculation unavailable for a player: {}: {}", field,
+                        unavailable.getClass().getSimpleName(), unavailable.getMessage());
+            return null;
         }
     }
+
+    @FunctionalInterface private interface Calculation<T> { T run() throws IOException; }
 }

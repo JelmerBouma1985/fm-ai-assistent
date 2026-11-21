@@ -10,14 +10,17 @@ import java.util.*;
 import static org.assertj.core.api.Assertions.*;
 
 class NonPlayingProfileExporterTest {
-    @Test void fm27CapturedStandaloneCombinedAndHumanMembersKeepAll52NativeBytes() throws Exception {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = ProcessMemoryReader.Platform.class, names = {"WINDOWS", "LINUX"})
+    void fm27CapturedStandaloneCombinedAndHumanMembersKeepAll52NativeBytes(ProcessMemoryReader.Platform platform) throws Exception {
         var capture=fm27Capture();long base=Long.decode(capture.get("moduleBase").asString());
         var layout=NonPlayingProfileLayout.current();
         for(String type:List.of(".?AVACTUAL_NON_PLAYER@db@@",".?AVACTUAL_PLAYER_AND_NON_PLAYER@db@@",".?AVHUMAN_NON_PLAYER@db@@")) {
             assertThat(capture.get("samples").get(type).size()).as("Native samples for %s",type).isPositive();
             for(var sample:capture.get("samples").get(type)) {
                 var f=fm27Fixture(sample);
-                NonPlayingProfileExporter.captureVerifiedRows(f.memory(),base,List.of(f.row()),layout);
+                f.memory().platform = platform;
+                NonPlayingProfileExporter.capture(f.memory(),base,List.of(f.row()));
                 assertThat(f.row().get("non_playing_profile_hex")).isEqualTo(HexFormat.of().formatHex(f.raw(),8,60));
                 assertThat(f.row().get("non_playing_profile_sha256")).isEqualTo(com.github.fmaiassistent.memory.NativeModuleProfile.FM27_SHA256);
                 assertThat(NonPlayingProfileLayout.values((String)f.row().get("non_playing_profile_hex"),
@@ -151,6 +154,8 @@ private static Fixture fixture() throws Exception {
     }
     private record Fixture(FakeMemory memory,Map<String,Object> row,long person,byte[] raw) { }
     private static final class FakeMemory implements ProcessMemoryReader {
+        Platform platform = Platform.UNKNOWN;
+        public Platform platform() { return platform; }
         final Map<Long,Byte> bytes=new HashMap<>();final long member;int reads,memberReads;boolean changeOnReread;
         FakeMemory(long member){this.member=member;}
         void put(long p,byte[] data){for(int i=0;i<data.length;i++)bytes.put(p+i,data[i]);}

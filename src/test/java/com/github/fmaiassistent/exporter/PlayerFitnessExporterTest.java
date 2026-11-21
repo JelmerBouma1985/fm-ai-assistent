@@ -11,14 +11,67 @@ import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
 
 class PlayerFitnessExporterTest {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"match_load", "training_load", "injury_susceptibility", "overall_risk", "player context"})
+    void aFailedPlayerCalculationPreservesOtherFieldsAndLaterPlayers(String failed) throws Exception {
+        var reader = mock(ProcessMemoryReader.class);
+        when(reader.readU64(0x10000L)).thenReturn(0x20000L);
+        when(reader.readU64(0x11000L)).thenReturn(0x20000L);
+        when(reader.readU64(0x20000L - 8)).thenReturn(0x30000L);
+        when(reader.readI32(0x30000L + 4)).thenReturn(0x288);
+        if (failed.equals("player context")) when(reader.readU64(0x10000L)).thenThrow(new IOException("Subtype unreadable"));
+        var first = new java.util.HashMap<String, Object>(Map.of("record", "0x10000", "condition", 8900, "sharpness", 7300, "fatigue", -48));
+        var second = new java.util.HashMap<String, Object>(first); second.put("record", "0x11000");
+        try (var match = mockConstruction(PlayerMatchLoadReader.class, (mock, context) ->
+                when(mock.read(any(), anyLong(), anyLong(), any())).thenAnswer(call -> {
+                    failFirstCalculation(failed, "match_load", call.getArgument(1));
+                    return new PlayerMatchLoadReader.Result(0, "Light", 0, 0, 0, 14);
+                }));
+             var training = mockConstruction(PlayerTrainingLoadReader.class, (mock, context) -> {
+                when(mock.read(any(), anyLong(), anyLong(), any())).thenAnswer(call -> {
+                    failFirstCalculation(failed, "training_load", call.getArgument(1));
+                    return new PlayerTrainingLoadReader.Result(1, "Medium", 100, 100, 1, 0, 0, 0);
+                });
+                when(mock.teamRiskMultiplier(any(), anyLong(), anyLong())).thenReturn(1f);
+             });
+             var risk = mockConstruction(PlayerInjuryRiskReader.class, (mock, context) -> {
+                when(mock.readSusceptibility(any(), anyLong(), anyLong(), any(), anyInt(), anyInt(), any())).thenAnswer(call -> {
+                    failFirstCalculation(failed, "injury_susceptibility", call.getArgument(1));
+                    return new PlayerInjuryRiskReader.SusceptibilityResult(0, "Low", null);
+                });
+                when(mock.readRisk(any(), anyLong(), anyLong(), any(), anyInt(), anyInt(), anyInt(), anyInt(), any(), any(), any()))
+                        .thenAnswer(call -> {
+                            failFirstCalculation(failed, "overall_risk", call.getArgument(1));
+                            return new PlayerInjuryRiskReader.Result(0, "Low");
+                        });
+             })) {
+            var method = PlayerFitnessExporter.class.getDeclaredMethod("captureRows", ProcessMemoryReader.class,
+                    long.class, List.class, java.time.LocalDate.class, String.class);
+            method.setAccessible(true);
+            method.invoke(null, reader, 0x10000000L, List.of(first, second), java.time.LocalDate.of(2026, 8, 6),
+                    com.github.fmaiassistent.memory.NativeModuleProfile.STEAM_26620374_SHA256);
+            var expected = Map.of("match_load", "Light", "training_load", "Medium", "injury_susceptibility", "Low", "overall_risk", "Low");
+            for (var field : expected.keySet()) {
+                assertThat(second).containsEntry(field, expected.get(field));
+                boolean unavailable = failed.equals(field) || failed.equals("player context")
+                        || (failed.equals("match_load") && field.equals("overall_risk"));
+                assertThat(first).containsEntry(field, unavailable ? null : expected.get(field));
+            }
+        }
+    }
+
+    private static void failFirstCalculation(String failed, String field, long player) throws IOException {
+        if (player == 0x10000L - 0x288 && failed.equals(field)) throw new IOException("Invalid optional native context");
+    }
+
     enum FitnessFailure { IO, RUNTIME, PROFILE, IDENTITY_CHANGED, DATE_CHANGED, CANCELLED, INTERRUPTED, IDENTITY_EXCEPTION }
 
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.EnumSource(FitnessFailure.class)
-    void calculationFailuresAreOptionalButSnapshotChangesAndCancellationStillAbort(FitnessFailure failure) throws Exception {
+    @org.junit.jupiter.params.provider.MethodSource("platformFailures")
+    void calculationFailuresAreOptionalButSnapshotChangesAndCancellationStillAbort(FitnessFailure failure, ProcessMemoryReader.Platform platform) throws Exception {
         long base = 0x10000000L, person = 0x10000L;
         var reader = mock(ProcessMemoryReader.class);
-        when(reader.platform()).thenReturn(ProcessMemoryReader.Platform.WINDOWS);
+        when(reader.platform()).thenReturn(platform);
         byte[] prefix = java.nio.ByteBuffer.allocate(16).order(java.nio.ByteOrder.LITTLE_ENDIAN)
                 .putLong(0x20000L).putInt(1).putInt(2).array();
         byte[] changed = prefix.clone(); changed[12] = 9;
@@ -41,7 +94,9 @@ class PlayerFitnessExporterTest {
         // Run the real capture path, failing after match_load was already written.
         try (var offsets = mockStatic(com.github.fmaiassistent.linux.FmOffsets.class);
              var cache = mockConstruction(com.github.fmaiassistent.memory.PagedSnapshotMemoryReader.class, (mock, context) -> {
+                 when(mock.platform()).thenReturn(platform);
                  when(mock.readU64(person)).thenReturn(0x20000L);
+                 when(mock.readU64(0x11000L)).thenReturn(0x20000L);
                  when(mock.readU64(0x20000L - 8)).thenReturn(0x30000L);
                  when(mock.readI32(0x30000L + 4)).thenReturn(0x288);
              });
@@ -49,6 +104,8 @@ class PlayerFitnessExporterTest {
                      when(mock.read(any(), anyLong(), anyLong(), any())).thenReturn(new PlayerMatchLoadReader.Result(0, "Light", 0, 0, 0, 14)));
              var training = mockConstruction(PlayerTrainingLoadReader.class, (mock, context) ->
                      when(mock.read(any(), anyLong(), anyLong(), any())).thenAnswer(invocation -> {
+                         if ((long) invocation.getArgument(1) == 0x11000L - 0x288)
+                             return new PlayerTrainingLoadReader.Result(1, "Medium", 100, 100, 1, 0, 0, 0);
                          if (failure == FitnessFailure.INTERRUPTED) Thread.currentThread().interrupt();
                          throw error;
                      }));
@@ -65,12 +122,24 @@ class PlayerFitnessExporterTest {
                         .isInstanceOf(PlayerSnapshotValidator.PersonIdentityChangedException.class);
             } else {
                 assertThatCode(() -> PlayerFitnessExporter.capture(reader, base, rows, date)).doesNotThrowAnyException();
-                for (var output : rows) for (var field : List.of("match_load", "training_load", "injury_susceptibility", "overall_risk"))
-                    assertThat(output).containsEntry(field, null);
+                if (failure == FitnessFailure.PROFILE) {
+                    for (var output : rows) for (var field : List.of("match_load", "training_load", "injury_susceptibility", "overall_risk"))
+                        assertThat(output).containsEntry(field, null);
+                } else {
+                    assertThat(row).containsEntry("match_load", "Light").containsEntry("training_load", null);
+                    assertThat(other).containsEntry("match_load", "Light").containsEntry("training_load", "Medium");
+                    assertThat(other).doesNotContainValue("Old value");
+                }
             }
             for (var output : rows) assertThat(output).containsEntry("condition", 8900).containsEntry("sharpness", 7300)
                     .containsEntry("fatigue", -48).containsEntry("player_traits", "Runs With Ball Often");
         } finally { Thread.interrupted(); }
+    }
+
+    static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> platformFailures() {
+        return java.util.stream.Stream.of(ProcessMemoryReader.Platform.WINDOWS, ProcessMemoryReader.Platform.LINUX)
+                .flatMap(platform -> java.util.Arrays.stream(FitnessFailure.values())
+                        .map(failure -> org.junit.jupiter.params.provider.Arguments.of(failure, platform)));
     }
 
     @Test void missingFitnessModuleLeavesCalculatedFieldsEmptyWithoutFailingLoading() throws Exception {
@@ -112,7 +181,7 @@ class PlayerFitnessExporterTest {
         org.mockito.Mockito.verifyNoMoreInteractions(reader);
     }
 
-    @Test void replaysCurrentBuildCalculatedFitnessFromPassiveRamCapture() throws Exception {
+    @Test void replaysCurrentBuildCalculatedFitnessFromPassiveRamCapture(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
         var mapper = tools.jackson.databind.json.JsonMapper.builder().build();
         byte[] captured;
         try (var stream = getClass().getResourceAsStream("/fm27/player-fitness-calculated-26620374-captured.json")) {
@@ -154,8 +223,18 @@ class PlayerFitnessExporterTest {
         var method = PlayerFitnessExporter.class.getDeclaredMethod("captureRows", ProcessMemoryReader.class,
                 long.class, List.class, java.time.LocalDate.class, String.class);
         method.setAccessible(true);
-        method.invoke(null, reader, fixture.path("module").asLong(), rows,
-                java.time.LocalDate.parse(fixture.path("date").asString()), profile);
+        // The captured native archive path belongs to a past save. Never consult the developer's current game files.
+        String property = PlayerMedicalAssessmentReader.ARCHIVE_PROPERTY;
+        String previous = System.getProperty(property);
+        try {
+            System.setProperty(property, directory.resolve("missing-injury-history.cmt").toString());
+            method.invoke(null, reader, fixture.path("module").asLong(), rows,
+                    java.time.LocalDate.parse(fixture.path("date").asString()), profile);
+        } finally {
+            if (previous == null) System.clearProperty(property); else System.setProperty(property, previous);
+        }
+        // This player's susceptibility requires the external injury archive, which is not part of the fixture.
+        ((tools.jackson.databind.node.ObjectNode) fixture.path("expected").get(2)).putNull("injury_susceptibility");
         tools.jackson.databind.JsonNode actual = mapper.valueToTree(rows);
         assertThat(actual).isEqualTo(fixture.path("expected"));
     }

@@ -21,9 +21,11 @@ class PlayerTrainingLoadReaderTest {
     private static final long MODULE = 0x7FFD90CC0000L;
     private static final LocalDate DATE = LocalDate.of(2026,8,3);
 
-    @Test
-    void replaysCapturedNativeScheduleAndHumanIntensityAsMedium() throws Exception {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = ProcessMemoryReader.Platform.class, names = {"WINDOWS", "LINUX"})
+    void replaysCapturedNativeScheduleAndHumanIntensityAsMedium(ProcessMemoryReader.Platform platform) throws Exception {
         var memory = captured();
+        memory.platform = platform;
         var result = new PlayerTrainingLoadReader().read(memory, memory.player, MODULE, DATE);
         assertThat(result).isNotNull();
         assertThat(result.label()).isEqualTo("Medium");
@@ -103,7 +105,7 @@ class PlayerTrainingLoadReaderTest {
         // Retain the four weeks actually visited by the bounded capture.
         memory.put(configuration + 0x28, weeks + 4 * Long.BYTES, Long.BYTES);
         assertThat(reader.read(memory, memory.player, MODULE, DATE.plusMonths(6))).isNull();
-        memory.platform = ProcessMemoryReader.Platform.LINUX;
+        memory.platform = ProcessMemoryReader.Platform.UNKNOWN;
         assertThat(reader.read(memory, memory.player, MODULE, DATE)).isNull();
         memory.platform = ProcessMemoryReader.Platform.WINDOWS;
         long manager = memory.readU64(MODULE + 0x56F23B0);
@@ -183,6 +185,30 @@ class PlayerTrainingLoadReaderTest {
         assertThat(reader.tacticIntensity(memory,memory.tactic)).isEqualTo(42);
         assertThat(reader.teamRiskMultiplier(memory,memory.player,memory.module)).isEqualTo(1.1f);
         assertThat(reader.riskInputs(memory,memory.player,memory.module,DATE).modifiedBaseline()).isEqualTo(62);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {3, 56, 255})
+    void absentTacticSelectionUsesPositionFallbackWithoutReadingInvalidVector(int selected) throws Exception {
+        var memory = captured("/fm27/player-training-risk-captured.json");
+        var reader = new PlayerTrainingLoadReader();
+        var layout = PlayerTrainingLoadLayout.current();
+        long team = memory.readU64(memory.player + layout.player().currentTeam());
+        long node = reader.teamContext(memory, team, memory.module);
+        long vb = memory.readU64(memory.player + layout.player().virtualBase());
+        int index = memory.readI32(memory.player + memory.readI32(vb + layout.player().personDisplacement())
+                + layout.player().personIndex());
+        memory.put(node + layout.role().lineup(), index, 4);
+        memory.put(node + layout.role().selectedTactic(), selected, 1);
+        memory.put(node + layout.role().tactics(), 0x900000, 8);
+        memory.put(node + layout.role().tactics() + 8, 0x800000, 8);
+        memory.put(memory.player + layout.player().extra(), 0, 8);
+        memory.put(memory.player + layout.role().positionSource() + layout.role().goalkeeper(), 20, 1);
+        assertThat(reader.trainingRole(memory, memory.player, memory.module)).isZero();
+        // A real selection still validates the vector; the corrupt layout is never accepted.
+        memory.put(node + layout.role().selectedTactic(), 0, 1);
+        assertThatThrownBy(() -> reader.trainingRole(memory, memory.player, memory.module))
+                .isInstanceOf(IOException.class).hasMessageContaining("vector range anchor");
     }
 
     @Test

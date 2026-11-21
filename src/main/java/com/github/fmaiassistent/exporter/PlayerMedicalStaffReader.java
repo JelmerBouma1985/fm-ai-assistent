@@ -17,7 +17,7 @@ public final class PlayerMedicalStaffReader {
     public PlayerMedicalAssessmentReader.StaffContext defaultStaff(ProcessMemoryReader r,
             long player, long module, LocalDate date) throws IOException {
         PlayerSnapshotValidator.validatePlayerMedicalStaffLayout(layout);
-        if (r.platform() != ProcessMemoryReader.Platform.WINDOWS) return null;
+        if (!r.platform().supportsGameMemory()) return null;
         long team = r.readU64(player + layout.currentTeam());
         if (team == 0 || r.readU8(team + layout.teamKind()) != 0) return null;
         long club = r.readU64(team + layout.teamClub());

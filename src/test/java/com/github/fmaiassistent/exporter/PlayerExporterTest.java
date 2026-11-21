@@ -19,6 +19,31 @@ import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PlayerExporterTest {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = ProcessMemoryReader.Platform.class, names = {"WINDOWS", "LINUX"})
+    void optionalScalarsAndTraitsLoadOnBothHostsAndFailuresKeepThePlayer(ProcessMemoryReader.Platform platform) throws Exception {
+        var memory = minimalPlayerRow();
+        memory.nativePlatform = platform;
+        memory.putI16(PERSON - 0x30, 9500);
+        memory.putI16(PERSON - 0x2e, -250);
+        memory.putI16(PERSON - 0x2c, 8000);
+        memory.putLong(PERSON + 0xC0, 0x1000000000010000L);
+        var exporter = new PlayerExporter();
+        assertThat(exporter.decodeRow(memory, 1, PERSON, "", null)).containsEntry("condition", 9500)
+                .containsEntry("sharpness", 8000).containsEntry("fatigue", -250)
+                .containsEntry("player_traits", "Winds Up Opponents, Brings Ball Out of Defence")
+                .containsEntry("transfer_agreed", null).containsEntry("_future_transfer_profile", "UNVERIFIED");
+        memory.bytes.remove(PERSON + 0xC0);
+        var missingTraits = exporter.decodeRow(memory, 1, PERSON, "", null);
+        assertThat(missingTraits).containsEntry("player_traits", null).containsEntry("condition", 9500);
+        memory.bytes.remove(PERSON - 0x2c);
+        assertThat(exporter.decodeRow(memory, 1, PERSON, "", null)).containsEntry("condition", null)
+                .containsEntry("sharpness", null).containsEntry("fatigue", null).containsEntry("index", 1);
+        memory.putI16(PERSON - 0x2c, 10001);
+        assertThat(exporter.decodeRow(memory, 1, PERSON, "", null)).containsEntry("condition", null)
+                .containsEntry("sharpness", null).containsEntry("fatigue", null).containsEntry("index", 1);
+    }
+
     private static final long PERSON = 0x4000;
 
     @Test
@@ -94,8 +119,8 @@ class PlayerExporterTest {
         }
         memory.putI16(PERSON - 0x30, 10001);
         var corrupt = new PlayerExporter().decodeRow(memory, 1, PERSON, "", null);
-        assertThatThrownBy(() -> PlayerSnapshotValidator.validate(List.of(corrupt), 1, ""))
-                .isInstanceOf(IOException.class).hasMessageContaining("condition=10001");
+        assertThat(corrupt).containsEntry("condition", null).containsEntry("sharpness", null).containsEntry("fatigue", null);
+        PlayerSnapshotValidator.validate(List.of(corrupt), 1, "");
     }
 
     @Test
@@ -143,8 +168,8 @@ class PlayerExporterTest {
         assertThat(empty.get("player_traits")).isEqualTo("");
         assertThat(empty.get("player_traits_raw_hex")).isEqualTo("0000000000000000");
         memory.bytes.remove(PERSON + 0xC0);
-        assertThatThrownBy(() -> new PlayerExporter().decodeRow(memory, 1, PERSON, "", null))
-                .isInstanceOf(IOException.class);
+        assertThat(new PlayerExporter().decodeRow(memory, 1, PERSON, "", null))
+                .containsEntry("player_traits", null).containsEntry("player_traits_raw_hex", null);
     }
 
     @Test
@@ -477,7 +502,8 @@ class PlayerExporterTest {
 
     private static final class FakeMemory implements ProcessMemoryReader {
         boolean windows;long forbidden=-1,forbiddenEnd=-1;
-        @Override public Platform platform(){return windows?Platform.WINDOWS:Platform.UNKNOWN;}
+        Platform nativePlatform = Platform.UNKNOWN;
+        @Override public Platform platform(){return windows?Platform.WINDOWS:nativePlatform;}
         private final Map<Long, Byte> bytes = new HashMap<>();
 
         void fill(long address, int length, int value) {

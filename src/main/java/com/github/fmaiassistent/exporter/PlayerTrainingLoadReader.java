@@ -27,7 +27,7 @@ public final class PlayerTrainingLoadReader {
 
     public Result read(ProcessMemoryReader reader, long player, long moduleBase, LocalDate date) throws IOException {
         validateLayout(layout);
-        if (date == null || reader.platform() != ProcessMemoryReader.Platform.WINDOWS) return null;
+        if (date == null || !reader.platform().supportsGameMemory()) return null;
         var p = layout.player();
         int flags = reader.readU8(player + p.flags());
         if ((flags & 2) != 0) return result(0, 0, 254, 0, 0, 0);
@@ -91,13 +91,16 @@ public final class PlayerTrainingLoadReader {
                     int slot = playerSlot(r, node + role.lineup(), index, 26);
                     if (slot >= 0 && slot < 11) {
                         int selected = r.readU8(node + role.selectedTactic());
-                        long[] tactics = vector(r, node + role.tactics(), 8);
-                        if (selected <= 2 && selected < (tactics[1] - tactics[0]) / 8) {
-                            long tactic = r.readU64(tactics[0] + selected * 8L);
-                            if (tactic != 0) {
-                                int bits = r.readI32(tactic + role.tacticPositions() + slot * (long) role.tacticSlotStride());
-                                Integer category = tacticRole(bits);
-                                if (category != null) return category;
+                        // As in teamRiskMultiplier, an absent selection must not dereference the tactic vector.
+                        if (selected <= 2) {
+                            long[] tactics = vector(r, node + role.tactics(), 8);
+                            if (selected < (tactics[1] - tactics[0]) / 8) {
+                                long tactic = r.readU64(tactics[0] + selected * 8L);
+                                if (tactic != 0) {
+                                    int bits = r.readI32(tactic + role.tacticPositions() + slot * (long) role.tacticSlotStride());
+                                    Integer category = tacticRole(bits);
+                                    if (category != null) return category;
+                                }
                             }
                         }
                     }

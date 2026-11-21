@@ -66,13 +66,17 @@ class OptionalPeopleCaptureTest {
     }
 
     static Stream<Arguments> recoverableFailures() {
-        return Stream.of(Stage.values()).flatMap(stage -> Stream.of(Arguments.of(stage, false), Arguments.of(stage, true)));
+        return Stream.of(ProcessMemoryReader.Platform.WINDOWS, ProcessMemoryReader.Platform.LINUX)
+                .flatMap(platform -> Stream.of(Stage.values()).flatMap(stage ->
+                        Stream.of(Arguments.of(stage, false, platform), Arguments.of(stage, true, platform))));
     }
 
     @ParameterizedTest
     @MethodSource("recoverableFailures")
-    void failedStageClearsPartialAndStaleValuesAcrossPlayerAndStaffRowsAndContinues(Stage failed, boolean runtime) throws Exception {
+    void failedStageClearsPartialAndStaleValuesAcrossPlayerAndStaffRowsAndContinues(Stage failed, boolean runtime,
+            ProcessMemoryReader.Platform platform) throws Exception {
         Fixture fixture = new Fixture();
+        when(fixture.reader.platform()).thenReturn(platform);
         Exception error = runtime ? new IllegalStateException("secret /private/path") : new IOException("secret /private/path");
         try (Captures captures = new Captures(fixture)) {
             captures.fail(failed, error, false);
@@ -105,6 +109,33 @@ class OptionalPeopleCaptureTest {
                 captures.management.verify(() -> NonPlayingProfileExporter.capture(fixture.reader, BASE, fixture.rows));
                 assertThat(fixture.rows).allSatisfy(row -> assertThat(row).containsEntry("_award_names", List.of("award")));
             }
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ProcessMemoryReader.Platform.class, names = {"WINDOWS", "LINUX"})
+    void verifiedModuleReachesContractAndNameCaptureOnBothHosts(ProcessMemoryReader.Platform platform) throws Exception {
+        var reader = mock(ProcessMemoryReader.class);
+        when(reader.platform()).thenReturn(platform);
+        var path = java.nio.file.Path.of("game_plugin.dll").toAbsolutePath();
+        when(reader.maps()).thenReturn(List.of(new com.github.fmaiassistent.memory.MemoryRegion(
+                BASE, BASE + 0x10000, "r--", 0, "", "", path.toString())));
+        var rows = List.<Map<String, Object>>of(new HashMap<>());
+        try (var profiles = mockStatic(NativeModuleProfile.class, CALLS_REAL_METHODS);
+             var contracts = mockConstruction(ContractExporter.class);
+             var awards = mockConstruction(AwardNameExporter.class);
+             var competitions = mockConstruction(ContractCompetitionNameExporter.class)) {
+            profiles.when(() -> NativeModuleProfile.identify(any(java.nio.file.Path.class))).thenReturn(java.util.Optional.of(PROFILE));
+            ContractExporter.capture(reader, BASE, rows);
+            AwardNameExporter.capture(reader, BASE, rows);
+            ContractCompetitionNameExporter.capture(reader, BASE, rows);
+            assertThat(rows.getFirst()).containsEntry("_contract_profile", PROFILE);
+            assertThat(contracts.constructed()).hasSize(1);
+            assertThat(awards.constructed()).hasSize(1);
+            assertThat(competitions.constructed()).hasSize(1);
+            verify(contracts.constructed().getFirst()).captureRows(rows);
+            verify(awards.constructed().getFirst()).captureRows(rows);
+            verify(competitions.constructed().getFirst()).captureRows(rows);
         }
     }
 

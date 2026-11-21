@@ -180,7 +180,7 @@ public class PeopleExporter {
     static List<String> captureOptionalData(ProcessMemoryReader reader, Long base, List<Map<String, Object>> rows) throws IOException {
         var warnings = new ArrayList<String>();
         var guards = new ArrayList<PersonGuard>();
-        if (reader.platform() == ProcessMemoryReader.Platform.WINDOWS) for (var row : rows) {
+        if (reader.platform().supportsGameMemory()) for (var row : rows) {
             long person = Long.decode(String.valueOf(row.get(row.containsKey("record") ? "record" : "record_address")));
             Object rawIndex = row.get(row.containsKey("index") ? "index" : "staff_index");
             if (!(rawIndex instanceof Number index) || !(row.get("unique_id") instanceof Number uid))
@@ -261,7 +261,7 @@ public class PeopleExporter {
     }
 
     private static StaffNativeLayout staffNativeLayout(ProcessMemoryReader reader, Long suppliedBase) throws IOException {
-        if (reader.platform() != ProcessMemoryReader.Platform.WINDOWS) return new StaffNativeLayout(null, ContractRecordLayout.current());
+        if (!reader.platform().supportsGameMemory()) return new StaffNativeLayout(null, ContractRecordLayout.current());
         long base = suppliedBase == null ? FmOffsets.findGamePluginBase(reader) : suppliedBase;
         try {
             String override = System.getProperty(ContractExporter.MODULE_PROPERTY);
@@ -323,7 +323,7 @@ public class PeopleExporter {
         try (ProcessMemoryReader reader = readers.open(pid)) {
             PersonMemoryClassifier classifier = new PersonMemoryClassifier(reader, subtypeLayout);
             Long staffModuleBase = staffNative != null ? staffNative.moduleBase()
-                    : mode.includesStaff() && reader.platform() == ProcessMemoryReader.Platform.WINDOWS
+                    : mode.includesStaff() && reader.platform().supportsGameMemory()
                         ? FmOffsets.findGamePluginBase(reader) : null;
             StaffExporter staffDecoder = new StaffExporter(staffRecordLayout, staffModuleBase,
                     staffNative == null ? ContractRecordLayout.current() : staffNative.contracts());

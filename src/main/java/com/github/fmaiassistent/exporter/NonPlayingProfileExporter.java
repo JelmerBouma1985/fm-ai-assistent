@@ -19,7 +19,7 @@ public final class NonPlayingProfileExporter {
 
     /** The preceding contract capture verifies the binary once for these exact snapshot rows. */
     static void capture(ProcessMemoryReader reader,Long suppliedBase,List<Map<String,Object>> rows)throws IOException {
-        if(reader.platform()!=ProcessMemoryReader.Platform.WINDOWS
+        if(!reader.platform().supportsGameMemory()
                 ||rows.stream().noneMatch(r->NativeModuleProfile.supported(String.valueOf(r.get("_contract_profile")))))return;
         long base=suppliedBase==null?com.github.fmaiassistent.linux.FmOffsets.findGamePluginBase(reader):suppliedBase;
         for (String profile : rows.stream().map(r->String.valueOf(r.get("_contract_profile"))).distinct()

@@ -19,6 +19,15 @@ import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class StaffExporterTest {
+    @Test void unreadableContractTypeKeepsStaffAndLeavesEndDateUnknown() throws Exception {
+        var memory = org.mockito.Mockito.spy(validStaffMemory());
+        org.mockito.Mockito.doThrow(new IOException("Unavailable optional contract type")).when(memory).readU64(CONTRACT);
+        var decoder = new StaffExporter(StaffRecordLayout.current(), 0x10000000L,
+                com.github.fmaiassistent.memory.ContractRecordLayout.current());
+        assertThat(decoder.decodeRow(memory, 7, PERSON, 0x100)).containsEntry("contract_end_date", "")
+                .containsEntry("staff_index", 7);
+    }
+
     @Test void fm27CapturedSeniorStaffRemainLoadableWhileImpossibleAgesStillFail() throws Exception {
         tools.jackson.databind.JsonNode capture;
         try(var in=java.nio.file.Files.newInputStream(java.nio.file.Path.of("src/test/resources/fm27/staff-ages-captured.json"))) {

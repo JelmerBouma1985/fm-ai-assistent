@@ -18,9 +18,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PlayerMedicalStaffReaderTest {
     private static final LocalDate DATE = LocalDate.of(2026,8,3);
 
-    @Test
-    void resolvesCapturedClubSportsScientistAndDeterministicAssessmentSeed() throws Exception {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = ProcessMemoryReader.Platform.class, names = {"WINDOWS", "LINUX"})
+    void resolvesCapturedClubSportsScientistAndDeterministicAssessmentSeed(ProcessMemoryReader.Platform platform) throws Exception {
         var memory = captured();
+        memory.platform = platform;
         var result = new PlayerMedicalStaffReader().defaultStaff(memory,memory.player,memory.module,DATE);
         assertThat(result.uniqueId()).isEqualTo(37088493);
         assertThat(result.sportsScience()).isEqualTo(17);
@@ -126,7 +128,8 @@ class PlayerMedicalStaffReaderTest {
         CapturedMemory(long player,long module) { this.player=player;this.module=module; }
         void put(long address,long value,int count) { for(int i=0;i<count;i++) bytes.put(address+i,(byte)(value >>> (8*i))); }
         public int pid() { return 22232; }
-        public Platform platform() { return Platform.WINDOWS; }
+        Platform platform = Platform.WINDOWS;
+        public Platform platform() { return platform; }
         public List<MemoryRegion> maps() { return List.of(); }
         public void close() {}
         public byte[] readBytes(long address,int count) throws IOException {
