@@ -109,6 +109,16 @@ public class DatabaseLoadAllService {
             reportPhase("Reading FM27 memory");
             RamSnapshot ram = readRamInParallel(resolvedPid, build, gamePluginBase,
                     com.github.fmaiassistent.exporter.CaptureBudget.scaledTimeout(RAM_READ_TIMEOUT, image.peopleSlots()));
+            String optionalDataWarnings = String.join(" | ", ram.warnings());
+            if (optionalDataWarnings.length() > 1024) {
+                optionalDataWarnings = optionalDataWarnings.substring(0, 995) + " | Further warnings omitted";
+            }
+            if (!optionalDataWarnings.isBlank()) {
+                String warning = optionalDataWarnings;
+                warningPrefix.updateAndGet(previous -> previous == null || previous.isBlank()
+                        ? warning : previous + " | " + warning);
+                log.warn("FM27 data loaded with unavailable optional data: {}", warning);
+            }
             if (ram.peopleSlots() <= 0) {
                 throw new IOException("FM27 people registry is empty; wait until the save has finished loading");
             }
@@ -212,6 +222,7 @@ public class DatabaseLoadAllService {
                     new LoadMetadataEntity("fixtures_count", String.valueOf(ram.fixtures().rows().size())),
                     new LoadMetadataEntity("fixtures_failure", ram.fixtures().fixtureFailure()==null ? ""
                             : ram.fixtures().fixtureFailure().substring(0, Math.min(768, ram.fixtures().fixtureFailure().length()))),
+                    new LoadMetadataEntity("optional_data_warnings", optionalDataWarnings),
                     new LoadMetadataEntity("quality_players_missing_age",
                             String.valueOf(countMissing(ram.players().rows(), "age"))),
                     new LoadMetadataEntity("quality_players_missing_asking_price",
@@ -332,7 +343,13 @@ public class DatabaseLoadAllService {
                     people.diagnostics(),
                     people.slotCount(),
                     people.selectedWorkers(),
-                    people.elapsedMillis());
+                    people.elapsedMillis(),
+                    java.util.stream.Stream.of(people.warnings(), clubs.warnings())
+                            .filter(java.util.Objects::nonNull)
+                            .flatMap(List::stream)
+                            .filter(warning -> warning != null && !warning.isBlank())
+                            .distinct()
+                            .toList());
             validateCoherentGameDate(
                     gameDateBefore,
                     people.players().gameDate(),
@@ -514,7 +531,11 @@ public class DatabaseLoadAllService {
             PeopleExporter.Diagnostics peopleDiagnostics,
             int peopleSlots,
             int peopleWorkers,
-            long peopleElapsedMillis) {
+            long peopleElapsedMillis,
+            List<String> warnings) {
+        private RamSnapshot {
+            warnings = List.copyOf(warnings);
+        }
     }
 
     public record LoadAllResult(

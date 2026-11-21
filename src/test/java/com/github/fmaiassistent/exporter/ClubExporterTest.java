@@ -56,7 +56,7 @@ class ClubExporterTest {
     }
 
     @Test
-    void coefficientFallbackStillRejectsFinancialContextDrift() throws Exception {
+    void coefficientAndFinancialFallbacksPreserveBothWarningsAndClearOnlyOptionalFields() throws Exception {
         var memory = coefficientMemory();
         memory.bytes.remove(0x71001000L);
         var capture = new ClubIdentitySnapshot(memory, 0x180000000L,
@@ -64,7 +64,192 @@ class ClubExporterTest {
                 com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.current(),
                 com.github.fmaiassistent.memory.ClubFinancialLoanLayout.current());
         memory.putLong(FACILITIES + 0x50, 0x72000000L);
-        assertThatThrownBy(capture::verify).isInstanceOf(IOException.class);
+        assertThatNoException().isThrownBy(capture::verify);
+        assertThat(capture.coefficientFailure()).isNotBlank();
+        assertThat(capture.warnings()).singleElement().asString().contains("Detailed club finances unavailable");
+        assertThat(capture.records()).hasSize(2).allSatisfy(record -> {
+            assertThat(record.uefaCoefficientHex()).isNull();
+            assertThat(record.financialLoansHex()).isNull();
+            assertThat(record.financialLoanClock()).isNull();
+            assertThat(record.kind()).isEqualTo("CLUB");
+        });
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"valid", "read", "runtime", "clock-read", "clock-invalid", "layout", "loans", "ledger", "competition", "history", "reread", "reread-io", "reread-runtime"})
+    void detailedFinanceFailuresDiscardPartialCaptureWithoutLosingClubsOrCoefficients(String failure) throws Exception {
+        var memory = coefficientMemory();
+        addDetailedFinances(memory);
+        var loans = com.github.fmaiassistent.memory.ClubFinancialLoanLayout.current();
+        var ledger = com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.current();
+        var history = com.github.fmaiassistent.memory.ClubFinancialHistoryLayout.current();
+        long secondLoanHeader = FACILITIES + 0x1000 + loans.vectorRel();
+        long secondFinance = 0x73001000L;
+        ProcessMemoryReader source = memory;
+        if (failure.equals("read")) memory.bytes.remove(secondLoanHeader);
+        if (failure.equals("runtime") || failure.equals("reread-runtime")) source = org.mockito.Mockito.spy(memory);
+        if (failure.equals("runtime")) org.mockito.Mockito.doThrow(new IllegalStateException("Finance read failed"))
+                .when(source).readBytes(secondLoanHeader, loans.headerBytes());
+        if (failure.equals("clock-read")) memory.bytes.remove(0x180000000L + loans.clockRva());
+        if (failure.equals("clock-invalid")) memory.putI32(0x180000000L + loans.clockRva(), 0);
+        if (failure.equals("layout")) loans = shiftedLoanLayout(loans);
+        if (failure.equals("loans")) memory.putLong(secondLoanHeader, 0x75000000L);
+        if (failure.equals("ledger")) memory.putLong(secondFinance, 0x180000000L + ledger.fullVtableRva() + 8);
+        if (failure.equals("competition")) memory.putLong(secondFinance + ledger.blocksRel(), 0x75000000L);
+        if (failure.equals("history")) memory.putU8(secondFinance + history.summaryRel() + history.countRel(), history.capacity() + 1);
+
+        var capture = new ClubIdentitySnapshot(source, 0x180000000L,
+                com.github.fmaiassistent.memory.ClubIdentityLayout.current(),
+                com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.current(), loans, ledger,
+                com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.current(),
+                com.github.fmaiassistent.memory.CompetitionNameLayout.current(), history);
+        if (failure.startsWith("reread")) {
+            // Both clubs already have all four payloads; a late failure must clear all of them.
+            assertThat(capture.records()).allSatisfy(record -> {
+                assertThat(record.financialLoansHex()).isNotNull();
+                assertThat(record.financialLedgerHex()).isNotNull();
+                assertThat(record.financialCompetitionsHex()).isNotNull();
+                assertThat(record.financialHistoryHex()).isNotNull();
+            });
+            if (failure.equals("reread")) memory.putLong(secondLoanHeader, 0x75000000L);
+            if (failure.equals("reread-io")) memory.bytes.remove(secondLoanHeader);
+            if (failure.equals("reread-runtime")) org.mockito.Mockito.doThrow(new IllegalStateException("Finance reread failed"))
+                    .when(source).readBytes(secondLoanHeader, loans.headerBytes());
+        }
+        assertThatNoException().isThrownBy(capture::verify);
+        assertThat(capture.coefficientFailure()).isNull();
+        assertThat(capture.records()).hasSize(2).allSatisfy(record -> {
+            assertThat(record.uniqueId()).isBetween(100L, 101L);
+            assertThat(record.kind()).isEqualTo("CLUB");
+            assertThat(record.uefaCoefficientHex()).isNotNull();
+            assertThat(record.uefaRuleVersion()).isNotNull();
+            if (failure.equals("valid")) {
+                assertThat(record.financialLoansHex()).isEqualTo("");
+                assertThat(record.financialLedgerHex()).isNotNull();
+                assertThat(record.financialCompetitionsHex()).isNotNull();
+                assertThat(record.financialHistoryHex()).isNotNull();
+            } else {
+                assertThat(record.financialLoansHex()).isNull();
+                assertThat(record.financialLoanClock()).isNull();
+                assertThat(record.financialLedgerHex()).isNull();
+                assertThat(record.financialLedgerClock()).isNull();
+                assertThat(record.financialCompetitionsHex()).isNull();
+                assertThat(record.financialHistoryHex()).isNull();
+            }
+        });
+        if (failure.equals("valid")) {
+            assertThat(capture.warnings()).isEmpty();
+            assertThat(capture.competitionNames()).isEmpty();
+        } else {
+            assertThat(capture.warnings()).singleElement().asString().contains("Detailed club finances unavailable");
+            assertThat(capture.competitionNames()).isNull();
+        }
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"initial-prefix", "prefix", "registry"})
+    void optionalFinancialCaptureStillRejectsCoreClubIdentityChanges(String failure) throws Exception {
+        var memory = coefficientMemory();
+        if (failure.equals("initial-prefix")) {
+            memory.putI32(CLUB + 8, 99);
+            assertThatThrownBy(() -> new ClubIdentitySnapshot(memory, 0x180000000L,
+                    com.github.fmaiassistent.memory.ClubIdentityLayout.current(),
+                    com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.current(),
+                    com.github.fmaiassistent.memory.ClubFinancialLoanLayout.current()))
+                    .isInstanceOf(PlayerSnapshotValidator.ClubIdentityChangedException.class);
+            return;
+        }
+        var capture = new ClubIdentitySnapshot(memory, 0x180000000L,
+                com.github.fmaiassistent.memory.ClubIdentityLayout.current(),
+                com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.current(),
+                com.github.fmaiassistent.memory.ClubFinancialLoanLayout.current());
+        if (failure.equals("prefix")) memory.putI32(CLUB + 12, 999);
+        else memory.putLong(0x60002000L, CLUB + 0x1000);
+        assertThatThrownBy(capture::verify).isInstanceOf(PlayerSnapshotValidator.ClubIdentityChangedException.class);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"capture,cancel", "capture,interrupt", "verify,cancel", "verify,interrupt"})
+    void optionalFinancialFailuresDoNotSwallowCancellationOrInterruption(String phase, String failure) throws Exception {
+        var memory = coefficientMemory();
+        var source = org.mockito.Mockito.spy(memory);
+        var loans = com.github.fmaiassistent.memory.ClubFinancialLoanLayout.current();
+        long header = FACILITIES + 0x1000 + loans.vectorRel();
+        Exception error = failure.equals("cancel") ? new java.util.concurrent.CancellationException("Stopped") : new IOException("Interrupted");
+        ClubIdentitySnapshot capture = phase.equals("verify") ? new ClubIdentitySnapshot(source, 0x180000000L,
+                com.github.fmaiassistent.memory.ClubIdentityLayout.current(),
+                com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.current(), loans) : null;
+        org.mockito.Mockito.doAnswer(invocation -> {
+            if (failure.equals("interrupt")) Thread.currentThread().interrupt();
+            throw error;
+        }).when(source).readBytes(header, loans.headerBytes());
+        try {
+            if (capture == null) assertThatThrownBy(() -> new ClubIdentitySnapshot(source, 0x180000000L,
+                    com.github.fmaiassistent.memory.ClubIdentityLayout.current(),
+                    com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.current(), loans)).isSameAs(error);
+            else assertThatThrownBy(capture::verify).isSameAs(error);
+        } finally { Thread.interrupted(); }
+    }
+
+    @Test
+    void optionalFinanceLayoutFactoryFailureKeepsCoreIdentityAndVerifiedCoefficients() throws Exception {
+        var memory = coefficientMemory();
+        var warnings = new java.util.ArrayList<String>();
+        String profile = com.github.fmaiassistent.memory.NativeModuleProfile.FM27_SHA256;
+        try (var layouts = org.mockito.Mockito.mockStatic(com.github.fmaiassistent.memory.ClubFinancialLoanLayout.class)) {
+            layouts.when(() -> com.github.fmaiassistent.memory.ClubFinancialLoanLayout.forModule(profile))
+                    .thenThrow(new IllegalArgumentException("Unverified finance root"));
+            var capture = ClubExporter.captureIdentitySnapshot(memory, 0x180000000L, profile, warnings);
+            capture.verify();
+            assertThat(capture.coefficientFailure()).isNull();
+            assertThat(capture.records()).hasSize(2).allSatisfy(record -> {
+                assertThat(record.kind()).isEqualTo("CLUB");
+                assertThat(record.uefaCoefficientHex()).isNotNull();
+                assertThat(record.financialLoansHex()).isNull();
+                assertThat(record.financialLoanClock()).isNull();
+                assertThat(record.financialLedgerHex()).isNull();
+                assertThat(record.financialLedgerClock()).isNull();
+                assertThat(record.financialCompetitionsHex()).isNull();
+                assertThat(record.financialHistoryHex()).isNull();
+            });
+            assertThat(warnings).containsExactly(ClubIdentitySnapshot.FINANCIAL_WARNING);
+        }
+    }
+
+    @Test
+    void requiredCoreIdentityLayoutFactoryFailureRemainsFatal() throws Exception {
+        var memory = coefficientMemory();
+        String profile = com.github.fmaiassistent.memory.NativeModuleProfile.FM27_SHA256;
+        var error = new IllegalArgumentException("Unverified core identity root");
+        var warnings = new java.util.ArrayList<String>();
+        try (var layouts = org.mockito.Mockito.mockStatic(com.github.fmaiassistent.memory.ClubIdentityLayout.class)) {
+            layouts.when(() -> com.github.fmaiassistent.memory.ClubIdentityLayout.forModule(profile)).thenThrow(error);
+            assertThatThrownBy(() -> ClubExporter.captureIdentitySnapshot(memory, 0x180000000L, profile, warnings))
+                    .isSameAs(error);
+            assertThat(warnings).isEmpty();
+        }
+    }
+
+    private static void addDetailedFinances(FakeMemory memory) {
+        var ledger = com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.current();
+        for (int index = 0; index < 2; index++) {
+            long finance = 0x73000000L + index * 0x1000L;
+            memory.put(finance, new byte[ledger.fullBytes()]);
+            memory.putLong(finance, 0x180000000L + ledger.fullVtableRva());
+            memory.putLong(CLUB + index * 0x1000L + ledger.financeRel(), finance);
+        }
+    }
+
+    private static com.github.fmaiassistent.memory.ClubFinancialLoanLayout shiftedLoanLayout(
+            com.github.fmaiassistent.memory.ClubFinancialLoanLayout layout) throws Exception {
+        var components = layout.getClass().getRecordComponents();
+        var types = java.util.Arrays.stream(components).map(java.lang.reflect.RecordComponent::getType).toArray(Class<?>[]::new);
+        Object[] values = new Object[components.length];
+        for (int index = 0; index < values.length; index++) {
+            values[index] = components[index].getAccessor().invoke(layout);
+            if (components[index].getName().equals("recordBytes")) values[index] = layout.recordBytes() + 1;
+        }
+        return (com.github.fmaiassistent.memory.ClubFinancialLoanLayout) layout.getClass().getDeclaredConstructor(types).newInstance(values);
     }
 
     private static FakeMemory coefficientMemory() {

@@ -48,6 +48,7 @@ public class ClubExporter {
         try (ProcessMemoryReader reader = ProcessReaders.open(pid)) {
             ClubIdentitySnapshot identities=null;
             String identityProfile=null;
+            var warnings=new ArrayList<String>();
             financeLayout=com.github.fmaiassistent.memory.ClubFinanceLayout.current();
             if(supportsTypedNativeCapture(reader.platform())) {
                 long base=gamePluginBase==null?FmOffsets.findGamePluginBase(reader):gamePluginBase;
@@ -58,13 +59,7 @@ public class ClubExporter {
                 if(identityProfile!=null) {
                     recordLayout=ClubRecordLayout.current();
                     financeLayout=com.github.fmaiassistent.memory.ClubFinanceLayout.forModule(identityProfile);
-                    identities=new ClubIdentitySnapshot(reader,base,ClubIdentityLayout.forModule(identityProfile),
-                            com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.forModuleIfMapped(identityProfile).orElse(null),
-                            com.github.fmaiassistent.memory.ClubFinancialLoanLayout.forModule(identityProfile),
-                            com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.forModule(identityProfile),
-                            com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.forModule(identityProfile),
-                            com.github.fmaiassistent.memory.CompetitionNameLayout.current(),
-                            com.github.fmaiassistent.memory.ClubFinancialHistoryLayout.forModule(identityProfile));
+                    identities=captureIdentitySnapshot(reader,base,identityProfile,warnings);
                 }
             }
             FmOffsets.Bounds bounds = FmOffsets.tableBounds(reader, build, gamePluginBase, "TeamOffset");
@@ -97,15 +92,44 @@ public class ClubExporter {
             rows.sort(Comparator.comparing(row -> String.valueOf(row.get("name")).toLowerCase()));
             if(identities!=null) {
                 identities.verify();
+                warnings.addAll(identities.warnings());
                 if(!bounds.equals(FmOffsets.tableBounds(reader,build,gamePluginBase,"TeamOffset"))
                         ||teams.bytes().length>0&&!Arrays.equals(teams.bytes(),reader.readBytes(bounds.start(),teams.bytes().length)))
                     throw new PlayerSnapshotValidator.ClubIdentityChangedException("TEAM registry changed during club capture");
             }
             return new ExportResult(rows,identities==null?List.of():identities.records(),identities==null?null:identityProfile,
                     identities==null?null:identities.competitionNames(),
-                    identities==null?"UEFA club coefficients are unavailable for this FM27 module":identities.coefficientFailure());
+                    identities==null?"UEFA club coefficients are unavailable for this FM27 module":identities.coefficientFailure(),
+                    warnings);
         }
     }
+
+    static ClubIdentitySnapshot captureIdentitySnapshot(ProcessMemoryReader reader,long base,String profile,List<String> warnings)throws IOException {
+        var identity=ClubIdentityLayout.forModule(profile);
+        var coefficients=com.github.fmaiassistent.memory.ClubUefaCoefficientLayout.forModuleIfMapped(profile).orElse(null);
+        FinancialLayouts financial=null;
+        try {
+            financial=new FinancialLayouts(com.github.fmaiassistent.memory.ClubFinancialLoanLayout.forModule(profile),
+                    com.github.fmaiassistent.memory.ClubFinancialLedgerLayout.forModule(profile),
+                    com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout.forModule(profile),
+                    com.github.fmaiassistent.memory.CompetitionNameLayout.current(),
+                    com.github.fmaiassistent.memory.ClubFinancialHistoryLayout.forModule(profile));
+        } catch(RuntimeException unavailable) {
+            if(Thread.currentThread().isInterrupted()||unavailable instanceof java.util.concurrent.CancellationException)throw unavailable;
+            warnings.add(ClubIdentitySnapshot.FINANCIAL_WARNING);
+            org.slf4j.LoggerFactory.getLogger(ClubExporter.class).warn("FM27 detailed finance layouts unavailable ({}); loading core clubs will continue",
+                    unavailable.getClass().getSimpleName());
+        }
+        return new ClubIdentitySnapshot(reader,base,identity,coefficients,financial==null?null:financial.loans(),
+                financial==null?null:financial.ledger(),financial==null?null:financial.competitions(),
+                financial==null?null:financial.names(),financial==null?null:financial.history());
+    }
+
+    private record FinancialLayouts(com.github.fmaiassistent.memory.ClubFinancialLoanLayout loans,
+                                    com.github.fmaiassistent.memory.ClubFinancialLedgerLayout ledger,
+                                    com.github.fmaiassistent.memory.ClubFinancialCompetitionLayout competitions,
+                                    com.github.fmaiassistent.memory.CompetitionNameLayout names,
+                                    com.github.fmaiassistent.memory.ClubFinancialHistoryLayout history) { }
 
     static boolean supportsTypedNativeCapture(ProcessMemoryReader.Platform platform) {
         return platform == ProcessMemoryReader.Platform.WINDOWS
@@ -359,8 +383,12 @@ public class ClubExporter {
 
     public record ExportResult(List<Map<String, Object>> rows,List<NativeClubSnapshot> nativeRecords,String identityProfile,
                                List<com.github.fmaiassistent.domain.NativeCompetitionNameSnapshot> competitionNames,
-                               String coefficientFailure) {
-        public ExportResult {rows=List.copyOf(rows);nativeRecords=List.copyOf(nativeRecords);competitionNames=competitionNames==null?null:List.copyOf(competitionNames);}
+                               String coefficientFailure,List<String> warnings) {
+        public ExportResult {rows=List.copyOf(rows);nativeRecords=List.copyOf(nativeRecords);competitionNames=competitionNames==null?null:List.copyOf(competitionNames);warnings=warnings==null?List.of():List.copyOf(warnings);}
+        public ExportResult(List<Map<String,Object>> rows,List<NativeClubSnapshot> nativeRecords,String identityProfile,
+                            List<com.github.fmaiassistent.domain.NativeCompetitionNameSnapshot> competitionNames,String coefficientFailure){
+            this(rows,nativeRecords,identityProfile,competitionNames,coefficientFailure,List.of());
+        }
         public ExportResult(List<Map<String,Object>> rows,List<NativeClubSnapshot> nativeRecords,String identityProfile,
                             List<com.github.fmaiassistent.domain.NativeCompetitionNameSnapshot> competitionNames){
             this(rows,nativeRecords,identityProfile,competitionNames,null);

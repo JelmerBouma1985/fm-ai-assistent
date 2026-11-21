@@ -97,6 +97,7 @@ public class SnapshotStatusService {
         out.put("refresh_recommended", !values.containsKey("snapshot_id") || Boolean.TRUE.equals(stale));
         out.put("uefa_coefficients_failure", values.get("uefa_coefficients_failure"));
         out.put("fixtures_failure", values.get("fixtures_failure"));
+        out.put("optional_data_warnings", values.getOrDefault("optional_data_warnings", ""));
         ManagedClubContext club = managedClubs.current();
         if (club != null) {
             out.put("managed_club_state", club.state().name().toLowerCase(java.util.Locale.ROOT));

@@ -19,6 +19,28 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 class SnapshotStatusServiceTest {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.NullAndEmptySource
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"Detailed contracts unavailable | Detailed club finances unavailable"})
+    void snapshotReferenceExposesOptionalWarningsAndTreatsOlderSnapshotsAsHavingNone(String warning) {
+        var metadata = mock(LoadMetadataRepository.class);
+        var values = new java.util.ArrayList<LoadMetadataEntity>();
+        values.add(new LoadMetadataEntity("snapshot_id", "snapshot-1"));
+        if (warning != null) values.add(new LoadMetadataEntity("optional_data_warnings", warning));
+        values.add(new LoadMetadataEntity("fixtures_failure", "Fixture read failed"));
+        values.add(new LoadMetadataEntity("uefa_coefficients_failure", "UEFA unavailable"));
+        when(metadata.findAll()).thenReturn(values);
+        var clubs = mock(ManagedClubContextService.class);
+        when(clubs.current()).thenReturn(ManagedClubContext.notLoaded(0));
+        var service = new SnapshotStatusService(metadata, mock(DatabaseLoadAllService.class),
+                mock(RefreshCoordinator.class), clubs, mock(TacticContextService.class));
+        assertThat(service.reference()).containsEntry("state", "loaded")
+                .containsEntry("optional_data_warnings", warning == null ? "" : warning)
+                .containsEntry("fixtures_failure", "Fixture read failed")
+                .containsEntry("uefa_coefficients_failure", "UEFA unavailable")
+                .containsEntry("refresh_recommended", false);
+    }
+
     @Test
     void selectedManagersCareerAndClubReplaceTheOriginalSnapshotManager() {
         var metadata = mock(LoadMetadataRepository.class);

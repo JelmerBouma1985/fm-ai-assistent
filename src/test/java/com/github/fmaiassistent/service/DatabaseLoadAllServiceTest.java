@@ -33,6 +33,81 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class DatabaseLoadAllServiceTest {
+    @Test
+    void optionalWarningsPreserveOtherProgressWarningsPersistCoreDataAndClearOnTheNextSuccessfulLoad() throws Exception {
+        var fixture = new Fixture();
+        var normalPeople = peopleResult(2, 1);
+        String contracts = "Detailed contracts and future transfers unavailable";
+        String awards = "Award names unavailable";
+        String finances = "Detailed club finances unavailable";
+        var warnedPeople = new PeopleExporter.ExportResult(normalPeople.players(), normalPeople.staff(), normalPeople.diagnostics(),
+                normalPeople.detectedProcessors(), normalPeople.selectedWorkers(), normalPeople.slotCount(), normalPeople.elapsedMillis(),
+                normalPeople.slowestWorkerMillis(), List.of(contracts, awards));
+        when(fixture.people.exportAllPeople(123, 1530, null)).thenReturn(warnedPeople);
+        when(fixture.clubs.exportAllClubs(123, 1530, null)).thenReturn(new ClubExporter.ExportResult(
+                Collections.nCopies(3, Map.of()), List.of(), null, null, "UEFA unavailable", List.of(finances, awards)));
+        when(fixture.competitions.exportAllCompetitions(123, 1530, null))
+                .thenReturn(new CompetitionExporter.ExportResult(Collections.nCopies(4, Map.of())));
+        var phases = new ArrayList<String>();
+        fixture.service.setPhaseListener(phases::add);
+        var reader = mock(com.github.fmaiassistent.memory.ProcessMemoryReader.class);
+        long base = 0x10000000L;
+        String image = com.github.fmaiassistent.memory.NativeModuleProfile.GAME_PASS_SHA256;
+        try (var processes = org.mockito.Mockito.mockStatic(com.github.fmaiassistent.memory.ProcessReaders.class);
+             var offsets = org.mockito.Mockito.mockStatic(com.github.fmaiassistent.linux.FmOffsets.class);
+             var layouts = org.mockito.Mockito.mockStatic(PlayerRecordLayouts.class)) {
+            processes.when(() -> com.github.fmaiassistent.memory.ProcessReaders.open(123)).thenReturn(reader);
+            offsets.when(() -> com.github.fmaiassistent.linux.FmOffsets.findGamePluginBase(reader)).thenReturn(base);
+            offsets.when(() -> com.github.fmaiassistent.linux.FmOffsets.moduleProfile(reader, base)).thenReturn(image);
+            offsets.when(() -> com.github.fmaiassistent.linux.FmOffsets.peopleBounds(reader, 1530, base))
+                    .thenReturn(new com.github.fmaiassistent.linux.FmOffsets.Bounds(0x10000L, 0x10018L));
+            layouts.when(() -> PlayerRecordLayouts.resolve(java.nio.file.Path.of(System.getProperty("user.home")), image))
+                    .thenReturn(new PlayerRecordLayouts.LayoutMatch(PlayerRecordLayouts.LayoutSet.current(), false, 99999999));
+
+            var result = fixture.service.loadAll(123, 1530, null);
+            assertThat(result.players()).isEqualTo(2);
+            assertThat(result.staff()).isEqualTo(1);
+            assertThat(result.clubs()).isEqualTo(3);
+            assertThat(result.competitions()).isEqualTo(4);
+            verify(fixture.writer).savePlayers(normalPeople.players(), Map.of());
+            verify(fixture.writer).saveStaff(normalPeople.staff(), Map.of());
+            verify(fixture.writer).saveClubs(any(), any());
+            verify(fixture.writer).saveCompetitions(any());
+            verify(fixture.writer).saveFixtures(any(), any());
+            assertThat(phases).anySatisfy(phase -> assertThat(phase).contains("Unknown FM27 build 99999999", "UEFA", contracts, awards, finances));
+
+            when(fixture.people.exportAllPeople(123, 1530, null)).thenReturn(normalPeople);
+            when(fixture.clubs.exportAllClubs(123, 1530, null)).thenReturn(new ClubExporter.ExportResult(Collections.nCopies(3, Map.of())));
+            phases.clear();
+            fixture.service.loadAll(123, 1530, null);
+            assertThat(phases).noneMatch(phase -> phase.contains(contracts) || phase.contains(awards) || phase.contains(finances));
+        }
+        var saved = org.mockito.ArgumentCaptor.forClass(Iterable.class);
+        verify(fixture.metadata, org.mockito.Mockito.times(2)).saveAll(saved.capture());
+        assertThat((Iterable<LoadMetadataEntity>) saved.getAllValues().getFirst())
+                .anyMatch(row -> row.getKey().equals("optional_data_warnings") && row.getValue().equals(contracts + " | " + awards + " | " + finances));
+        assertThat((Iterable<LoadMetadataEntity>) saved.getAllValues().getLast())
+                .anyMatch(row -> row.getKey().equals("optional_data_warnings") && row.getValue().isEmpty());
+    }
+
+    @Test
+    void optionalWarningMetadataIsBoundedWithoutDiscardingEarlierWarnings() throws Exception {
+        var fixture = new Fixture();
+        var normal = peopleResult(1, 1);
+        when(fixture.people.exportAllPeople(123, 1530, null)).thenReturn(new PeopleExporter.ExportResult(
+                normal.players(), normal.staff(), normal.diagnostics(), normal.detectedProcessors(), normal.selectedWorkers(),
+                normal.slotCount(), normal.elapsedMillis(), normal.slowestWorkerMillis(), List.of("First warning", "x".repeat(2048))));
+        when(fixture.clubs.exportAllClubs(123, 1530, null)).thenReturn(new ClubExporter.ExportResult(List.of(Map.of())));
+        when(fixture.competitions.exportAllCompetitions(123, 1530, null)).thenReturn(new CompetitionExporter.ExportResult(List.of(Map.of())));
+        fixture.service.loadAll(123, 1530, null);
+        var saved = org.mockito.ArgumentCaptor.forClass(Iterable.class);
+        verify(fixture.metadata).saveAll(saved.capture());
+        var metadata = (Iterable<LoadMetadataEntity>) saved.getValue();
+        var warnings = java.util.stream.StreamSupport.stream(metadata.spliterator(), false)
+                .filter(row -> row.getKey().equals("optional_data_warnings")).findFirst().orElseThrow().getValue();
+        assertThat(warnings).startsWith("First warning | ").hasSizeLessThanOrEqualTo(1024).endsWith("Further warnings omitted");
+    }
+
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
     void fixtureFailureLoadsWorldDataAndKeepsManagedClubDetection(boolean ioFailure) throws Exception {

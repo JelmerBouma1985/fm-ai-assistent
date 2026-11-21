@@ -377,6 +377,57 @@ class MainViewTest {
     }
 
     @Test
+    void optionalDataWarningsAppearAlongsideExistingWarningsAndClearAfterRecovery() throws Exception {
+        MainView view = view();
+        com.vaadin.flow.component.html.Span warning = field(view, "optionalDataWarning");
+        assertFalse(warning.isVisible());
+        assertEquals("status", warning.getElement().getAttribute("role"));
+        assertTrue(warning.hasClassName("freshness-badge"));
+        assertTrue(warning.hasClassName("is-stale"));
+        var apply = MainView.class.getDeclaredMethod("applyFreshness", java.util.Map.class, boolean.class);
+        apply.setAccessible(true);
+        String failures = "Detailed contracts unavailable | Detailed club finances unavailable";
+        apply.invoke(view, java.util.Map.of("state", "loaded", "stale", false,
+                "optional_data_warnings", failures, "fixtures_failure", "Fixture read failed",
+                "uefa_coefficients_failure", "Coefficient read failed"), false);
+        assertTrue(warning.isVisible());
+        assertEquals("Some extra data unavailable", warning.getText());
+        assertEquals(failures, warning.getElement().getAttribute("title"));
+        assertEquals("Some extra data unavailable: " + failures, warning.getElement().getAttribute("aria-label"));
+        assertTrue(MainViewTest.<com.vaadin.flow.component.html.Span>field(view, "fixtureWarning").isVisible());
+        assertTrue(MainViewTest.<com.vaadin.flow.component.html.Span>field(view, "coefficientWarning").isVisible());
+        com.vaadin.flow.component.button.Button freshness = field(view, "freshnessBadge");
+        assertEquals(freshness.getParent(), warning.getParent());
+        assertEquals("Data current", freshness.getText());
+
+        apply.invoke(view, java.util.Map.of("state", "loaded", "stale", false,
+                "optional_data_warnings", ""), false);
+        assertFalse(warning.isVisible());
+        assertEquals("", warning.getElement().getAttribute("title"));
+        assertEquals("Some extra data unavailable", warning.getElement().getAttribute("aria-label"));
+        apply.invoke(view, java.util.Map.of("state", "loaded", "stale", false), false);
+        assertFalse(warning.isVisible());
+    }
+
+    @Test
+    void optionalDataWarningStaysHiddenUntilASnapshotIsLoadedAndTreatsDetailsAsText() throws Exception {
+        MainView view = view();
+        var apply = MainView.class.getDeclaredMethod("applyFreshness", java.util.Map.class, boolean.class);
+        apply.setAccessible(true);
+        String details = "Award names unavailable | <img src=x onerror=alert(1)>";
+        apply.invoke(view, java.util.Map.of("state", "not_loaded", "optional_data_warnings", details), false);
+        com.vaadin.flow.component.html.Span warning = field(view, "optionalDataWarning");
+        assertFalse(warning.isVisible());
+        apply.invoke(view, java.util.Map.of("state", "loaded", "optional_data_warnings", details), false);
+        assertTrue(warning.isVisible());
+        assertEquals("Some extra data unavailable", warning.getText());
+        assertEquals(0, warning.getChildren().count());
+        assertEquals(details, warning.getElement().getAttribute("title"));
+        apply.invoke(view, java.util.Map.of("state", "not_loaded"), false);
+        assertFalse(warning.isVisible());
+    }
+
+    @Test
     void freshnessBadgeMapping() {
         assertEquals(MainView.FreshnessBadge.EMPTY,
                 MainView.badgeFor(java.util.Map.of("state", "not_loaded")));

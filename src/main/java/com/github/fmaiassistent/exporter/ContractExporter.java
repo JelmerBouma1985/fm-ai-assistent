@@ -62,6 +62,8 @@ public final class ContractExporter {
                     .map(r -> Path.of(r.path())).findFirst().orElse(null) : Path.of(override);
             var profile = module == null ? Optional.<String>empty() : NativeModuleProfile.identify(module);
             if (profile.isPresent()) {
+                // Proven image identity also supports independent optional management-profile capture.
+                for (var row : rows) row.put("_contract_profile", profile.orElseThrow());
                 ContractExporter exporter = new ContractExporter(reader, moduleBase,
                         ContractRecordLayout.forModule(profile.orElseThrow()), profile.orElseThrow());
                 exporter.captureRows(rows);
