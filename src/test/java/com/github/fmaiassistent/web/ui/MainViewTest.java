@@ -106,6 +106,8 @@ class MainViewTest {
             org.mockito.Mockito.verify(memory).save(com.github.fmaiassistent.domain.enums.DesktopMemoryPreset.LARGE);
             assertFalse(dialog.isOpened());
         } finally {
+            // Vaadin's current-instance storage is weak; keep the UI alive through every dialog interaction.
+            java.lang.ref.Reference.reachabilityFence(ui);
             com.vaadin.flow.component.UI.setCurrent(null);
         }
     }
@@ -113,7 +115,8 @@ class MainViewTest {
     @Test
     @SuppressWarnings("unchecked")
     void failedMemorySaveKeepsSettingsOpenWithAnError() throws Exception {
-        com.vaadin.flow.component.UI.setCurrent(new com.vaadin.flow.component.UI());
+        var ui = new com.vaadin.flow.component.UI();
+        com.vaadin.flow.component.UI.setCurrent(ui);
         try {
             MainView view = view();
             var memory = MainViewTest.<com.github.fmaiassistent.desktop.DesktopMemorySettings>field(view, "memorySettings");
@@ -137,6 +140,7 @@ class MainViewTest {
             org.mockito.Mockito.verify(MainViewTest.<AppSettingsService>field(view, "settings"), org.mockito.Mockito.never())
                     .saveCurrency(org.mockito.ArgumentMatchers.any());
         } finally {
+            java.lang.ref.Reference.reachabilityFence(ui);
             com.vaadin.flow.component.UI.setCurrent(null);
         }
     }
