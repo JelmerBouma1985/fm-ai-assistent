@@ -24,4 +24,6 @@ src/main/frontend/index.html
 !/docs/desktop-auto-updater.md
 !/docs/updater-release-gate.json
 !/docs/updater-test-report.md
+!/docs/tools-management.md
+!/docs/tools-management-test-report.md
 /scripts/updater/__pycache__/

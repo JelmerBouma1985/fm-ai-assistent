@@ -20,6 +20,7 @@ import com.github.fmaiassistent.snapshot.SnapshotStatusService;
 import com.github.fmaiassistent.player.PositionTextFormatter;
 import com.github.fmaiassistent.player.PlayerMapper;
 import org.springframework.ai.tool.annotation.Tool;
+import com.github.fmaiassistent.tools.ToolInfo;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -83,6 +84,7 @@ public class FmAiAssistentTools {
         this.snapshots = snapshots;
     }
 
+    @ToolInfo(category = ToolInfo.Category.CLUBS)
     @Tool(name = "fm27_find_clubs", description = "Find FM27 clubs by name, nation, competition, reputation, facilities and finances. Facility ratings use FM's 0-20 scale. Money values are raw pounds.")
     @Transactional(readOnly = true)
     public Map<String, Object> findClubs(
@@ -122,7 +124,8 @@ public class FmAiAssistentTools {
         return withSnapshot(out);
     }
 
-    @Tool(name = "fm27_get_club_context", description = "Get a club profile, facility ratings, finances and squad snapshot for transfer advice. Facility ratings use FM's 0-20 scale. Money values are raw pounds.")
+    @ToolInfo(category = ToolInfo.Category.CLUBS)
+    @Tool(name = "fm27_get_club_context", description = "Get a club profile, facility ratings, finances and squad snapshot including player fitness for transfer and availability advice. Facility ratings use FM's 0-20 scale. Money values are raw pounds. Null fitness values are not available in the loaded snapshot.")
     @Transactional(readOnly = true)
     public Map<String, Object> getClubContext(
             @ToolParam(description = "Club name, for example Feyenoord") String clubName,
@@ -144,6 +147,7 @@ public class FmAiAssistentTools {
         return withSnapshot(out);
     }
 
+    @ToolInfo(category = ToolInfo.Category.SCOUTING)
     @Tool(name = "fm27_find_players", description = "Search FM27 players using the same data available in the UI. Money values are raw pounds.")
     @Transactional(readOnly = true)
     public Map<String, Object> findPlayers(
@@ -221,7 +225,8 @@ public class FmAiAssistentTools {
         return withSnapshot(out);
     }
 
-    @Tool(name = "fm27_get_player_details", description = "Get full player details including attributes, positions, CA/PA, reputation, contract and club data.")
+    @ToolInfo(category = ToolInfo.Category.SCOUTING)
+    @Tool(name = "fm27_get_player_details", description = "Get full player details including fitness (match load, training load, injury susceptibility, condition, sharpness, overall risk and fatigue), player traits, attributes, positions, CA/PA, reputation, contract and club data. Fitness units accompany raw values; null means unavailable in this snapshot. Player traits describe playing tendencies to consider when advising on roles and tactics; an empty string means no traits.")
     @Transactional(readOnly = true)
     public Map<String, Object> getPlayerDetails(
             @ToolParam(required = false, description = "Player name. Exact match is preferred; contains match is used as fallback.") String name,
@@ -257,6 +262,7 @@ public class FmAiAssistentTools {
         return withSnapshot(result("players", rows, safeLimit));
     }
 
+    @ToolInfo(category = ToolInfo.Category.STAFF)
     @Tool(name = "fm27_find_staff", description = "Search FM27 staff by identity, job, club, ability, reputation, contract, salary, attributes and calculated coaching-role stars. Staff attributes use FM's 0-20 scale; money values are raw pounds.")
     @Transactional(readOnly = true)
     public Map<String, Object> findStaff(
@@ -317,6 +323,7 @@ public class FmAiAssistentTools {
         return withSnapshot(out);
     }
 
+    @ToolInfo(category = ToolInfo.Category.STAFF)
     @Tool(name = "fm27_get_staff_details", description = "Get a full FM27 staff profile including authoritative Unique ID, job, CA/PA, reputation, contract, English attributes and all nine calculated coaching-role ratings with their weighted attributes.")
     @Transactional(readOnly = true)
     public Map<String, Object> getStaffDetails(
@@ -342,6 +349,7 @@ public class FmAiAssistentTools {
         return withSnapshot(result("staff", rows, safeLimit));
     }
 
+    @ToolInfo(category = ToolInfo.Category.STAFF, snapshot = false)
     @Tool(name = "fm27_get_staff_coaching_roles", description = "List the nine FM27 training assignments, their role-specific attribute weights, common mental attributes and the 0-20 quality scale used by staff search results.")
     public Map<String, Object> getStaffCoachingRoles() {
         List<Map<String, Object>> roles = StaffRoleRatingCalculator.ROLES.stream().map(role -> {
@@ -374,6 +382,7 @@ public class FmAiAssistentTools {
         return withSnapshot(out);
     }
 
+    @ToolInfo(category = ToolInfo.Category.EXPORT, effect = ToolInfo.Effect.LOCAL_FILE_EXPORT)
     @Tool(
             name = "fm27_create_shortlist_file",
             description = "Create an importable FM27 player-shortlist .fmf file after recruitment candidates have been selected. Pass the UNIQUE_ID/player_unique_id values returned by the player and recruitment tools. This creates a shortlist, not a tactic.")
@@ -383,6 +392,7 @@ public class FmAiAssistentTools {
         return withSnapshot(new LinkedHashMap<>(shortlistFiles.create(shortlistName, playerUniqueIds).toMap()));
     }
 
+    @ToolInfo(category = ToolInfo.Category.TACTICS, snapshot = false)
     @Tool(name = "fm27_get_role_attributes", description = "Get FM27 positional roles and the primary/secondary attributes that matter for each role. Use this for tactical fit and transfer advice.")
     @Transactional(readOnly = true)
     public Map<String, Object> getRoleAttributes(
@@ -421,6 +431,7 @@ public class FmAiAssistentTools {
         return withSnapshot(out);
     }
 
+    @ToolInfo(category = ToolInfo.Category.SCOUTING)
     @Tool(name = "fm27_transfer_shortlist", description = "Primary recruitment tool. Returns a compact ranked shortlist using squad strength, position and role fit, CA/PA, price, wage, reputation, source club, availability and time at club. Call this before broad player searches or player details.")
     @Transactional(readOnly = true)
     public Map<String, Object> transferShortlist(
@@ -1156,6 +1167,8 @@ public class FmAiAssistentTools {
 
     private Map<String, Object> playerSummaryMap(PlayerEntity player) {
         Map<String, Object> out = new LinkedHashMap<>();
+        out.putAll(PlayerMapper.fitnessMap(player));
+        out.put("player_traits", player.getPlayerTraits());
         out.put("id", player.getId());
         out.put("unique_id", player.getUniqueId());
         out.put("name", player.getName());

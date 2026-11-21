@@ -36,6 +36,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletionException;
 
 final class CodexChatView extends Div {
+    void toolsAction(Runnable action) { commands.setToolsAction(action); }
     private final CodexConversationService conversations;
     private final Div conversationList = new Div();
     private final MessageList messages = new MessageList();

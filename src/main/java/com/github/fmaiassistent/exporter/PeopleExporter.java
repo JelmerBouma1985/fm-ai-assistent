@@ -135,10 +135,10 @@ public class PeopleExporter {
             List<Map<String, Object>> contractOwners = new ArrayList<>(scan.playerRows().size() + scan.staffRows().size());
             contractOwners.addAll(scan.playerRows());
             contractOwners.addAll(scan.staffRows());
-            ContractExporter.capture(coordinator, gamePluginBase, contractOwners);
-            AwardNameExporter.capture(coordinator, gamePluginBase, contractOwners);
-            ContractCompetitionNameExporter.capture(coordinator, gamePluginBase, contractOwners);
-            NonPlayingProfileExporter.capture(coordinator, gamePluginBase, contractOwners);
+            var warnings = new ArrayList<>(captureOptionalData(coordinator, gamePluginBase, contractOwners));
+            if (staffNative != null && staffNative.warning() != null) warnings.add(staffNative.warning());
+            PlayerFitnessExporter.capture(coordinator, gamePluginBase, scan.playerRows(), gameDate);
+            verifyPeopleTable(coordinator, build, gamePluginBase, bounds, pointerTable);
             List<Map<String, Object>> playerRows = finishPlayers(scan.playerRows(), gameDate);
             List<Map<String, Object>> staffRows = finishStaff(scan.staffRows(), gameDate);
             String gameDateValue = gameDate == null ? "" : gameDate.toString();
@@ -172,8 +172,75 @@ public class PeopleExporter {
                     workers,
                     slotCount,
                     elapsedMillis,
-                    scan.slowestWorkerMillis());
+                    scan.slowestWorkerMillis(), warnings);
         }
+    }
+
+    /** Extra native data may be absent; the identity of its core owners must remain stable. */
+    static List<String> captureOptionalData(ProcessMemoryReader reader, Long base, List<Map<String, Object>> rows) throws IOException {
+        var warnings = new ArrayList<String>();
+        var guards = new ArrayList<PersonGuard>();
+        if (reader.platform().supportsGameMemory()) for (var row : rows) {
+            long person = Long.decode(String.valueOf(row.get(row.containsKey("record") ? "record" : "record_address")));
+            Object rawIndex = row.get(row.containsKey("index") ? "index" : "staff_index");
+            if (!(rawIndex instanceof Number index) || !(row.get("unique_id") instanceof Number uid))
+                throw new PlayerSnapshotValidator.PersonIdentityChangedException("Optional capture owner identity is absent");
+            byte[] prefix = reader.readBytes(person, PersonIdentityLayout.current().prefixBytes());
+            if (PlayerSnapshotValidator.validatePersonIdentity(index.intValue(), prefix, PersonIdentityLayout.current()) != uid.longValue())
+                throw new PlayerSnapshotValidator.PersonIdentityChangedException("Optional capture owner identity changed");
+            guards.add(new PersonGuard(person, prefix));
+        }
+        boolean contracts = optionalCapture("Detailed contracts and future transfers", rows,
+                List.of("_contracts", "_future_contracts", "_award_names", "_contract_competition_names",
+                        "transfer_agreed", "future_transfer_club", "future_transfer_date", "future_transfer_contract_end_date"),
+                () -> ContractExporter.capture(reader, base, rows), warnings);
+        if (!contracts) for (var row : rows) row.put("_future_transfer_profile", "UNAVAILABLE");
+        if (contracts) {
+            optionalCapture("Award names", rows, List.of("_award_names"),
+                    () -> AwardNameExporter.capture(reader, base, rows), warnings);
+            optionalCapture("Contract competition names", rows, List.of("_contract_competition_names"),
+                    () -> ContractCompetitionNameExporter.capture(reader, base, rows), warnings);
+        }
+        optionalCapture("Management and staff profiles", rows, List.of("non_playing_profile_hex", "non_playing_profile_sha256"),
+                () -> NonPlayingProfileExporter.capture(reader, base, rows), warnings);
+        for (var guard : guards) if (!Arrays.equals(guard.prefix(), reader.readBytes(guard.person(), guard.prefix().length)))
+            throw new PlayerSnapshotValidator.PersonIdentityChangedException("Optional capture owner identity changed during extraction");
+        return List.copyOf(warnings);
+    }
+
+    private static boolean optionalCapture(String feature, List<Map<String, Object>> rows, List<String> fields,
+                                           OptionalCapture capture, List<String> warnings) throws IOException {
+        try {
+            capture.run();
+            return true;
+        } catch (PlayerSnapshotValidator.PersonIdentityChangedException changed) {
+            throw changed;
+        } catch (IOException | RuntimeException unavailable) {
+            if (Thread.currentThread().isInterrupted() || unavailable instanceof CancellationException) throw unavailable;
+            for (var row : rows) for (var field : fields) row.put(field, null);
+            warnings.add(feature + " unavailable; affected fields are unknown.");
+            log.warn("FM27 {} capture failed ({}); affected fields are unknown and loading will continue", feature,
+                    unavailable.getClass().getSimpleName());
+            return false;
+        }
+    }
+
+    private record PersonGuard(long person, byte[] prefix) { }
+    @FunctionalInterface private interface OptionalCapture { void run() throws IOException; }
+
+    static void verifyPeopleTable(ProcessMemoryReader reader, int build, Long base, FmOffsets.Bounds bounds, byte[] pointers) throws IOException {
+        if (!bounds.equals(FmOffsets.peopleBounds(reader, build, base)))
+            throw new PlayerSnapshotValidator.PersonIdentityChangedException("People registry bounds changed during extraction");
+        byte[] current = new byte[Math.min(65_536, pointers.length)];
+        for (int offset = 0; offset < pointers.length; offset += current.length) {
+            if (Thread.currentThread().isInterrupted()) throw new IOException("People registry verification interrupted");
+            int count = Math.min(current.length, pointers.length - offset);
+            reader.readInto(bounds.start() + offset, current, 0, count);
+            if (Arrays.mismatch(pointers, offset, offset + count, current, 0, count) >= 0)
+                throw new PlayerSnapshotValidator.PersonIdentityChangedException("People registry slots changed during extraction");
+        }
+        if (!bounds.equals(FmOffsets.peopleBounds(reader, build, base)))
+            throw new PlayerSnapshotValidator.PersonIdentityChangedException("People registry bounds changed during verification");
     }
 
     ScanResult scanPointerTable(int pid, byte[] pointerTable, ExportMode mode, int workers) throws IOException {
@@ -189,18 +256,26 @@ public class PeopleExporter {
         return scanPointerTable(pid, pointerTable, mode, workers, gameDate, null);
     }
 
-    private record StaffNativeLayout(Long moduleBase, ContractRecordLayout contracts) { }
+    private record StaffNativeLayout(Long moduleBase, ContractRecordLayout contracts, String warning) {
+        private StaffNativeLayout(Long moduleBase, ContractRecordLayout contracts) { this(moduleBase, contracts, null); }
+    }
 
     private static StaffNativeLayout staffNativeLayout(ProcessMemoryReader reader, Long suppliedBase) throws IOException {
-        if (reader.platform() != ProcessMemoryReader.Platform.WINDOWS) return new StaffNativeLayout(null, ContractRecordLayout.current());
+        if (!reader.platform().supportsGameMemory()) return new StaffNativeLayout(null, ContractRecordLayout.current());
         long base = suppliedBase == null ? FmOffsets.findGamePluginBase(reader) : suppliedBase;
-        String override = System.getProperty(ContractExporter.MODULE_PROPERTY);
-        Path module = override == null || override.isBlank() ? reader.maps().stream()
-                .filter(region -> region.contains(base, 1) && !region.path().isBlank())
-                .map(region -> Path.of(region.path())).findFirst().orElse(null) : Path.of(override);
-        ContractRecordLayout contracts = module == null ? null
-                : NativeModuleProfile.identify(module).map(ContractRecordLayout::forModule).orElse(null);
-        return new StaffNativeLayout(base, contracts);
+        try {
+            String override = System.getProperty(ContractExporter.MODULE_PROPERTY);
+            Path module = override == null || override.isBlank() ? reader.maps().stream()
+                    .filter(region -> region.contains(base, 1) && !region.path().isBlank())
+                    .map(region -> Path.of(region.path())).findFirst().orElse(null) : Path.of(override);
+            ContractRecordLayout contracts = module == null ? null
+                    : NativeModuleProfile.identify(module).map(ContractRecordLayout::forModule).orElse(null);
+            return new StaffNativeLayout(base, contracts);
+        } catch (IOException | RuntimeException unavailable) {
+            if (Thread.currentThread().isInterrupted() || unavailable instanceof CancellationException) throw unavailable;
+            log.warn("FM27 staff contract context unavailable ({}); contract dates will be unknown", unavailable.getClass().getSimpleName());
+            return new StaffNativeLayout(base, null, "Staff contract context unavailable; some staff contract fields are unknown.");
+        }
     }
 
     private ScanResult scanPointerTable(int pid, byte[] pointerTable, ExportMode mode, int workers,
@@ -248,7 +323,7 @@ public class PeopleExporter {
         try (ProcessMemoryReader reader = readers.open(pid)) {
             PersonMemoryClassifier classifier = new PersonMemoryClassifier(reader, subtypeLayout);
             Long staffModuleBase = staffNative != null ? staffNative.moduleBase()
-                    : mode.includesStaff() && reader.platform() == ProcessMemoryReader.Platform.WINDOWS
+                    : mode.includesStaff() && reader.platform().supportsGameMemory()
                         ? FmOffsets.findGamePluginBase(reader) : null;
             StaffExporter staffDecoder = new StaffExporter(staffRecordLayout, staffModuleBase,
                     staffNative == null ? ContractRecordLayout.current() : staffNative.contracts());
@@ -281,6 +356,11 @@ public class PeopleExporter {
                         Map<String, Object> row = staffDecoder.decodeRow(
                                 reader, index, person, classification.dynamicOffset());
                         verifyPersonIdentity(reader, index, person, identity, row);
+                        if (classification.type() == PersonMemoryClassifier.PersonType.HUMAN_MANAGER
+                                && HumanManagerProfiles.isAccountProfile(reader, person,
+                                String.valueOf(row.get("name")), staffRecordLayout)) {
+                            return;
+                        }
                         if (validStaffRow(row)) {
                             staff.add(row);
                         } else {
@@ -489,7 +569,13 @@ public class PeopleExporter {
             int selectedWorkers,
             int slotCount,
             long elapsedMillis,
-            long slowestWorkerMillis) {
+            long slowestWorkerMillis,
+            List<String> warnings) {
+        public ExportResult { warnings = warnings == null ? List.of() : List.copyOf(warnings); }
+        public ExportResult(PlayerExporter.ExportResult players, StaffExporter.ExportResult staff, Diagnostics diagnostics,
+                            int detectedProcessors, int selectedWorkers, int slotCount, long elapsedMillis, long slowestWorkerMillis) {
+            this(players, staff, diagnostics, detectedProcessors, selectedWorkers, slotCount, elapsedMillis, slowestWorkerMillis, List.of());
+        }
     }
 
     record ScanResult(

@@ -31,7 +31,7 @@ public final class AwardNameExporter {
         this.profile=profile;
     }
     static void capture(ProcessMemoryReader reader,Long suppliedBase,List<Map<String,Object>> rows)throws IOException {
-        if(reader.platform()!=ProcessMemoryReader.Platform.WINDOWS)return;
+        if(!reader.platform().supportsGameMemory())return;
         var profile=ContractExporter.capturedProfile(rows);if(profile.isEmpty())return;
         long base=suppliedBase==null?com.github.fmaiassistent.linux.FmOffsets.findGamePluginBase(reader):suppliedBase;
         new AwardNameExporter(reader,base,AwardNameLayout.forModule(profile.orElseThrow()),profile.orElseThrow()).captureRows(rows);

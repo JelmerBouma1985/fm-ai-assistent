@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+ <changeSet id="031-player-traits" author="codex">
+  <addColumn tableName="players">
+   <column name="player_traits" type="VARCHAR(4096)"/>
+   <column name="player_traits_raw_hex" type="VARCHAR(16)"/>
+  </addColumn>
+  <rollback>
+   <sql>SELECT 1 / CASE WHEN
+    (SELECT COUNT(*) FROM players WHERE player_traits IS NOT NULL OR player_traits_raw_hex IS NOT NULL)=0
+    THEN 1 ELSE 0 END</sql>
+   <dropColumn tableName="players" columnName="player_traits"/>
+   <dropColumn tableName="players" columnName="player_traits_raw_hex"/>
+  </rollback>
+ </changeSet>
+</databaseChangeLog>

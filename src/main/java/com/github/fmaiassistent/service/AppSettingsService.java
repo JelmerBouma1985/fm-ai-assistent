@@ -25,6 +25,7 @@ public class AppSettingsService {
 
     private final Path settingsPath;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+    private volatile boolean unreadableBacking;
 
     public AppSettingsService() {
         this(resolveSettingsPath());
@@ -54,6 +55,18 @@ public class AppSettingsService {
         return settingsPath;
     }
 
+    public String toolPolicy() { return load().getProperty("tools.policy"); }
+
+    /** Uses the same atomic preferences write as currency; preserves unrelated settings. */
+    public void saveToolPolicy(String value, boolean preserveRecoveryCopy) {
+        lock.writeLock().lock();
+        try {
+            Properties properties = load();
+            properties.setProperty("tools.policy", value);
+            save(properties, preserveRecoveryCopy);
+        } finally { lock.writeLock().unlock(); }
+    }
+
     private Properties load() {
         lock.readLock().lock();
         try {
@@ -62,9 +75,15 @@ public class AppSettingsService {
                 return properties;
             }
             try (InputStream input = Files.newInputStream(settingsPath)) {
-                properties.load(input);
-            } catch (IOException ex) {
-                throw new IllegalStateException("Could not load settings from " + settingsPath, ex);
+                byte[] bytes = input.readNBytes(512 * 1024 + 1);
+                if (bytes.length > 512 * 1024) throw new IOException("Settings exceed size limit");
+                properties.load(new java.io.ByteArrayInputStream(bytes));
+            } catch (IOException | IllegalArgumentException ex) {
+                unreadableBacking = true;
+                // Keep the app usable and surface the recovery notice in Tools. No writes on read.
+                Properties fallback = new Properties();
+                fallback.setProperty("tools.policy", "unreadable-backing-preferences");
+                return fallback;
             }
             return properties;
         } finally {
@@ -73,6 +92,10 @@ public class AppSettingsService {
     }
 
     private void save(Properties properties) {
+        save(properties, false);
+    }
+
+    private void save(Properties properties, boolean preserveRecoveryCopy) {
         lock.writeLock().lock();
         try {
             Path parent = settingsPath.getParent();
@@ -80,14 +103,21 @@ public class AppSettingsService {
                 Files.createDirectories(parent);
             }
             Path temporary = Files.createTempFile(parent, settingsPath.getFileName().toString(), ".tmp");
-            try (OutputStream output = Files.newOutputStream(temporary)) {
-                properties.store(output, "FM AI Assistent settings");
-            }
             try {
-                Files.move(temporary, settingsPath,
-                        StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            } catch (AtomicMoveNotSupportedException exception) {
-                Files.move(temporary, settingsPath, StandardCopyOption.REPLACE_EXISTING);
+                try (OutputStream output = Files.newOutputStream(temporary)) {
+                    properties.store(output, "FM AI Assistent settings");
+                }
+                if ((preserveRecoveryCopy || unreadableBacking) && Files.exists(settingsPath)) {
+                    Files.copy(settingsPath, settingsPath.resolveSibling(settingsPath.getFileName()
+                            + ".recovery-" + java.util.UUID.randomUUID()));
+                }
+                try {
+                    Files.move(temporary, settingsPath,
+                            StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                } catch (AtomicMoveNotSupportedException exception) {
+                    Files.move(temporary, settingsPath, StandardCopyOption.REPLACE_EXISTING);
+                }
+                unreadableBacking = false;
             } finally {
                 Files.deleteIfExists(temporary);
             }

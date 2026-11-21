@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.List;
+import java.util.Objects;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -23,8 +25,15 @@ public class ManagedClubContextService implements AiPromptContextContributor {
     private final ManagedClubMemoryReader memoryReader;
     private final ClubRepository clubs;
     private final AtomicLong versions = new AtomicLong();
-    private final AtomicReference<ManagedClubContext> current =
-            new AtomicReference<>(ManagedClubContext.notLoaded(0));
+    public record Selection(ManagedClubContext current, List<ManagedClubContext> managers) {
+        public Selection { Objects.requireNonNull(current); managers = List.copyOf(managers); }
+        public static Selection single(ManagedClubContext context) {
+            return new Selection(context, context.managerUniqueId() == null ? List.of() : List.of(context));
+        }
+    }
+
+    private final AtomicReference<Selection> selection =
+            new AtomicReference<>(Selection.single(ManagedClubContext.notLoaded(0)));
     private final Cache<String, Long> deliveredVersions = Caffeine.newBuilder()
             .maximumSize(10_000)
             .expireAfterAccess(Duration.ofHours(12))
@@ -37,7 +46,25 @@ public class ManagedClubContextService implements AiPromptContextContributor {
     }
 
     public ManagedClubContext current() {
-        return current.get();
+        return selection.get().current();
+    }
+
+    public Selection selection() { return selection.get(); }
+    public List<ManagedClubContext> managers() { return selection.get().managers(); }
+
+    public ManagedClubContext selectManager(long uniqueId) {
+        while (true) {
+            Selection previous = selection.get();
+            ManagedClubContext chosen = previous.managers().stream()
+                    .filter(manager -> Objects.equals(manager.managerUniqueId(), uniqueId)).findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("Human manager is not in the loaded snapshot"));
+            if (Objects.equals(previous.current().managerUniqueId(), uniqueId)) return previous.current();
+            chosen = chosen.withVersion(versions.incrementAndGet());
+            if (selection.compareAndSet(previous, new Selection(chosen, previous.managers()))) {
+                deliveredVersions.invalidateAll();
+                return chosen;
+            }
+        }
     }
 
     public boolean aiContextEnabled() {
@@ -57,6 +84,20 @@ public class ManagedClubContextService implements AiPromptContextContributor {
     /** Detects a managed club without publishing it to application state. */
     public ManagedClubContext detect(int pid, int build, Long gamePluginBase) throws IOException {
         ManagedClubIdentity identity = memoryReader.read(pid, build, gamePluginBase);
+        return contextFor(identity);
+    }
+
+    public Selection detectManagers(int pid, int build, Long gamePluginBase) throws IOException {
+        List<ManagedClubContext> managers = memoryReader.readAll(pid, build, gamePluginBase).stream()
+                .map(this::contextFor).toList();
+        if (managers.isEmpty()) throw new IOException("No human managers found in the loaded save");
+        Long selectedId = current().managerUniqueId();
+        ManagedClubContext selected = managers.stream().filter(manager -> Objects.equals(manager.managerUniqueId(), selectedId))
+                .findFirst().orElse(managers.getFirst());
+        return new Selection(selected, managers);
+    }
+
+    private ManagedClubContext contextFor(ManagedClubIdentity identity) {
         if (identity.unemployed()) {
             return ManagedClubContext.unemployed(versions.incrementAndGet(), identity.managerName(), identity.managerUniqueId());
         }
@@ -83,8 +124,18 @@ public class ManagedClubContextService implements AiPromptContextContributor {
     }
 
     public ManagedClubContext publish(ManagedClubContext context) {
-        java.util.Objects.requireNonNull(context, "context");
-        current.set(context);
+        return publishManagers(Selection.single(context));
+    }
+
+    public ManagedClubContext publishManagers(Selection detected) {
+        ManagedClubContext context = detected.current();
+        Long previousId = current().managerUniqueId();
+        if (previousId != null) {
+            context = detected.managers().stream().filter(manager -> previousId.equals(manager.managerUniqueId()))
+                    .findFirst().orElse(context);
+        }
+        selection.set(new Selection(context, detected.managers()));
+        deliveredVersions.invalidateAll();
         log.info("Detected current human manager={} managedClub={} clubAddress=0x{}",
                 context.managerName(), context.clubName(),
                 context.clubAddress() == null ? "unknown" : Long.toHexString(context.clubAddress()));
@@ -105,12 +156,19 @@ public class ManagedClubContextService implements AiPromptContextContributor {
 
     public void restore(ManagedClubContext context) {
         if (context != null) {
-            current.set(context);
+            restoreSelection(Selection.single(context));
+        }
+    }
+
+    public void restoreSelection(Selection previous) {
+        if (previous != null) {
+            selection.set(previous);
+            deliveredVersions.invalidateAll();
         }
     }
 
     public String currentCareerKey() {
-        return current.get().careerKey();
+        return current().careerKey();
     }
 
     @Override
@@ -118,7 +176,7 @@ public class ManagedClubContextService implements AiPromptContextContributor {
         if (!aiContextEnabled.get()) {
             return "";
         }
-        ManagedClubContext context = current.get();
+        ManagedClubContext context = current();
         if (!context.adviceAvailable() && context.state() != ManagedClubContext.State.UNEMPLOYED) {
             return "";
         }
@@ -153,6 +211,7 @@ public class ManagedClubContextService implements AiPromptContextContributor {
         }
         return nationalContext + """
                 <fm27_managed_club_context>
+                Use this selected manager and club for this conversation, replacing any earlier manager context.
                 Human manager: %s
                 Human manager FM Unique ID: %s
                 Managed club: %s

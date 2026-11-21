@@ -131,6 +131,11 @@ public interface ProcessMemoryReader extends AutoCloseable {
     enum Platform {
         LINUX,
         WINDOWS,
-        UNKNOWN
+        UNKNOWN;
+
+        /** FM's Windows game image can also run under Wine/Proton on Linux. Layouts still require validation. */
+        public boolean supportsGameMemory() {
+            return this == WINDOWS || this == LINUX;
+        }
     }
 }

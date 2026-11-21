@@ -41,6 +41,8 @@ final class OpenRouterChatView extends Div {
     private final Span status = new Span();
     private final Div conversationList = new Div();
     private final MessageList messages = new MessageList();
+    private final ToolActivityPanel activity;
+    private final Span toolSupportNotice = new Span("This model does not support tools. Ordinary chat remains available.");
     private final TextArea input = new TextArea();
     private final ChatCommandPicker commands = new ChatCommandPicker(input, this::send);
     private String selected;
@@ -49,6 +51,7 @@ final class OpenRouterChatView extends Div {
 
     OpenRouterChatView(OpenRouterConversationService conversations) {
         this.conversations = conversations;
+        activity = new ToolActivityPanel(conversations, () -> selected);
         setSizeFull();
         addClassName("codex-chat");
         key.setRevealButtonVisible(false);
@@ -134,24 +137,32 @@ final class OpenRouterChatView extends Div {
         Div sidebar = new Div(new Span("Conversations"), newChat, conversationList);
         sidebar.addClassName("codex-sidebar");
         Span privacy = new Span("Messages, enabled FM context and tool results are sent to OpenRouter and its providers. "
-                + "All FM tools, including refreshes, recruitment updates and shortlist creation, run automatically. "
+                + "Tools follow your global and conversation permissions; manage access with Tools. "
                 + "Your key and chats stay in this server session only. Free capacity is limited.");
         Span modelLabel = new Span("Model");
         modelLabel.addClassName("ai-provider-label");
         toolbarControls.add(key, connect, modelLabel, modelChoice, disconnect);
         toolbarControls.setAlignItems(HorizontalLayout.Alignment.CENTER);
         toolbarControls.addClassName("ai-openrouter-controls");
-        HorizontalLayout header = new HorizontalLayout(new Span("OpenRouter"), status);
+        toolSupportNotice.getElement().setAttribute("role", "status");
+        HorizontalLayout header = new HorizontalLayout(new Span("OpenRouter"), status, toolSupportNotice);
+        header.setWrap(true);
         header.addClassName("codex-chat-header");
         Div composer = new Div(commands.inputGroup(), new HorizontalLayout(commands.menuButton(), stop, send));
         composer.addClassName("codex-composer");
-        Div workspace = new Div(new Div(privacy, header), messages, composer);
+        Div transcript = new Div(messages, activity);
+        transcript.getStyle().set("display", "grid").set("grid-template-rows", "minmax(0, 1fr) auto")
+                .set("min-height", "0").set("overflow", "hidden");
+        activity.getStyle().set("max-height", "180px").set("overflow", "auto");
+        Div workspace = new Div(new Div(privacy, header), transcript, composer);
         workspace.addClassName("codex-workspace");
         add(sidebar, workspace);
         refresh();
     }
 
     HorizontalLayout toolbarControls() { return toolbarControls; }
+    void toolsAction(Runnable action) { commands.setToolsAction(action); }
+    String selectedConversationId() { return selected; }
 
     @Override protected void onAttach(AttachEvent event) {
         super.onAttach(event);
@@ -231,6 +242,8 @@ final class OpenRouterChatView extends Div {
         if (snapshots.stream().noneMatch(c -> c.id().equals(selected))) selected = null;
         if (selected == null && !snapshots.isEmpty()) selected = snapshots.getLast().id();
         var snapshot = selected == null ? null : conversations.get(selected);
+        toolSupportNotice.setVisible(selected != null && !conversations.supportsTools(selected));
+        activity.refresh();
         boolean running = snapshot != null && snapshot.running();
         key.setVisible(!connected);
         connect.setVisible(!connected);
@@ -261,6 +274,7 @@ final class OpenRouterChatView extends Div {
         }
         var rendered = new ArrayList<MessageListItem>();
         if (snapshot != null) for (var item : snapshot.items()) {
+            if (conversations.toolRegistry() != null && item.role().equals("Activity")) continue;
             MessageListItem message = new MessageListItem(sanitizeMarkdown(item.text()), item.time(), item.role());
             message.setUserAbbreviation(item.role().equals("You") ? "Y" : item.role().equals("Activity") ? "FM" : "OR");
             message.addClassNames(item.role().equals("You") ? "codex-user-message"

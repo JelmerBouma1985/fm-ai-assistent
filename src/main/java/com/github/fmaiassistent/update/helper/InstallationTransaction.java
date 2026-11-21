@@ -81,6 +81,8 @@ public final class InstallationTransaction {
         throw new IOException("New application did not acknowledge readiness. Close it, then run helper recover. Data backup retained; no old code was started against possibly migrated data.");
     }
     private Process startNew() throws IOException {
+        // Carry only the memory limit forward; the new image keeps all its own JVM and version options.
+        LauncherMemory.preserve(backup, install, p.getProperty("os"));
         List<String> command = new ArrayList<>();
         command.add(ImageFiles.launcher(install, p.getProperty("os")).toString());
         command.add("--app.updates.transaction=" + p.getProperty("id"));

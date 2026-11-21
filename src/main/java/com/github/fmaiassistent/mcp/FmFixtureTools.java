@@ -4,11 +4,13 @@ import com.github.fmaiassistent.domain.entity.ClubEntity;
 import com.github.fmaiassistent.domain.entity.FixtureEntity;
 import com.github.fmaiassistent.domain.entity.PlayerEntity;
 import com.github.fmaiassistent.player.PositionTextFormatter;
+import com.github.fmaiassistent.player.PlayerMapper;
 import com.github.fmaiassistent.repository.ClubRepository;
 import com.github.fmaiassistent.repository.FixtureRepository;
 import com.github.fmaiassistent.service.PlayerDatabaseService;
 import com.github.fmaiassistent.snapshot.SnapshotStatusService;
 import org.springframework.ai.tool.annotation.Tool;
+import com.github.fmaiassistent.tools.ToolInfo;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +46,7 @@ public class FmFixtureTools {
         this.snapshots = snapshots;
     }
 
+    @ToolInfo(category = ToolInfo.Category.SQUAD, managedClub = true)
     @Tool(name = "fm27_get_managed_club_fixtures", description = "Get fixtures read from FM27 RAM for the human-managed club, ordered by kickoff. Defaults to upcoming fixtures from the loaded in-game date.")
     @Transactional(readOnly = true)
     public Map<String, Object> getManagedClubFixtures(
@@ -59,6 +62,7 @@ public class FmFixtureTools {
         LocalDate gameDate = date(snapshot.get("game_date"));
         int safeLimit = Math.max(1, Math.min(MAX_LIMIT, limit == null ? DEFAULT_LIMIT : limit));
         List<FixtureEntity> selected = fixtures.findAllByOrderByKickoffDateAscKickoffTimeAsc().stream()
+                .filter(fixture -> selectedClubFixture(fixture, snapshot))
                 .filter(fixture -> Boolean.TRUE.equals(includePast)
                         || gameDate == null
                         || isOnOrAfter(fixture, gameDate))
@@ -72,6 +76,7 @@ public class FmFixtureTools {
         return out;
     }
 
+    @ToolInfo(category = ToolInfo.Category.SQUAD, managedClub = true)
     @Tool(name = "fm27_analyze_next_opposition", description = "Analyze the next opponent from the managed club's RAM-loaded fixture list. Returns the opponent squad's strongest and weakest attribute groups, key players, availability and evidence for an AI agent to turn into a match plan.")
     @Transactional(readOnly = true)
     public Map<String, Object> analyzeNextOpposition() {
@@ -84,6 +89,7 @@ public class FmFixtureTools {
         }
         LocalDate gameDate = date(snapshot.get("game_date"));
         FixtureEntity next = fixtures.findAllByOrderByKickoffDateAscKickoffTimeAsc().stream()
+                .filter(fixture -> selectedClubFixture(fixture, snapshot))
                 .filter(fixture -> gameDate == null || isOnOrAfter(fixture, gameDate))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("No upcoming managed-club fixture is loaded"));
@@ -119,7 +125,7 @@ public class FmFixtureTools {
                 .map(FmFixtureTools::availabilityMap).toList());
         out.put("limitations", List.of(
                 "Strengths and weaknesses are inferred from the loaded player attributes and squad composition.",
-                "Opponent tactics, recent form, match statistics, morale, condition, suspensions and likely rotation are not loaded."));
+                "Opponent tactics, recent form, match statistics, morale, suspensions and likely rotation are not loaded. Fitness fields are snapshot observations; null means not loaded."));
         return out;
     }
 
@@ -146,6 +152,12 @@ public class FmFixtureTools {
                 .mapToInt(attribute -> value(attribute.apply(player))))
                 .filter(value -> value > 0).average().orElse(0);
         return new Profile(name, round1(average), squad.size(), attributes.size());
+    }
+
+    private static boolean selectedClubFixture(FixtureEntity fixture, Map<String, Object> snapshot) {
+        Object address = snapshot.get("managed_club_address");
+        return fixture.isForManagedClub(address instanceof Number number ? number.longValue() : null,
+                Objects.toString(snapshot.get("managed_club"), ""));
     }
 
     private static Map<String, Object> fixtureMap(FixtureEntity fixture) {
@@ -175,6 +187,7 @@ public class FmFixtureTools {
 
     private static Map<String, Object> playerMap(PlayerEntity player) {
         Map<String, Object> out = new LinkedHashMap<>();
+        out.putAll(PlayerMapper.fitnessMap(player));
         out.put("player_unique_id", player.getUniqueId());
         out.put("name", player.getName());
         out.put("age", player.getAge());
@@ -188,6 +201,7 @@ public class FmFixtureTools {
 
     private static Map<String, Object> availabilityMap(PlayerEntity player) {
         Map<String, Object> out = new LinkedHashMap<>();
+        out.putAll(PlayerMapper.fitnessMap(player));
         out.put("player_unique_id", player.getUniqueId());
         out.put("name", player.getName());
         out.put("injured", player.getInjured());

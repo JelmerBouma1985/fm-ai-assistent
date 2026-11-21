@@ -26,6 +26,8 @@ public final class FmOffsets {
     // FM27 moved the data registries beyond the old 0x05200000 scan window.
     private static final long GAME_PLUGIN_SCAN_RANGE = 0x0600_0000L;
     private static final int MIN_VALID_TABLE_SCORE = 35;
+    // Carried-over saves can retain far more PERSON slots than a newly started game.
+    private static final int MAX_PEOPLE_SLOTS = 2_000_000;
 
     private static final Map<Integer, Long> BUILD_TO_TABLE_RVA = Map.of(
             0x25f1a7, 0x57035e8L,
@@ -226,7 +228,7 @@ public final class FmOffsets {
         int score = 0;
         score += scoreExact(counts.get("ContinentOffset"), 7, 10);
         score += scoreExact(counts.get("RegionOffset"), 28, 10);
-        score += scoreRange(counts.get("PeopleOffset"), 30_000, 500_000, 5);
+        score += scoreRange(counts.get(PEOPLE_SLOT), 30_000, MAX_PEOPLE_SLOTS, 5);
         score += scoreRange(counts.get("TeamOffset"), 30_000, 200_000, 4);
         score += scoreRange(counts.get("ClubOffset"), 10_000, 100_000, 4);
         score += scoreRange(counts.get("CompetitionOffset"), 1_000, 50_000, 3);
@@ -250,7 +252,8 @@ public final class FmOffsets {
                     return Map.of();
                 }
                 long count = (end - start) / 8;
-                if (count < 0 || count > 500_000) {
+                long maximum = PEOPLE_SLOT.equals(slot.getKey()) ? MAX_PEOPLE_SLOTS : 500_000;
+                if (count < 0 || count > maximum) {
                     return Map.of();
                 }
                 counts.put(slot.getKey(), count);

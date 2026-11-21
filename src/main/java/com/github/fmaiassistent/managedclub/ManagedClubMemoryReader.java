@@ -7,13 +7,23 @@ import com.github.fmaiassistent.memory.ProcessReaders;
 import com.github.fmaiassistent.memory.ContractRecordLayout;
 import com.github.fmaiassistent.memory.ClubIdentityLayout;
 import com.github.fmaiassistent.memory.NationalTeamLayout;
+import com.github.fmaiassistent.memory.NonPlayingProfileLayout;
+import com.github.fmaiassistent.memory.PersonIdentityLayout;
 import com.github.fmaiassistent.exporter.PlayerSnapshotValidator;
+import com.github.fmaiassistent.exporter.HumanManagerProfiles;
+import com.github.fmaiassistent.memory.StaffRecordLayout;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Arrays;
 
 @Component
 public class ManagedClubMemoryReader {
+    private static final int POINTER_CHUNK_BYTES = 65_536;
     private static final long PERSON_EMPLOYMENT_REL = 0xA8;
     private static final long PERSON_UNIQUE_ID_REL = 0x0C;
     private static final long EMPLOYMENT_TEAM_REL = 0x10;
@@ -36,6 +46,72 @@ public class ManagedClubMemoryReader {
                         "The current human-manager pointer is not known for FM build 0x"
                                 + Integer.toHexString(build)));
         long manager = requiredPointer(reader, pluginBase + managerRva, "human manager");
+        return readManager(reader, pluginBase, profile, manager);
+    }
+
+    public List<ManagedClubIdentity> readAll(int pid, int build, Long gamePluginBase) throws IOException {
+        try (ProcessMemoryReader reader = ProcessReaders.open(pid)) {
+            return readAll(reader, build, gamePluginBase);
+        }
+    }
+
+    public List<ManagedClubIdentity> readAll(ProcessMemoryReader reader, int build, Long gamePluginBase) throws IOException {
+        long base = gamePluginBase == null ? FmOffsets.findGamePluginBase(reader) : gamePluginBase;
+        return readAll(reader, build, base, FmOffsets.moduleProfile(reader, base));
+    }
+
+    List<ManagedClubIdentity> readAll(ProcessMemoryReader reader, int build, long base, String profile) throws IOException {
+        ManagedClubIdentity active = read(reader, build, base, profile);
+        // Unknown images retain the existing single-manager capability without guessing a human type.
+        if (profile == null) return HumanManagerProfiles.isAccountProfile(reader, active.managerAddress(),
+                active.managerName(), StaffRecordLayout.current()) ? List.of() : List.of(active);
+        var layout = NonPlayingProfileLayout.forModule(profile);
+        PlayerSnapshotValidator.validateNonPlayingProfileLayout(layout);
+        long humanVtable = base + layout.humanPersonVtableRva();
+        if (reader.readU64(active.managerAddress()) != humanVtable) {
+            throw new IOException("Current human manager type anchor failed");
+        }
+        var prefixLayout = PersonIdentityLayout.current();
+        var bounds = FmOffsets.peopleBounds(reader, build, base);
+        var managers = new ArrayList<ManagedClubIdentity>();
+        boolean activeFound = false;
+        for (long cursor = bounds.start(); cursor < bounds.end();) {
+            if (Thread.currentThread().isInterrupted()) throw new IOException("Human-manager discovery interrupted");
+            int size = (int) Math.min(POINTER_CHUNK_BYTES, bounds.end() - cursor);
+            var pointers = ByteBuffer.wrap(reader.readBytes(cursor, size)).order(ByteOrder.LITTLE_ENDIAN);
+            for (int offset = 0; offset < size; offset += Long.BYTES) {
+                long person = pointers.getLong(offset);
+                if (person <= 0 || person > ProcessMemoryReader.MAX_USER_ADDRESS) continue;
+                long vtable;
+                try { vtable = reader.readU64(person); }
+                catch (IOException unreadable) { continue; }
+                if (vtable != humanVtable) continue;
+                int index = Math.toIntExact((cursor - bounds.start() + offset) / Long.BYTES);
+                byte[] prefix = reader.readBytes(person, prefixLayout.prefixBytes());
+                long uid = PlayerSnapshotValidator.validatePersonIdentity(index, prefix, prefixLayout);
+                ManagedClubIdentity manager = readManager(reader, base, profile, person);
+                if (!Long.valueOf(uid).equals(manager.managerUniqueId())
+                        || reader.readU64(cursor + offset) != person
+                        || !Arrays.equals(prefix, reader.readBytes(person, prefix.length))) {
+                    throw new IOException("Human-manager identity changed during discovery");
+                }
+                if (person == active.managerAddress()) activeFound = true;
+                if (!HumanManagerProfiles.isAccountProfile(reader, person, manager.managerName(), StaffRecordLayout.current())) {
+                    managers.add(manager);
+                }
+            }
+            cursor += size;
+        }
+        if (!activeFound
+                || !bounds.equals(FmOffsets.peopleBounds(reader, build, base))) {
+            throw new IOException("Human-manager registry changed during discovery");
+        }
+        managers.sort(java.util.Comparator.comparing((ManagedClubIdentity manager) -> manager.managerAddress() != active.managerAddress())
+                .thenComparing(ManagedClubIdentity::managerName, String.CASE_INSENSITIVE_ORDER));
+        return List.copyOf(managers);
+    }
+
+    private ManagedClubIdentity readManager(ProcessMemoryReader reader, long pluginBase, String profile, long manager) throws IOException {
         String managerName = FmMemoryStrings.playerName(reader, manager)
                 .filter(value -> !value.isBlank())
                 .orElseThrow(() -> new IllegalStateException("The current human manager name could not be read"));

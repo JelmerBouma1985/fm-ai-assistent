@@ -20,6 +20,41 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 class SnapshotStatusServiceTest {
     @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.NullAndEmptySource
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"Detailed contracts unavailable | Detailed club finances unavailable"})
+    void snapshotReferenceExposesOptionalWarningsAndTreatsOlderSnapshotsAsHavingNone(String warning) {
+        var metadata = mock(LoadMetadataRepository.class);
+        var values = new java.util.ArrayList<LoadMetadataEntity>();
+        values.add(new LoadMetadataEntity("snapshot_id", "snapshot-1"));
+        if (warning != null) values.add(new LoadMetadataEntity("optional_data_warnings", warning));
+        values.add(new LoadMetadataEntity("fixtures_failure", "Fixture read failed"));
+        values.add(new LoadMetadataEntity("uefa_coefficients_failure", "UEFA unavailable"));
+        when(metadata.findAll()).thenReturn(values);
+        var clubs = mock(ManagedClubContextService.class);
+        when(clubs.current()).thenReturn(ManagedClubContext.notLoaded(0));
+        var service = new SnapshotStatusService(metadata, mock(DatabaseLoadAllService.class),
+                mock(RefreshCoordinator.class), clubs, mock(TacticContextService.class));
+        assertThat(service.reference()).containsEntry("state", "loaded")
+                .containsEntry("optional_data_warnings", warning == null ? "" : warning)
+                .containsEntry("fixtures_failure", "Fixture read failed")
+                .containsEntry("uefa_coefficients_failure", "UEFA unavailable")
+                .containsEntry("refresh_recommended", false);
+    }
+
+    @Test
+    void selectedManagersCareerAndClubReplaceTheOriginalSnapshotManager() {
+        var metadata = mock(LoadMetadataRepository.class);
+        when(metadata.findAll()).thenReturn(List.of(new LoadMetadataEntity("snapshot_id", "multi-manager"),
+                new LoadMetadataEntity("career_key", "1:ties-bouma")));
+        var clubs = mock(ManagedClubContextService.class);
+        when(clubs.current()).thenReturn(new ManagedClubContext(2, ManagedClubContext.State.AVAILABLE,
+                "Jelmer Bouma", 2L, "Feyenoord", "", "", "", null, null, null, null, 42L, "Loaded"));
+        var service = new SnapshotStatusService(metadata, mock(DatabaseLoadAllService.class),
+                mock(RefreshCoordinator.class), clubs, mock(TacticContextService.class));
+        assertThat(service.reference()).containsEntry("career_key", "2:jelmer-bouma")
+                .containsEntry("managed_club", "Feyenoord").containsEntry("managed_club_address", 42L);
+    }
+    @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(strings = {"", "Fixture read failed"})
     void snapshotReferenceExposesPersistedFixtureWarning(String failure) {
         var metadata = mock(LoadMetadataRepository.class);

@@ -18,6 +18,8 @@ import com.github.fmaiassistent.tactic.TacticContextService;
 import com.github.fmaiassistent.snapshot.SnapshotStatusService;
 import com.github.fmaiassistent.snapshot.RefreshCoordinator;
 import com.github.fmaiassistent.domain.enums.MoneyCurrency;
+import com.github.fmaiassistent.domain.enums.DesktopMemoryPreset;
+import com.github.fmaiassistent.desktop.DesktopMemorySettings;
 import com.github.fmaiassistent.repository.*;
 import com.github.fmaiassistent.player.AttributeDefinitions;
 import com.github.fmaiassistent.player.FieldDef;
@@ -116,6 +118,8 @@ public class MainView extends VerticalLayout {
     private final FixtureRepository fixtures;
     private final RecruitmentCaseService recruitment;
     private final AppSettingsService settings;
+    private final ManagedClubContextService managedClubContexts;
+    private final DesktopMemorySettings memorySettings;
     private final SnapshotStatusService snapshots;
     private final ContractRepository contracts;
     private final UpdatePanel updatesDialog;
@@ -128,6 +132,7 @@ public class MainView extends VerticalLayout {
     private final Span managedClubWarning = new Span("Failed to load managed club");
     private final Span coefficientWarning = new Span("Failed to load club coefficients");
     private final Span fixtureWarning = new Span("Failed to load fixtures");
+    private final Span optionalDataWarning = new Span("Some extra data unavailable");
     private final Button settingsButton = new Button(VaadinIcon.COG.create());
     private final Button filterButton = new Button("Filter", VaadinIcon.FILTER.create());
     private final Span status = new Span();
@@ -144,6 +149,9 @@ public class MainView extends VerticalLayout {
     private final Grid<ClubEntity> clubsGrid = new Grid<>();
     private final Grid<CompetitionEntity> competitionsGrid = new Grid<>();
     private final Grid<FixtureEntity> fixturesGrid = new Grid<>();
+    private final Select<com.github.fmaiassistent.managedclub.ManagedClubContext> fixturesManagerSelect = new Select<>();
+    private Long fixturesManagerId;
+    private boolean refreshingFixturesManagers;
     private final Grid<Map<String, Object>> recruitmentGrid = new Grid<>();
     private final AiAssistantView aiAssistant;
 
@@ -170,6 +178,7 @@ public class MainView extends VerticalLayout {
             CompetitionDatabaseService competitions,
             FixtureRepository fixtures,
             AppSettingsService settings,
+            DesktopMemorySettings memorySettings,
             SnapshotStatusService snapshots,
             CodexConversationService codexConversations,
             AntigravityConversationService antigravityConversations,
@@ -189,6 +198,8 @@ public class MainView extends VerticalLayout {
         this.fixtures = fixtures;
         this.recruitment = recruitment;
         this.settings = settings;
+        this.managedClubContexts = managedClubContexts;
+        this.memorySettings = memorySettings;
         this.snapshots = snapshots;
         this.contracts = contracts;
         this.updatesDialog = new UpdatePanel(updates);
@@ -218,6 +229,16 @@ public class MainView extends VerticalLayout {
         configureGrid(clubsGrid);
         configureGrid(competitionsGrid);
         configureGrid(fixturesGrid);
+        fixturesManagerSelect.setLabel("Manager");
+        fixturesManagerSelect.setWidth("min(440px, 100%)");
+        fixturesManagerSelect.setItemLabelGenerator(manager -> manager.managerName() + " - "
+                + (manager.available() ? manager.clubName() : manager.nationalTeamAvailable()
+                ? manager.nationalTeam().name() : "Unemployed"));
+        fixturesManagerSelect.addValueChangeListener(event -> {
+            if (refreshingFixturesManagers || event.getValue() == null) return;
+            fixturesManagerId = event.getValue().managerUniqueId();
+            updateFixtureRows();
+        });
         configureGrid(recruitmentGrid);
         configureLoadingDialog();
         playersGrid.addItemClickListener(event -> openPlayerDetailsDialog(event.getItem()));
@@ -260,6 +281,9 @@ public class MainView extends VerticalLayout {
         fixtureWarning.addClassNames("freshness-badge", "is-stale");
         fixtureWarning.getElement().setAttribute("role", "status");
         fixtureWarning.setVisible(false);
+        optionalDataWarning.addClassNames("freshness-badge", "is-stale");
+        optionalDataWarning.getElement().setAttribute("role", "status");
+        optionalDataWarning.setVisible(false);
         filterButton.addClassName("filter-button");
         settingsButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY_INLINE);
         settingsButton.addClassName("icon-button");
@@ -280,7 +304,7 @@ public class MainView extends VerticalLayout {
         brand.setSpacing(false);
         brand.addClassName("brand");
 
-        HorizontalLayout actions = new HorizontalLayout(freshnessBadge, managedClubWarning, coefficientWarning, fixtureWarning, loadButton, settingsButton);
+        HorizontalLayout actions = new HorizontalLayout(freshnessBadge, managedClubWarning, coefficientWarning, fixtureWarning, optionalDataWarning, loadButton, settingsButton);
         actions.setAlignItems(Alignment.CENTER);
         actions.setSpacing(false);
         actions.addClassName("app-actions");
@@ -477,6 +501,11 @@ public class MainView extends VerticalLayout {
     }
 
     private void applyFreshness(Map<String, Object> snapshot, boolean manual) {
+        String optionalWarnings = Objects.toString(snapshot.get("optional_data_warnings"), "");
+        optionalDataWarning.setVisible("loaded".equals(snapshot.get("state")) && !optionalWarnings.isBlank());
+        optionalDataWarning.getElement().setAttribute("title", optionalWarnings);
+        optionalDataWarning.getElement().setAttribute("aria-label", optionalWarnings.isBlank()
+                ? optionalDataWarning.getText() : optionalDataWarning.getText() + ": " + optionalWarnings);
         String fixtureFailure = Objects.toString(snapshot.get("fixtures_failure"), "");
         fixtureWarning.setVisible("loaded".equals(snapshot.get("state")) && !fixtureFailure.isBlank());
         fixtureWarning.getElement().setAttribute("title", fixtureFailure);
@@ -649,6 +678,13 @@ public class MainView extends VerticalLayout {
                 new PlayerColumn("FUTURE_TRANSFER_DATE", "Future Transfer Date", PlayerEntity::getFutureTransferDate),
                 new PlayerColumn("FUTURE_TRANSFER_CONTRACT_END_DATE", "Future Contract End", PlayerEntity::getFutureTransferContractEndDate),
                 new PlayerColumn("INJURED", "Injured", PlayerEntity::getInjured),
+                new PlayerColumn("MATCH_LOAD", "Match Load", PlayerEntity::getMatchLoad),
+                new PlayerColumn("TRAINING_LOAD", "Training Load", PlayerEntity::getTrainingLoad),
+                new PlayerColumn("INJURY_SUSCEPTIBILITY", "Injury Susceptibility", PlayerEntity::getInjurySusceptibility),
+                new PlayerColumn("CONDITION", "Condition", PlayerEntity::getCondition),
+                new PlayerColumn("SHARPNESS", "Sharpness", PlayerEntity::getSharpness),
+                new PlayerColumn("OVERALL_RISK", "Overall Risk", PlayerEntity::getOverallRisk),
+                new PlayerColumn("FATIGUE", "Fatigue (raw)", PlayerEntity::getFatigue),
                 new PlayerColumn("ON_DUTY", "On Duty", PlayerEntity::getOnDuty),
                 new PlayerColumn("INJURY", "Injury", PlayerEntity::getInjury),
                 new PlayerColumn("INJURY_LIGHT_TRAINING_DAYS_REMAINING", "Light Training Days", PlayerEntity::getInjuryLightTrainingDaysRemaining),
@@ -749,17 +785,44 @@ public class MainView extends VerticalLayout {
             fixturesGrid.addColumn(FixtureEntity::getAwayClub)
                     .setKey("AWAY_CLUB").setHeader("Away club").setAutoWidth(true).setResizable(true).setSortable(true);
         }
+        refreshFixturesManagers();
+        updateFixtureRows();
+        setFilterActive(false);
+        content.removeAll();
+        content.setSizeFull();
+        VerticalLayout layout = new VerticalLayout(fixturesManagerSelect, fixturesGrid);
+        layout.setPadding(false);
+        layout.setSizeFull();
+        layout.expand(fixturesGrid);
+        content.add(layout);
+        content.addClassName("data-workspace");
+    }
+
+    private void refreshFixturesManagers() {
+        var managers = managedClubContexts.managers();
+        var selected = managers.stream().filter(manager -> Objects.equals(manager.managerUniqueId(), fixturesManagerId))
+                .findFirst().orElseGet(() -> managers.stream().filter(com.github.fmaiassistent.managedclub.ManagedClubContext::available)
+                        .findFirst().orElse(managers.isEmpty() ? null : managers.getFirst()));
+        refreshingFixturesManagers = true;
+        try {
+            fixturesManagerSelect.setItems(managers);
+            fixturesManagerSelect.setValue(selected);
+            fixturesManagerSelect.setEnabled(managers.size() > 1);
+            fixturesManagerId = selected == null ? null : selected.managerUniqueId();
+        } finally {
+            refreshingFixturesManagers = false;
+        }
+    }
+
+    private void updateFixtureRows() {
         LocalDate gameDate = snapshotGameDate();
+        var managed = fixturesManagerSelect.getValue();
         List<FixtureEntity> upcoming = fixtures.findAllByOrderByKickoffDateAscKickoffTimeAsc().stream()
+                .filter(fixture -> managed != null && fixture.isForManagedClub(managed.clubAddress(), managed.clubName()))
                 .filter(fixture -> isUpcoming(fixture, gameDate))
                 .toList();
         fixturesGrid.setItems(upcoming);
-        setFilterActive(false);
         status.setText("Upcoming fixtures " + upcoming.size());
-        content.removeAll();
-        content.setSizeFull();
-        content.add(fixturesGrid);
-        content.addClassName("data-workspace");
     }
 
     private LocalDate snapshotGameDate() {
@@ -927,7 +990,7 @@ public class MainView extends VerticalLayout {
         profiles.stream().sorted(Comparator.comparingDouble(OppositionProfile::rating)).limit(3)
                 .forEach(profile -> fields.add(new DetailField("Weakness — " + profile.label(), profile.rating() + " / 20")));
         Span note = new Span("Based on the best " + firstTeam.size()
-                + " loaded players by current ability. Opponent tactics, form, morale, condition, suspensions and rotation are not loaded.");
+                + " loaded players by current ability. Fitness reflects the loaded snapshot; unknown values are not loaded. Opponent tactics, form, morale, suspensions and rotation are not loaded.");
         note.addClassName("report-note");
         VerticalLayout layout = new VerticalLayout(detailLayout(fields), note);
         layout.setPadding(false);
@@ -1346,6 +1409,15 @@ public class MainView extends VerticalLayout {
                 new DetailField("Club", player.getClub()),
                 new DetailField("Playing Club", player.getPlayingClub()),
                 new DetailField("Position", PositionTextFormatter.format(player)),
+                new DetailField("Match Load", fitnessDisplay(player.getMatchLoad())),
+                new DetailField("Training Load", fitnessDisplay(player.getTrainingLoad())),
+                new DetailField("Injury Susceptibility", fitnessDisplay(player.getInjurySusceptibility())),
+                new DetailField("Condition", fitnessPercentage(player.getCondition())),
+                new DetailField("Sharpness", fitnessPercentage(player.getSharpness())),
+                new DetailField("Overall Risk", fitnessDisplay(player.getOverallRisk())),
+                new DetailField("Fatigue (raw)", fitnessDisplay(player.getFatigue())),
+                new DetailField("Player Traits", player.getPlayerTraits() == null ? "Not loaded"
+                        : player.getPlayerTraits().isBlank() ? "None" : player.getPlayerTraits()),
                 new DetailField("Salary Weekly", salaryWeeklyDisplay(player.getSalaryWeeklyRaw())),
                 new DetailField("Asking Price", moneyDisplay(player.getAskingPrice())),
                 new DetailField("Joined Club Date", player.getJoinedClubDate()),
@@ -1364,6 +1436,15 @@ public class MainView extends VerticalLayout {
                     display(player.getInjuryLightTrainingDaysRemaining())));
         }
         return fields;
+    }
+
+    private static Object fitnessDisplay(Object value) {
+        return value == null ? "Unknown" : value;
+    }
+
+    private static String fitnessPercentage(Object value) {
+        return value instanceof Number number ? String.format(Locale.ROOT, "%.2f%%", number.doubleValue() / 100.0)
+                : "Unknown";
     }
 
     static String injurySummary(PlayerEntity player) {
@@ -1477,6 +1558,10 @@ public class MainView extends VerticalLayout {
     }
 
     private void openSettingsDialog() {
+        settingsDialog().open();
+    }
+
+    Dialog settingsDialog() {
         Dialog dialog = new Dialog();
         dialog.setHeaderTitle("Settings");
         dialog.setWidth("420px");
@@ -1490,29 +1575,66 @@ public class MainView extends VerticalLayout {
         currencySelect.setItemLabelGenerator(MoneyCurrency::label);
         currencySelect.setValue(currency);
 
+        Select<DesktopMemoryPreset> memorySelect = new Select<>();
+        memorySelect.setLabel("Database size");
+        memorySelect.setItems(DesktopMemoryPreset.values());
+        memorySelect.setItemLabelGenerator(DesktopMemoryPreset::label);
+        memorySelect.setPlaceholder("Choose database size");
+        memorySelect.setWidthFull();
+        Span error = new Span();
+        error.getStyle().set("color", "var(--lumo-error-text-color)");
+        error.setVisible(false);
+        memorySelect.setEnabled(memorySettings.available());
+        memorySelect.setHelperText(memorySettings.available()
+                ? "Maximum app memory. Restart the desktop app after saving. Leave memory for Football Manager and your operating system."
+                : "Available in the packaged desktop app. For Java launches, set -Xmx at startup.");
+        DesktopMemoryPreset savedPreset = null;
+        try {
+            savedPreset = memorySettings.preset();
+            memorySelect.setValue(savedPreset);
+        } catch (IOException exception) {
+            memorySelect.setEnabled(false);
+            error.setText("Could not read the desktop memory setting. Check the app folder permissions.");
+            error.setVisible(true);
+        }
+        DesktopMemoryPreset initialPreset = savedPreset;
+        Span currentMemory = new Span(String.format(Locale.ROOT, "Current app limit: %.1f GB",
+                Runtime.getRuntime().maxMemory() / (1024.0 * 1024 * 1024)));
+
         Span file = new Span("Stored in " + settings.settingsPath());
         file.getStyle()
                 .set("font-size", "var(--lumo-font-size-xs)")
                 .set("color", "var(--lumo-secondary-text-color)")
                 .set("overflow-wrap", "anywhere");
 
-        VerticalLayout layout = new VerticalLayout(currencySelect, file);
+        VerticalLayout layout = new VerticalLayout(currencySelect, memorySelect, currentMemory, error, file);
         layout.setPadding(false);
         layout.setSpacing(true);
         layout.addClassName("settings-content");
         dialog.add(layout);
 
         Button save = new Button("Save", VaadinIcon.CHECK.create(), event -> {
-            currency = currencySelect.getValue() == null ? MoneyCurrency.POUND : currencySelect.getValue();
-            settings.saveCurrency(currency);
+            boolean memoryChanged = memorySelect.isEnabled() && memorySelect.getValue() != null
+                    && memorySelect.getValue() != initialPreset;
+            MoneyCurrency chosenCurrency = currencySelect.getValue() == null ? MoneyCurrency.POUND : currencySelect.getValue();
+            try {
+                if (memoryChanged) memorySettings.save(memorySelect.getValue());
+                settings.saveCurrency(chosenCurrency);
+            } catch (IOException | IllegalStateException exception) {
+                error.setText("Could not save settings. Check that the app folder is writable and try again.");
+                error.setVisible(true);
+                return;
+            }
+            currency = chosenCurrency;
             refreshSelectedTab();
-            Notification.show("Settings saved", 2500, Notification.Position.TOP_CENTER);
+            Notification.show(memoryChanged ? "Settings saved. Restart the desktop app to apply the memory limit."
+                    : "Settings saved", 5000, Notification.Position.TOP_CENTER);
             dialog.close();
         });
         save.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         Button cancel = new Button("Cancel", VaadinIcon.CLOSE_SMALL.create(), event -> dialog.close());
         dialog.getFooter().add(cancel, save);
-        dialog.open();
+        return dialog;
     }
 
     private void openPlayerFilterDialog() {
@@ -2063,6 +2185,9 @@ public class MainView extends VerticalLayout {
     }
 
     private String displayColumn(String column, Object value) {
+        if ("CONDITION".equals(column) || "SHARPNESS".equals(column)) return fitnessPercentage(value);
+        if (value == null && java.util.Set.of("MATCH_LOAD", "TRAINING_LOAD", "INJURY_SUSCEPTIBILITY",
+                "OVERALL_RISK", "FATIGUE").contains(column)) return "Unknown";
         if ("SALARY_WEEKLY_RAW".equals(column)) {
             return salaryWeeklyDisplay(value);
         }

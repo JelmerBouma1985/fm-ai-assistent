@@ -55,6 +55,11 @@ public record ManagedClubContext(
         return state == State.AVAILABLE;
     }
 
+    public ManagedClubContext withVersion(long version) {
+        return new ManagedClubContext(version, state, managerName, managerUniqueId, clubName, competition,
+                nation, gender, reputation, balance, transferBudget, payrollBudget, clubAddress, message, nationalTeam);
+    }
+
     public boolean nationalTeamAvailable() {
         return nationalTeam != null;
     }

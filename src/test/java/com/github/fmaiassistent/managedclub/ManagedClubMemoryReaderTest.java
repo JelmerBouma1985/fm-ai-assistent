@@ -23,6 +23,104 @@ class ManagedClubMemoryReaderTest {
     private static final long TEAM = 0x4000_0000L;
     private static final long CLUB = 0x5000_0000L;
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void excludesAccountProfileEvenIfCurrentAndKeepsRealUnemployedManagers(boolean currentIsProfile) throws Exception {
+        FakeMemory memory = multiManagerMemory();
+        long profile = MANAGER + 0x3000;
+        long humanVtable = PLUGIN + com.github.fmaiassistent.memory.NonPlayingProfileLayout
+                .forModule(com.github.fmaiassistent.memory.NativeModuleProfile.FM27_2701_SHA256).humanPersonVtableRva();
+        memory.putLong(profile, humanVtable);
+        memory.putInt(profile + 8, 3);
+        memory.putInt(profile + 12, 4999);
+        memory.putFmStringReference(profile + 0x40, 0x6000_3000L, "(jelmer.bouma85)");
+        memory.putInt(profile + 0x88, (1900 << 16) | 1);
+        memory.putLong(profile + 0xA8, 0);
+        memory.putLong(profile + 0xB0, 0);
+        // Real unemployed managers remain selectable, including a parenthesized name with a real birth date.
+        memory.putLong(MANAGER + 0x2000 + 0xA8, 0);
+        memory.putFmStringReference(MANAGER + 0x2000 + 0x40, 0x6000_2000L, "(Real Manager)");
+        memory.putInt(MANAGER + 0x2000 + 0x88, (1980 << 16) | 100);
+        if (currentIsProfile) memory.putLong(PLUGIN + FmOffsets.currentHumanManagerRva(FmOffsets.DEFAULT_BUILD).orElseThrow(), profile);
+        try (var offsets = org.mockito.Mockito.mockStatic(FmOffsets.class, org.mockito.Mockito.CALLS_REAL_METHODS)) {
+            offsets.when(() -> FmOffsets.peopleBounds(memory, FmOffsets.DEFAULT_BUILD, PLUGIN))
+                    .thenReturn(new FmOffsets.Bounds(0x1100_0000L, 0x1100_0020L));
+            var managers = new ManagedClubMemoryReader().readAll(memory, FmOffsets.DEFAULT_BUILD, PLUGIN,
+                    com.github.fmaiassistent.memory.NativeModuleProfile.FM27_2701_SHA256);
+            assertThat(managers).hasSize(3).extracting(ManagedClubIdentity::managerName)
+                    .contains("Jelmer Bouma", "Jemme Bomma", "(Real Manager)").doesNotContain("(jelmer.bouma85)");
+            assertThat(managers.stream().filter(ManagedClubIdentity::unemployed).toList()).hasSize(1);
+        }
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            com.github.fmaiassistent.memory.NativeModuleProfile.FM27_2701_SHA256,
+            com.github.fmaiassistent.memory.NativeModuleProfile.STEAM_26620374_SHA256,
+            com.github.fmaiassistent.memory.NativeModuleProfile.GAME_PASS_SHA256,
+            com.github.fmaiassistent.memory.NativeModuleProfile.GAME_PASS_2524_SHA256})
+    void findsEveryVerifiedHumanManagerAndRejectsAnAiPerson(String profile) throws Exception {
+        // Synthetic pointers prove profile routing, not native Game Pass memory offsets.
+        FakeMemory memory = multiManagerMemory(profile);
+        try (var offsets = org.mockito.Mockito.mockStatic(FmOffsets.class, org.mockito.Mockito.CALLS_REAL_METHODS)) {
+            offsets.when(() -> FmOffsets.peopleBounds(memory, FmOffsets.DEFAULT_BUILD, PLUGIN))
+                    .thenReturn(new FmOffsets.Bounds(0x1100_0000L, 0x1100_0020L));
+            var managers = new ManagedClubMemoryReader().readAll(memory, FmOffsets.DEFAULT_BUILD, PLUGIN,
+                    profile);
+            assertThat(managers).extracting(ManagedClubIdentity::managerName)
+                    .containsExactly("Jelmer Bouma", "Jemme Bomma", "Ties Bouma");
+            assertThat(managers).extracting(ManagedClubIdentity::clubName)
+                    .containsExactly("sc Heerenveen", "Helmond Sport", "SC Cambuur");
+        }
+    }
+
+    @Test
+    void changedRegistryIdentityAbortsHumanManagerDiscovery() throws Exception {
+        FakeMemory memory = multiManagerMemory();
+        memory.putInt(MANAGER + 0x1000 + 8, 99);
+        try (var offsets = org.mockito.Mockito.mockStatic(FmOffsets.class, org.mockito.Mockito.CALLS_REAL_METHODS)) {
+            offsets.when(() -> FmOffsets.peopleBounds(memory, FmOffsets.DEFAULT_BUILD, PLUGIN))
+                    .thenReturn(new FmOffsets.Bounds(0x1100_0000L, 0x1100_0020L));
+            assertThatThrownBy(() -> new ManagedClubMemoryReader().readAll(memory, FmOffsets.DEFAULT_BUILD, PLUGIN,
+                    com.github.fmaiassistent.memory.NativeModuleProfile.FM27_2701_SHA256))
+                    .isInstanceOf(IOException.class).hasMessageContaining("PERSON identity changed");
+        }
+    }
+
+    private static FakeMemory multiManagerMemory() {
+        return multiManagerMemory(com.github.fmaiassistent.memory.NativeModuleProfile.FM27_2701_SHA256);
+    }
+
+    private static FakeMemory multiManagerMemory(String profile) {
+        FakeMemory memory = validMemory();
+        memory.putLong(PLUGIN + FmOffsets.currentHumanManagerRva(FmOffsets.DEFAULT_BUILD).orElseThrow(), 0);
+        memory.putLong(PLUGIN + FmOffsets.currentHumanManagerRva(profile, FmOffsets.DEFAULT_BUILD).orElseThrow(), MANAGER);
+        long humanVtable = PLUGIN + com.github.fmaiassistent.memory.NonPlayingProfileLayout
+                .forModule(profile).humanPersonVtableRva();
+        memory.putLong(MANAGER, humanVtable);
+        memory.putInt(MANAGER + 8, 0);
+        memory.putLong(0x1100_0000L, MANAGER);
+        String[] names = {"Jemme Bomma", "Ties Bouma"};
+        String[] clubs = {"Helmond Sport", "SC Cambuur"};
+        for (int i = 1; i <= 2; i++) {
+            long shift = i * 0x1000L;
+            memory.putLong(0x1100_0000L + i * 8L, MANAGER + shift);
+            memory.putLong(MANAGER + shift, humanVtable);
+            memory.putInt(MANAGER + shift + 8, i);
+            memory.putInt(MANAGER + shift + 12, 4242 + i);
+            memory.putFmStringReference(MANAGER + shift + 0x40, 0x6000_0000L + shift, names[i - 1]);
+            memory.putLong(MANAGER + shift + 0xA8, EMPLOYMENT + shift);
+            memory.putLong(MANAGER + shift + 0xB0, 0);
+            memory.putLong(EMPLOYMENT + shift + 0x10, TEAM + shift);
+            memory.put(TEAM + shift + 0x2F, new byte[]{0});
+            memory.putLong(TEAM + shift + 0x30, CLUB + shift);
+            memory.putFmStringReference(CLUB + shift + 0xC8, 0x7000_0000L + shift, clubs[i - 1]);
+        }
+        memory.putLong(0x1100_0018L, MANAGER + 0x3000);
+        memory.putLong(MANAGER + 0x3000, humanVtable + 8);
+        return memory;
+    }
+
     @Test
     void resolvesCurrentHumanManagerAndManagedClubThroughRamPointers() throws Exception {
         FakeMemory memory = validMemory();

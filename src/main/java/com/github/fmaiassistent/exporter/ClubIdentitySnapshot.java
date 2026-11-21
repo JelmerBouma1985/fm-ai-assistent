@@ -20,6 +20,7 @@ import java.util.*;
 
 /** One bounded capture, never cached across exports. Preserves all typed native identities, not only eligible views. */
 final class ClubIdentitySnapshot {
+    static final String FINANCIAL_WARNING = "Detailed club finances unavailable; loans, ledger, history and competition breakdowns are unknown.";
     private static final int MAX_RECORDS=100_000;
     private final ProcessMemoryReader reader;
     private final long base,descriptor,header,begin;
@@ -30,7 +31,9 @@ final class ClubIdentitySnapshot {
     private final Map<Long,byte[]> coefficientFrames = new LinkedHashMap<>();
     private final Map<Long,byte[]> contextFrames = new LinkedHashMap<>();
     private final ProcessMemoryReader coefficientReader;
+    private final ProcessMemoryReader financialReader;
     private String coefficientFailure;
+    private String financialFailure;
     private long competitionBegin=-1,competitionCount;
     private final Map<Long,Long> competitionUids=new HashMap<>(),competitionAddresses=new HashMap<>();
     private final CompetitionNameLayout nameLayout;
@@ -68,23 +71,27 @@ final class ClubIdentitySnapshot {
                          ClubFinancialHistoryLayout history)throws IOException {
         this.reader=new BudgetReader(source);this.base=base;this.layout=layout;
         this.coefficientReader=new BudgetReader(source);
+        this.financialReader=new BudgetReader(source);
         PlayerSnapshotValidator.validateClubIdentityLayout(layout);
-        if(history!=null){PlayerSnapshotValidator.validateClubFinancialHistoryLayout(history);
-            if(!history.ledger().equals(ledger))throw new IOException("Financial history requires matching ledger layout anchor");}
         this.nameLayout=names;
-        if(names!=null){PlayerSnapshotValidator.validateCompetitionNameLayout(names);
-            if(competitions==null)throw new IOException("Competition name requires COMP identity layout anchor");}
         if (uefa == null) coefficientFailure = "UEFA club coefficients are not verified for this FM27 module";
         else {
             try { PlayerSnapshotValidator.validateClubUefaLayout(uefa); }
             catch (IOException | RuntimeException failure) { disableCoefficients(failure); uefa = null; }
         }
-        if(loans!=null)PlayerSnapshotValidator.validateClubFinancialLoanLayout(loans);
-        if(ledger!=null)PlayerSnapshotValidator.validateClubFinancialLedgerLayout(ledger);
-        if(competitions!=null){PlayerSnapshotValidator.validateClubFinancialCompetitionLayout(competitions);
-            if(!competitions.ledger().equals(ledger))throw new IOException("Financial competition requires matching ledger layout anchor");}
-        Integer loanClock=loans==null?null:buffer(frame(base+loans.clockRva(),loans.clockBytes())).getInt();
-        Integer ledgerClock=ledger==null?null:buffer(frame(base+ledger.clockRva(),ledger.clockBytes())).getInt();
+        Integer loanClock=null,ledgerClock=null;
+        try {
+            if(history!=null){PlayerSnapshotValidator.validateClubFinancialHistoryLayout(history);
+                if(!history.ledger().equals(ledger))throw new IOException("Financial history requires matching ledger layout anchor");}
+            if(names!=null){PlayerSnapshotValidator.validateCompetitionNameLayout(names);
+                if(competitions==null)throw new IOException("Competition name requires COMP identity layout anchor");}
+            if(loans!=null)PlayerSnapshotValidator.validateClubFinancialLoanLayout(loans);
+            if(ledger!=null)PlayerSnapshotValidator.validateClubFinancialLedgerLayout(ledger);
+            if(competitions!=null){PlayerSnapshotValidator.validateClubFinancialCompetitionLayout(competitions);
+                if(!competitions.ledger().equals(ledger))throw new IOException("Financial competition requires matching ledger layout anchor");}
+            loanClock=loans==null?null:buffer(frame(base+loans.clockRva(),loans.clockBytes())).getInt();
+            ledgerClock=ledger==null?null:buffer(frame(base+ledger.clockRva(),ledger.clockBytes())).getInt();
+        } catch (IOException | RuntimeException failure) { disableFinances(failure); }
         int rule = 0;
         if (uefa != null) {
             try { rule = Short.toUnsignedInt(buffer(coefficientFrame(base+uefa.ruleVersionRva(),uefa.ruleVersionBytes())).getShort()); }
@@ -109,10 +116,13 @@ final class ClubIdentitySnapshot {
                 try { coefficientHex=coefficient(address,rule,uefa); }
                 catch (IOException | RuntimeException failure) { disableCoefficients(failure); uefa = null; }
             }
-            String loanHex=loans!=null&&kind.equals("CLUB")?financialLoans(address,loanClock,loans):null;
-            String ledgerHex=ledger!=null&&kind.equals("CLUB")?financialLedger(address,ledgerClock,ledger):null;
-            String competitionHex=competitions!=null&&ledgerHex!=null?financialCompetitions(address,ledgerHex,ledgerClock,competitions):null;
-            String historyHex=history!=null&&ledgerHex!=null?financialHistory(address,ledgerClock,history):null;
+            String loanHex=null,ledgerHex=null,competitionHex=null,historyHex=null;
+            if(financialFailure==null) try {
+                loanHex=loans!=null&&kind.equals("CLUB")?financialLoans(address,loanClock,loans):null;
+                ledgerHex=ledger!=null&&kind.equals("CLUB")?financialLedger(address,ledgerClock,ledger):null;
+                competitionHex=competitions!=null&&ledgerHex!=null?financialCompetitions(address,ledgerHex,ledgerClock,competitions):null;
+                historyHex=history!=null&&ledgerHex!=null?financialHistory(address,ledgerClock,history):null;
+            } catch (IOException | RuntimeException failure) { disableFinances(failure); }
             var record=new NativeClubSnapshot(uid,i,kind,FmMemoryStrings.clubDisplayName(reader,address).orElse(null),
                     address,HexFormat.of().formatHex(prefix),coefficientHex,coefficientHex==null?null:rule,
                     loanHex,loanHex==null?null:loanClock,ledgerHex,ledgerHex==null?null:ledgerClock,competitionHex,historyHex);
@@ -128,10 +138,25 @@ final class ClubIdentitySnapshot {
         return value;
     }
     List<NativeClubSnapshot> records(){
-        if (coefficientFailure == null) return List.copyOf(records);
+        if (coefficientFailure == null && financialFailure == null) return List.copyOf(records);
         return records.stream().map(r -> new NativeClubSnapshot(r.uniqueId(), r.recordIndex(), r.kind(), r.name(),
-                r.sourceAddress(), r.prefixHex(), null, null, r.financialLoansHex(), r.financialLoanClock(),
-                r.financialLedgerHex(), r.financialLedgerClock(), r.financialCompetitionsHex(), r.financialHistoryHex())).toList();
+                r.sourceAddress(), r.prefixHex(), coefficientFailure==null?r.uefaCoefficientHex():null,
+                coefficientFailure==null?r.uefaRuleVersion():null,
+                financialFailure==null?r.financialLoansHex():null, financialFailure==null?r.financialLoanClock():null,
+                financialFailure==null?r.financialLedgerHex():null, financialFailure==null?r.financialLedgerClock():null,
+                financialFailure==null?r.financialCompetitionsHex():null, financialFailure==null?r.financialHistoryHex():null)).toList();
+    }
+    List<String> warnings(){return financialFailure==null?List.of():List.of(financialFailure);}
+    private void disableFinances(Exception failure) throws IOException {
+        if(Thread.currentThread().isInterrupted()||failure instanceof java.util.concurrent.CancellationException) {
+            if(failure instanceof IOException io)throw io;
+            throw (RuntimeException)failure;
+        }
+        financialFailure=FINANCIAL_WARNING;
+        contextFrames.clear();competitionNames.clear();competitionUids.clear();competitionAddresses.clear();
+        org.slf4j.LoggerFactory.getLogger(ClubIdentitySnapshot.class).warn(
+                "FM27 detailed club finance capture failed ({}); affected fields are unknown and loading will continue",
+                failure.getClass().getSimpleName());
     }
     String coefficientFailure(){return coefficientFailure;}
     private void disableCoefficients(Exception failure) {
@@ -140,7 +165,7 @@ final class ClubIdentitySnapshot {
         coefficientFailure = coefficientFailure.substring(0, Math.min(768, coefficientFailure.length()));
         coefficientFrames.clear();
     }
-    List<NativeCompetitionNameSnapshot> competitionNames(){return nameLayout==null?null:List.copyOf(competitionNames.values());}
+    List<NativeCompetitionNameSnapshot> competitionNames(){return nameLayout==null||financialFailure!=null?null:List.copyOf(competitionNames.values());}
     long base(){return base;}
     ClubIdentityLayout layout(){return layout;}
 
@@ -149,7 +174,10 @@ final class ClubIdentitySnapshot {
         if(pointers.length>0&&!Arrays.equals(pointers,readSpan(begin,pointers.length)))
             throw new PlayerSnapshotValidator.ClubIdentityChangedException("CLUB registry slots changed during capture");
         for(var record:records)unchanged(record.sourceAddress(),HexFormat.of().parseHex(record.prefixHex()));
-        for(var entry:contextFrames.entrySet())unchanged(entry.getKey(),entry.getValue());
+        try {
+            for(var entry:contextFrames.entrySet()) if(!Arrays.equals(entry.getValue(),financialReader.readBytes(entry.getKey(),entry.getValue().length)))
+                throw new IOException("Detailed financial data changed during capture");
+        } catch(IOException|RuntimeException failure) { disableFinances(failure); }
         try {
             for(var entry:coefficientFrames.entrySet()) {
                 if (!Arrays.equals(entry.getValue(), coefficientReader.readBytes(entry.getKey(),entry.getValue().length)))
@@ -171,7 +199,7 @@ final class ClubIdentitySnapshot {
             throw new PlayerSnapshotValidator.ClubIdentityChangedException("CLUB identity changed during capture");
     }
     private byte[] frame(long address,int length)throws IOException {
-        return retainFrame(reader, contextFrames, address, length);
+        return retainFrame(financialReader, contextFrames, address, length);
     }
     private byte[] coefficientFrame(long address,int length)throws IOException {
         return retainFrame(coefficientReader, coefficientFrames, address, length);

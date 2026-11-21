@@ -530,6 +530,7 @@ vaadin-select:hover::part(input-field) {
 
 .managed-club-context-copy {
     display: flex;
+    flex: 1 1 auto;
     min-width: 0;
     flex-direction: column;
     gap: 1px;
@@ -1358,3 +1359,10 @@ vaadin-select:hover::part(input-field) {
     font-size: 13px;
     font-weight: 650;
 }
+/* Tool management uses text labels as well as color and stays scrollable in desktop windows. */
+.tools-dialog { overflow: auto; }
+.tools-dialog vaadin-tab-sheet { min-width: 0; }
+.tools-row { align-items: center; padding: var(--lumo-space-s); border-bottom: 1px solid var(--lumo-contrast-10pct); }
+.tools-dialog pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 50vh; overflow: auto; }
+.tool-live-activity { max-height: 12rem; overflow: auto; flex-shrink: 0; font-size: var(--lumo-font-size-s); padding: var(--lumo-space-s); }
+.openrouter-transcript { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }

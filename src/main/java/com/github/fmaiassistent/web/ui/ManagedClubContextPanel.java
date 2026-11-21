@@ -7,6 +7,7 @@ import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.select.Select;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,6 +19,8 @@ final class ManagedClubContextPanel extends Div {
     private final Span heading = new Span();
     private final Span details = new Span();
     private final Checkbox includeInAi = new Checkbox("Include in AI chats");
+    private final Select<ManagedClubContext> managerSelect = new Select<>();
+    private boolean refreshing;
 
     ManagedClubContextPanel(ManagedClubContextService contexts, Runnable contextChanged) {
         this.contexts = contexts;
@@ -28,11 +31,23 @@ final class ManagedClubContextPanel extends Div {
         details.addClassName("managed-club-context-details");
         includeInAi.setValue(contexts.aiContextEnabled());
         includeInAi.addValueChangeListener(event -> {
+            if (refreshing) return;
             contexts.setAiContextEnabled(Boolean.TRUE.equals(event.getValue()));
             contextChanged.run();
         });
         includeInAi.addClassNames("ai-context-toggle", "managed-club-context-toggle");
-        Div copy = new Div(heading, details);
+        managerSelect.setLabel("Human manager");
+        managerSelect.setWidthFull();
+        managerSelect.setItemLabelGenerator(manager -> manager.managerName() + " - "
+                + (manager.available() ? manager.clubName() : manager.nationalTeamAvailable()
+                ? manager.nationalTeam().name() : "Unemployed"));
+        managerSelect.addValueChangeListener(event -> {
+            if (refreshing || event.getValue() == null) return;
+            contexts.selectManager(event.getValue().managerUniqueId());
+            refresh();
+            contextChanged.run();
+        });
+        Div copy = new Div(managerSelect, heading, details);
         copy.addClassName("managed-club-context-copy");
         add(icon, copy, includeInAi);
         refresh();
@@ -40,6 +55,19 @@ final class ManagedClubContextPanel extends Div {
 
     void refresh() {
         ManagedClubContext context = contexts.current();
+        refreshing = true;
+        try {
+            List<ManagedClubContext> managers = contexts.managers();
+            managerSelect.setItems(managers);
+            managerSelect.setValue(managers.stream()
+                    .filter(manager -> java.util.Objects.equals(manager.managerUniqueId(), context.managerUniqueId()))
+                    .findFirst().orElse(null));
+            managerSelect.setEnabled(managers.size() > 1);
+            managerSelect.setVisible(!managers.isEmpty());
+            includeInAi.setValue(contexts.aiContextEnabled());
+        } finally {
+            refreshing = false;
+        }
         includeInAi.setEnabled(context.adviceAvailable() || context.state() == ManagedClubContext.State.UNEMPLOYED);
         removeClassName("is-unavailable");
         if (context.available()) {

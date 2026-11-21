@@ -6,6 +6,14 @@ import com.github.fmaiassistent.exporter.PlayerExporter;
 import com.github.fmaiassistent.exporter.StaffExporter;
 import com.github.fmaiassistent.repository.DatabaseService;
 import com.github.fmaiassistent.service.SnapshotDatabaseWriter;
+import com.github.fmaiassistent.service.AppSettingsService;
+import com.github.fmaiassistent.tools.ToolRegistry;
+import com.github.fmaiassistent.tools.ToolPolicy;
+import com.github.fmaiassistent.tools.ToolActivity;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -40,6 +48,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
                 "spring.datasource.url=jdbc:h2:mem:mcp-protocol-test;DB_CLOSE_DELAY=-1"
         })
 class McpProtocolCompatibilityTest {
+    private final Set<String> clientSessions = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    @MockitoBean private AppSettingsService settings;
+    @MockitoSpyBean private FmAiAssistentTools handlers;
+    @Autowired private ToolRegistry registry;
+
+    @BeforeEach void resetToolPolicy() {
+        registry.policy().replaceGlobal(Map.of());
+        registry.activity().clear(Set.of(), true);
+        org.mockito.Mockito.clearInvocations(handlers);
+    }
+    @AfterEach void closeMcpSessions() throws Exception {
+        for (String id : clientSessions) {
+            http.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/mcp"))
+                    .header("Mcp-Session-Id", id).header("MCP-Protocol-Version", "2025-11-25")
+                    .DELETE().build(), HttpResponse.BodyHandlers.discarding());
+        }
+        clientSessions.clear();
+    }
     private final HttpClient http = HttpClient.newHttpClient();
 
     @Autowired
@@ -262,8 +288,11 @@ class McpProtocolCompatibilityTest {
                     .path("_response_detail").path("level").asString());
             assertEquals("compact", toolCall("fm27_get_role_attributes", "[{}]", sessionId, protocol)
                     .path("_response_detail").path("level").asString());
-            assertEquals(0, toolCall("fm27_find_players", "[{\"name\":\"no such player 987654\"}]",
-                    sessionId, protocol).path("count").asInt());
+            // Missing snapshot is now an explicit policy/availability denial, rather than an empty market.
+            JsonNode unavailable = rpcResult(post("{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/call\","
+                    + "\"params\":{\"name\":\"fm27_find_players\",\"arguments\":[{\"name\":\"no such player 987654\"}]}}", sessionId, protocol));
+            assertTrue(unavailable.path("isError").asBoolean());
+            assertTrue(unavailable.toString().contains("Needs game data"));
             HttpResponse<String> badArguments = post(
                     "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\","
                             + "\"params\":{\"name\":\"fm27_find_players\",\"arguments\":[1,2]}}",
@@ -273,6 +302,93 @@ class McpProtocolCompatibilityTest {
             assertEquals(-32602, error.path("error").path("code").asInt());
             assertEquals(4, error.path("id").asInt());
         }
+    }
+
+    @Test void actualMcpBoundaryDeniesCachedCallsForMultipleClientsAndRestoresExecution() throws Exception {
+        String[] clients = {initializeClient("2025-11-25"), initializeClient("2025-06-18")};
+        for (int i = 0; i < clients.length; i++) {
+            String protocol = i == 0 ? "2025-11-25" : "2025-06-18";
+            var list = rpcResult(post("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}", clients[i], protocol)).path("tools");
+            assertEquals(registry.descriptors().size(), list.size());
+            for (var tool : list) assertEquals(mapper.readTree(registry.descriptor(tool.path("name").asString()).schema()), tool.path("inputSchema"));
+        }
+        registry.setGlobal("fm27_get_staff_coaching_roles", ToolPolicy.Access.DISABLED);
+        var filtered = rpcResult(post("{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"tools/list\"}", clients[0], "2025-11-25")).path("tools");
+        assertEquals(registry.descriptors().size() - 1, filtered.size());
+        assertTrue(filtered.valueStream().noneMatch(tool -> tool.path("name").asString().equals("fm27_get_staff_coaching_roles")));
+        for (int i = 0; i < clients.length; i++) {
+            var denied = rawCall("fm27_get_staff_coaching_roles", "{}", clients[i], i == 0 ? "2025-11-25" : "2025-06-18");
+            assertTrue(denied.path("isError").asBoolean(), denied.toString());
+            assertTrue(denied.toString().contains("tool_disabled"));
+        }
+        org.mockito.Mockito.verify(handlers, org.mockito.Mockito.never()).getStaffCoachingRoles();
+        assertEquals(2, registry.activity().history(Set.of(), true).size());
+        assertTrue(registry.activity().history(Set.of(), true).stream().allMatch(event ->
+                event.status() == ToolActivity.Status.DENIED && event.conversationId() == null));
+        registry.setGlobal("fm27_get_staff_coaching_roles", ToolPolicy.Access.ALLOW);
+        assertEquals(registry.descriptors().size(), rpcResult(post("{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/list\"}", clients[0], "2025-11-25")).path("tools").size());
+        assertTrue(!rawCall("fm27_get_staff_coaching_roles", "{}", clients[0], "2025-11-25").path("isError").asBoolean());
+        org.mockito.Mockito.verify(handlers).getStaffCoachingRoles();
+        // Invalid types still go through real SDK/schema validation, without entering the handler.
+        var bad = rawCall("fm27_get_role_attributes", "{\"limit\":\"wrong\"}", clients[0], "2025-11-25");
+        assertTrue(bad.path("isError").asBoolean() || bad.isMissingNode());
+    }
+
+    @Test void unattendedAskDeniesLocalEffectsWithoutHangingOrRunningHandler() throws Exception {
+        String client = initializeClient("2025-11-25");
+        registry.setGlobal("fm27_create_shortlist_file", ToolPolicy.Access.ASK);
+        var result = rawCall("fm27_create_shortlist_file", "{\"shortlistName\":\"Test\",\"playerUniqueIds\":[1]}", client, "2025-11-25");
+        assertTrue(result.path("isError").asBoolean());
+        assertTrue(result.toString().contains("approval_required"));
+        org.mockito.Mockito.verify(handlers, org.mockito.Mockito.never()).createShortlistFile(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test void actualMcpServerNotifiesConnectedClientWhenGlobalListChanges() throws Exception {
+        String session = initializeClient("2025-11-25");
+        HttpRequest listen = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/mcp"))
+                .header("Accept", "text/event-stream").header("Mcp-Session-Id", session)
+                .header("MCP-Protocol-Version", "2025-11-25").GET().build();
+        var listening = http.sendAsync(listen, HttpResponse.BodyHandlers.ofInputStream());
+        // Tomcat commits SSE headers with the first event, not when GET is registered.
+        // Toggle until that observable handshake completes; no fixed connection-readiness sleep.
+        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+        boolean disabled = false;
+        while (!listening.isDone() && System.nanoTime() < deadline) {
+            disabled = !disabled;
+            registry.setGlobal("fm27_get_staff_coaching_roles", disabled ? ToolPolicy.Access.DISABLED : ToolPolicy.Access.ALLOW);
+            Thread.sleep(25);
+        }
+        var response = listening.get(1, java.util.concurrent.TimeUnit.SECONDS);
+        assertEquals(200, response.statusCode());
+        try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor(); var input = response.body()) {
+            var notification = executor.submit(() -> {
+                var reader = new java.io.BufferedReader(new java.io.InputStreamReader(input, StandardCharsets.UTF_8));
+                for (String line; (line = reader.readLine()) != null;) {
+                    if (line.contains("notifications/tools/list_changed")) return line;
+                }
+                return "";
+            });
+            assertTrue(notification.get(5, java.util.concurrent.TimeUnit.SECONDS).contains("notifications/tools/list_changed"));
+            notification.cancel(true);
+        }
+    }
+
+    private String initializeClient(String protocol) throws Exception {
+        var initialized = post("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\""
+                + protocol + "\",\"capabilities\":{},\"clientInfo\":{\"name\":\"policy-test\",\"version\":\"1\"}}}", null, null);
+        String id = initialized.headers().firstValue("Mcp-Session-Id").orElseThrow();
+        post("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}", id, protocol);
+        return id;
+    }
+    private JsonNode rawCall(String tool, String args, String session, String protocol) throws Exception {
+        return rpcResult(post("{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\""
+                + tool + "\",\"arguments\":" + args + "}}", session, protocol));
+    }
+    private JsonNode rpcResult(HttpResponse<String> response) {
+        assertEquals(200, response.statusCode());
+        String data = response.body().lines().filter(line -> line.startsWith("data:"))
+                .map(line -> line.substring(5)).findFirst().orElse(response.body());
+        return mapper.readTree(data).path("result");
     }
 
     private JsonNode toolCall(String name, String args, String sessionId, String protocol) throws Exception {
@@ -298,6 +414,8 @@ class McpProtocolCompatibilityTest {
         if (protocol != null) {
             request.header("MCP-Protocol-Version", protocol);
         }
-        return http.send(request.build(), HttpResponse.BodyHandlers.ofString());
+        var response = http.send(request.build(), HttpResponse.BodyHandlers.ofString());
+        response.headers().firstValue("Mcp-Session-Id").ifPresent(clientSessions::add);
+        return response;
     }
 }

@@ -14,6 +14,7 @@ It reads your loaded FM27 save directly from memory so you can:
 
 - search and compare players, staff, clubs and competitions;
 - inspect attributes, positions, contracts, wages and budgets;
+- inspect player condition, sharpness, fatigue, workloads and injury risk;
 - ask an AI assistant for recruitment, squad and tactical advice;
 - give the AI extra context about your managed club and an exported `.fmf` tactic.
 
@@ -37,6 +38,14 @@ Choose one of the release assets:
 ### Desktop application (recommended)
 
 Download the desktop application for your operating system, extract it when necessary, and run **FM AI Assistent**.
+
+In **Settings > Database size**, choose the maximum memory available to the desktop app:
+Small **4 GB**, Medium **7 GB** (default), Large **10 GB**, or Very large **13 GB**.
+Save, close the app, and launch it again to apply the change. Desktop updates retain the choice.
+These are starting points: carried-over saves and more loaded leagues may need a larger preset.
+Leave enough RAM for Football Manager and the operating system. The limit applies to the Java heap;
+the app also uses some memory outside it. The extracted app folder must be writable to save the setting.
+JAR launches keep using their startup `-Xmx` option.
 
 On Linux, make the downloaded launcher executable if required:
 
@@ -73,6 +82,12 @@ The application is available at [http://127.0.0.1:8080](http://127.0.0.1:8080). 
 
 The **Staff** tab includes job, club, division, ability, reputation, salary, contract and English attribute filters. Its dedicated **Coaching roles** filter tab lists all nine assignments and lets you set an independent minimum star rating for each one; a staff member must satisfy every selected role threshold. The table shows every staff member's best training assignment. Select a staff member to inspect all nine FM27 coaching ratings, their role-specific weighted attributes, the calculated 0-20 score and its English quality tier.
 
+Player tables and profiles include **Match Load**, **Training Load**, **Injury Susceptibility**, **Condition**, **Sharpness**, **Overall Risk** and **Fatigue**. Condition and sharpness display as percentages; MCP responses preserve their native 0–10000 values and include units. Fatigue uses the signed native value, where lower means fresher. These snapshot fields also accompany MCP squad, search and lineup responses.
+
+Optional native extraction (fitness, traits, contracts, award/competition names, staff profiles and club finances) runs on both Windows and Linux, including Wine/Proton. Calculated fitness still requires a game DLL with verified medical/training layouts; the operating system alone does not disable it. Unsupported images or unreadable optional data leave the affected fields **Unknown** and loading continues with warnings. If a player's calculation fails, data loading continues and only the affected calculation and its dependent fields show **Unknown**; valid calculations for that player and other players are retained. A missing player context leaves that player's four calculated fields unknown; an unavailable module/layout leaves them unknown for the whole refresh. Logs report the first failure reason per calculation and counts of affected players. Separately decoded condition, sharpness, fatigue and traits are preserved. Player identity changes, game-date changes and cancellation still abort the refresh. Older snapshots and unavailable native training or medical context also show **Unknown**, rather than a healthy default. Recent injury assessments can also read FM's active temporary injury-history archive, located through its RAM metadata; an explicit archive override is available with `-Dfmaiassistent.fitness.injuryHistoryArchive=<archive-file>`.
+
+Detailed contracts/future transfers, award and contract competition names, native management/staff profiles, and detailed club finances are optional during loading. If one of these captures fails, its partial results are discarded and the affected fields remain empty/unknown while the remaining data loads. A **Some extra data unavailable** badge identifies the affected features in its tooltip; the warning also appears in snapshot status for AI tools and survives an app restart. A later successful refresh clears the warning. Club finance fallback leaves loans, ledgers, financial history and competition breakdowns unknown while independently captured UEFA coefficients remain available. Core player/club identity checks, game-date consistency, cancellation, extraction deadlines and database transaction checks remain enforced.
+
 For agent-driven staff recruitment, call `fm27_get_staff_coaching_roles` to discover the supported assignment keys and formula, then pass `coachingRole` and `minimumCoachingStars` to `fm27_find_staff`. Use `fm27_get_staff_details` with the returned FM Unique ID to compare the complete attribute and role-rating breakdown.
 
 Select **Load data** again after opening another save, changing clubs or advancing to data you want the app to refresh. Player, staff, club and competition data is extracted from RAM concurrently and written with bounded database batches; the completed results are committed as one atomic local snapshot, so a failed reader or database write leaves the previous snapshot available.
@@ -90,6 +105,15 @@ The embedded chat supports locally installed **Codex**, **Antigravity** and **Gi
 5. Select **Context** to control what is included with your messages.
 6. Start a new chat and ask your question.
 
+For saves with multiple human managers, **Context > Human manager** lists each detected manager
+with their club or employment status. Select the manager whose context you want included in AI chats.
+The AI selection also controls the default club for AI squad advice, fixture queries and opposition analysis,
+and is retained when you reload the same save while the app is running. Switching managers sends
+fresh context with the next message, including in an existing chat. The **Fixtures** tab has its own
+**Manager** dropdown, independent of the AI selection. FM's account-only placeholder profiles are
+excluded from manager lists and staff; genuine unemployed managers remain available.
+Reload data after upgrading to refresh the manager and staff lists.
+
 Select **Commands** beside the chat input, or type `/`, to see question starters in any chat. Choose a command to fill the input, then edit and send it when ready. You can add requirements after a command, such as `/recruit left back under 25`; they are kept in the expanded question. Press Enter to accept a highlighted suggestion, use the arrow keys to move through suggestions, or press Escape to close them.
 
 | Command | Question starter |
@@ -100,8 +124,17 @@ Select **Commands** beside the chat input, or type `/`, to see question starters
 | `/compare` | Compare named players, their club fit and costs. |
 | `/staff` | Find or assess staff and coaching roles. |
 | `/club` | Review a club's finances and squad context. |
+| `/tools` | Open local tool controls immediately; sends no AI request. |
 
 Load FM27 data before using these questions. If a needed snapshot or tactic is unavailable, the agent will explain what to load.
+
+Select **Tools** beside **Context**, or enter `/tools`, to inspect the actual registered tools, schemas, effects and availability. Search/filter tools, enable or disable a category, apply **All available**, **Scouting**, **Tactical analysis**, **Staff**, or save one named **Custom** selection. Reset restores defaults in the selected scope: classified tools allowed, unclassified future tools disabled. Global controls and custom-preset saving require a loopback browser.
+
+**Global MCP settings** persist across restarts and control every MCP client and OpenRouter. **This conversation** can further restrict the current OpenRouter chat and lasts only for that server session; it cannot override a global disable. Codex, Antigravity and Copilot MCP requests cannot reliably identify a browser chat, so they use global policy and keep their independent native permission prompts. Disabled tools are removed from MCP discovery and OpenRouter requests, and direct/cached calls are checked again before execution.
+
+Tools do not modify the Football Manager process or save. Effect labels distinguish **Reads FM data**, **Updates application data** (snapshot/recruitment evidence), and **Creates a local export** (shortlist `.fmf`). Missing snapshot, tactic, managed club or career identity produces a remedy in Tools. Local-effect tools may be set to **Ask**; the current integrations safely return `approval_required`, rather than pausing a call without a secure approval context. Review the effect and choose Allow before retrying. `tool_disabled` means policy blocked execution. Read-only tools default to Allow.
+
+OpenRouter shows real tool status and duration below the conversation. **Activity** shows recent observed calls with source/status/time/category filters. Uncorrelated MCP calls appear only in global Activity, never assigned to the selected chat; other browser sessions' chat events are excluded. History contains metadata only, stays in memory (200 events per conversation, 500 app-wide), and can be cleared. No arguments, results, keys or private chat content are stored in it. See [Tools management](docs/tools-management.md) for scope details, troubleshooting and Windows/Linux verification.
 
 ![AI assistant with agent selection, conversations and chat input](screenshots/ai-assistent-tab.png)
 
@@ -109,9 +142,9 @@ Load FM27 data before using these questions. If a needed snapshot or tactic is u
 
 Choose **OpenRouter**, enter your [OpenRouter API key](https://openrouter.ai/settings/keys) in the masked field, and select **Connect**. No agent CLI or additional service is required. The field clears after submission. Keys and conversations are session-only: they are not stored in the database, browser storage or application logs, and are cleared on **Disconnect**, session expiry or shutdown.
 
-Every new conversation starts with the **Free router** (`openrouter/free`). The model picker also lists specific models available to your account that support FM tool calls. Specific `:free` variants with zero listed prompt, completion and request prices can be selected without confirmation. Selecting a paid model or the **Auto router** (`openrouter/auto`) requires confirmation and may incur charges; catalog prices and availability can change. Free availability and rate limits are limited; unavailable capacity produces an error and never switches to paid routing. Model changes are disabled while a response is active. The chat shows the selected route or model and the actual responding model when supplied. The model list follows your OpenRouter privacy and provider restrictions and loads after connecting; if it cannot load, Free and Auto remain available. See [OpenRouter's routing guidance](https://openrouter.zendesk.com/hc/en-us/articles/51679572756123-I-used-openrouter-auto-free-or-auto-and-still-got-charged) and [model catalog API](https://openrouter.ai/docs/api/api-reference/models/get-models).
+Every new conversation starts with the **Free router** (`openrouter/free`). The model picker also lists specific models available to your account; models without tool support can answer ordinary chat and show a tool-support notice. Specific `:free` variants with zero listed prompt, completion and request prices can be selected without confirmation. Selecting a paid model or the **Auto router** (`openrouter/auto`) requires confirmation and may incur charges; catalog prices and availability can change. Free availability and rate limits are limited; unavailable capacity produces an error and never switches to paid routing. Model changes are disabled while a response is active. The chat shows the selected route or model and the actual responding model when supplied. The model list follows your OpenRouter privacy and provider restrictions and loads after connecting; if it cannot load, Free and Auto remain available. See [OpenRouter's routing guidance](https://openrouter.zendesk.com/hc/en-us/articles/51679572756123-I-used-openrouter-auto-free-or-auto-and-still-got-charged) and [model catalog API](https://openrouter.ai/docs/api/api-reference/models/get-models).
 
-Messages, enabled managed-club/tactic/snapshot context, and FM tool results reach OpenRouter and its model providers. Your account privacy restrictions are respected; the application never relaxes them to obtain capacity. No optional paid plugins are requested. All existing FM tools may execute automatically, including refreshes, recruitment updates and shortlist creation. OpenRouter has no general shell or filesystem tools.
+Messages, enabled managed-club/tactic/snapshot context, and FM tool results reach OpenRouter and its model providers. Your account privacy restrictions are respected; the application never relaxes them to obtain capacity. No optional paid plugins are requested. Allowed and available FM tools may execute automatically, including refreshes, recruitment updates and shortlist creation. Tools controls can restrict them globally or for this OpenRouter conversation. OpenRouter has no general shell or filesystem tools.
 
 **Stop** prevents further requests and tool calls; completed local writes remain completed. Read-only tool validation errors are shown in the chat so the assistant can ask for missing information or correct its arguments. If FM data has not been loaded, open your save and select **Load data**; if club detection is unavailable after loading, tell the assistant your club name. Failed writes, unexpected failures and stopped turns require a new chat and are never replayed automatically. Each turn permits at most 20 model requests and 40 sequential tool calls, with a five-minute deadline and a 120-second timeout per HTTP request. Tool results are compacted as JSON where possible and limited to 64 KiB. OpenRouter receives compact views of squad analyses, move plans, role catalogs, lineups, and broad player/staff searches, with IDs and decision values preserved; public MCP responses stay unchanged. If an unusual read-only result remains too large, listed rows are explicitly marked partial with original and sent counts. Other oversized results are omitted with an explicit notice so the assistant can request a narrower read-only result or ask you to narrow the question in the same chat; completed writes are not automatically replayed. Requests are limited to 512 KiB; start a new chat if the history limit is reached. Keep the default loopback address (`127.0.0.1`).
 

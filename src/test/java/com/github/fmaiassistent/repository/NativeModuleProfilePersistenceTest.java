@@ -41,14 +41,18 @@ class NativeModuleProfilePersistenceTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired jakarta.persistence.EntityManager em;
 
-    @Test void preservesActualContractAndAwardHashAndDoesNotJoinUnsupportedProfiles() {
-        writer.savePlayers(new PlayerExporter.ExportResult("",List.of(owner(101,NativeModuleProfile.FM27_SHA256))),Map.of());
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {NativeModuleProfile.FM27_SHA256,
+            NativeModuleProfile.STEAM_26620374_SHA256, NativeModuleProfile.GAME_PASS_SHA256,
+            NativeModuleProfile.GAME_PASS_2524_SHA256})
+    void preservesActualContractAndAwardHashAndDoesNotJoinUnsupportedProfiles(String profile) {
+        writer.savePlayers(new PlayerExporter.ExportResult("",List.of(owner(101,profile))),Map.of());
         long id=jdbc.queryForObject("SELECT id FROM players WHERE unique_id=101",Long.class);
         var stored=contracts.findPlayerContracts(id,101L).getFirst();
-        assertThat(stored.moduleSha256()).isEqualTo(NativeModuleProfile.FM27_SHA256);
+        assertThat(stored.moduleSha256()).isEqualTo(profile);
         assertThat(stored.awardNames()).containsEntry(55L,"Synthetic award");
         assertThat(jdbc.queryForObject("SELECT module_sha256 FROM award_name_records WHERE unique_id=55",String.class))
-                .isEqualTo(NativeModuleProfile.FM27_SHA256);
+                .isEqualTo(profile);
 
         jdbc.update("UPDATE award_name_records SET module_sha256=? WHERE unique_id=55","0".repeat(64));
         var mismatched=contracts.findPlayerContracts(id,101L).getFirst();
@@ -80,7 +84,10 @@ class NativeModuleProfilePersistenceTest {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM award_name_records",Integer.class)).isZero();
     }
 
-    @Test void coefficientPaginationIncludesOnlyTheSupportedProfile() {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {NativeModuleProfile.FM27_SHA256,
+            NativeModuleProfile.STEAM_26620374_SHA256, NativeModuleProfile.GAME_PASS_2524_SHA256})
+    void coefficientPaginationIncludesOnlyTheSupportedProfile(String profile) {
         byte[] bytes=new byte[76];ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).putInt(0x44,1000);
         String hex=HexFormat.of().formatHex(bytes);
         writer.saveNativeClubs(new ClubExporter.ExportResult(List.of(),List.of(new NativeClubSnapshot(
@@ -88,10 +95,10 @@ class NativeModuleProfilePersistenceTest {
         jdbc.update("UPDATE club_records SET module_sha256=? WHERE unique_id=201","0".repeat(64));
         em.clear();
         writer.saveNativeClubs(new ClubExporter.ExportResult(List.of(),List.of(new NativeClubSnapshot(
-                202,1,"CLUB","B current",0x10000100L,prefix(1,202),hex,1650)),NativeModuleProfile.FM27_SHA256));
+                202,1,"CLUB","B current",0x10000100L,prefix(1,202),hex,1650)),profile));
         var service=clubs();
         assertThat(jdbc.queryForObject("SELECT module_sha256 FROM club_records WHERE unique_id=202",String.class))
-                .isEqualTo(NativeModuleProfile.FM27_SHA256);
+                .isEqualTo(profile);
         assertThat(service.countCoefficientClubs()).isEqualTo(1);
         var page=service.findCoefficientClubs(PageRequest.of(0,1,Sort.by("name")));
         assertThat(page.getTotalElements()).isEqualTo(1);

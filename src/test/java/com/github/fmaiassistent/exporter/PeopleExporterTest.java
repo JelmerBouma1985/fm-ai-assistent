@@ -31,6 +31,51 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PeopleExporterTest {
+    @Test
+    void excludesAccountProfileFromStaffButKeepsRealUnemployedManagers() throws Exception {
+        MemoryImage image = new MemoryImage();
+        byte[] pointers = new byte[3 * Long.BYTES];
+        long profile = 0x10_0000, real = 0x20_0000, parenthesized = 0x30_0000;
+        putStaff(image, profile, PersonMemoryClassifier.HUMAN_MANAGER_DYNAMIC_OFFSET, 201, "(account.name)", 150, 160);
+        putStaff(image, real, PersonMemoryClassifier.HUMAN_MANAGER_DYNAMIC_OFFSET, 202, "Real Manager", 150, 160);
+        putStaff(image, parenthesized, PersonMemoryClassifier.HUMAN_MANAGER_DYNAMIC_OFFSET, 203, "(Real Nickname)", 150, 160);
+        image.putDate(profile + 0x88, 1, 1900);
+        putPointer(pointers, 0, profile);
+        putPointer(pointers, 1, real);
+        putPointer(pointers, 2, parenthesized);
+        for (int index = 0; index < 3; index++) {
+            image.putI32(new long[]{profile, real, parenthesized}[index] + 8, index);
+        }
+        var exporter = new PeopleExporter(pid -> image.reader(), () -> 2);
+        var result = exporter.scanPointerTable(1, pointers, PeopleExporter.ExportMode.STAFF, 1);
+        assertThat(result.staffRows()).extracting(row -> row.get("name"))
+                .containsExactly("Real Manager", "(Real Nickname)");
+        assertThat(result.diagnostics().unreadable()).isZero();
+        assertThat(result.diagnostics().invalidBlocks()).isZero();
+    }
+
+    @Test
+    void placeholderMarkersDoNotExcludeEmployedHumanOrOrdinaryStaff() throws Exception {
+        MemoryImage image = new MemoryImage();
+        long person = 0x10_0000;
+        putStaff(image, person, PersonMemoryClassifier.HUMAN_MANAGER_DYNAMIC_OFFSET, 201, "(Account-shaped name)", 150, 160);
+        image.putDate(person + 0x88, 1, 1900);
+        image.putLong(person + 0xA8, 0x99_0000L);
+        assertThat(HumanManagerProfiles.isAccountProfile(image.reader(), person, "(Account-shaped name)",
+                com.github.fmaiassistent.memory.StaffRecordLayout.current())).isFalse();
+        image.putLong(person + 0xA8, 0);
+        image.putLong(person + 0xB0, 0x99_0000L);
+        assertThat(HumanManagerProfiles.isAccountProfile(image.reader(), person, "(Account-shaped name)",
+                com.github.fmaiassistent.memory.StaffRecordLayout.current())).isFalse();
+        putStaff(image, person, PersonMemoryClassifier.STAFF_DYNAMIC_OFFSET, 201, "(Ordinary staff)", 150, 160);
+        image.putDate(person + 0x88, 1, 1900);
+        image.putI32(person + 8, 0);
+        byte[] pointers = new byte[Long.BYTES];
+        putPointer(pointers, 0, person);
+        var result = new PeopleExporter(pid -> image.reader(), () -> 2)
+                .scanPointerTable(1, pointers, PeopleExporter.ExportMode.STAFF, 1);
+        assertThat(result.staffRows()).hasSize(1);
+    }
     private static final int SLOT_COUNT = PeopleExporter.CHUNK_SIZE * 2 + 16;
     private static final LocalDate GAME_DATE = LocalDate.of(2033, 6, 23);
 

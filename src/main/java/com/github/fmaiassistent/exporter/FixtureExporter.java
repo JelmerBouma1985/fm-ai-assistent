@@ -22,7 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Reads the human-managed first team's match records from FM27 memory. */
+/** Reads every human-managed first team's match records from FM27 memory. */
 @Component
 public class FixtureExporter {
     public static final List<String> FIELD_NAMES = List.of(
@@ -57,15 +57,15 @@ public class FixtureExporter {
 
     ExportResult exportManagedClubFixtures(ProcessMemoryReader reader, int build, Long gamePluginBase) throws IOException {
         LocalDate gameDate = new GameDateFinder().find(reader, 0, build, gamePluginBase).orElse(null);
-        ManagedClubIdentity managed;
+        List<ManagedClubIdentity> managed;
         try {
-            managed = managedClubReader.read(reader, build, gamePluginBase);
+            managed = managedClubReader.readAll(reader, build, gamePluginBase);
         } catch (IOException | RuntimeException failure) {
             String message = failure.getMessage();
             return new ExportResult(List.of(), gameDate == null ? "" : gameDate.toString(),
                     message == null || message.isBlank() ? "The current human manager could not be read" : message);
         }
-        return export(reader, build, gamePluginBase, managed, gameDate);
+        return exportAll(reader, build, gamePluginBase, managed, gameDate);
     }
 
     ExportResult export(
@@ -74,13 +74,23 @@ public class FixtureExporter {
             Long gamePluginBase,
             ManagedClubIdentity managed,
             LocalDate gameDate) throws IOException {
-        if (managed.clubAddress() == 0) {
+        return exportAll(reader, build, gamePluginBase, List.of(managed), gameDate);
+    }
+
+    ExportResult exportAll(ProcessMemoryReader reader, int build, Long gamePluginBase,
+                           List<ManagedClubIdentity> managers, LocalDate gameDate) throws IOException {
+        List<ManagedClubIdentity> employed = managers.stream().filter(manager -> manager.clubAddress() != 0).toList();
+        if (employed.isEmpty()) {
             return new ExportResult(List.of(), gameDate == null ? "" : gameDate.toString());
         }
         Map<Long, TeamInfo> teams = readTeams(reader, build, gamePluginBase);
-        TeamInfo managedTeam = teams.get(managed.teamAddress());
-        if (managedTeam == null) {
-            throw new IllegalStateException("The managed first team is absent from FM's team table");
+        Map<Long, TeamInfo> managedTeams = new HashMap<>();
+        for (var managed : employed) {
+            TeamInfo managedTeam = teams.get(managed.teamAddress());
+            if (managedTeam == null) {
+                throw new IllegalStateException("The managed first team is absent from FM's team table");
+            }
+            managedTeams.put(managed.teamAddress(), managedTeam);
         }
 
         LocalDate earliest = gameDate == null ? LocalDate.of(2024, 1, 1) : gameDate.minusYears(2);
@@ -90,7 +100,7 @@ public class FixtureExporter {
             if (!region.readable() || !region.writable()) {
                 continue;
             }
-            scanRegion(reader, region, managed.teamAddress(), managedTeam, teams, earliest, latest, fixtures);
+            scanRegion(reader, region, managedTeams, teams, earliest, latest, fixtures);
         }
 
         List<Map<String, Object>> rows = new ArrayList<>(fixtures.values());
@@ -126,8 +136,7 @@ public class FixtureExporter {
     private static void scanRegion(
             ProcessMemoryReader reader,
             MemoryRegion region,
-            long managedTeamAddress,
-            TeamInfo managedTeam,
+            Map<Long, TeamInfo> managedTeams,
             Map<Long, TeamInfo> teams,
             LocalDate earliest,
             LocalDate latest,
@@ -147,7 +156,7 @@ public class FixtureExporter {
             for (int offset = aligned; offset + MATCH_RECORD_BYTES <= length; offset += Long.BYTES) {
                 long firstTeamAddress = buffer.getLong(offset);
                 long secondTeamAddress = buffer.getLong(offset + SECOND_TEAM_REL);
-                if (firstTeamAddress != managedTeamAddress && secondTeamAddress != managedTeamAddress) {
+                if (!managedTeams.containsKey(firstTeamAddress) && !managedTeams.containsKey(secondTeamAddress)) {
                     continue;
                 }
                 TeamInfo firstTeam = teams.get(firstTeamAddress);
@@ -183,24 +192,27 @@ public class FixtureExporter {
                     continue;
                 }
 
-                boolean home = firstTeamAddress == managedTeamAddress;
-                TeamInfo opponent = home ? secondTeam : firstTeam;
-                FixtureKey key = new FixtureKey(date, time, competitionAddress,
-                        firstTeam.clubAddress(), secondTeam.clubAddress());
-                Map<String, Object> row = new LinkedHashMap<>();
-                row.put("sourceAddress", cursor + offset);
-                row.put("kickoffDate", date.toString());
-                row.put("kickoffTime", time.toString());
-                row.put("competition", competition);
-                row.put("homeClub", firstTeam.clubName());
-                row.put("awayClub", secondTeam.clubName());
-                row.put("opponent", opponent.clubName());
-                row.put("venue", venue);
-                row.put("home", home);
-                row.put("_home_club_address", firstTeam.clubAddress());
-                row.put("_away_club_address", secondTeam.clubAddress());
-                row.put("_opponent_club_address", opponent.clubAddress());
-                fixtures.merge(key, row, FixtureExporter::lowerSourceAddress);
+                for (long managedTeamAddress : new long[]{firstTeamAddress, secondTeamAddress}) {
+                    if (!managedTeams.containsKey(managedTeamAddress)) continue;
+                    boolean home = firstTeamAddress == managedTeamAddress;
+                    TeamInfo opponent = home ? secondTeam : firstTeam;
+                    FixtureKey key = new FixtureKey(date, time, competitionAddress,
+                            firstTeam.clubAddress(), secondTeam.clubAddress(), managedTeamAddress);
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("sourceAddress", cursor + offset);
+                    row.put("kickoffDate", date.toString());
+                    row.put("kickoffTime", time.toString());
+                    row.put("competition", competition);
+                    row.put("homeClub", firstTeam.clubName());
+                    row.put("awayClub", secondTeam.clubName());
+                    row.put("opponent", opponent.clubName());
+                    row.put("venue", venue);
+                    row.put("home", home);
+                    row.put("_home_club_address", firstTeam.clubAddress());
+                    row.put("_away_club_address", secondTeam.clubAddress());
+                    row.put("_opponent_club_address", opponent.clubAddress());
+                    fixtures.merge(key, row, FixtureExporter::lowerSourceAddress);
+                }
             }
             if (length <= MATCH_RECORD_BYTES) {
                 break;
@@ -245,7 +257,8 @@ public class FixtureExporter {
             LocalTime time,
             long competitionAddress,
             long homeClubAddress,
-            long awayClubAddress) {
+            long awayClubAddress,
+            long managedTeamAddress) {
     }
 
     public record ExportResult(List<Map<String, Object>> rows, String gameDate, String managedClubFailure,

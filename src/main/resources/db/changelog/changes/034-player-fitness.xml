@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+ <changeSet id="034-player-fitness" author="codex">
+  <addColumn tableName="players">
+   <column name="condition" type="INT"/>
+   <column name="sharpness" type="INT"/>
+   <column name="fatigue" type="INT"/>
+   <column name="match_load" type="VARCHAR(128)"/>
+   <column name="training_load" type="VARCHAR(128)"/>
+   <column name="injury_susceptibility" type="VARCHAR(128)"/>
+   <column name="overall_risk" type="VARCHAR(128)"/>
+  </addColumn>
+  <rollback>
+   <sql>SELECT 1 / CASE WHEN
+    (SELECT COUNT(*) FROM players WHERE condition IS NOT NULL OR sharpness IS NOT NULL
+     OR fatigue IS NOT NULL OR match_load IS NOT NULL OR training_load IS NOT NULL
+     OR injury_susceptibility IS NOT NULL OR overall_risk IS NOT NULL)=0
+    THEN 1 ELSE 0 END</sql>
+   <dropColumn tableName="players" columnName="condition"/>
+   <dropColumn tableName="players" columnName="sharpness"/>
+   <dropColumn tableName="players" columnName="fatigue"/>
+   <dropColumn tableName="players" columnName="match_load"/>
+   <dropColumn tableName="players" columnName="training_load"/>
+   <dropColumn tableName="players" columnName="injury_susceptibility"/>
+   <dropColumn tableName="players" columnName="overall_risk"/>
+  </rollback>
+ </changeSet>
+</databaseChangeLog>

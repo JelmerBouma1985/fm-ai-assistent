@@ -9,6 +9,7 @@ import com.github.fmaiassistent.managedclub.ManagedClubContext;
 import com.github.fmaiassistent.managedclub.ManagedClubContextService;
 import com.github.fmaiassistent.player.AttributeDefinitions;
 import com.github.fmaiassistent.player.FieldDef;
+import com.github.fmaiassistent.player.PlayerMapper;
 import com.github.fmaiassistent.recruitment.RecruitmentCaseService;
 import com.github.fmaiassistent.service.ClubDatabaseService;
 import com.github.fmaiassistent.service.PlayerDatabaseService;
@@ -18,6 +19,7 @@ import com.github.fmaiassistent.tactic.TacticContextService;
 import com.github.fmaiassistent.tactic.TacticDefinition;
 import com.github.fmaiassistent.player.PositionTextFormatter;
 import org.springframework.ai.tool.annotation.Tool;
+import com.github.fmaiassistent.tools.ToolInfo;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -89,6 +91,7 @@ public class FmDecisionTools {
                 new LineupOptimizerService(roleFits), recruitmentCases, snapshots);
     }
 
+    @ToolInfo(category = ToolInfo.Category.TACTICS, tactic = true)
     @Tool(name = "fm27_optimize_lineup", description = "Build the globally best unique XI for every slot of the loaded two-phase FM27 tactic. Defaults to the managed club, or the managed nation's primary-nationality candidate pool for nation-only managers. Supply the managed nation name for a dual-role manager. National eligibility is unverified. One player can fill only one slot.")
     @Transactional(readOnly = true)
     public Map<String, Object> optimizeLineup(
@@ -134,11 +137,12 @@ public class FmDecisionTools {
         out.put("constraints", constraintsMap(constraints));
         out.putAll(lineupMap(result));
         out.put("limitations", List.of(
-                "Condition, morale, match sharpness, suspensions and squad registration are not available. International duty is detected.",
+                "Fitness values are snapshot observations; null fitness fields were not loaded. Morale, suspensions and squad registration are not available. International duty is detected.",
                 "This is an attribute-and-availability XI, not a match-day prediction."));
         return out;
     }
 
+    @ToolInfo(category = ToolInfo.Category.SCOUTING, tactic = true)
     @Tool(name = "fm27_recruit_for_tactic_slot", description = "Recruit for one loaded-tactic slot using both phases, literal hard filters and the projected improvement to a globally re-optimized unique XI.")
     @Transactional(readOnly = true)
     public Map<String, Object> recruitForTacticSlot(
@@ -363,6 +367,7 @@ public class FmDecisionTools {
                 template.warnings());
     }
 
+    @ToolInfo(category = ToolInfo.Category.SQUAD)
     @Tool(name = "fm27_analyze_squad", description = "Analyze club squad depth, tactic fit and recruitment needs, or the managed nation's primary-nationality candidate pool. Defaults to the club when both jobs exist; supply the managed nation name for national selection. International eligibility is unverified.")
     @Transactional(readOnly = true)
     public Map<String, Object> analyzeSquad(
@@ -425,11 +430,12 @@ public class FmDecisionTools {
                 .sorted(Comparator.comparingInt((PlayerEntity player) -> value(player.getPa())).reversed())
                 .map(this::compactPlayer).toList());
         out.put("limitations", List.of(
-                "No condition, morale, match sharpness, suspension, squad registration or match-performance data is loaded. International duty is detected.",
+                "Fitness values are snapshot observations; null fitness fields were not loaded. Morale, suspension, squad registration and match-performance data are not loaded. International duty is detected.",
                 "Best-XI suggestions are attribute and availability estimates, not match-day selections."));
         return out;
     }
 
+    @ToolInfo(category = ToolInfo.Category.SCOUTING)
     @Tool(name = "fm27_compare_players", description = "Compare 2-8 players by FM Unique ID with both-phase tactic fit, squad improvement, affordability, development outlook, risks and verified recruitment evidence.")
     @Transactional(readOnly = true)
     public Map<String, Object> comparePlayers(
@@ -491,6 +497,7 @@ public class FmDecisionTools {
         return out;
     }
 
+    @ToolInfo(category = ToolInfo.Category.SCOUTING)
     @Tool(name = "fm27_find_replacements", description = "Find replacements for an explicitly supplied deployed position or loaded-tactic slot. The tool never guesses the incumbent's position from his highest position rating.")
     @Transactional(readOnly = true)
     public Map<String, Object> findReplacements(
@@ -556,6 +563,7 @@ public class FmDecisionTools {
         return out;
     }
 
+    @ToolInfo(category = ToolInfo.Category.SQUAD)
     @Tool(name = "fm27_plan_squad_moves", description = "Model incoming and outgoing players without changing FM27. Returns depth, tactic coverage, known financial effects and unknown inputs before any transfer decision.")
     @Transactional(readOnly = true)
     public Map<String, Object> planSquadMoves(
@@ -631,6 +639,7 @@ public class FmDecisionTools {
         return out;
     }
 
+    @ToolInfo(category = ToolInfo.Category.RECRUITMENT, effect = ToolInfo.Effect.APP_LOCAL_CHANGE, career = true)
     @Tool(name = "fm27_update_recruitment_case", description = "Store user or in-game verified recruitment evidence for a player. This writes only to the local app and overrides heuristic willingness in future decision tools.")
     public Map<String, Object> updateRecruitmentCase(
             @ToolParam(description = "FM27 player UNIQUE_ID.") Long playerUniqueId,
@@ -649,6 +658,7 @@ public class FmDecisionTools {
         return out;
     }
 
+    @ToolInfo(category = ToolInfo.Category.RECRUITMENT, snapshot = false)
     @Tool(name = "fm27_get_recruitment_board", description = "Get persistent recruitment cases, verified interest, deal stages, quotes and stale evidence.")
     public Map<String, Object> getRecruitmentBoard() {
         List<Map<String, Object>> cases = recruitmentCases.board();
@@ -1045,6 +1055,8 @@ public class FmDecisionTools {
 
     private Map<String, Object> compactPlayer(PlayerEntity player) {
         Map<String, Object> out = new LinkedHashMap<>();
+        out.putAll(PlayerMapper.fitnessMap(player));
+        out.put("player_traits", player.getPlayerTraits());
         out.put("player_unique_id", player.getUniqueId());
         out.put("name", player.getName());
         out.put("age", parsedAge(player));
@@ -1065,6 +1077,8 @@ public class FmDecisionTools {
 
     private static Map<String, Object> slotCandidateMap(PlayerEntity player, RoleFitService.SlotFit fit) {
         Map<String, Object> out = new LinkedHashMap<>();
+        out.putAll(PlayerMapper.fitnessMap(player));
+        out.put("player_traits", player.getPlayerTraits());
         out.put("player_unique_id", player.getUniqueId());
         out.put("name", player.getName());
         out.put("age", parsedAge(player));
@@ -1305,6 +1319,7 @@ public class FmDecisionTools {
             "Gender is not inferred from the manager. Supply gender to filter the candidate pool when known.",
             "Condition, morale, match sharpness, suspensions and match performance are not loaded. International duty is not excluded for national selection.");
 
+    @ToolInfo(category = ToolInfo.Category.SQUAD)
     @Tool(name = "fm27_get_national_team_context", description = "Get the detected managed nation, a ranked primary-nationality candidate pool, position depth and both-phase tactic fit with a suggested XI when a tactic is loaded. Works for national-only and dual-role managers. Candidates are not verified eligible callups or the current national squad. Club finances and transfers do not apply.")
     @Transactional(readOnly = true)
     public Map<String, Object> getNationalTeamContext(

@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.Map;
 
 public class StaffExporter {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(StaffExporter.class);
+    private boolean warnedContractType;
     public static final List<String> FIELD_NAMES = buildFieldNames();
 
     private StaffRecordLayout recordLayout = StaffRecordLayout.current();
@@ -84,8 +86,21 @@ public class StaffExporter {
         // An unidentified native image cannot establish whether +0x48 belongs to this allocation.
         boolean basic = windowsModuleBase != null && contractLayout == null;
         if (contract.isPresent() && windowsModuleBase != null && contractLayout != null) {
-            long vtableRva = reader.readU64(contract.get()) - windowsModuleBase;
-            basic = vtableRva == contractLayout.basic().vtable();
+            try {
+                long vtableRva = reader.readU64(contract.get()) - windowsModuleBase;
+                basic = vtableRva == contractLayout.basic().vtable();
+            } catch (PlayerSnapshotValidator.PersonIdentityChangedException changed) {
+                throw changed;
+            } catch (IOException | RuntimeException unavailable) {
+                if (Thread.currentThread().isInterrupted() || unavailable instanceof java.util.concurrent.CancellationException)
+                    throw unavailable;
+                basic = true;
+                if (!warnedContractType) {
+                    warnedContractType = true;
+                    log.warn("FM staff contract type unavailable ({}); contract end dates are unknown and loading will continue",
+                            unavailable.getClass().getSimpleName());
+                }
+            }
         }
         row.put("contract_end_date", basic ? "" : contract.map(value -> date(reader, value + recordLayout.contractDateRel())).orElse(""));
         row.put("home_reputation", reader.readU16(staffBase + recordLayout.homeReputationRel()));

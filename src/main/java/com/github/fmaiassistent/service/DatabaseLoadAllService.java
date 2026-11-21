@@ -10,7 +10,6 @@ import com.github.fmaiassistent.exporter.PlayerSnapshotValidator;
 import com.github.fmaiassistent.exporter.StaffExporter;
 import com.github.fmaiassistent.linux.FmOffsets;
 import com.github.fmaiassistent.linux.ProcessInfo;
-import com.github.fmaiassistent.managedclub.ManagedClubContext;
 import com.github.fmaiassistent.managedclub.ManagedClubContextService;
 import com.github.fmaiassistent.memory.ProcessReaders;
 import com.github.fmaiassistent.repository.DatabaseService;
@@ -84,7 +83,7 @@ public class DatabaseLoadAllService {
     })
     @Transactional(rollbackFor = Exception.class)
     public LoadAllResult loadAll(Integer pid, int build, Long gamePluginBase) throws IOException {
-        ManagedClubContext previousContext = managedClubContexts.current();
+        ManagedClubContextService.Selection previousContext = managedClubContexts.selection();
         try {
             int resolvedPid = pid == null ? detectFmPid() : pid;
             warningPrefix.set(null);
@@ -110,6 +109,16 @@ public class DatabaseLoadAllService {
             reportPhase("Reading FM27 memory");
             RamSnapshot ram = readRamInParallel(resolvedPid, build, gamePluginBase,
                     com.github.fmaiassistent.exporter.CaptureBudget.scaledTimeout(RAM_READ_TIMEOUT, image.peopleSlots()));
+            String optionalDataWarnings = String.join(" | ", ram.warnings());
+            if (optionalDataWarnings.length() > 1024) {
+                optionalDataWarnings = optionalDataWarnings.substring(0, 995) + " | Further warnings omitted";
+            }
+            if (!optionalDataWarnings.isBlank()) {
+                String warning = optionalDataWarnings;
+                warningPrefix.updateAndGet(previous -> previous == null || previous.isBlank()
+                        ? warning : previous + " | " + warning);
+                log.warn("FM27 data loaded with unavailable optional data: {}", warning);
+            }
             if (ram.peopleSlots() <= 0) {
                 throw new IOException("FM27 people registry is empty; wait until the save has finished loading");
             }
@@ -150,19 +159,19 @@ public class DatabaseLoadAllService {
             log.info("FM27 staff persistence completed in {} ms", elapsedMillis(stepStarted));
             stepStarted = System.nanoTime();
             reportPhase("Detecting managed club");
-            ManagedClubContext detectedManagedClub;
+            ManagedClubContextService.Selection detectedManagedClub;
             try {
                 if (ram.fixtures().managedClubFailure() != null) {
-                    detectedManagedClub = managedClubContexts.unavailable(ram.fixtures().managedClubFailure());
+                    detectedManagedClub = ManagedClubContextService.Selection.single(managedClubContexts.unavailable(ram.fixtures().managedClubFailure()));
                     log.warn("FM27 data loaded, but managed-club detection failed: {}", ram.fixtures().managedClubFailure());
                 } else {
-                    detectedManagedClub = managedClubContexts.detect(resolvedPid, build, gamePluginBase);
+                    detectedManagedClub = managedClubContexts.detectManagers(resolvedPid, build, gamePluginBase);
                 }
             } catch (IOException | RuntimeException exception) {
                 String message = exception.getMessage() == null || exception.getMessage().isBlank()
                         ? "The managed club could not be detected from FM27 RAM"
                         : exception.getMessage();
-                detectedManagedClub = managedClubContexts.unavailable(message);
+                detectedManagedClub = ManagedClubContextService.Selection.single(managedClubContexts.unavailable(message));
                 log.warn("FM27 data loaded, but the current managed club could not be detected: {}", message);
             }
             publishManagedClubAfterCommit(detectedManagedClub);
@@ -213,6 +222,7 @@ public class DatabaseLoadAllService {
                     new LoadMetadataEntity("fixtures_count", String.valueOf(ram.fixtures().rows().size())),
                     new LoadMetadataEntity("fixtures_failure", ram.fixtures().fixtureFailure()==null ? ""
                             : ram.fixtures().fixtureFailure().substring(0, Math.min(768, ram.fixtures().fixtureFailure().length()))),
+                    new LoadMetadataEntity("optional_data_warnings", optionalDataWarnings),
                     new LoadMetadataEntity("quality_players_missing_age",
                             String.valueOf(countMissing(ram.players().rows(), "age"))),
                     new LoadMetadataEntity("quality_players_missing_asking_price",
@@ -234,12 +244,12 @@ public class DatabaseLoadAllService {
                     new LoadMetadataEntity("loaded_at", loadedAt),
                     new LoadMetadataEntity("clubs_loaded_at", loadedAt),
                     new LoadMetadataEntity("competitions_loaded_at", loadedAt)));
-            if (detectedManagedClub.managerUniqueId() != null) {
+            if (detectedManagedClub.current().managerUniqueId() != null) {
                 snapshotMetadata.add(new LoadMetadataEntity(
-                        "manager_unique_id", String.valueOf(detectedManagedClub.managerUniqueId())));
+                        "manager_unique_id", String.valueOf(detectedManagedClub.current().managerUniqueId())));
             }
-            if (detectedManagedClub.careerKey() != null) {
-                snapshotMetadata.add(new LoadMetadataEntity("career_key", detectedManagedClub.careerKey()));
+            if (detectedManagedClub.current().careerKey() != null) {
+                snapshotMetadata.add(new LoadMetadataEntity("career_key", detectedManagedClub.current().careerKey()));
             }
             metadata.saveAll(snapshotMetadata);
             log.info("FM27 snapshot metadata persistence completed in {} ms", elapsedMillis(stepStarted));
@@ -254,7 +264,7 @@ public class DatabaseLoadAllService {
                     competitionCount,
                     snapshotId);
         } catch (IOException | RuntimeException exception) {
-            managedClubContexts.restore(previousContext);
+            managedClubContexts.restoreSelection(previousContext);
             throw exception;
         }
     }
@@ -333,7 +343,13 @@ public class DatabaseLoadAllService {
                     people.diagnostics(),
                     people.slotCount(),
                     people.selectedWorkers(),
-                    people.elapsedMillis());
+                    people.elapsedMillis(),
+                    java.util.stream.Stream.of(people.warnings(), clubs.warnings())
+                            .filter(java.util.Objects::nonNull)
+                            .flatMap(List::stream)
+                            .filter(warning -> warning != null && !warning.isBlank())
+                            .distinct()
+                            .toList());
             validateCoherentGameDate(
                     gameDateBefore,
                     people.players().gameDate(),
@@ -468,15 +484,15 @@ public class DatabaseLoadAllService {
         });
     }
 
-    private void publishManagedClubAfterCommit(ManagedClubContext context) {
+    private void publishManagedClubAfterCommit(ManagedClubContextService.Selection context) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            managedClubContexts.publish(context);
+            managedClubContexts.publishManagers(context);
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                managedClubContexts.publish(context);
+                managedClubContexts.publishManagers(context);
             }
         });
     }
@@ -515,7 +531,11 @@ public class DatabaseLoadAllService {
             PeopleExporter.Diagnostics peopleDiagnostics,
             int peopleSlots,
             int peopleWorkers,
-            long peopleElapsedMillis) {
+            long peopleElapsedMillis,
+            List<String> warnings) {
+        private RamSnapshot {
+            warnings = List.copyOf(warnings);
+        }
     }
 
     public record LoadAllResult(

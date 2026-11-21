@@ -3,6 +3,8 @@ package com.github.fmaiassistent.linux;
 import com.github.fmaiassistent.memory.ProcessMemoryReader;
 import com.github.fmaiassistent.memory.MemoryRegion;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -14,12 +16,22 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class FmOffsetsTest {
+    @ParameterizedTest
+    @ValueSource(ints = {FmOffsets.DEFAULT_BUILD, 0x123456})
+    void gamePass2524UsesIdentifiedImageRootsEvenWithAConflictingBuildGuess(int build) {
+        String profile = com.github.fmaiassistent.memory.NativeModuleProfile.GAME_PASS_2524_SHA256;
+        assertThat(FmOffsets.currentDateRva(profile, build)).isEqualTo(0x539DD10L);
+        assertThat(FmOffsets.currentHumanManagerRva(profile, build)).hasValue(0x53EB138L);
+        assertThat(FmOffsets.knownTableRva(profile, build)).isEqualTo(0x53FACA0L);
+    }
+
     @Test
     void identifiedModuleImageChoosesItsOwnRootsOverTheBuildGuess() {
         String gamePass = com.github.fmaiassistent.memory.NativeModuleProfile.GAME_PASS_SHA256;
@@ -69,6 +81,11 @@ class FmOffsetsTest {
     }
 
     private static ProcessMemoryReader scanningReader(int pid, long table, List<MemoryRegion> regions) throws Exception {
+        return scanningReader(pid, table, regions, Map.of());
+    }
+
+    private static ProcessMemoryReader scanningReader(int pid, long table, List<MemoryRegion> regions,
+                                                       Map<Long, Long> counts) throws Exception {
         ProcessMemoryReader reader = mock(ProcessMemoryReader.class);
         when(reader.pid()).thenReturn(pid);
         var mappings = new java.util.ArrayList<>(regions);
@@ -85,7 +102,7 @@ class FmOffsetsTest {
             words.put(table + slot[0], pointer);
             words.put(pointer + 0x80, header);
             words.put(header, 0x3000_0000L);
-            words.put(header + 8, 0x3000_0000L + slot[1] * Long.BYTES);
+            words.put(header + 8, 0x3000_0000L + counts.getOrDefault(slot[0], slot[1]) * Long.BYTES);
         }
         when(reader.readU64(anyLong())).thenAnswer(call -> words.getOrDefault(call.<Long>getArgument(0), 0L));
         when(reader.readBytes(anyLong(), anyInt())).thenAnswer(call -> {
@@ -98,6 +115,34 @@ class FmOffsetsTest {
             return chunk;
         });
         return reader;
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {500_001, 741_785, 2_000_000})
+    void acceptsCarriedOverPeopleRegistryAtKnownRootAndDuringFallback(long peopleSlots) throws Exception {
+        long base = 0x1000_0000L;
+        long table = base + FmOffsets.tableRva(FmOffsets.DEFAULT_BUILD);
+        var mappings = List.of(region(table, table + 0x1a8, "rw-"));
+        var counts = Map.of(0x150L, peopleSlots);
+        var known = scanningReader(Math.toIntExact(peopleSlots), table, mappings, counts);
+        assertThat(FmOffsets.peopleBounds(known, FmOffsets.DEFAULT_BUILD, base).count()).isEqualTo(peopleSlots);
+        verify(known, never()).readBytes(anyLong(), anyInt());
+
+        var fallback = scanningReader(Math.toIntExact(peopleSlots + 2_000_000), table, mappings, counts);
+        assertThat(FmOffsets.peopleBounds(fallback, 0x123456, base).count()).isEqualTo(peopleSlots);
+        verify(fallback).readBytes(anyLong(), anyInt());
+    }
+
+    @Test
+    void rejectsOversizedPeopleAndOtherRegistries() throws Exception {
+        long base = 0x1000_0000L;
+        long table = base + FmOffsets.tableRva(FmOffsets.DEFAULT_BUILD);
+        var mappings = List.of(region(table, table + 0x1a8, "rw-"));
+        for (var counts : List.of(Map.of(0x150L, 2_000_001L), Map.of(0xf8L, 500_001L))) {
+            var reader = scanningReader(987672, table, mappings, counts);
+            assertThatThrownBy(() -> FmOffsets.peopleBounds(reader, FmOffsets.DEFAULT_BUILD, base))
+                    .isInstanceOf(IllegalStateException.class).hasMessageContaining("FM offset table not found");
+        }
     }
 
     @Test

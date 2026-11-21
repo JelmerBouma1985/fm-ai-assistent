@@ -526,4 +526,6 @@
     <include file="changes/028-contract-award-names.xml" relativeToChangelogFile="true"/>
     <include file="changes/029-contract-competition-references.xml" relativeToChangelogFile="true"/>
     <include file="changes/030-current-role-catalog.xml" relativeToChangelogFile="true"/>
+    <include file="changes/031-player-traits.xml" relativeToChangelogFile="true"/>
+    <include file="changes/034-player-fitness.xml" relativeToChangelogFile="true"/>
 </databaseChangeLog>

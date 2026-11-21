@@ -34,6 +34,118 @@ import static org.mockito.Mockito.when;
 class MainViewTest {
 
     @Test
+    void fixturesManagerSelectionIsIndependentOfAiAndSurvivesTabChanges() throws Exception {
+        MainView view = view();
+        ManagedClubContextService contexts = field(view, "managedClubContexts");
+        var ties = manager(101, "Ties Bouma", "SC Cambuur");
+        var jemme = manager(102, "Jemme Bomma", "Helmond Sport");
+        var jelmer = manager(103, "Jelmer Bouma", "Feyenoord");
+        when(contexts.managers()).thenReturn(List.of(ties, jemme, jelmer));
+        when(contexts.current()).thenReturn(jelmer);
+        com.github.fmaiassistent.repository.FixtureRepository fixtures = field(view, "fixtures");
+        var cambuurMatch = new com.github.fmaiassistent.domain.entity.FixtureEntity("2035-01-01", "15:00", "League",
+                "SC Cambuur", "Opponent A", "Opponent A", "Stadium", true);
+        var helmondMatch = new com.github.fmaiassistent.domain.entity.FixtureEntity("2035-01-01", "15:00", "League",
+                "Opponent B", "Helmond Sport", "Opponent B", "Stadium", false);
+        when(fixtures.findAllByOrderByKickoffDateAscKickoffTimeAsc()).thenReturn(List.of(cambuurMatch, helmondMatch));
+        Tabs tabs = field(view, "tabs");
+        tabs.setSelectedTab(field(view, "fixturesTab"));
+        com.vaadin.flow.component.select.Select<ManagedClubContext> select = field(view, "fixturesManagerSelect");
+        Grid<com.github.fmaiassistent.domain.entity.FixtureEntity> grid = field(view, "fixturesGrid");
+        assertEquals(3, select.getListDataView().getItems().count());
+        assertEquals(ties, select.getValue());
+        assertEquals(List.of(cambuurMatch), grid.getListDataView().getItems().toList());
+
+        select.setValue(jemme);
+        assertEquals(List.of(helmondMatch), grid.getListDataView().getItems().toList());
+        assertSame(jelmer, contexts.current());
+        org.mockito.Mockito.verify(contexts, org.mockito.Mockito.never()).selectManager(org.mockito.ArgumentMatchers.anyLong());
+
+        when(contexts.current()).thenReturn(ties);
+        tabs.setSelectedTab(field(view, "playersTab"));
+        tabs.setSelectedTab(field(view, "fixturesTab"));
+        assertEquals(jemme, select.getValue());
+        assertEquals(List.of(helmondMatch), grid.getListDataView().getItems().toList());
+
+        when(contexts.managers()).thenReturn(List.of(ties, jelmer));
+        tabs.setSelectedTab(field(view, "playersTab"));
+        tabs.setSelectedTab(field(view, "fixturesTab"));
+        assertEquals(ties, select.getValue());
+        assertEquals(List.of(cambuurMatch), grid.getListDataView().getItems().toList());
+    }
+
+    private static ManagedClubContext manager(long id, String name, String club) {
+        return new ManagedClubContext(id, ManagedClubContext.State.AVAILABLE, name, id, club,
+                "", "", "", null, null, null, null, id, "Loaded");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void settingsOffersFourMemoryPresetsAndSavesTheChoiceForRestart() throws Exception {
+        var ui = new com.vaadin.flow.component.UI();
+        com.vaadin.flow.component.UI.setCurrent(ui);
+        try {
+            MainView view = view();
+            var memory = MainViewTest.<com.github.fmaiassistent.desktop.DesktopMemorySettings>field(view, "memorySettings");
+            when(memory.available()).thenReturn(true);
+            when(memory.preset()).thenReturn(com.github.fmaiassistent.domain.enums.DesktopMemoryPreset.MEDIUM);
+            var dialog = view.settingsDialog();
+            var select = (com.vaadin.flow.component.select.Select<com.github.fmaiassistent.domain.enums.DesktopMemoryPreset>)
+                    descendants(dialog).filter(com.vaadin.flow.component.select.Select.class::isInstance)
+                            .map(com.vaadin.flow.component.select.Select.class::cast)
+                            .filter(component -> "Database size".equals(component.getLabel())).findFirst().orElseThrow();
+            assertEquals(4, select.getListDataView().getItems().count());
+            assertTrue(select.getHelperText().contains("Restart"));
+            assertEquals(com.github.fmaiassistent.domain.enums.DesktopMemoryPreset.MEDIUM, select.getValue());
+            select.setValue(com.github.fmaiassistent.domain.enums.DesktopMemoryPreset.LARGE);
+            dialog.open();
+            dialog.getFooter().getElement().getChildren().flatMap(element -> element.getComponent().stream())
+                    .filter(com.vaadin.flow.component.button.Button.class::isInstance)
+                    .map(com.vaadin.flow.component.button.Button.class::cast)
+                    .filter(button -> "Save".equals(button.getText())).findFirst().orElseThrow().click();
+            org.mockito.Mockito.verify(memory).save(com.github.fmaiassistent.domain.enums.DesktopMemoryPreset.LARGE);
+            assertFalse(dialog.isOpened());
+        } finally {
+            // Vaadin's current-instance storage is weak; keep the UI alive through every dialog interaction.
+            java.lang.ref.Reference.reachabilityFence(ui);
+            com.vaadin.flow.component.UI.setCurrent(null);
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void failedMemorySaveKeepsSettingsOpenWithAnError() throws Exception {
+        var ui = new com.vaadin.flow.component.UI();
+        com.vaadin.flow.component.UI.setCurrent(ui);
+        try {
+            MainView view = view();
+            var memory = MainViewTest.<com.github.fmaiassistent.desktop.DesktopMemorySettings>field(view, "memorySettings");
+            when(memory.available()).thenReturn(true);
+            when(memory.preset()).thenReturn(com.github.fmaiassistent.domain.enums.DesktopMemoryPreset.MEDIUM);
+            org.mockito.Mockito.doThrow(new java.io.IOException("read only")).when(memory)
+                    .save(com.github.fmaiassistent.domain.enums.DesktopMemoryPreset.LARGE);
+            var dialog = view.settingsDialog();
+            var select = (com.vaadin.flow.component.select.Select<com.github.fmaiassistent.domain.enums.DesktopMemoryPreset>)
+                    descendants(dialog).filter(com.vaadin.flow.component.select.Select.class::isInstance)
+                            .map(com.vaadin.flow.component.select.Select.class::cast)
+                            .filter(component -> "Database size".equals(component.getLabel())).findFirst().orElseThrow();
+            select.setValue(com.github.fmaiassistent.domain.enums.DesktopMemoryPreset.LARGE);
+            dialog.open();
+            dialog.getFooter().getElement().getChildren().flatMap(element -> element.getComponent().stream())
+                    .filter(com.vaadin.flow.component.button.Button.class::isInstance)
+                    .map(com.vaadin.flow.component.button.Button.class::cast)
+                    .filter(button -> "Save".equals(button.getText())).findFirst().orElseThrow().click();
+            assertTrue(dialog.isOpened());
+            assertTrue(textOf(dialog).contains("Could not save settings"));
+            org.mockito.Mockito.verify(MainViewTest.<AppSettingsService>field(view, "settings"), org.mockito.Mockito.never())
+                    .saveCurrency(org.mockito.ArgumentMatchers.any());
+        } finally {
+            java.lang.ref.Reference.reachabilityFence(ui);
+            com.vaadin.flow.component.UI.setCurrent(null);
+        }
+    }
+
+    @Test
     void roleMenusHaveBundledOptionsAndAttributePriorities() throws Exception {
         var factory = MainView.class.getDeclaredMethod("roleComboBox", String.class, String.class);
         factory.setAccessible(true);
@@ -269,6 +381,57 @@ class MainViewTest {
     }
 
     @Test
+    void optionalDataWarningsAppearAlongsideExistingWarningsAndClearAfterRecovery() throws Exception {
+        MainView view = view();
+        com.vaadin.flow.component.html.Span warning = field(view, "optionalDataWarning");
+        assertFalse(warning.isVisible());
+        assertEquals("status", warning.getElement().getAttribute("role"));
+        assertTrue(warning.hasClassName("freshness-badge"));
+        assertTrue(warning.hasClassName("is-stale"));
+        var apply = MainView.class.getDeclaredMethod("applyFreshness", java.util.Map.class, boolean.class);
+        apply.setAccessible(true);
+        String failures = "Detailed contracts unavailable | Detailed club finances unavailable";
+        apply.invoke(view, java.util.Map.of("state", "loaded", "stale", false,
+                "optional_data_warnings", failures, "fixtures_failure", "Fixture read failed",
+                "uefa_coefficients_failure", "Coefficient read failed"), false);
+        assertTrue(warning.isVisible());
+        assertEquals("Some extra data unavailable", warning.getText());
+        assertEquals(failures, warning.getElement().getAttribute("title"));
+        assertEquals("Some extra data unavailable: " + failures, warning.getElement().getAttribute("aria-label"));
+        assertTrue(MainViewTest.<com.vaadin.flow.component.html.Span>field(view, "fixtureWarning").isVisible());
+        assertTrue(MainViewTest.<com.vaadin.flow.component.html.Span>field(view, "coefficientWarning").isVisible());
+        com.vaadin.flow.component.button.Button freshness = field(view, "freshnessBadge");
+        assertEquals(freshness.getParent(), warning.getParent());
+        assertEquals("Data current", freshness.getText());
+
+        apply.invoke(view, java.util.Map.of("state", "loaded", "stale", false,
+                "optional_data_warnings", ""), false);
+        assertFalse(warning.isVisible());
+        assertEquals("", warning.getElement().getAttribute("title"));
+        assertEquals("Some extra data unavailable", warning.getElement().getAttribute("aria-label"));
+        apply.invoke(view, java.util.Map.of("state", "loaded", "stale", false), false);
+        assertFalse(warning.isVisible());
+    }
+
+    @Test
+    void optionalDataWarningStaysHiddenUntilASnapshotIsLoadedAndTreatsDetailsAsText() throws Exception {
+        MainView view = view();
+        var apply = MainView.class.getDeclaredMethod("applyFreshness", java.util.Map.class, boolean.class);
+        apply.setAccessible(true);
+        String details = "Award names unavailable | <img src=x onerror=alert(1)>";
+        apply.invoke(view, java.util.Map.of("state", "not_loaded", "optional_data_warnings", details), false);
+        com.vaadin.flow.component.html.Span warning = field(view, "optionalDataWarning");
+        assertFalse(warning.isVisible());
+        apply.invoke(view, java.util.Map.of("state", "loaded", "optional_data_warnings", details), false);
+        assertTrue(warning.isVisible());
+        assertEquals("Some extra data unavailable", warning.getText());
+        assertEquals(0, warning.getChildren().count());
+        assertEquals(details, warning.getElement().getAttribute("title"));
+        apply.invoke(view, java.util.Map.of("state", "not_loaded"), false);
+        assertFalse(warning.isVisible());
+    }
+
+    @Test
     void freshnessBadgeMapping() {
         assertEquals(MainView.FreshnessBadge.EMPTY,
                 MainView.badgeFor(java.util.Map.of("state", "not_loaded")));
@@ -313,6 +476,26 @@ class MainViewTest {
                 .map(field -> field.label()).toList();
         assertFalse(labels.contains("Injury"));
         assertFalse(labels.contains("Expected Return"));
+    }
+
+    @Test
+    void playerDetailsShowFitnessAndKeepLegacyFitnessUnknown() {
+        MainView view = view();
+        var loaded = playerRow(java.util.Map.of("condition", 9587, "sharpness", 10000, "fatigue", -123,
+                "match_load", "Light", "training_load", "Medium", "injury_susceptibility", "High",
+                "overall_risk", "Increased"));
+        var fields = view.playerInfoFields(loaded).stream().collect(java.util.stream.Collectors.toMap(
+                field -> field.label(), field -> field.value() == null ? "" : field.value()));
+        assertEquals("95.87%", fields.get("Condition"));
+        assertEquals("100.00%", fields.get("Sharpness"));
+        assertEquals(-123, fields.get("Fatigue (raw)"));
+        assertEquals("Light", fields.get("Match Load"));
+        assertEquals("Medium", fields.get("Training Load"));
+        assertEquals("High", fields.get("Injury Susceptibility"));
+        assertEquals("Increased", fields.get("Overall Risk"));
+        var legacy = view.playerInfoFields(playerRow(java.util.Map.of("name", "Legacy")));
+        assertEquals("Unknown", legacy.stream().filter(field -> field.label().equals("Condition"))
+                .findFirst().orElseThrow().value());
     }
 
     @Test
@@ -419,7 +602,8 @@ class MainViewTest {
                 mock(PlayerDatabaseService.class), mock(StaffDatabaseService.class),
                 mock(ClubDatabaseService.class), mock(CompetitionDatabaseService.class),
                 mock(com.github.fmaiassistent.repository.FixtureRepository.class),
-                mock(AppSettingsService.class), mock(SnapshotStatusService.class),
+                mock(AppSettingsService.class), mock(com.github.fmaiassistent.desktop.DesktopMemorySettings.class),
+                mock(SnapshotStatusService.class),
                 codex, antigravity, copilot, openRouter, tactics, managedClub,
                 mock(com.github.fmaiassistent.shortlist.ShortlistFileService.class),
                 mock(com.github.fmaiassistent.recruitment.RecruitmentCaseService.class),

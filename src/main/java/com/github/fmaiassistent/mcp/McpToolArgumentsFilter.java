@@ -24,12 +24,17 @@ import java.nio.charset.StandardCharsets;
 @Component
 public class McpToolArgumentsFilter extends OncePerRequestFilter {
     private final ObjectMapper json;
+    private final com.github.fmaiassistent.tools.ToolRegistry registry;
+    private final String endpoint;
 
-    public McpToolArgumentsFilter(ObjectMapper json) { this.json = json; }
+    public McpToolArgumentsFilter(ObjectMapper json, com.github.fmaiassistent.tools.ToolRegistry registry,
+            @org.springframework.beans.factory.annotation.Value("${spring.ai.mcp.server.streamable-http.mcp-endpoint:/mcp}") String endpoint) {
+        this.json = json; this.registry = registry; this.endpoint = endpoint;
+    }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !"POST".equals(request.getMethod()) || !"/mcp".equals(request.getServletPath())
+        return !"POST".equals(request.getMethod()) || !endpoint.equals(request.getServletPath())
                 || request.getContentType() == null
                 || !request.getContentType().startsWith("application/json");
     }
@@ -37,13 +42,31 @@ public class McpToolArgumentsFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
             FilterChain chain) throws ServletException, IOException {
-        byte[] body = request.getInputStream().readAllBytes();
+        byte[] body = request.getInputStream().readNBytes(1024 * 1024 + 1);
+        if (body.length > 1024 * 1024) {
+            response.sendError(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE, "MCP request exceeds size limit");
+            return;
+        }
         JsonNode parsed;
         try {
             parsed = json.readTree(body);
         } catch (RuntimeException exception) {
             chain.doFilter(new BodyRequest(request, body), response);
             return;
+        }
+        if (parsed instanceof ObjectNode root && "tools/call".equals(root.path("method").asString())) {
+            try { registry.checkExternalDiscoveryDenial(root.path("params").path("name").asString()); }
+            catch (com.github.fmaiassistent.tools.ToolRegistry.Denied denied) {
+                ObjectNode reply = json.createObjectNode().put("jsonrpc", "2.0");
+                if (root.has("id")) reply.set("id", root.path("id")); else reply.putNull("id");
+                reply.putObject("result").put("isError", true).putArray("content").addObject()
+                        .put("type", "text").put("text", denied.getMessage());
+                response.setStatus(HttpServletResponse.SC_OK);
+                response.setContentType("application/json");
+                response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+                response.getWriter().write(json.writeValueAsString(reply));
+                return;
+            }
         }
         if (!(parsed instanceof ObjectNode root)
                 || !"tools/call".equals(root.path("method").asString())
